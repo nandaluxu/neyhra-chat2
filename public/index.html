@@ -52,9 +52,11 @@ header>button:active,.mwrap>button:active{background:var(--surface)}
 .wave i{flex:none;width:3px;border-radius:2px;background:linear-gradient(90deg,var(--on) var(--f,0%),var(--off) var(--f,0%));height:14%;transition:height .35s ease}
 .wave i.on{background:var(--on)}
 .dur{font-size:11px;font-variant-numeric:tabular-nums;color:var(--mut);width:28px;text-align:right}
-.sub{white-space:pre-line;display:none;margin-top:7px;padding-top:7px;border-top:1px solid var(--line);font-size:13.5px;line-height:1.4}
+.sub{white-space:pre-line;display:grid;grid-template-rows:0fr;opacity:0;margin-top:0;padding-top:0;border-top:1px solid transparent;font-size:13.5px;line-height:1.4;cursor:pointer;pointer-events:none;transition:grid-template-rows .32s cubic-bezier(.2,.9,.3,1),opacity .22s ease,margin-top .32s ease,padding-top .32s ease,border-color .32s ease}
 .sub b{display:none}
-.sub.show{display:block;animation:in .2s}
+.sub>span{display:block;min-height:0;overflow:hidden;transition:opacity .3s ease}
+.sub.show{grid-template-rows:1fr;opacity:1;margin-top:7px;padding-top:7px;border-top-color:var(--line);pointer-events:auto}
+.sub.idle>span{opacity:.62}
 
 .typing-b{display:flex;gap:4px;padding:7px 3px}
 .typing-b i{width:6px;height:6px;border-radius:50%;background:var(--mut);animation:bn 1.1s infinite}
@@ -368,6 +370,7 @@ function addText(text){
   chat.appendChild(row); scroll();
 }
 
+let openSub=null; /* subtitle voice note yang lagi kebuka; ditutup waktu voice note lain diputar */
 function addVN(m, pre){
   const text = (m.lang==='jp'&&m.jp) ? m.jp : m.id;
   const est = Math.max(2, Math.round(text.split(' ').length*0.42));
@@ -399,7 +402,7 @@ function addVN(m, pre){
   };
   const stop = (reset=true) => {
     cancelAnimationFrame(raf); raf=0; audio.pause(); if(reset){audio.currentTime=0; shown=0; lt=-1; paint(0); d.textContent=fmt(dur)}
-    btn.innerHTML=PLAY; btn.classList.remove('on'); if(current===api) current=null;
+    btn.innerHTML=PLAY; btn.classList.remove('on'); sub.classList.add('idle'); if(current===api) current=null;
   };
   const api={stop};
   /* subtitle ikut pengaturan di menu titik tiga; dibangun ulang hanya kalau teksnya berubah */
@@ -413,13 +416,19 @@ function addVN(m, pre){
   const toggle=()=>{
     if(current===api){stop();return}
     if(current) current.stop();
+    if(openSub&&openSub!==sub) openSub.classList.remove('show');
+    openSub=sub;
     current=api; btn.innerHTML=PAUSE; btn.classList.add('on'); usingSim=false;
-    renderSub(); sub.classList.add('show'); scroll();
+    sub.classList.remove('idle');
+    if(!sub.classList.contains('show')) sub.querySelector('span').dataset.k=''; /* buka lagi => kata muncul ulang */
+    sub.classList.add('show'); renderSub();
+    setTimeout(()=>row.scrollIntoView({block:'nearest',behavior:'smooth'}),340); /* tunggu animasi buka, jangan lompat ke paling bawah */
     audio.onseeking=()=>{shown=audio.currentTime; lt=-1}; shown=audio.currentTime; lt=-1;
     audio.onended=()=>stop();
     audio.play().then(()=>{ if(current===api&&!raf) raf=requestAnimationFrame(frame); }).catch(()=>startSim());
   };
   btn.onclick=toggle;
+  sub.onclick=()=>{ sub.classList.remove('show'); if(openSub===sub) openSub=null; }; /* tap subtitle = tutup manual */
   wave.onclick=e=>{ /* klik waveform untuk lompat posisi */
     if(current!==api){toggle();return}
     if(usingSim) return;
