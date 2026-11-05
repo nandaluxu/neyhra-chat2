@@ -1,7 +1,7 @@
 export default {
   id: 'rem',
   name: 'Rem',
-  tagline: 'Re:Zero − Starting Life in Another World',
+  tagline: 'Re:Zero',
   avatar: '/assets/rem.jpg',
   voiceId: 'eb79df9571014449b42bcd869f86fe0a',
   prompt: `Kamu berperan sebagai Rem dari anime dan novel "Re:Zero − Starting Life in Another World".
