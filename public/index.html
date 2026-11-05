@@ -158,7 +158,7 @@ footer:has(#send:not(.hide)) #recbar{right:106px}
 .m-name:active{transform:scale(.96)}
 .m-name svg{width:15px;height:15px}
 .m-name:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
-#nmodal,#vmodal{position:absolute;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(0,0,0,.45);backdrop-filter:blur(3px)}
+#nmodal,#vmodal,#smodal{position:absolute;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(0,0,0,.45);backdrop-filter:blur(3px)}
 .nbox{width:100%;max-width:340px;background:var(--bg);border:1px solid var(--line);border-radius:22px;padding:20px;animation:nin .25s cubic-bezier(.2,.9,.3,1.2)}
 @keyframes nin{from{opacity:0;transform:scale(.92) translateY(8px)}}
 .nbox h2{font-size:18px;font-weight:600;letter-spacing:-.02em}
@@ -266,11 +266,41 @@ header>button:active,.mwrap>button:active{transform:scale(.88)}
   .pfp{width:40px;height:40px}
   .name{font-size:16px}
   /* kotak nama jadi bottom sheet, gampang dijangkau jempol */
-  #nmodal,#vmodal{align-items:flex-end;padding:12px 12px calc(12px + env(safe-area-inset-bottom,0px))}
+  #nmodal,#vmodal,#smodal{align-items:flex-end;padding:12px 12px calc(12px + env(safe-area-inset-bottom,0px))}
   .nbox{max-width:none;border-radius:26px;padding:22px 20px 20px}
   .nact button{padding:12px 20px}
 }
 /* ===== Pengaturan voice di menu utama ===== */
+.m-set{display:inline-flex;align-items:center;gap:8px;padding:9px 15px 9px 12px;border-radius:99px;background:var(--surface);font-size:13px;font-weight:500;animation:rise2 .8s 1.15s cubic-bezier(.2,.9,.2,1) both;transition:transform .2s}
+.m-set:active{transform:scale(.96)}
+.m-set svg{width:15px;height:15px}
+.sbox{max-width:380px;max-height:100%;overflow-y:auto;padding:18px 18px 16px;scrollbar-width:none}
+.sbox::-webkit-scrollbar{display:none}
+.shead{display:flex;align-items:center;justify-content:space-between}
+.shead button{width:34px;height:34px;border-radius:50%;margin-right:-6px;color:var(--mut)}
+.shead button svg{width:18px;height:18px}
+.sgroup{margin-top:16px}
+.sgroup h3{font-size:11.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);margin-bottom:6px}
+.srow{display:flex;align-items:center;gap:12px;width:100%;padding:11px 12px;border-radius:14px;background:var(--surface);text-align:left;margin-top:6px;cursor:pointer;transition:transform .15s}
+.srow:active{transform:scale(.99)}
+.srow>span{flex:1;min-width:0;display:block}
+.srow b{display:block;font-size:14px;font-weight:500}
+.srow i{display:block;font-style:normal;font-size:12px;line-height:1.35;color:var(--mut);margin-top:2px}
+.srow>svg{width:18px;height:18px;flex:none;color:var(--mut)}
+.sw{appearance:none;-webkit-appearance:none;width:42px;height:25px;border-radius:99px;background:var(--off);position:relative;flex:none;transition:background .2s;cursor:pointer;outline:0}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:19px;height:19px;border-radius:50%;background:var(--bg);transition:transform .2s cubic-bezier(.2,.9,.3,1.2)}
+.sw:checked{background:var(--on)}
+.sw:checked::after{transform:translateX(17px)}
+.sw:focus-visible{box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--ink)}
+.stor{margin-top:6px;padding:12px;border-radius:14px;background:var(--surface)}
+.stor .sl{display:flex;justify-content:space-between;gap:8px;font-size:13px}
+.stor .sl span:last-child{color:var(--mut);font-variant-numeric:tabular-nums;text-align:right}
+.sbar2{height:6px;border-radius:99px;background:var(--off);margin-top:8px;overflow:hidden}
+.sbar2 i{display:block;height:100%;width:0;border-radius:99px;background:var(--on);transition:width .5s cubic-bezier(.2,.9,.3,1)}
+.sbar2 i.warn{background:var(--rec)}
+.sbox p{font-size:12px;line-height:1.4}
+.sbox p:empty{display:none}
+.sbusy{opacity:.55;pointer-events:none}
 .m-pills{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
 .m-pills .m-name{margin-top:0}
 .m-voice{display:inline-flex;align-items:center;gap:8px;padding:9px 15px 9px 12px;border-radius:99px;background:var(--surface);font-size:13px;font-weight:500;animation:rise2 .8s 1.05s cubic-bezier(.2,.9,.2,1) both;transition:transform .2s}
@@ -323,6 +353,7 @@ header>button:active,.mwrap>button:active{transform:scale(.88)}
       <div class="m-pills">
         <button class="m-name" id="namebtn" type="button"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c1-4 4-6 8-6s7 2 8 6"/></svg><span id="nlabel">Isi namamu</span></button>
         <button class="m-voice" id="voicebtn" type="button"><svg viewBox="0 0 24 24"><path d="M9 3h6v10a3 3 0 01-6 0zM5 11a7 7 0 0014 0M12 18v3"/></svg><span id="vlabel">Voice mati</span></button>
+        <button class="m-set" id="setbtn" type="button"><svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg><span>Pengaturan</span></button>
       </div>
     </div>
     <div class="m-list" id="list"></div>
@@ -372,6 +403,25 @@ header>button:active,.mwrap>button:active{transform:scale(.88)}
       <div class="nact"><button id="vdone" type="button">Selesai</button></div>
     </div>
   </div>
+  <div id="smodal" class="hide">
+    <div class="nbox sbox" role="dialog" aria-labelledby="stitle">
+      <div class="shead"><h2 id="stitle">Pengaturan</h2><button id="sx" type="button" aria-label="Tutup"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+      <div class="sgroup"><h3>Pemutaran</h3>
+        <label class="srow"><span><b>Putar otomatis berikutnya</b><i>Setelah satu voice note selesai, lanjut ke voice note di bawahnya.</i></span><input type="checkbox" id="sauto" class="sw"></label>
+      </div>
+      <div class="sgroup" id="sdata"><h3>Data obrolan</h3>
+        <button class="srow" id="sjson" type="button"><span><b>Ekspor semua (JSON)</b><i>Cadangan lengkap semua karakter, termasuk semua versi audio voice note.</i></span><svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 19h14"/></svg></button>
+        <button class="srow" id="simp" type="button"><span><b>Impor obrolan</b><i>Gabungkan dari file JSON hasil ekspor. Pesan yang sudah ada nggak ditimpa.</i></span><svg viewBox="0 0 24 24"><path d="M12 15V4M7 9l5-5 5 5M5 19h14"/></svg></button>
+        <input type="file" id="sfile" accept=".json,application/json" hidden>
+        <p id="sstat" role="status"></p>
+      </div>
+      <div class="sgroup"><h3>Penyimpanan</h3>
+        <div class="stor"><div class="sl"><span>Teks &amp; pengaturan</span><span id="st1">…</span></div><div class="sbar2"><i id="st1b"></i></div></div>
+        <div class="stor"><div class="sl"><span>Voice note (audio)</span><span id="st2">…</span></div><div class="sbar2"><i id="st2b"></i></div></div>
+        <p id="st3"></p>
+      </div>
+    </div>
+  </div>
   <div id="nmodal" class="hide">
     <div class="nbox" role="dialog" aria-labelledby="ntitle">
       <h2 id="ntitle">Siapa namamu?</h2>
@@ -384,7 +434,7 @@ header>button:active,.mwrap>button:active{transform:scale(.88)}
 <script>
 const $ = id => document.getElementById(id);
 const chat=$('chat'), inp=$('inp'), sendB=$('send'), status=$('status');
-let current=null, ch=null, busy=false, restoring=false, ready=false, openTok=0, lastDay='', urls=[], clrT=0, vSpeed=1;
+let current=null, ch=null, busy=false, restoring=false, ready=false, openTok=0, lastDay='', urls=[], clrT=0, vSpeed=1, autoNext=false, draftT=0;
 const cid=(()=>{try{return localStorage.cid||(localStorage.cid=crypto.randomUUID())}catch{return crypto.randomUUID()}})();
 const PLAY='<svg class="f" viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z"/></svg>';
 const PAUSE='<svg class="f" viewBox="0 0 24 24"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>';
@@ -428,34 +478,41 @@ function addVN(m, takes, t){
   chat.appendChild(row); scroll();
   const btn=row.querySelector('.play'), wave=row.querySelector('.wave'), d=row.querySelector('.dur'), sub=row.querySelector('.sub');
   let bs=[...wave.children], audio;
-  let simT=0, usingSim=false, raf=0, shown=0, lt=-1, ls=0;
+  let simT=0, usingSim=false, raf=0, shown=0, lt=-1, ls=0, lastSave=0;
+  /* posisi putar terakhir per voice note (per versi), disimpan di perangkat */
+  const getPos=()=>{ try{ const v=JSON.parse(store.get('pos:'+owner)||'{}')[t+'.'+si]; return v>0.3&&v<dur-0.3?v:0 }catch{ return 0 } };
+  const savePos=v=>{ if(!owner) return; try{ const o=JSON.parse(store.get('pos:'+owner)||'{}'), k=t+'.'+si; if(v>0.3) o[k]=+v.toFixed(2); else delete o[k]; store.set('pos:'+owner,Object.keys(o).length?JSON.stringify(o):null); }catch{} };
   /* pasang versi voice note tertentu (audio, durasi, waveform) */
   const mount=(p,rebuild)=>{
     pre=p; dur=(p&&p.dur)||est; shown=0; lt=-1; usingSim=false;
     if(rebuild){ wave.innerHTML=barHTML(barsFor(p,dur)); bs=[...wave.children]; }
     audio=new Audio(p&&p.url); audio.preload='auto'; audio.playbackRate=vSpeed;
-    audio.onloadedmetadata=()=>{ if(isFinite(audio.duration)){dur=audio.duration; d.textContent=fmt(dur)} };
-    d.textContent=fmt(dur);
+    audio.onloadedmetadata=()=>{ if(isFinite(audio.duration)){dur=audio.duration; if(!shown) d.textContent=fmt(dur)} };
+    const sp=getPos(); shown=sp; lastSave=sp; if(sp>0) audio.currentTime=sp; /* lanjut dari posisi terakhir */
+    d.textContent=fmt(sp>0?sp:dur);
+    if(sp>0||rebuild) paint(dur?sp/dur:0);
   };
-  mount(pre,false);
 
   const paint = p => bs.forEach((b,i)=>b.style.setProperty('--f',Math.round(Math.min(1,Math.max(0,p*bs.length-i))*100)+'%'));
   const tot = () => (isFinite(audio.duration)&&audio.duration>0)?audio.duration:dur;
+  mount(pre,false);
   /* Loop per frame + interpolasi antar update currentTime supaya gerak progress mulus */
   const frame = () => {
     const nw=performance.now(), ct=audio.currentTime;
     if(ct!==lt){lt=ct;ls=nw}
     const t=Math.min(tot(), ct+(audio.paused?0:Math.min((nw-ls)/1000,.2)));
     shown=Math.max(shown,t);
+    if(!audio.paused&&Math.abs(ct-lastSave)>=1.5){ savePos(ct); lastSave=ct; }
     paint(shown/tot());
     const tx=fmt(shown); if(d.textContent!==tx) d.textContent=tx;
     raf=requestAnimationFrame(frame);
   };
-  const stop = (reset=true) => {
-    cancelAnimationFrame(raf); raf=0; audio.pause(); if(reset){audio.currentTime=0; shown=0; lt=-1; paint(0); d.textContent=fmt(dur)}
+  const stop = (reset=false) => { /* reset=true cuma kalau selesai diputar; pause biasa menyimpan posisi */
+    cancelAnimationFrame(raf); raf=0; audio.pause();
+    if(reset){audio.currentTime=0; shown=0; lt=-1; paint(0); d.textContent=fmt(dur); savePos(0)} else savePos(audio.currentTime);
     btn.innerHTML=PLAY; btn.classList.remove('on'); sub.classList.add('idle'); if(current===api) current=null;
   };
-  const api={stop};
+  const api={stop,save:()=>savePos(audio.currentTime)};
   /* subtitle ikut pengaturan di menu titik tiga; dibangun ulang hanya kalau teksnya berubah */
   const renderSub=()=>{
     const t=subText(m), sp=sub.querySelector('span');
@@ -463,8 +520,9 @@ function addVN(m, takes, t){
     let k=0; sp.innerHTML=t.split(/(\s+)/).map(w=>/\S/.test(w)?`<span class="w" style="--d:${k++*45}ms">${w.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</span>`:w).join('');
   };
   row.renderSub=()=>{ if(sub.classList.contains('show')) renderSub(); };
-  const startSim=()=>{ usingSim=true; const t0=performance.now(); const go=()=>{ simT=(performance.now()-t0)/1000; paint(simT/dur); const tx=fmt(simT); if(d.textContent!==tx) d.textContent=tx; if(simT>=dur){stop();return} raf=requestAnimationFrame(go); }; raf=requestAnimationFrame(go); };
-  const toggle=()=>{
+  const startSim=()=>{ usingSim=true; const t0=performance.now(); const go=()=>{ simT=(performance.now()-t0)/1000; paint(simT/dur); const tx=fmt(simT); if(d.textContent!==tx) d.textContent=tx; if(simT>=dur){stop(true);return} raf=requestAnimationFrame(go); }; raf=requestAnimationFrame(go); };
+  const playNext=()=>{ let r=row.nextElementSibling; while(r&&!r._vn) r=r.nextElementSibling; if(r) r._vn.play(); };
+  const toggle=auto=>{
     if(current===api){stop();return}
     if(current) current.stop();
     if(openSub&&openSub!==sub) openSub.classList.remove('show');
@@ -475,10 +533,13 @@ function addVN(m, takes, t){
     sub.classList.add('show'); renderSub();
     setTimeout(()=>row.scrollIntoView({block:'nearest',behavior:'smooth'}),340); /* tunggu animasi buka, jangan lompat ke paling bawah */
     audio.onseeking=()=>{shown=audio.currentTime; lt=-1}; shown=audio.currentTime; lt=-1;
-    audio.onended=()=>stop();
-    audio.play().then(()=>{ if(current===api&&!raf) raf=requestAnimationFrame(frame); }).catch(()=>startSim());
+    audio.onended=()=>{ stop(true); if(autoNext) playNext(); };
+    audio.play().then(()=>{ if(current===api&&!raf) raf=requestAnimationFrame(frame); }).catch(()=>{
+      if(auto===true){ stop(); toast('Browser menahan putar otomatis, tap play dulu'); } else startSim();
+    });
   };
-  btn.onclick=toggle;
+  btn.onclick=()=>toggle();
+  row._vn={play:()=>toggle(true)};
 
   /* versi voice note: panah kiri/kanan ganti versi, tombol putar-ulang bikin versi baru (yang lama tetap ada) */
   const re=row.querySelector('.vre'), vctl=row.querySelector('.vctl'), prev=row.querySelector('.vprev'), next=row.querySelector('.vnext'), cnt=row.querySelector('.vcnt'), dl=row.querySelector('.vdl'), spd=row.querySelector('.vspd'), MAXV=5;
@@ -487,7 +548,7 @@ function addVN(m, takes, t){
   const select=i=>{
     if(i<0||i>=list.length||i===si) return;
     const was=current===api; if(was) stop();
-    si=i; mount(list[si],true); paint(0); ctl(); persist();
+    si=i; mount(list[si],true); ctl(); persist();
     if(was) toggle(); /* lagi diputar -> langsung lanjut putar versi yang dipilih */
   };
   dl.onclick=()=>{ /* download versi yang lagi dipilih sebagai mp3 */
@@ -557,12 +618,15 @@ const loadLog=id=>{try{const l=JSON.parse(store.get('log:'+id)||'[]');return Arr
 const idb=(()=>{
   let p; const open=()=>p||(p=new Promise(res=>{ try{ const r=indexedDB.open('neyhra',1); r.onupgradeneeded=()=>r.result.createObjectStore('vn'); r.onsuccess=()=>res(r.result); r.onerror=()=>res(null); }catch{ res(null) } }));
   const tx=async(mode,fn)=>{ const db=await open(); if(!db) return null; return new Promise(res=>{ try{ const t=db.transaction('vn',mode), rq=fn(t.objectStore('vn')); t.oncomplete=()=>res(rq?rq.result:null); t.onerror=t.onabort=()=>res(null); }catch{ res(null) } }); };
-  return { put:(k,v)=>tx('readwrite',s=>s.put(v,k)), get:k=>tx('readonly',s=>s.get(k)), del:k=>tx('readwrite',s=>s.delete(k)) };
+  const stats=async()=>{ const db=await open(); if(!db) return null; return new Promise(res=>{ let n=0,b=0; try{ const rq=db.transaction('vn','readonly').objectStore('vn').openCursor(); rq.onsuccess=()=>{ const c=rq.result; if(c){ n++; b+=(c.value&&c.value.ab&&c.value.ab.byteLength)||0; c.continue(); } else res({n,b}); }; rq.onerror=()=>res(null); }catch{ res(null) } }); };
+  return { put:(k,v)=>tx('readwrite',s=>s.put(v,k)), get:k=>tx('readonly',s=>s.get(k)), del:k=>tx('readwrite',s=>s.delete(k)), stats };
 })();
-function record(id,e){
-  const l=loadLog(id); e.t=e.t||Date.now(); l.push(e);
+function trimLog(l){
   while(l.length>LOGMAX){ const o=l.shift(); keysOf(o).forEach(k=>idb.del(k)); }
   let n=0; for(let i=l.length-1;i>=0;i--){ const ks=keysOf(l[i]); if(!ks.length) continue; n+=ks.length; if(n>AUDMAX){ ks.forEach(k=>idb.del(k)); delete l[i].k; delete l[i].ks; delete l[i].si; } } /* voice note lama: audio dibuang, teksnya tetap */
+}
+function record(id,e){
+  const l=loadLog(id); e.t=e.t||Date.now(); l.push(e); trimLog(l);
   store.set('log:'+id,JSON.stringify(l));
 }
 const newKey=()=>'v'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
@@ -648,7 +712,7 @@ async function submit(){
   const text=inp.value.trim();
   if(busy||!text||!ch||!ready){ inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake'); return; }
   busy=true; inp.value=''; grow(); refresh(); addText(text);
-  const chId=ch.id; record(chId,{r:'me',x:text});
+  const chId=ch.id; record(chId,{r:'me',x:text}); clearTimeout(draftT); store.set('draft:'+chId,null);
   const useVoice=voiceOn&&!!vcode, lang=voiceLang;
   let t=thinkBubble(ch.name); /* fase 1: ChatGPT lagi mikir */
   try{
@@ -790,7 +854,8 @@ function openChat(c,avEl){
   if(moving||app.classList.contains('open')) return;
   moving=true; setTimeout(()=>moving=false,DUR);
   ch=c; closeSearch(); if(current) current.stop(); openSub=null; urls.forEach(u=>URL.revokeObjectURL(u)); urls=[]; clearTimeout(clrT); clrT=0;
-  chat.innerHTML=''; lastDay=''; ready=false; const tok=++openTok; setStatus('online',false); refresh();
+  chat.innerHTML=''; lastDay=''; ready=false; const tok=++openTok; setStatus('online',false);
+  clearTimeout(draftT); inp.value=store.get('draft:'+c.id)||''; grow(); refresh(); /* draft pesan karakter ini */
   $('hname').textContent=c.name; $('hpfp').replaceWith(Object.assign(img(c,'pfp'),{id:'hpfp'}));
   const a=app.getBoundingClientRect(), r=avEl.getBoundingClientRect();
   ox=r.left+r.width/2-a.left; oy=r.top+r.height/2-a.top;
@@ -801,14 +866,20 @@ function openChat(c,avEl){
 function closeChat(){
   if(moving||!app.classList.contains('open')) return;
   moving=true; setTimeout(()=>moving=false,DUR);
-  closeSearch();
+  closeSearch(); clearTimeout(draftT);
+  if(ch) store.set('draft:'+ch.id,inp.value.trim()?inp.value:null);
   if(current) current.stop();
   menu.classList.remove('away');
   const an=view.animate({clipPath:[circle(reach()),circle(0)]},{duration:DUR,easing:'cubic-bezier(.7,0,.2,1)',fill:'forwards'});
   an.onfinish=()=>{app.classList.remove('open'); an.cancel()};
 }
-document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ if(!vm.classList.contains('hide')) closeVoice(); else if(!nm.classList.contains('hide')) closeName(); else if(app.classList.contains('open')) closeChat(); else if(all.classList.contains('show')) closeAll(); } });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ if(!sm.classList.contains('hide')) closeSettings(); else if(!vm.classList.contains('hide')) closeVoice(); else if(!nm.classList.contains('hide')) closeName(); else if(app.classList.contains('open')) closeChat(); else if(all.classList.contains('show')) closeAll(); } });
 $('back').addEventListener('click',closeChat);
+const savePlaying=()=>{ if(current&&current.save) current.save(); };
+window.addEventListener('pagehide',savePlaying);
+document.addEventListener('visibilitychange',()=>{ if(document.hidden) savePlaying(); });
+
+inp.addEventListener('input',()=>{ if(!ch) return; clearTimeout(draftT); const id=ch.id, v=inp.value; draftT=setTimeout(()=>store.set('draft:'+id,v.trim()?v:null),250); });
 
 /* ===== Tombol "ke pesan terbaru": muncul kalau scroll jauh dari bawah ===== */
 const down=$('down');
@@ -838,6 +909,103 @@ async function copyText(t){
   ['pointerup','pointercancel','pointerleave'].forEach(n=>chat.addEventListener(n,cancel));
   chat.addEventListener('scroll',cancel,{passive:true});
 })();
+
+/* ===== Pengaturan: putar otomatis, ekspor/impor JSON, indikator penyimpanan ===== */
+const sm=$('smodal'), sauto=$('sauto'), sstat=$('sstat');
+let allChars=[];
+const setStat=t=>{ sstat.textContent=t; };
+const fmtB=n=>n<1024?Math.round(n)+' B':n<1048576?(n/1024).toFixed(n<10240?1:0)+' KB':n<1073741824?(n/1048576).toFixed(n<10485760?1:0)+' MB':(n/1073741824).toFixed(2)+' GB';
+function openSettings(){ sauto.checked=autoNext; setStat(''); sm.classList.remove('hide'); refreshStorage(); }
+function closeSettings(){ sm.classList.add('hide'); }
+$('setbtn').onclick=openSettings; $('sx').onclick=closeSettings;
+sm.addEventListener('click',e=>{ if(e.target===sm) closeSettings(); });
+sauto.onchange=()=>{ autoNext=sauto.checked; store.set('autonext',autoNext?'1':null); };
+
+async function refreshStorage(){
+  let chars=0; try{ for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); chars+=k.length+(localStorage.getItem(k)||'').length; } }catch{}
+  const LS=5*1024*1024; /* batas localStorage kira-kira 5 MB */
+  const bar=(el,r)=>{ el.style.width=Math.max(r>0?2:0,Math.min(100,r*100))+'%'; el.classList.toggle('warn',r>.8); };
+  $('st1').textContent=fmtB(chars)+' dari ± 5 MB'; bar($('st1b'),chars/LS);
+  const a=await idb.stats();
+  let est=null; try{ est=navigator.storage&&navigator.storage.estimate?await navigator.storage.estimate():null; }catch{}
+  const quota=est&&est.quota||0;
+  $('st2').textContent=a?(a.n+' file · '+fmtB(a.b)):'nggak tersedia'; bar($('st2b'),a&&quota?a.b/quota:0);
+  $('st3').textContent=est?('Total dipakai situs ini: '+fmtB(est.usage||0)+(quota?' dari ± '+fmtB(quota)+' yang tersedia di browser ini.':'.')):'';
+}
+
+/* base64 <-> ArrayBuffer (per potongan supaya audio besar aman) */
+const b64=ab=>{ const u=new Uint8Array(ab); let o=''; for(let i=0;i<u.length;i+=0x8000) o+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000)); return btoa(o); };
+const unb64=str=>{ const bin=atob(str), u=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u[i]=bin.charCodeAt(i); return u.buffer; };
+const busyData=on=>$('sdata').classList.toggle('sbusy',on);
+
+$('sjson').onclick=async()=>{
+  busyData(true); setStat('Menyiapkan cadangan…');
+  try{
+    const names=Object.fromEntries(allChars.map(c=>[c.id,c.name])), ids=[];
+    for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k.startsWith('log:')) ids.push(k.slice(4)); }
+    const chars=[]; let nMsg=0, nAud=0;
+    for(const id of ids){
+      const log=loadLog(id); if(!log.length) continue;
+      const audio={};
+      for(const e of log) for(const k of keysOf(e)){
+        if(audio[k]) continue; const a=await idb.get(k);
+        if(a&&a.ab){ audio[k]={mime:'audio/mpeg',dur:a.dur==null?null:a.dur,bins:a.bins?Array.from(a.bins):null,data:b64(a.ab)}; nAud++; }
+      }
+      nMsg+=log.length; chars.push({id,name:names[id]||id,log,hist:loadHist(id),audio});
+    }
+    if(!chars.length){ setStat('Belum ada obrolan untuk diekspor.'); return; }
+    const blob=new Blob([JSON.stringify({app:'neyhra-chat',version:1,exportedAt:new Date().toISOString(),chars})],{type:'application/json'}), d=new Date();
+    saveBlob(blob,'neyhra-chat-'+d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0')+'.json');
+    setStat('Cadangan disimpan: '+chars.length+' karakter, '+nMsg+' pesan, '+nAud+' audio ('+fmtB(blob.size)+').');
+  }catch{ setStat('Gagal membuat cadangan.'); }
+  busyData(false);
+};
+
+const isNum=x=>typeof x==='number'&&isFinite(x), isKey=x=>typeof x==='string'&&/^[\w-]{1,48}$/.test(x);
+function cleanEntry(e){ /* file impor itu data tak tepercaya: pastikan bentuknya benar sebelum dipakai */
+  if(!e||typeof e!=='object'||!isNum(e.t)||!['me','them','vn'].includes(e.r)) return null;
+  const o={t:e.t,r:e.r,x:String(e.x==null?'':e.x).slice(0,8000)};
+  if(e.r==='vn'){
+    if(typeof e.jp==='string') o.jp=e.jp.slice(0,8000);
+    if(typeof e.lang==='string') o.lang=e.lang.slice(0,8);
+    if(typeof e.vn==='string') o.vn=e.vn.slice(0,8000);
+    const ks=(Array.isArray(e.ks)?e.ks:(e.k?[e.k]:[])).filter(isKey).slice(0,5);
+    if(ks.length){ o.ks=ks; o.si=Math.min(Math.max(parseInt(e.si)||0,0),ks.length-1); }
+  }
+  return o;
+}
+async function importJSON(file){
+  busyData(true); setStat('Membaca file…');
+  try{
+    if(file.size>300*1048576) throw 0;
+    const data=JSON.parse(await file.text());
+    if(!data||data.app!=='neyhra-chat'||!Array.isArray(data.chars)) throw 0;
+    let added=0, chN=0, aud=0;
+    for(const c of data.chars){
+      if(!c||typeof c.id!=='string'||!/^[\w-]{1,64}$/.test(c.id)||!Array.isArray(c.log)) continue;
+      for(const [k,a] of Object.entries(c.audio||{})){
+        if(!isKey(k)||!a||typeof a.data!=='string'||await idb.get(k)) continue;
+        const bins=Array.isArray(a.bins)?a.bins.filter(isNum).slice(0,512):null;
+        if(await idb.put(k,{ab:unb64(a.data),dur:isNum(a.dur)?a.dur:null,bins:bins&&bins.length?bins:null})) aud++;
+      }
+      const cur=loadLog(c.id), idx=new Map(cur.map(e=>[e.t+'|'+e.r,e])); let add=0;
+      for(const raw of c.log){
+        const e=cleanEntry(raw); if(!e) continue;
+        const key=e.t+'|'+e.r, ex=idx.get(key);
+        if(!ex){ cur.push(e); idx.set(key,e); add++; }
+        else if(e.r==='vn'){ const u=[...new Set([...keysOf(ex),...keysOf(e)])]; if(u.length>keysOf(ex).length){ ex.ks=u; delete ex.k; if(ex.si==null) ex.si=0; } if(!ex.vn&&e.vn) ex.vn=e.vn; }
+      }
+      cur.sort((a,b)=>a.t-b.t); trimLog(cur); store.set('log:'+c.id,JSON.stringify(cur));
+      if(!store.get('h:'+c.id)&&Array.isArray(c.hist)&&c.hist.length) saveHist(c.id,c.hist.filter(h=>Array.isArray(h)&&typeof h[1]==='string'));
+      added+=add; if(add) chN++;
+    }
+    setStat(added||aud?'Impor selesai: '+added+' pesan baru dari '+chN+' karakter, '+aud+' audio ditambahkan.':'Nggak ada yang baru, semua sudah ada di perangkat ini.');
+    refreshStorage();
+  }catch{ setStat('File nggak valid. Pilih file JSON hasil ekspor aplikasi ini.'); }
+  busyData(false);
+}
+$('simp').onclick=()=>{ $('sfile').value=''; $('sfile').click(); };
+$('sfile').onchange=()=>{ const f=$('sfile').files[0]; if(f) importJSON(f); };
 
 /* ===== Cari di obrolan: teks + transkrip voice note ===== */
 const sbar=$('sbar'), sq=$('sq'), scnt=$('scnt');
@@ -878,6 +1046,7 @@ $('sprev').onclick=()=>stepHit(-1); $('snext').onclick=()=>stepHit(1);
 sq.addEventListener('input',doSearch);
 sq.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); stepHit(e.shiftKey?-1:1); } else if(e.key==='Escape') closeSearch(); });
 vSpeed=[1,1.25,1.5,2].includes(+store.get('vspeed'))?+store.get('vspeed'):1; /* kecepatan putar voice note, diingat */
+autoNext=store.get('autonext')==='1'; /* putar otomatis voice note berikutnya */
 
 /* ===== Ekspor: cuma teks -> .txt, ada voice note -> .zip (chat.txt + mp3 tiap voice note) ===== */
 const safeName=s=>(s||'chat').replace(/[^\w\-]+/g,'_').replace(/^_+|_+$/g,'')||'chat';
@@ -940,7 +1109,7 @@ $('clr').onclick=()=>{
   clearTimeout(clrT); clrT=0;
   if(current) current.stop(); openSub=null;
   loadLog(ch.id).forEach(e=>keysOf(e).forEach(k=>idb.del(k)));
-  store.set('log:'+ch.id,null); store.set('h:'+ch.id,null); /* riwayat konteks AI ikut dihapus = mulai obrolan baru */
+  store.set('log:'+ch.id,null); store.set('h:'+ch.id,null); store.set('pos:'+ch.id,null); /* riwayat konteks AI ikut dihapus = mulai obrolan baru */
   urls.forEach(u=>URL.revokeObjectURL(u)); urls=[];
   chat.innerHTML=''; lastDay=''; ensureDay(Date.now()); toast('Obrolan dihapus');
 };
@@ -968,7 +1137,7 @@ q.addEventListener('input',filterAll);
 q.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); const f=rows.find(r=>!r.el.classList.contains('hide')); if(f){ q.blur(); f.el.click(); } } });
 
 fetch('/api/chars').then(r=>r.json()).then(cs=>{
-  list.innerHTML='';
+  allChars=cs; list.innerHTML='';
   cs.slice(0,SHOW).forEach(c=>list.append(card(c)));
   if(cs.length>SHOW){
     const b=document.createElement('button'); b.className='m-all'; b.type='button';
