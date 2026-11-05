@@ -1,5 +1,5 @@
 export default {
-  id: 'the-herta',
+  id: 'theherta',
   name: 'The Herta',
   tagline: 'Honkai: Star Rail',
   avatar: '/assets/theherta.jpg',
