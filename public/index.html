@@ -182,6 +182,19 @@ footer:has(#send:not(.hide)) #recbar{right:106px}
 @keyframes bub{from{opacity:0;transform:translateY(10px) scale(.9)}}
 .wave i{transition:height .5s cubic-bezier(.34,1.56,.64,1),background .1s}
 .row.rs .bub{animation:none}
+.vfoot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:3px;min-height:22px}
+.vfoot .ts{margin:0 0 0 auto}
+.vctl{display:flex;align-items:center;gap:1px;margin-left:-5px}
+.vctl button{width:24px;height:22px;border-radius:11px;display:grid;place-items:center;color:var(--mut);transition:background .15s,opacity .15s,transform .12s}
+.vctl button[hidden]{display:none}
+.vctl button svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.vctl button:disabled{opacity:.28;cursor:default}
+.vctl button:not(:disabled):active{transform:scale(.88);background:var(--line)}
+@media(hover:hover){.vctl button:not(:disabled):hover{background:var(--line);color:var(--ink)}}
+.vcnt{font-size:11px;font-variant-numeric:tabular-nums;color:var(--mut);min-width:26px;text-align:center}
+.vctl.single .vnav,.vctl.single .vcnt{display:none}
+.vre.spin svg{animation:vspin .8s linear infinite}
+@keyframes vspin{to{transform:rotate(360deg)}}
 #clr{color:var(--mut)}
 .play.on{animation:ringp 1.6s infinite}
 @keyframes ringp{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--ink) 35%,transparent)}100%{box-shadow:0 0 0 10px transparent}}
@@ -375,23 +388,33 @@ function addText(text,t){
 }
 
 let openSub=null; /* subtitle voice note yang lagi kebuka; ditutup waktu voice note lain diputar */
-function addVN(m, pre, t){
+/* takes = daftar versi voice note ([{url,dur,bins,k}]); versi pertama = aslinya, sisanya hasil kirim ulang */
+function addVN(m, takes, t){
   t=t||Date.now(); ensureDay(t);
+  const owner=ch&&ch.id, list=Array.isArray(takes)?takes.slice():[takes||{}];
+  let si=Math.min(Math.max(m.si||0,0),list.length-1), pre=list[si];
   const text = (m.lang==='jp'&&m.jp) ? m.jp : m.id;
   const est = Math.max(2, Math.round(text.split(' ').length*0.42));
   let dur = (pre&&pre.dur)||est;
-  const n = Math.min(30, Math.max(20, Math.round(dur*4)));
-  const fake = Array.from({length:n},(_,i)=>.2+Math.abs(Math.sin(i*1.9+text.length))*.7);
-  const hs = (pre&&pre.bins) ? reduce(pre.bins,n) : fake;
+  const barsFor=(p,dd)=>{ const n=Math.min(30,Math.max(20,Math.round(dd*4))); return (p&&p.bins)?reduce(p.bins,n):Array.from({length:n},(_,i)=>.2+Math.abs(Math.sin(i*1.9+text.length))*.7); };
+  const barHTML=hs=>hs.map((h,i)=>`<i style="height:${(h*100).toFixed(1)}%;--k:${i}"></i>`).join('');
+  const hs = barsFor(pre,dur);
   const row=document.createElement('div'); row.className='row them'+(restoring?' rs':'');
-  row.innerHTML=`<div class="bub"><div class="vn"><button class="play">${PLAY}</button><div class="wave">${hs.map((h,i)=>`<i style="height:${(h*100).toFixed(1)}%;--k:${i}"></i>`).join('')}</div><span class="dur">${fmt(dur)}</span></div>
-  <div class="sub"><b>SUBTITLE</b><span></span></div><div class="ts">${now(t)}</div></div>`;
+  row.innerHTML=`<div class="bub"><div class="vn"><button class="play">${PLAY}</button><div class="wave">${barHTML(hs)}</div><span class="dur">${fmt(dur)}</span></div>
+  <div class="sub"><b>SUBTITLE</b><span></span></div><div class="vfoot"><div class="vctl single"><button type="button" class="vnav vprev" aria-label="Versi sebelumnya"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button><span class="vcnt">1/1</span><button type="button" class="vnav vnext" aria-label="Versi berikutnya"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button><button type="button" class="vre" title="Kirim ulang voice note" aria-label="Kirim ulang voice note"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5"/></svg></button></div><div class="ts">${now(t)}</div></div></div>`;
   chat.appendChild(row); scroll();
-  const btn=row.querySelector('.play'), wave=row.querySelector('.wave'), bs=[...wave.children], d=row.querySelector('.dur'), sub=row.querySelector('.sub');
-  const audio=new Audio(pre&&pre.url);
+  const btn=row.querySelector('.play'), wave=row.querySelector('.wave'), d=row.querySelector('.dur'), sub=row.querySelector('.sub');
+  let bs=[...wave.children], audio;
   let simT=0, usingSim=false, raf=0, shown=0, lt=-1, ls=0;
-  audio.preload='auto';
-  audio.onloadedmetadata=()=>{ if(isFinite(audio.duration)){dur=audio.duration; d.textContent=fmt(dur)} };
+  /* pasang versi voice note tertentu (audio, durasi, waveform) */
+  const mount=(p,rebuild)=>{
+    pre=p; dur=(p&&p.dur)||est; shown=0; lt=-1; usingSim=false;
+    if(rebuild){ wave.innerHTML=barHTML(barsFor(p,dur)); bs=[...wave.children]; }
+    audio=new Audio(p&&p.url); audio.preload='auto';
+    audio.onloadedmetadata=()=>{ if(isFinite(audio.duration)){dur=audio.duration; d.textContent=fmt(dur)} };
+    d.textContent=fmt(dur);
+  };
+  mount(pre,false);
 
   const paint = p => bs.forEach((b,i)=>b.style.setProperty('--f',Math.round(Math.min(1,Math.max(0,p*bs.length-i))*100)+'%'));
   const tot = () => (isFinite(audio.duration)&&audio.duration>0)?audio.duration:dur;
@@ -433,6 +456,38 @@ function addVN(m, pre, t){
     audio.play().then(()=>{ if(current===api&&!raf) raf=requestAnimationFrame(frame); }).catch(()=>startSim());
   };
   btn.onclick=toggle;
+
+  /* versi voice note: panah kiri/kanan ganti versi, tombol putar-ulang bikin versi baru (yang lama tetap ada) */
+  const re=row.querySelector('.vre'), vctl=row.querySelector('.vctl'), prev=row.querySelector('.vprev'), next=row.querySelector('.vnext'), cnt=row.querySelector('.vcnt'), MAXV=5;
+  const ctl=()=>{ vctl.classList.toggle('single',list.length<2); cnt.textContent=(si+1)+'/'+list.length; prev.disabled=si===0; next.disabled=si===list.length-1; re.hidden=!m.vn; };
+  const persist=()=>{ if(!owner) return; const ks=list.filter(x=>x.k).map(x=>x.k), i=Math.max(0,ks.indexOf(list[si]&&list[si].k)); patchLog(owner,t,e=>{ e.ks=ks; e.si=i; delete e.k; }); };
+  const select=i=>{
+    if(i<0||i>=list.length||i===si) return;
+    const was=current===api; if(was) stop();
+    si=i; mount(list[si],true); paint(0); ctl(); persist();
+    if(was) toggle(); /* lagi diputar -> langsung lanjut putar versi yang dipilih */
+  };
+  prev.onclick=()=>select(si-1); next.onclick=()=>select(si+1);
+  let regen=false;
+  re.onclick=async()=>{
+    if(regen) return;
+    if(!vcode){ toast('Aktifkan voice dulu di menu utama'); return; }
+    if(list.length>=MAXV){ toast('Maksimal '+MAXV+' versi per voice note'); return; }
+    regen=true; re.classList.add('spin');
+    try{
+      const ab=await (await post('/api/tts',{char:owner,text:m.vn},{'x-voice-code':vcode})).arrayBuffer();
+      const p=await decode(ab);
+      if(!row.isConnected){ URL.revokeObjectURL(p.url); return; } /* chat sudah ditutup/dihapus */
+      urls.push(p.url);
+      const k=newKey(); if(await idb.put(k,{ab,dur:p.dur,bins:p.bins})) p.k=k;
+      list.push(p); select(list.length-1);
+      if(!p.k) toast('Versi baru ini nggak bisa disimpan di perangkat');
+    }catch(e){
+      if(e.status===403){ vcode=''; voiceOn=false; store.set('vcode',null); store.set('von','0'); paintVoice(); toast('Kode voice tidak valid, voice dimatikan'); }
+      else toast(e.message||'Gagal kirim ulang');
+    }finally{ regen=false; re.classList.remove('spin'); ctl(); }
+  };
+  ctl();
   sub.onclick=()=>{ sub.classList.remove('show'); if(openSub===sub) openSub=null; }; /* tap subtitle = tutup manual */
   wave.onclick=e=>{ /* klik waveform untuk lompat posisi */
     if(current!==api){toggle();return}
@@ -466,6 +521,7 @@ const loadHist=id=>{try{const h=JSON.parse(store.get('h:'+id)||'[]');return Arra
 const saveHist=(id,h)=>store.set('h:'+id,JSON.stringify(h.slice(-24)));
 /* ===== Riwayat tampilan chat: cuma disimpan di perangkat ini (teks di localStorage, audio voice note di IndexedDB) ===== */
 const LOGMAX=150, AUDMAX=30; /* maks pesan per karakter, dan maks voice note yang audionya disimpan */
+const keysOf=e=>e.ks||(e.k?[e.k]:[]); /* kunci audio di IndexedDB (satu per versi voice note) */
 const loadLog=id=>{try{const l=JSON.parse(store.get('log:'+id)||'[]');return Array.isArray(l)?l:[]}catch{return []}};
 const idb=(()=>{
   let p; const open=()=>p||(p=new Promise(res=>{ try{ const r=indexedDB.open('neyhra',1); r.onupgradeneeded=()=>r.result.createObjectStore('vn'); r.onsuccess=()=>res(r.result); r.onerror=()=>res(null); }catch{ res(null) } }));
@@ -473,11 +529,13 @@ const idb=(()=>{
   return { put:(k,v)=>tx('readwrite',s=>s.put(v,k)), get:k=>tx('readonly',s=>s.get(k)), del:k=>tx('readwrite',s=>s.delete(k)) };
 })();
 function record(id,e){
-  const l=loadLog(id); e.t=Date.now(); l.push(e);
-  while(l.length>LOGMAX){ const o=l.shift(); if(o.k) idb.del(o.k); }
-  let n=0; for(let i=l.length-1;i>=0;i--) if(l[i].k&&++n>AUDMAX){ idb.del(l[i].k); delete l[i].k; } /* voice note lama: audio dibuang, teksnya tetap */
+  const l=loadLog(id); e.t=e.t||Date.now(); l.push(e);
+  while(l.length>LOGMAX){ const o=l.shift(); keysOf(o).forEach(k=>idb.del(k)); }
+  let n=0; for(let i=l.length-1;i>=0;i--){ const ks=keysOf(l[i]); if(!ks.length) continue; n+=ks.length; if(n>AUDMAX){ ks.forEach(k=>idb.del(k)); delete l[i].k; delete l[i].ks; delete l[i].si; } } /* voice note lama: audio dibuang, teksnya tetap */
   store.set('log:'+id,JSON.stringify(l));
 }
+const newKey=()=>'v'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+function patchLog(id,t,fn){ const l=loadLog(id), e=l.find(x=>x.t===t); if(!e) return; fn(e); store.set('log:'+id,JSON.stringify(l)); }
 const dayKey=t=>{const d=new Date(t);return d.getFullYear()+'-'+d.getMonth()+'-'+d.getDate()};
 function dayLabel(t){
   const d=new Date(t), n=new Date(), diff=Math.round((new Date(n.getFullYear(),n.getMonth(),n.getDate())-new Date(d.getFullYear(),d.getMonth(),d.getDate()))/864e5);
@@ -488,14 +546,15 @@ function showThem(id,text){ addThem(text); record(id,{r:'them',x:text}); }
 /* tampilkan lagi obrolan tersimpan waktu karakter dibuka */
 async function restoreChat(id,tok){
   const l=loadLog(id);
-  const recs=await Promise.all(l.map(e=>e.k?idb.get(e.k):null));
+  const recs=await Promise.all(l.map(e=>Promise.all(keysOf(e).map(k=>idb.get(k)))));
   if(tok!==openTok) return; /* sudah pindah chat lain */
   restoring=true;
   try{
     l.forEach((e,i)=>{
-      const a=recs[i];
+      const ks=keysOf(e), takes=[];
+      ks.forEach((k,j)=>{ const a=recs[i][j]; if(a&&a.ab){ const u=URL.createObjectURL(new Blob([a.ab],{type:'audio/mpeg'})); urls.push(u); takes.push({url:u,dur:a.dur,bins:a.bins,k}); } });
       if(e.r==='me') addText(e.x,e.t);
-      else if(e.r==='vn'&&a&&a.ab){ const u=URL.createObjectURL(new Blob([a.ab],{type:'audio/mpeg'})); urls.push(u); addVN({id:e.x,jp:e.jp,lang:e.lang},{url:u,dur:a.dur,bins:a.bins},e.t); }
+      else if(e.r==='vn'&&takes.length){ const si=Math.max(0,takes.findIndex(x=>x.k===ks[e.si||0])); addVN({id:e.x,jp:e.jp,lang:e.lang,vn:e.vn,si},takes,e.t); }
       else addThem(e.x,e.t); /* audio sudah dibuang -> tampil sebagai teks */
     });
   }catch{}
@@ -572,10 +631,11 @@ async function submit(){
         /* vn = teks ucapan lengkap dengan tag ekspresi ([laughing], [sad], dll), dikirim apa adanya ke TTS */
         const ab=await (await post('/api/tts',{char:ch.id,text:r.vn},{'x-voice-code':vcode})).arrayBuffer();
         const pre=await decode(ab); t.remove();
-        addVN({id:r.id,jp:r.jpText,lang},pre);
-        const k='v'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+        const tNow=Date.now(), k=newKey(); urls.push(pre.url);
+        addVN({id:r.id,jp:r.jpText,lang,vn:r.vn},[pre],tNow);
         const saved=await idb.put(k,{ab,dur:pre.dur,bins:pre.bins}); /* audio disimpan lokal supaya voice note bisa diputar lagi nanti */
-        record(chId,saved?{r:'vn',x:r.id,jp:r.jpText,lang,k}:{r:'vn',x:r.id,jp:r.jpText,lang});
+        if(saved) pre.k=k;
+        record(chId,{t:tNow,r:'vn',x:r.id,jp:r.jpText,lang,vn:r.vn,...(saved?{ks:[k],si:0}:{})});
       }catch(e){
         t.remove(); showThem(chId,r.id); /* suara gagal -> teksnya tetap tampil */
         if(e.status===403){ vcode=''; voiceOn=false; store.set('vcode',null); store.set('von','0'); paintVoice(); toast('Kode voice tidak valid, voice dimatikan'); }
@@ -722,7 +782,7 @@ $('clr').onclick=()=>{
   if(!clrT){ toast('Tap lagi untuk hapus obrolan ini'); clrT=setTimeout(()=>clrT=0,2500); return; }
   clearTimeout(clrT); clrT=0;
   if(current) current.stop(); openSub=null;
-  loadLog(ch.id).forEach(e=>{ if(e.k) idb.del(e.k) });
+  loadLog(ch.id).forEach(e=>keysOf(e).forEach(k=>idb.del(k)));
   store.set('log:'+ch.id,null); store.set('h:'+ch.id,null); /* riwayat konteks AI ikut dihapus = mulai obrolan baru */
   urls.forEach(u=>URL.revokeObjectURL(u)); urls=[];
   chat.innerHTML=''; lastDay=''; ensureDay(Date.now()); toast('Obrolan dihapus');
