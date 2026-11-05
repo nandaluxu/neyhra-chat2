@@ -181,6 +181,8 @@ footer:has(#send:not(.hide)) #recbar{right:106px}
 .me .bub{transform-origin:100% 100%}.them .bub{transform-origin:0 100%}
 @keyframes bub{from{opacity:0;transform:translateY(10px) scale(.9)}}
 .wave i{transition:height .5s cubic-bezier(.34,1.56,.64,1),background .1s}
+.row.rs .bub{animation:none}
+#clr{color:var(--mut)}
 .play.on{animation:ringp 1.6s infinite}
 @keyframes ringp{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--ink) 35%,transparent)}100%{box-shadow:0 0 0 10px transparent}}
 .sub .w{display:inline-block;animation:wd .45s var(--d) both}
@@ -310,6 +312,7 @@ header>button:active,.mwrap>button:active{transform:scale(.88)}
     <button id="back" title="Kembali"><svg viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6"/></svg></button>
     <img class="pfp" id="hpfp" alt="">
     <div class="who"><div class="name" id="hname"></div><div class="status" id="status">online</div></div>
+    <button id="clr" type="button" title="Hapus obrolan" aria-label="Hapus obrolan"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12h10l1-12M9 7V4h6v3"/></svg></button>
   </header>
   <main id="chat"></main>
   <footer>
@@ -346,13 +349,13 @@ header>button:active,.mwrap>button:active{transform:scale(.88)}
 <script>
 const $ = id => document.getElementById(id);
 const chat=$('chat'), inp=$('inp'), sendB=$('send'), status=$('status');
-let current=null, ch=null, busy=false;
+let current=null, ch=null, busy=false, restoring=false, ready=false, openTok=0, lastDay='', urls=[], clrT=0;
 const cid=(()=>{try{return localStorage.cid||(localStorage.cid=crypto.randomUUID())}catch{return crypto.randomUUID()}})();
 const PLAY='<svg class="f" viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z"/></svg>';
 const PAUSE='<svg class="f" viewBox="0 0 24 24"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>';
 const fmt = s => Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
-const now = () => new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}).replace('.',':');
-const scroll = () => chat.scrollTo({top:chat.scrollHeight,behavior:'smooth'});
+const now = t => new Date(t||Date.now()).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}).replace('.',':');
+const scroll = () => { if(!restoring) chat.scrollTo({top:chat.scrollHeight,behavior:'smooth'}) };
 const wait = ms => new Promise(r=>setTimeout(r,ms));
 function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),1800)}
 
@@ -363,24 +366,26 @@ function reduce(bins,n){
   return out.map(v=>Math.max(.14,Math.pow(v/mx,.7)));
 }
 
-function addText(text){
-  const row=document.createElement('div'); row.className='row me';
-  row.innerHTML='<div class="bub"><div class="txt"></div><div class="ts">'+now()+'</div></div>';
+function addText(text,t){
+  t=t||Date.now(); ensureDay(t);
+  const row=document.createElement('div'); row.className='row me'+(restoring?' rs':'');
+  row.innerHTML='<div class="bub"><div class="txt"></div><div class="ts">'+now(t)+'</div></div>';
   row.querySelector('.txt').textContent=text;
   chat.appendChild(row); scroll();
 }
 
 let openSub=null; /* subtitle voice note yang lagi kebuka; ditutup waktu voice note lain diputar */
-function addVN(m, pre){
+function addVN(m, pre, t){
+  t=t||Date.now(); ensureDay(t);
   const text = (m.lang==='jp'&&m.jp) ? m.jp : m.id;
   const est = Math.max(2, Math.round(text.split(' ').length*0.42));
   let dur = (pre&&pre.dur)||est;
   const n = Math.min(30, Math.max(20, Math.round(dur*4)));
   const fake = Array.from({length:n},(_,i)=>.2+Math.abs(Math.sin(i*1.9+text.length))*.7);
   const hs = (pre&&pre.bins) ? reduce(pre.bins,n) : fake;
-  const row=document.createElement('div'); row.className='row them';
+  const row=document.createElement('div'); row.className='row them'+(restoring?' rs':'');
   row.innerHTML=`<div class="bub"><div class="vn"><button class="play">${PLAY}</button><div class="wave">${hs.map((h,i)=>`<i style="height:${(h*100).toFixed(1)}%;--k:${i}"></i>`).join('')}</div><span class="dur">${fmt(dur)}</span></div>
-  <div class="sub"><b>SUBTITLE</b><span></span></div><div class="ts">${now()}</div></div>`;
+  <div class="sub"><b>SUBTITLE</b><span></span></div><div class="ts">${now(t)}</div></div>`;
   chat.appendChild(row); scroll();
   const btn=row.querySelector('.play'), wave=row.querySelector('.wave'), bs=[...wave.children], d=row.querySelector('.dur'), sub=row.querySelector('.sub');
   const audio=new Audio(pre&&pre.url);
@@ -459,6 +464,45 @@ const subText=m=>{
 /* riwayat obrolan per karakter disimpan di browser dan dikirim tiap pesan (server tidak menyimpan apa pun) */
 const loadHist=id=>{try{const h=JSON.parse(store.get('h:'+id)||'[]');return Array.isArray(h)?h:[]}catch{return []}};
 const saveHist=(id,h)=>store.set('h:'+id,JSON.stringify(h.slice(-24)));
+/* ===== Riwayat tampilan chat: cuma disimpan di perangkat ini (teks di localStorage, audio voice note di IndexedDB) ===== */
+const LOGMAX=150, AUDMAX=30; /* maks pesan per karakter, dan maks voice note yang audionya disimpan */
+const loadLog=id=>{try{const l=JSON.parse(store.get('log:'+id)||'[]');return Array.isArray(l)?l:[]}catch{return []}};
+const idb=(()=>{
+  let p; const open=()=>p||(p=new Promise(res=>{ try{ const r=indexedDB.open('neyhra',1); r.onupgradeneeded=()=>r.result.createObjectStore('vn'); r.onsuccess=()=>res(r.result); r.onerror=()=>res(null); }catch{ res(null) } }));
+  const tx=async(mode,fn)=>{ const db=await open(); if(!db) return null; return new Promise(res=>{ try{ const t=db.transaction('vn',mode), rq=fn(t.objectStore('vn')); t.oncomplete=()=>res(rq?rq.result:null); t.onerror=t.onabort=()=>res(null); }catch{ res(null) } }); };
+  return { put:(k,v)=>tx('readwrite',s=>s.put(v,k)), get:k=>tx('readonly',s=>s.get(k)), del:k=>tx('readwrite',s=>s.delete(k)) };
+})();
+function record(id,e){
+  const l=loadLog(id); e.t=Date.now(); l.push(e);
+  while(l.length>LOGMAX){ const o=l.shift(); if(o.k) idb.del(o.k); }
+  let n=0; for(let i=l.length-1;i>=0;i--) if(l[i].k&&++n>AUDMAX){ idb.del(l[i].k); delete l[i].k; } /* voice note lama: audio dibuang, teksnya tetap */
+  store.set('log:'+id,JSON.stringify(l));
+}
+const dayKey=t=>{const d=new Date(t);return d.getFullYear()+'-'+d.getMonth()+'-'+d.getDate()};
+function dayLabel(t){
+  const d=new Date(t), n=new Date(), diff=Math.round((new Date(n.getFullYear(),n.getMonth(),n.getDate())-new Date(d.getFullYear(),d.getMonth(),d.getDate()))/864e5);
+  return diff===0?'Hari ini':diff===1?'Kemarin':d.toLocaleDateString('id-ID',{day:'numeric',month:'long',year:d.getFullYear()===n.getFullYear()?undefined:'numeric'});
+}
+function ensureDay(t){ const k=dayKey(t); if(k===lastDay) return; lastDay=k; const e=document.createElement('div'); e.className='day'; e.textContent=dayLabel(t); chat.appendChild(e); }
+function showThem(id,text){ addThem(text); record(id,{r:'them',x:text}); }
+/* tampilkan lagi obrolan tersimpan waktu karakter dibuka */
+async function restoreChat(id,tok){
+  const l=loadLog(id);
+  const recs=await Promise.all(l.map(e=>e.k?idb.get(e.k):null));
+  if(tok!==openTok) return; /* sudah pindah chat lain */
+  restoring=true;
+  try{
+    l.forEach((e,i)=>{
+      const a=recs[i];
+      if(e.r==='me') addText(e.x,e.t);
+      else if(e.r==='vn'&&a&&a.ab){ const u=URL.createObjectURL(new Blob([a.ab],{type:'audio/mpeg'})); urls.push(u); addVN({id:e.x,jp:e.jp,lang:e.lang},{url:u,dur:a.dur,bins:a.bins},e.t); }
+      else addThem(e.x,e.t); /* audio sudah dibuang -> tampil sebagai teks */
+    });
+  }catch{}
+  restoring=false;
+  if(!l.length) ensureDay(Date.now());
+  ready=true; chat.scrollTop=chat.scrollHeight;
+}
 const ph = n => 'data:image/svg+xml,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" fill="#667"/><text x="20" y="27" font-size="20" text-anchor="middle" fill="#fff" font-family="Helvetica,sans-serif" font-weight="700">${n[0]}</text></svg>`);
 function img(c, cls){ const i=new Image(); i.className=cls||''; i.alt=c.name; i.onerror=()=>{i.onerror=null;i.src=ph(c.name)}; i.src=c.avatar||ph(c.name); return i; }
 
@@ -497,9 +541,10 @@ function thinkBubble(name){
   chat.appendChild(row); tick(); return row;
 }
 
-function addThem(text){
-  const row=document.createElement('div'); row.className='row them';
-  row.innerHTML='<div class="bub"><div class="txt"></div><div class="ts">'+now()+'</div></div>';
+function addThem(text,t){
+  t=t||Date.now(); ensureDay(t);
+  const row=document.createElement('div'); row.className='row them'+(restoring?' rs':'');
+  row.innerHTML='<div class="bub"><div class="txt"></div><div class="ts">'+now(t)+'</div></div>';
   row.querySelector('.txt').textContent=text; chat.appendChild(row); scroll();
 }
 function dots(){
@@ -511,15 +556,16 @@ const setStatus=(t,typing)=>{ status.textContent=t; status.classList.toggle('typ
 
 async function submit(){
   const text=inp.value.trim();
-  if(busy||!text||!ch){ inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake'); return; }
+  if(busy||!text||!ch||!ready){ inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake'); return; }
   busy=true; inp.value=''; grow(); refresh(); addText(text);
+  const chId=ch.id; record(chId,{r:'me',x:text});
   const useVoice=voiceOn&&!!vcode, lang=voiceLang;
   let t=thinkBubble(ch.name); /* fase 1: ChatGPT lagi mikir */
   try{
     const hist=loadHist(ch.id);
     const r=await (await post('/api/chat',{clientId:cid,char:ch.id,message:text,userName:uname,history:hist,voice:{on:useVoice,lang}})).json();
     saveHist(ch.id,[...hist,['user',text],['char',r.id]]);
-    if(!useVoice){ t.remove(); addThem(r.id); }
+    if(!useVoice){ t.remove(); showThem(chId,r.id); }
     else{
       t.remove(); t=typingBubble(); setStatus('merekam suara',true); /* fase 2: masuk Fish Audio -> indikator voice */
       try{
@@ -527,8 +573,11 @@ async function submit(){
         const ab=await (await post('/api/tts',{char:ch.id,text:r.vn},{'x-voice-code':vcode})).arrayBuffer();
         const pre=await decode(ab); t.remove();
         addVN({id:r.id,jp:r.jpText,lang},pre);
+        const k='v'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+        const saved=await idb.put(k,{ab,dur:pre.dur,bins:pre.bins}); /* audio disimpan lokal supaya voice note bisa diputar lagi nanti */
+        record(chId,saved?{r:'vn',x:r.id,jp:r.jpText,lang,k}:{r:'vn',x:r.id,jp:r.jpText,lang});
       }catch(e){
-        t.remove(); addThem(r.id); /* suara gagal -> teksnya tetap tampil */
+        t.remove(); showThem(chId,r.id); /* suara gagal -> teksnya tetap tampil */
         if(e.status===403){ vcode=''; voiceOn=false; store.set('vcode',null); store.set('von','0'); paintVoice(); toast('Kode voice tidak valid, voice dimatikan'); }
         else toast(e.message);
       }
@@ -649,11 +698,12 @@ const reach=()=>{const w=app.clientWidth,h=app.clientHeight;return Math.hypot(Ma
 function openChat(c,avEl){
   if(moving||app.classList.contains('open')) return;
   moving=true; setTimeout(()=>moving=false,DUR);
-  ch=c; chat.innerHTML='<div class="day">Hari ini</div>'; setStatus('online',false); refresh();
+  ch=c; if(current) current.stop(); openSub=null; urls.forEach(u=>URL.revokeObjectURL(u)); urls=[]; clearTimeout(clrT); clrT=0;
+  chat.innerHTML=''; lastDay=''; ready=false; const tok=++openTok; setStatus('online',false); refresh();
   $('hname').textContent=c.name; $('hpfp').replaceWith(Object.assign(img(c,'pfp'),{id:'hpfp'}));
   const a=app.getBoundingClientRect(), r=avEl.getBoundingClientRect();
   ox=r.left+r.width/2-a.left; oy=r.top+r.height/2-a.top;
-  app.classList.add('open'); menu.classList.add('away');
+  app.classList.add('open'); menu.classList.add('away'); restoreChat(c.id,tok);
   view.animate({clipPath:[circle(0),circle(reach())]},{duration:DUR,easing:'cubic-bezier(.7,0,.2,1)'});
   setTimeout(()=>{ if(app.classList.contains('open')) inp.focus({preventScroll:true}) },DUR);
 }
@@ -667,6 +717,16 @@ function closeChat(){
 }
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ if(!vm.classList.contains('hide')) closeVoice(); else if(!nm.classList.contains('hide')) closeName(); else if(app.classList.contains('open')) closeChat(); else if(all.classList.contains('show')) closeAll(); } });
 $('back').addEventListener('click',closeChat);
+$('clr').onclick=()=>{
+  if(!ch||busy||!ready) return;
+  if(!clrT){ toast('Tap lagi untuk hapus obrolan ini'); clrT=setTimeout(()=>clrT=0,2500); return; }
+  clearTimeout(clrT); clrT=0;
+  if(current) current.stop(); openSub=null;
+  loadLog(ch.id).forEach(e=>{ if(e.k) idb.del(e.k) });
+  store.set('log:'+ch.id,null); store.set('h:'+ch.id,null); /* riwayat konteks AI ikut dihapus = mulai obrolan baru */
+  urls.forEach(u=>URL.revokeObjectURL(u)); urls=[];
+  chat.innerHTML=''; lastDay=''; ensureDay(Date.now()); toast('Obrolan dihapus');
+};
 
 /* Daftar karakter: menu awal cuma 3 pertama, sisanya lewat panel "Lihat semua" + pencarian */
 const SHOW=3, all=$('all'), q=$('q');
