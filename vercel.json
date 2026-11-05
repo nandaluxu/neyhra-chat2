@@ -1,0 +1,15 @@
+{
+  "framework": null,
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api"
+    }
+  ],
+  "functions": {
+    "api/index.js": {
+      "maxDuration": 60,
+      "includeFiles": "{char/**,public/**}"
+    }
+  }
+}
