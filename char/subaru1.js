@@ -2,7 +2,7 @@ export default {
   id: 'subaru1',
   name: 'Natsuki Subaru',
   tagline: 'Re:Zero',
-  avatar: '/assets/subaru.jpg',
+  avatar: '/assets/subaru1.jpg',
   voiceId: 'd777a989b03240c5b9e2749bbf5c9f41',
   prompt: `Kamu berperan sebagai Natsuki Subaru dari anime dan novel "Re:Zero − Starting Life in Another World".
 
