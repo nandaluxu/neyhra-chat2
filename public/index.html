@@ -159,7 +159,7 @@ footer:has(#send:not(.hide)) #recbar{right:106px}
 .m-name:active{transform:scale(.96)}
 .m-name svg{width:15px;height:15px}
 .m-name:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
-#nmodal,#vmodal,#smodal,#pmodal,#mmodal{position:absolute;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(0,0,0,.45);backdrop-filter:blur(3px)}
+#nmodal,#vmodal,#smodal,#pmodal,#mmodal,#rmodal{position:absolute;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(0,0,0,.45);backdrop-filter:blur(3px)}
 .nbox{width:100%;max-width:340px;background:var(--bg);border:1px solid var(--line);border-radius:22px;padding:20px;animation:nin .25s cubic-bezier(.2,.9,.3,1.2)}
 @keyframes nin{from{opacity:0;transform:scale(.92) translateY(8px)}}
 .nbox h2{font-size:18px;font-weight:600;letter-spacing:-.02em}
@@ -268,7 +268,7 @@ header>button:active,.mwrap>button:active{transform:scale(.88)}
   .pfp{width:40px;height:40px}
   .name{font-size:16px}
   /* kotak nama jadi bottom sheet, gampang dijangkau jempol */
-  #nmodal,#vmodal,#smodal,#mmodal{align-items:flex-end;padding:12px 12px calc(12px + env(safe-area-inset-bottom,0px))}
+  #nmodal,#vmodal,#smodal,#mmodal,#rmodal{align-items:flex-end;padding:12px 12px calc(12px + env(safe-area-inset-bottom,0px))}
   .nbox{max-width:none;border-radius:26px;padding:22px 20px 20px}
   .nact button{padding:12px 20px}
 }
@@ -395,6 +395,29 @@ header>button:active,.mwrap>button:active{transform:scale(.88)}
 .mdrow .mdel:disabled{opacity:.5}
 #mtoast{position:absolute;left:50%;top:calc(12px + env(safe-area-inset-top,0px));z-index:30;transform:translate(-50%,-10px);max-width:calc(100% - 28px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:99px;font-size:13px;font-weight:500;box-shadow:0 4px 16px rgba(0,0,0,.18);opacity:0;pointer-events:none;transition:opacity .25s,transform .25s}
 #mtoast.show{opacity:1;transform:translate(-50%,0);pointer-events:auto;cursor:pointer}
+/* ===== Profil karakter: hubungan & mood (klik foto/nama di header chat) ===== */
+header .pfp,header .who{cursor:pointer}
+.rprof{display:flex;align-items:center;gap:12px;margin-top:12px}
+.rprof img{width:56px;height:56px;border-radius:50%;object-fit:cover;background:var(--surface);flex:none}
+.rprof b{display:block;font-size:17px;font-weight:600;letter-spacing:-.02em}
+.rprof small{display:block;margin-top:2px;font-size:12.5px;color:var(--mut)}
+.rsec{margin-top:14px;padding:12px 13px 13px;border-radius:16px;background:var(--surface)}
+.rsec h3{font-size:11.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
+.rline{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-top:6px}
+.rline b{font-size:16px;font-weight:600;letter-spacing:-.01em}
+.rline small{font-size:12px;color:var(--mut);font-variant-numeric:tabular-nums}
+.rbar{position:relative;height:8px;margin-top:9px;border-radius:99px;background:var(--line);overflow:hidden}
+.rbar i{position:absolute;left:0;top:0;bottom:0;width:0;border-radius:99px;background:var(--rc,var(--ink));transition:width .5s cubic-bezier(.2,.9,.3,1),background .3s}
+.rbar u{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:var(--surface);text-decoration:none}
+.rdesc{margin-top:8px;font-size:12.5px;line-height:1.45;color:var(--mut)}
+.rdesc.sub2{margin-top:4px}
+.rsteps{list-style:none;padding:0;margin:9px 0 0;display:grid;gap:8px}
+.rsteps li{display:flex;gap:10px;align-items:flex-start;font-size:13.5px;line-height:1.35;font-weight:500}
+.rsteps li::before{content:"";flex:none;width:8px;height:8px;margin-top:5px;border-radius:50%;background:var(--off)}
+.rsteps li.done::before{background:var(--ink)}
+.rsteps li.cur::before{background:var(--ink);box-shadow:0 0 0 3px var(--line)}
+.rsteps li.lock{color:var(--mut);font-weight:400}
+.rsteps small{display:block;margin-top:1px;font-size:12px;font-weight:400;color:var(--mut)}
 </style>
 <link rel="stylesheet" href="group.css">
 <link rel="stylesheet" href="globalchat.css">
@@ -515,6 +538,30 @@ header>button:active,.mwrap>button:active{transform:scale(.88)}
       <div id="mdev" class="hide"></div>
       <div class="mchips hide" id="mchips"></div>
       <div id="mlist"></div>
+    </div>
+  </div>
+  <div id="rmodal" class="hide">
+    <div class="nbox sbox" role="dialog" aria-labelledby="rtitle">
+      <div class="shead"><h2 id="rtitle">Profil</h2><button id="rx" type="button" aria-label="Tutup"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+      <div class="rprof"><img id="rpfp" alt=""><div><b id="rname"></b><small id="rtag"></small></div></div>
+      <div class="rsec">
+        <h3>Hubungan</h3>
+        <div class="rline"><b id="rstage"></b><small id="rrel"></small></div>
+        <div class="rbar" id="rbar"><i id="rfill"></i></div>
+        <p class="rdesc" id="rdesc"></p>
+        <p class="rdesc sub2" id="rnext"></p>
+      </div>
+      <div class="rsec">
+        <h3>Mood</h3>
+        <div class="rline"><b id="rmood"></b><small id="rmv"></small></div>
+        <div class="rbar"><i id="rmfill"></i></div>
+        <p class="rdesc">Mood naik-turun mengikuti obrolan kalian dan pelan-pelan kembali normal seiring waktu. Kalau lagi kesal, dia lebih susah luluh.</p>
+      </div>
+      <div class="rsec">
+        <h3>Perjalanan</h3>
+        <ol class="rsteps" id="rsteps"></ol>
+      </div>
+      <div class="sgroup"><button class="srow danger" id="rreset" type="button"><span><b>Reset hubungan</b><i>Mulai dari awal lagi, seperti baru kenal. Obrolan dan memori tidak dihapus.</i></span><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 3-6.2M4 4v4h4"/></svg></button></div>
     </div>
   </div>
   <div id="mtoast" role="status" aria-live="polite"></div>
@@ -823,12 +870,13 @@ async function submit(){
   if(busy||!text||!ch||!ready){ inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake'); return; }
   busy=true; inp.value=''; grow(); refresh(); addText(text);
   const chId=ch.id; record(chId,{r:'me',x:text}); clearTimeout(draftT); store.set('draft:'+chId,null);
-  const useVoice=voiceOn&&!!vcode, lang=voiceLang; let okReply=false;
+  const useVoice=voiceOn&&!!vcode, lang=voiceLang; let okReply=false, relNote='';
   let t=thinkBubble(ch.name); /* fase 1: ChatGPT lagi mikir */
   try{
     const hist=loadHist(ch.id);
-    const r=await (await post('/api/chat',{clientId:cid,char:ch.id,message:text,userName:uname,history:hist,voice:{on:useVoice,lang},memory:memUse(chId).list})).json();
-    saveHist(chId,[...loadHist(chId),['user',text],['char',r.id]]); okReply=true; /* baca ulang h: karena peringkasan di latar bisa saja baru membuang bagian lamanya */
+    const r=await (await post('/api/chat',{clientId:cid,char:ch.id,message:text,userName:uname,history:hist,voice:{on:useVoice,lang},memory:memUse(chId).list,rel:relPayload(chId)})).json();
+    saveHist(chId,[...loadHist(chId),['user',text],['char',r.id]]); okReply=true;
+    relNote=relApply(chId,r.dRel,r.dMood); /* hubungan & mood: angka dari balasan AI (sudah di-clamp server) */ /* baca ulang h: karena peringkasan di latar bisa saja baru membuang bagian lamanya */
     if(!useVoice){ t.remove(); showThem(chId,r.id); }
     else{
       t.remove(); t=typingBubble(); setStatus('merekam suara',true); /* fase 2: masuk Fish Audio -> indikator voice */
@@ -849,6 +897,7 @@ async function submit(){
     }
   }catch(e){ t.remove(); toast(e.message); }
   setStatus('online',false); busy=false; refresh();
+  if(relNote) toast(relNote);
   if(okReply) maybeMemorize(chId);
 }
 
@@ -1011,7 +1060,7 @@ function openChat(c,avEl){
 function closeChat(){
   if(moving||!app.classList.contains('open')) return;
   moving=true; setTimeout(()=>moving=false,DUR);
-  closeSearch(); closePicker(); clearTimeout(draftT);
+  closeSearch(); closePicker(); closeRel(); clearTimeout(draftT);
   if(window.GX&&GX.cur) GX.onClose(); /* grup: hentikan rantai, simpan draft grup */
   else if(ch) store.set('draft:'+ch.id,inp.value.trim()?inp.value:null);
   if(current) current.stop();
@@ -1019,7 +1068,7 @@ function closeChat(){
   const an=view.animate({clipPath:[circle(reach()),circle(0)]},{duration:DUR,easing:'cubic-bezier(.7,0,.2,1)',fill:'forwards'});
   an.onfinish=()=>{app.classList.remove('open'); an.cancel()};
 }
-document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ if(window.GX&&GX.esc()) return; if(!pm.classList.contains('hide')) closePicker(); else if(!memModal.classList.contains('hide')) closeMem(); else if(!sm.classList.contains('hide')) closeSettings(); else if(!vm.classList.contains('hide')) closeVoice(); else if(!nm.classList.contains('hide')) closeName(); else if(app.classList.contains('open')) closeChat(); else if(all.classList.contains('show')) closeAll(); } });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ if(window.GX&&GX.esc()) return; if(!pm.classList.contains('hide')) closePicker(); else if(!rm.classList.contains('hide')) closeRel(); else if(!memModal.classList.contains('hide')) closeMem(); else if(!sm.classList.contains('hide')) closeSettings(); else if(!vm.classList.contains('hide')) closeVoice(); else if(!nm.classList.contains('hide')) closeName(); else if(app.classList.contains('open')) closeChat(); else if(all.classList.contains('show')) closeAll(); } });
 $('back').addEventListener('click',closeChat);
 const savePlaying=()=>{ if(current&&current.save) current.save(); };
 window.addEventListener('pagehide',savePlaying);
@@ -1110,7 +1159,7 @@ $('sjson').onclick=async()=>{
         if(audio[k]) continue; const a=await idb.get(k);
         if(a&&a.ab){ audio[k]={mime:'audio/mpeg',dur:a.dur==null?null:a.dur,bins:a.bins?Array.from(a.bins):null,data:b64(a.ab)}; nAud++; }
       }
-      nMsg+=log.length; chars.push({id,name:names[id]||id,log,hist:loadHist(id),audio,...(mem.length?{mem}:{})});
+      nMsg+=log.length; chars.push({id,name:names[id]||id,log,hist:loadHist(id),audio,...(mem.length?{mem}:{}),...(store.get(relKey(id))?{rel:relSan(relLoad(id))}:{})});
     }
     const gd=window.GX&&GX.enabled()?await GX.exportData():{groups:[],nAud:0,nMsg:0}; /* grup + pesan + audio yang sudah dibuat */
     nMsg+=gd.nMsg; nAud+=gd.nAud;
@@ -1158,6 +1207,7 @@ async function importJSON(file){
       }
       cur.sort((a,b)=>a.t-b.t); trimLog(cur); store.set('log:'+c.id,JSON.stringify(cur));
       if(!store.get('h:'+c.id)&&Array.isArray(c.hist)&&c.hist.length) saveHist(c.id,c.hist.filter(h=>Array.isArray(h)&&typeof h[1]==='string'));
+      if(c.rel&&typeof c.rel==='object'&&!store.get(relKey(c.id))) relSave(c.id,relSan(c.rel)); /* hubungan: hanya diisi kalau di perangkat ini belum ada */
       if(Array.isArray(c.mem)&&c.mem.length){ /* memori digabung berdasarkan id, tidak menimpa */
         const cm=loadMem(c.id), seen=new Set(cm.map(x=>x.id)); let a=0;
         for(const raw of c.mem.slice(0,100)){ const e=cleanMemEntry(raw); if(e&&!seen.has(e.id)){ cm.push(e); seen.add(e.id); a++; } }
@@ -1304,6 +1354,82 @@ function memUse(id){
   return {list,used};
 }
 const charOf=id=>allChars.find(x=>x.id===id);
+
+/* ===== Hubungan & mood per karakter, disimpan di perangkat (rel:<id>) =====
+   Server stateless: state ikut dikirim tiap pesan. AI mengusulkan perubahan lewat <rel>/<mood> di balasannya (dRel/dMood);
+   di sini angkanya diterapkan, dengan batas kenaikan harian supaya hubungan tidak bisa dikebut dalam sekali duduk.
+   Tabel tahap, label mood, batas harian, dan laju mood kembali normal datang dari /api/relation (satu sumber dengan prompt). */
+let REL=null;
+fetch('/api/relation').then(r=>r.json()).then(c=>{ if(c&&Array.isArray(c.stages)&&Array.isArray(c.moods)) REL=c; }).catch(()=>{});
+const rClamp=(n,lo,hi)=>Math.max(lo,Math.min(hi,n));
+const idxOf=(arr,v)=>arr.reduce((b,x,i)=>v>=x.min?i:b,0);
+const relKey=id=>'rel:'+id;
+function relSan(s){ /* data tak tepercaya (localStorage / file impor) -> bentuk yang pasti benar */
+  s=s&&typeof s==='object'?s:{}; const n=(x,d)=>{ const v=Math.round(Number(x)); return isFinite(v)?v:d; };
+  return {r:rClamp(n(s.r,0),0,100), m:rClamp(n(s.m,50),0,100), t:isNum(s.t)?s.t:Date.now(), day:typeof s.day==='string'?s.day.slice(0,12):'', gain:rClamp(n(s.gain,0),0,1000), p:s.p==='up'||s.p==='down'?s.p:''};
+}
+function relLoad(id){
+  let raw=null; try{ raw=JSON.parse(store.get(relKey(id))||'null'); }catch{}
+  const st=relSan(raw), dec=(REL&&REL.moodDecay)||4, now=Date.now();
+  if(st.m===50) st.t=now;
+  else{ /* mood pelan-pelan kembali ke 50; waktu yang "dipakai" dihitung supaya cek berulang tidak mengulang jam */
+    const back=Math.floor(Math.max(0,now-st.t)/36e5*dec);
+    if(back>0){ st.m=st.m>50?Math.max(50,st.m-back):Math.min(50,st.m+back); st.t=st.m===50?now:st.t+back/dec*36e5; }
+  }
+  return st;
+}
+const relSave=(id,st)=>store.set(relKey(id),JSON.stringify(st));
+const relPayload=id=>{ const st=relLoad(id); return {rel:st.r,mood:st.m,shift:st.p}; };
+/* terapkan perubahan dari satu balasan. Mengembalikan teks notifikasi kalau tahap berubah, selain itu ''. */
+function relApply(id,dRel,dMood){
+  const st=relLoad(id), before=st.r, today=dayKey(Date.now());
+  if(st.day!==today){ st.day=today; st.gain=0; }
+  let d=Math.round(Number(dRel))||0; const dm=Math.round(Number(dMood))||0;
+  if(d>0){ d=Math.min(d,Math.max(0,((REL&&REL.dailyCap)||15)-st.gain)); st.gain+=d; }
+  st.r=rClamp(st.r+d,0,100); st.m=rClamp(st.m+dm,0,100); st.t=Date.now();
+  let note=''; st.p='';
+  if(REL){
+    const a=idxOf(REL.stages,before), b=idxOf(REL.stages,st.r), c=charOf(id);
+    if(b>a){ st.p='up'; note='Hubunganmu dengan '+shortName(c)+' naik: '+REL.stages[b].name; }
+    else if(b<a){ st.p='down'; note='Hubunganmu dengan '+shortName(c)+' turun: '+REL.stages[b].name; }
+  }
+  relSave(id,st); return note;
+}
+
+/* panel profil: tap foto/nama di header chat */
+const rm=$('rmodal'); let rrT=0;
+function paintRel(){
+  if(!ch) return;
+  const st=relLoad(ch.id), c=charOf(ch.id)||ch, S=REL&&REL.stages, M=REL&&REL.moods;
+  $('rname').textContent=c.name; $('rtag').textContent=c.tagline||'';
+  $('rpfp').replaceWith(Object.assign(img(c,''),{id:'rpfp'}));
+  const si=S?idxOf(S,st.r):0, mi=M?idxOf(M,st.m):0, max=REL?REL.max:100, cap=(REL&&REL.dailyCap)||15;
+  $('rstage').textContent=S?S[si].name:'Hubungan'; $('rrel').textContent=st.r+' / '+max;
+  $('rfill').style.width=st.r+'%'; $('rdesc').textContent=S?S[si].desc:'';
+  const bar=$('rbar'); bar.querySelectorAll('u').forEach(u=>u.remove());
+  if(S) S.slice(1).forEach(x=>{ const u=document.createElement('u'); u.style.left=x.min+'%'; bar.append(u); });
+  const gainToday=st.day===dayKey(Date.now())?st.gain:0;
+  $('rnext').textContent=!S?'':gainToday>=cap?'Hari ini kedekatan kalian sudah naik cukup banyak. Lanjut lagi besok ya.':S[si+1]?'Tahap berikutnya: '+S[si+1].name+' ('+(S[si+1].min-st.r)+' poin lagi)':'Sudah di tahap tertinggi.';
+  $('rmood').textContent=M?M[mi].name:'Mood'; $('rmv').textContent=st.m+' / 100'; $('rmfill').style.width=st.m+'%';
+  $('rmfill').style.setProperty('--rc',st.m>=58?'var(--ok)':st.m<30?'var(--rec)':'var(--mut)');
+  const ol=$('rsteps'); ol.textContent='';
+  (S||[]).forEach((x,i)=>{
+    const li=document.createElement('li'), d=document.createElement('div'); li.className=i<si?'done':i===si?'cur':'lock'; d.textContent=x.name;
+    if(i<=si){ const sm=document.createElement('small'); sm.textContent=x.desc; d.append(sm); }
+    li.append(d); ol.append(li);
+  });
+}
+function openRel(){ if(!ch||(window.GX&&GX.cur)) return; paintRel(); rm.classList.remove('hide'); }
+function closeRel(){ rm.classList.add('hide'); if(rrT){ clearTimeout(rrT); rrT=0; $('rreset').classList.remove('arm'); $('rreset').querySelector('b').textContent='Reset hubungan'; } }
+document.querySelector('header').addEventListener('click',e=>{ if(e.target.closest('#hpfp,.who')) openRel(); });
+$('rx').onclick=closeRel;
+rm.addEventListener('click',e=>{ if(e.target===rm) closeRel(); });
+$('rreset').onclick=()=>{
+  const b=$('rreset'), lab=b.querySelector('b');
+  if(!rrT){ b.classList.add('arm'); lab.textContent='Tap lagi untuk reset hubungan'; rrT=setTimeout(()=>{ rrT=0; b.classList.remove('arm'); lab.textContent='Reset hubungan'; },3000); return; }
+  clearTimeout(rrT); rrT=0; b.classList.remove('arm'); lab.textContent='Reset hubungan';
+  if(ch){ store.set(relKey(ch.id),null); paintRel(); toast('Hubungan direset'); }
+};
 const shortName=c=>{ const n=String((c&&c.name)||'').replace(/\([^)]*\)/g,' ').replace(/\s+/g,' ').trim(); return n.length<=12?n:(n.split(/[\s/]+/)[0]||n); };
 
 /* buang bagian h: yang sudah diringkas. Normalnya h: cuma bertambah di ujung, jadi chunk masih di depan; kalau depan sempat terpotong batas 40, cari ujung chunk. */
