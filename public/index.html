@@ -388,10 +388,10 @@ header>button:active,.mwrap>button:active{transform:scale(.88)}
     <button id="back" title="Kembali"><svg viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6"/></svg></button>
     <img class="pfp" id="hpfp" alt="">
     <div class="who"><div class="name" id="hname"></div><div class="status" id="status">online</div></div>
-    <button id="vmore" type="button" class="hide" title="Pilih suara" aria-label="Pilih suara karakter" aria-haspopup="dialog"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="12" cy="19" r="1.9"/></svg></button>
     <button id="find" type="button" title="Cari di obrolan" aria-label="Cari di obrolan"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg></button>
     <button id="exp" type="button" title="Ekspor obrolan" aria-label="Ekspor obrolan"><svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 19h14"/></svg></button>
     <button id="clr" type="button" title="Hapus obrolan" aria-label="Hapus obrolan"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12h10l1-12M9 7V4h6v3"/></svg></button>
+    <button id="vmore" type="button" class="hide" title="Pilih suara" aria-label="Pilih suara karakter" aria-haspopup="dialog"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="12" cy="19" r="1.9"/></svg></button>
   </header>
   <div id="sbar"><input id="sq" type="search" placeholder="Cari di obrolan" autocomplete="off" enterkeyhint="search" aria-label="Cari di obrolan"><span id="scnt"></span><button id="sprev" type="button" aria-label="Hasil sebelumnya" disabled><svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button><button id="snext" type="button" aria-label="Hasil berikutnya" disabled><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button><button id="sclose" type="button" aria-label="Tutup pencarian"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
   <main id="chat"></main>
@@ -628,6 +628,9 @@ let voiceOn=store.get('von')==='1'&&!!vcode; /* voice cuma bisa nyala kalau suda
 /* suara per karakter: server cuma memberi { key, label } (voiceId asli tidak pernah sampai ke browser). Pilihan disimpan per karakter. */
 const charVoices=id=>{ const c=allChars.find(x=>x.id===id); return (c&&c.voices)||[]; };
 const voiceKeyOf=id=>{ const vs=charVoices(id); if(vs.length<2) return undefined; const k=store.get('vv:'+id); return vs.some(v=>v.key===k)?k:vs[0].key; };
+/* 3 karakter yang terakhir dibuka tampil di atas menu. Murni client side: cuma daftar id di localStorage perangkat ini. */
+let recent=(()=>{ try{ const r=JSON.parse(store.get('recent')||'[]'); return Array.isArray(r)?r.filter(x=>typeof x==='string').slice(0,10):[]; }catch{ return []; } })();
+const touchRecent=id=>{ recent=[id,...recent.filter(x=>x!==id)].slice(0,10); store.set('recent',JSON.stringify(recent)); };
 /* teks subtitle sesuai pengaturan; 'auto' = ikut bahasa voice note itu sendiri */
 const subText=m=>{
   const mode=subLang==='auto'?m.lang:subLang;
@@ -901,6 +904,7 @@ function openChat(c,avEl){
   $('hname').textContent=c.name; $('hpfp').replaceWith(Object.assign(img(c,'pfp'),{id:'hpfp'}));
   const a=app.getBoundingClientRect(), r=avEl.getBoundingClientRect();
   ox=r.left+r.width/2-a.left; oy=r.top+r.height/2-a.top;
+  touchRecent(c.id); setTimeout(renderList,DUR); /* urutan menu diperbarui saat chat sudah menutupi layar */
   app.classList.add('open'); menu.classList.add('away'); restoreChat(c.id,tok);
   view.animate({clipPath:[circle(0),circle(reach())]},{duration:DUR,easing:'cubic-bezier(.7,0,.2,1)'});
   setTimeout(()=>{ if(app.classList.contains('open')) inp.focus({preventScroll:true}) },DUR);
@@ -1178,14 +1182,24 @@ $('allback').onclick=closeAll;
 q.addEventListener('input',filterAll);
 q.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); const f=rows.find(r=>!r.el.classList.contains('hide')); if(f){ q.blur(); f.el.click(); } } });
 
+/* menu awal: karakter yang terakhir dibuka dulu (max 3), kekurangannya diisi urutan bawaan */
+let allBtn=null;
+function renderList(){
+  const by=new Map(allChars.map(c=>[c.id,c])), top=recent.map(i=>by.get(i)).filter(Boolean).slice(0,SHOW);
+  for(const c of allChars){ if(top.length>=SHOW) break; if(!top.includes(c)) top.push(c); }
+  list.innerHTML=''; top.forEach(c=>list.append(card(c)));
+  if(allBtn) list.append(allBtn);
+}
 fetch('/api/chars').then(r=>r.json()).then(cs=>{
-  allChars=cs; list.innerHTML='';
-  cs.slice(0,SHOW).forEach(c=>list.append(card(c)));
+  allChars=cs;
   if(cs.length>SHOW){
     const b=document.createElement('button'); b.className='m-all'; b.type='button';
     b.innerHTML='<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg><span></span>';
     b.querySelector('span').textContent='Lihat semua karakter ('+cs.length+')';
-    b.onclick=openAll; list.append(b);
+    b.onclick=openAll; allBtn=b;
+  }
+  renderList();
+  if(cs.length>SHOW){
     rows=cs.map(c=>({c,el:card(c)})); $('alllist').append(...rows.map(r=>r.el));
     $('allcount').textContent=cs.length+' karakter';
   }
