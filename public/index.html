@@ -158,7 +158,7 @@ footer:has(#send:not(.hide)) #recbar{right:106px}
 .m-name:active{transform:scale(.96)}
 .m-name svg{width:15px;height:15px}
 .m-name:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
-#nmodal,#vmodal,#smodal{position:absolute;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(0,0,0,.45);backdrop-filter:blur(3px)}
+#nmodal,#vmodal,#smodal,#pmodal{position:absolute;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(0,0,0,.45);backdrop-filter:blur(3px)}
 .nbox{width:100%;max-width:340px;background:var(--bg);border:1px solid var(--line);border-radius:22px;padding:20px;animation:nin .25s cubic-bezier(.2,.9,.3,1.2)}
 @keyframes nin{from{opacity:0;transform:scale(.92) translateY(8px)}}
 .nbox h2{font-size:18px;font-weight:600;letter-spacing:-.02em}
@@ -270,7 +270,21 @@ header>button:active,.mwrap>button:active{transform:scale(.88)}
   .nbox{max-width:none;border-radius:26px;padding:22px 20px 20px}
   .nact button{padding:12px 20px}
 }
-/* ===== Pengaturan voice di menu utama ===== */
+/* ===== Pemilih suara karakter (titik tiga) + indikator online ===== */
+.m-top{display:flex;align-items:center;justify-content:space-between;position:relative}
+.m-online{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:99px;background:var(--surface);font-size:12.5px;font-weight:500;font-variant-numeric:tabular-nums;animation:rise2 .6s both}
+.m-online::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 0 var(--ok);animation:ping2 2s infinite}
+@keyframes ping2{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--ok) 55%,transparent)}100%{box-shadow:0 0 0 7px transparent}}
+#vmore svg{fill:currentColor;stroke:none}
+.vopts{display:flex;flex-direction:column;gap:6px;margin-top:14px}
+.vopt{display:flex;align-items:center;gap:12px;width:100%;padding:13px 14px;border-radius:14px;background:var(--surface);text-align:left;font-size:14.5px;font-weight:500;border:1.5px solid transparent;transition:border-color .15s,transform .15s}
+.vopt:active{transform:scale(.985)}
+.vopt:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.vopt span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vopt i{width:18px;height:18px;border-radius:50%;border:2px solid var(--off);flex:none;position:relative;transition:border-color .15s}
+.vopt.sel{border-color:var(--ink)}
+.vopt.sel i{border-color:var(--ink)}
+.vopt.sel i::after{content:"";position:absolute;inset:3px;border-radius:50%;background:var(--ink)}
 .m-set{display:inline-flex;align-items:center;gap:8px;padding:9px 15px 9px 12px;border-radius:99px;background:var(--surface);font-size:13px;font-weight:500;animation:rise2 .8s 1.15s cubic-bezier(.2,.9,.2,1) both;transition:transform .2s}
 .m-set:active{transform:scale(.96)}
 .m-set svg{width:15px;height:15px}
@@ -346,7 +360,7 @@ header>button:active,.mwrap>button:active{transform:scale(.88)}
 <div id="app">
   <section id="menu">
     <div class="orb o1"></div><div class="orb o2"></div>
-    <div class="m-logo"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg></div>
+    <div class="m-top"><div class="m-logo"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg></div><span class="m-online hide" id="online" role="status" aria-live="off"><span><span id="onum">0</span> online</span></span></div>
     <div class="m-hero">
       <h1 id="mtitle" aria-label="neyhra chat">neyhra chat</h1>
       <p class="m-sub">Pilih siapa yang mau diajak ngobrol.</p>
@@ -374,6 +388,7 @@ header>button:active,.mwrap>button:active{transform:scale(.88)}
     <button id="back" title="Kembali"><svg viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6"/></svg></button>
     <img class="pfp" id="hpfp" alt="">
     <div class="who"><div class="name" id="hname"></div><div class="status" id="status">online</div></div>
+    <button id="vmore" type="button" class="hide" title="Pilih suara" aria-label="Pilih suara karakter" aria-haspopup="dialog"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="12" cy="19" r="1.9"/></svg></button>
     <button id="find" type="button" title="Cari di obrolan" aria-label="Cari di obrolan"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg></button>
     <button id="exp" type="button" title="Ekspor obrolan" aria-label="Ekspor obrolan"><svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 19h14"/></svg></button>
     <button id="clr" type="button" title="Hapus obrolan" aria-label="Hapus obrolan"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12h10l1-12M9 7V4h6v3"/></svg></button>
@@ -401,6 +416,14 @@ header>button:active,.mwrap>button:active{transform:scale(.88)}
       <span class="vlab">Subtitle</span>
       <div class="seg" id="seg-s"><button type="button" data-v="both">Indonesia + Jepang</button><button type="button" data-v="auto">Ikuti bahasa voice</button><button type="button" data-v="id">Indonesia saja</button><button type="button" data-v="jp">Jepang saja</button></div>
       <div class="nact"><button id="vdone" type="button">Selesai</button></div>
+    </div>
+  </div>
+  <div id="pmodal" class="hide">
+    <div class="nbox" role="dialog" aria-labelledby="ptitle">
+      <h2 id="ptitle">Suara karakter</h2>
+      <p id="psub">Pilih suara yang dipakai untuk voice note karakter ini. Pilihanmu disimpan di perangkat ini.</p>
+      <div class="vopts" id="vopts"></div>
+      <div class="nact"><button id="pdone" type="button" style="background:var(--ink);color:var(--bg)">Selesai</button></div>
     </div>
   </div>
   <div id="smodal" class="hide">
@@ -567,7 +590,7 @@ function addVN(m, takes, t){
     if(list.length>=MAXV){ toast('Maksimal '+MAXV+' versi per voice note'); return; }
     regen=true; re.classList.add('spin');
     try{
-      const ab=await (await post('/api/tts',{char:owner,text:m.vn},{'x-voice-code':vcode})).arrayBuffer();
+      const ab=await (await post('/api/tts',{char:owner,text:m.vn,voice:voiceKeyOf(owner)},{'x-voice-code':vcode})).arrayBuffer();
       const p=await decode(ab);
       if(!row.isConnected){ URL.revokeObjectURL(p.url); return; } /* chat sudah ditutup/dihapus */
       urls.push(p.url);
@@ -602,6 +625,9 @@ let voiceLang=store.get('vl')==='id'?'id':'jp';
 let subLang=SUBS[store.get('sl')]?store.get('sl'):'both';
 let vcode=store.get('vcode')||'';           /* kode yang sudah terbukti benar */
 let voiceOn=store.get('von')==='1'&&!!vcode; /* voice cuma bisa nyala kalau sudah punya kode */
+/* suara per karakter: server cuma memberi { key, label } (voiceId asli tidak pernah sampai ke browser). Pilihan disimpan per karakter. */
+const charVoices=id=>{ const c=allChars.find(x=>x.id===id); return (c&&c.voices)||[]; };
+const voiceKeyOf=id=>{ const vs=charVoices(id); if(vs.length<2) return undefined; const k=store.get('vv:'+id); return vs.some(v=>v.key===k)?k:vs[0].key; };
 /* teks subtitle sesuai pengaturan; 'auto' = ikut bahasa voice note itu sendiri */
 const subText=m=>{
   const mode=subLang==='auto'?m.lang:subLang;
@@ -724,7 +750,7 @@ async function submit(){
       t.remove(); t=typingBubble(); setStatus('merekam suara',true); /* fase 2: masuk Fish Audio -> indikator voice */
       try{
         /* vn = teks ucapan lengkap dengan tag ekspresi ([laughing], [sad], dll), dikirim apa adanya ke TTS */
-        const ab=await (await post('/api/tts',{char:ch.id,text:r.vn},{'x-voice-code':vcode})).arrayBuffer();
+        const ab=await (await post('/api/tts',{char:ch.id,text:r.vn,voice:voiceKeyOf(ch.id)},{'x-voice-code':vcode})).arrayBuffer();
         const pre=await decode(ab); t.remove();
         const tNow=Date.now(), k=newKey(); urls.push(pre.url);
         addVN({id:r.id,jp:r.jpText,lang,vn:r.vn},[pre],tNow);
@@ -848,6 +874,21 @@ $('nclear').onclick=()=>{ saveName(''); closeName(); renderHero(); };
 ninp.addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();submitName()} });
 nm.addEventListener('click',e=>{ if(e.target===nm) closeName(); });
 const circle=r=>`circle(${r}px at ${ox}px ${oy}px)`;
+/* ===== Pemilih suara (tombol titik tiga di header chat) ===== */
+const pm=$('pmodal');
+function paintVoices(){
+  if(!ch) return; const vs=charVoices(ch.id), cur=voiceKeyOf(ch.id), box=$('vopts'); box.innerHTML='';
+  vs.forEach(v=>{
+    const b=document.createElement('button'); b.type='button'; b.className='vopt'+(v.key===cur?' sel':''); b.setAttribute('role','radio'); b.setAttribute('aria-checked',v.key===cur);
+    b.innerHTML='<span></span><i></i>'; b.firstChild.textContent=v.label;
+    b.onclick=()=>{ store.set('vv:'+ch.id,v.key); paintVoices(); toast('Suara: '+v.label); };
+    box.append(b);
+  });
+}
+const openPicker=()=>{ if(!ch||charVoices(ch.id).length<2) return; $('ptitle').textContent='Suara '+ch.name; paintVoices(); pm.classList.remove('hide'); };
+const closePicker=()=>pm.classList.add('hide');
+$('vmore').onclick=openPicker; $('pdone').onclick=closePicker;
+pm.addEventListener('click',e=>{ if(e.target===pm) closePicker(); });
 const reach=()=>{const w=app.clientWidth,h=app.clientHeight;return Math.hypot(Math.max(ox,w-ox),Math.max(oy,h-oy))};
 
 function openChat(c,avEl){
@@ -856,6 +897,7 @@ function openChat(c,avEl){
   ch=c; closeSearch(); if(current) current.stop(); openSub=null; urls.forEach(u=>URL.revokeObjectURL(u)); urls=[]; clearTimeout(clrT); clrT=0;
   chat.innerHTML=''; lastDay=''; ready=false; const tok=++openTok; setStatus('online',false);
   clearTimeout(draftT); inp.value=store.get('draft:'+c.id)||''; grow(); refresh(); /* draft pesan karakter ini */
+  $('vmore').classList.toggle('hide',charVoices(c.id).length<2);
   $('hname').textContent=c.name; $('hpfp').replaceWith(Object.assign(img(c,'pfp'),{id:'hpfp'}));
   const a=app.getBoundingClientRect(), r=avEl.getBoundingClientRect();
   ox=r.left+r.width/2-a.left; oy=r.top+r.height/2-a.top;
@@ -866,14 +908,14 @@ function openChat(c,avEl){
 function closeChat(){
   if(moving||!app.classList.contains('open')) return;
   moving=true; setTimeout(()=>moving=false,DUR);
-  closeSearch(); clearTimeout(draftT);
+  closeSearch(); closePicker(); clearTimeout(draftT);
   if(ch) store.set('draft:'+ch.id,inp.value.trim()?inp.value:null);
   if(current) current.stop();
   menu.classList.remove('away');
   const an=view.animate({clipPath:[circle(reach()),circle(0)]},{duration:DUR,easing:'cubic-bezier(.7,0,.2,1)',fill:'forwards'});
   an.onfinish=()=>{app.classList.remove('open'); an.cancel()};
 }
-document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ if(!sm.classList.contains('hide')) closeSettings(); else if(!vm.classList.contains('hide')) closeVoice(); else if(!nm.classList.contains('hide')) closeName(); else if(app.classList.contains('open')) closeChat(); else if(all.classList.contains('show')) closeAll(); } });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ if(!pm.classList.contains('hide')) closePicker(); else if(!sm.classList.contains('hide')) closeSettings(); else if(!vm.classList.contains('hide')) closeVoice(); else if(!nm.classList.contains('hide')) closeName(); else if(app.classList.contains('open')) closeChat(); else if(all.classList.contains('show')) closeAll(); } });
 $('back').addEventListener('click',closeChat);
 const savePlaying=()=>{ if(current&&current.save) current.save(); };
 window.addEventListener('pagehide',savePlaying);
@@ -1148,6 +1190,23 @@ fetch('/api/chars').then(r=>r.json()).then(cs=>{
     $('allcount').textContent=cs.length+' karakter';
   }
 }).catch(()=>{ list.textContent='Gagal memuat karakter'; });
+
+/* ===== Indikator online: heartbeat ke /api/online tiap 60 dtk selama tab kelihatan. Kalau server belum mendukung (enabled:false), pill tetap tersembunyi. ===== */
+(()=>{
+  const box=$('online'), num=$('onum'); let tm=0, off=false;
+  async function beat(){
+    clearTimeout(tm);
+    if(off||document.hidden) return;
+    try{
+      const j=await (await post('/api/online',{clientId:cid})).json();
+      if(!j.enabled){ off=true; box.classList.add('hide'); return; }
+      num.textContent=j.count; box.classList.remove('hide');
+    }catch{}
+    tm=setTimeout(beat,60000);
+  }
+  document.addEventListener('visibilitychange',()=>{ if(!document.hidden) beat(); else clearTimeout(tm); });
+  beat();
+})();
 
 </script>
 </body>
