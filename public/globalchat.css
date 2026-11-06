@@ -1,0 +1,142 @@
+/* ===== Chat Global (UI saja; logika di globalchat.js, data contoh di globalchat.mock.js) =====
+   Memakai variabel tema yang sudah ada (--bg, --surface, --ink, --mut, --line, --me, --ok, --rec) dan class bawaan
+   (header, .who, .name, .status, .day, .nbox, .sbox, .shead, .sgroup, .srow, .sw, .seg, .vlab, .mhelp, .stor, .hide).
+   Semua class milik fitur ini berawalan gc- supaya tidak menyentuh desain global. */
+
+#gc{--warn:#b86e00;--g:14px;position:absolute;inset:0;z-index:3;display:flex;flex-direction:column;background:var(--bg);visibility:hidden;transform:translateY(100%);transition:transform .45s cubic-bezier(.2,.9,.2,1),visibility 0s .45s}
+#gc.show{visibility:visible;transform:none;transition-delay:0s}
+@media(prefers-color-scheme:dark){#gc{--warn:#ffb224}}
+@media(min-width:800px){
+  #gc{--g:max(24px,calc((100% - 780px)/2))}
+  #gc header{padding-left:calc(var(--g) - 8px);padding-right:calc(var(--g) - 8px)}
+  .gc-foot{padding-left:calc(var(--g) - 8px)!important;padding-right:calc(var(--g) - 8px)!important}
+  #gc-list{padding-top:24px!important}
+}
+
+/* tombol "Chat global" di menu utama (memakai .m-set) */
+.gc-dot{width:7px;height:7px;border-radius:50%;background:var(--mut);flex:none}
+.gc-dot[data-s=online]{background:var(--ok)}
+.gc-dot[data-s=connecting],.gc-dot[data-s=syncing]{background:var(--warn);animation:pulse .9s ease-in-out infinite}
+.gc-dot[data-s=offline]{background:var(--rec)}
+
+/* header */
+#gc-dev,#gc-info{color:var(--mut)}
+.gc-ico{width:38px;height:38px;border-radius:50%;background:var(--ink);color:var(--bg);display:grid;place-items:center;flex:none;margin:0 10px 0 2px}
+.gc-ico svg{width:20px;height:20px}
+@media(max-width:519px){.gc-ico{width:40px;height:40px}}
+.gc-status[data-s=online]::before{background:var(--ok)}
+.gc-status[data-s=connecting]::before,.gc-status[data-s=syncing]::before{background:var(--warn);animation:pulse .9s ease-in-out infinite}
+.gc-status[data-s=offline]::before{background:var(--rec)}
+
+/* banner status (menghubungkan / sinkronisasi / offline) */
+.gc-banner{display:none;flex:none;position:relative;overflow:hidden;align-items:center;gap:12px;padding:10px var(--g);border-bottom:1px solid var(--line);background:var(--surface)}
+.gc-banner.show{display:flex;animation:gcin .25s ease-out}
+@keyframes gcin{from{opacity:0;transform:translateY(-6px)}}
+.gc-bi{width:34px;height:34px;border-radius:50%;background:var(--bg);display:grid;place-items:center;flex:none}
+.gc-bi svg{width:18px;height:18px}
+.gc-spin svg{animation:vspin .9s linear infinite}
+.gc-banner[data-s=offline] .gc-bi{color:var(--rec)}
+.gc-bt{flex:1;min-width:0}
+.gc-bt b{display:block;font-size:13.5px;font-weight:600}
+.gc-bt small{display:block;margin-top:1px;font-size:12px;line-height:1.35;color:var(--mut)}
+.gc-bar{position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--line)}
+.gc-bar i{display:block;height:100%;width:0;background:var(--ink);transition:width .3s}
+.gc-btn{display:block;flex:none;padding:8px 14px;border-radius:99px;background:var(--ink);color:var(--bg);font-size:13px;font-weight:500;transition:transform .12s}
+.gc-btn:active{transform:scale(.95)}
+
+/* area percakapan */
+#gc-list{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:14px var(--g);display:flex;flex-direction:column;scrollbar-width:none}
+#gc-list::-webkit-scrollbar{display:none}
+#gc-list .day{margin:14px 0 2px}
+#gc-list .day:first-child{margin-top:0}
+.gc-msg{display:flex;align-items:flex-end;gap:8px;margin-top:8px}
+.gc-msg.me{justify-content:flex-end}
+.gc-msg:not(.first){margin-top:2px}
+.gc-av{width:28px;height:28px;border-radius:50%;flex:none;display:grid;place-items:center;margin-bottom:1px;font-size:12px;font-weight:700;color:#fff;background:hsl(var(--h,0) 42% 46%)}
+.gc-av.sp{background:none}
+.gc-b{position:relative;min-width:0;max-width:min(80%,520px);padding:9px 13px 6px;border-radius:18px;background:var(--surface)}
+.them .gc-b{border-top-left-radius:6px;border-bottom-left-radius:6px}
+.them.first .gc-b{border-top-left-radius:18px}
+.them.last .gc-b{border-bottom-left-radius:5px}
+.me .gc-b{background:var(--me);color:var(--me-ink);border-top-right-radius:6px;border-bottom-right-radius:6px}
+.me.first .gc-b{border-top-right-radius:18px}
+.me.last .gc-b{border-bottom-right-radius:5px}
+.gc-n{margin-bottom:2px;font-size:12px;font-weight:600;color:hsl(var(--h,0) 55% 38%);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media(prefers-color-scheme:dark){.gc-n{color:hsl(var(--h,0) 70% 72%)}}
+.gc-t{font-size:14.5px;line-height:1.4;white-space:pre-wrap;overflow-wrap:anywhere;user-select:text;-webkit-user-select:text}
+.gc-ts{display:flex;align-items:center;justify-content:flex-end;gap:4px;min-height:14px;margin-top:3px;font-size:10.5px;color:var(--mut)}
+.me .gc-ts{color:color-mix(in srgb,var(--me-ink) 62%,transparent)}
+.gc-ts svg{width:12px;height:12px;stroke-width:2.2}
+.gc-ts .gc-sp{animation:vspin .8s linear infinite}
+.gc-retry{display:inline-block;padding:2px 0;font-size:11px;font-weight:600;color:var(--rec);text-decoration:underline;text-underline-offset:2px}
+.me.sending .gc-b{opacity:.65}
+.me.failed .gc-b{box-shadow:0 0 0 1.5px var(--rec)}
+.gc-msg.new .gc-b{animation:gcb .32s cubic-bezier(.2,.9,.3,1.15)}
+.me.new .gc-b{transform-origin:100% 100%}.them.new .gc-b{transform-origin:0 100%}
+@keyframes gcb{from{opacity:0;transform:translateY(8px) scale(.94)}}
+@media(max-width:519px){
+  .gc-t{font-size:15.5px;line-height:1.42}
+  .gc-b{max-width:84%}
+  .gc-ts{font-size:11px}
+}
+
+/* tombol hapus per pesan (cuma muncul di Mode dev) */
+.gc-del{display:none;width:28px;height:28px;border-radius:50%;flex:none;align-self:center;color:var(--mut);transition:background .15s,color .15s}
+#gc-list.dev .gc-del{display:grid}
+.gc-del svg{width:14px;height:14px}
+.gc-del.arm{background:var(--rec);color:#fff}
+@media(hover:hover){.gc-del:not(.arm):hover{background:var(--surface);color:var(--rec)}}
+.gc-del:focus-visible,.gc-retry:focus-visible,.gc-btn:focus-visible,.gc-empty button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+
+/* tampilan kosong, offline, dan skeleton saat menunggu riwayat */
+.gc-empty{margin:auto;max-width:300px;padding:20px 0;text-align:center;font-size:13.5px;line-height:1.45;color:var(--mut)}
+.gc-eico{width:56px;height:56px;margin:0 auto 14px;border-radius:50%;background:var(--surface);color:var(--ink);display:grid;place-items:center}
+.gc-eico svg{width:24px;height:24px}
+.gc-empty.err .gc-eico{color:var(--rec)}
+.gc-empty b{display:block;margin-bottom:4px;font-size:16px;font-weight:600;letter-spacing:-.01em;color:var(--ink)}
+.gc-empty button{display:inline-block;margin-top:14px;padding:10px 16px;border-radius:99px;background:var(--surface);color:var(--ink);font-size:13.5px;font-weight:500;transition:transform .12s}
+.gc-empty button:active{transform:scale(.96)}
+.gc-skwrap{margin-top:auto}
+.gc-skcap{margin-bottom:6px;text-align:center;font-size:12.5px;color:var(--mut)}
+.gc-sk{display:flex;margin-top:10px}
+.gc-sk.me{justify-content:flex-end}
+.gc-sk i{display:block;height:38px;max-width:80%;border-radius:18px;background:color-mix(in srgb,var(--ink) 6%,var(--surface));animation:gcsh 1.4s ease-in-out infinite}
+@keyframes gcsh{50%{opacity:.45}}
+
+/* tombol "ke pesan terbaru" */
+#gc-down{position:absolute;right:var(--g);bottom:calc(100% + 10px);height:36px;min-width:36px;padding:0 10px;border-radius:99px;background:var(--bg);border:1px solid var(--line);box-shadow:0 2px 10px rgba(0,0,0,.14);display:flex;align-items:center;justify-content:center;gap:6px;font-size:12.5px;font-weight:500;color:var(--ink);opacity:0;transform:translateY(8px) scale(.9);pointer-events:none;transition:opacity .2s,transform .2s;z-index:3}
+#gc-down.show{opacity:1;transform:none;pointer-events:auto}
+#gc-down svg{width:18px;height:18px}
+
+/* komposer */
+.gc-foot{flex:none;position:relative;padding:6px 10px calc(10px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line);background:var(--bg)}
+.gc-meta{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:24px;padding:0 6px 4px;font-size:12px;color:var(--mut)}
+.gc-as{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gc-as b{font-weight:600;color:var(--ink)}
+.gc-as.off{color:var(--rec)}
+.gc-as button{display:inline;padding:2px 3px;font-size:inherit;color:inherit;text-decoration:underline;text-underline-offset:2px}
+.gc-as button:focus-visible{outline:2px solid var(--ink);outline-offset:1px;border-radius:4px}
+.gc-count{flex:none;font-variant-numeric:tabular-nums}
+.gc-count.warn{color:var(--warn)}
+.gc-count.max{color:var(--rec);font-weight:600}
+.gc-count.bump{animation:sh .3s}
+.gc-row{display:flex;align-items:flex-end;gap:8px}
+#gc-inp{flex:1;min-width:0;resize:none;border:0;outline:0;background:var(--surface);color:var(--ink);border-radius:21px;padding:13px 16px;font:inherit;font-size:16px;line-height:18px;height:44px;max-height:136px;overflow-y:auto;scrollbar-width:none}
+#gc-inp::placeholder{color:var(--mut)}
+#gc-inp.shake{animation:sh .3s}
+#gc-send{width:44px;height:44px;border-radius:50%;flex:none;background:var(--ink);color:var(--bg);transition:opacity .15s,transform .15s}
+#gc-send:disabled{opacity:.35;cursor:default}
+#gc-send:not(:disabled):active{transform:scale(.92)}
+#gc-send:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+#gc-toast{position:absolute;left:50%;bottom:calc(100% + 10px);transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:6px 14px;border-radius:99px;font-size:12px;opacity:0;pointer-events:none;transition:opacity .2s;white-space:nowrap;z-index:4}
+#gc-toast.show{opacity:1}
+
+/* modal info + panel dev (gaya sama dengan modal lain; di HP jadi bottom sheet) */
+.gc-ov{position:absolute;inset:0;z-index:12;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(0,0,0,.45);backdrop-filter:blur(3px)}
+.gc-ov .sbox{width:100%}
+@media(max-width:519px){.gc-ov{align-items:flex-end;padding:12px 12px calc(12px + env(safe-area-inset-bottom,0px))}.gc-ov .nbox{max-width:none;border-radius:26px}}
+.gc-fact{display:flex;flex-direction:column;gap:2px;margin-top:6px;padding:11px 12px;border-radius:14px;background:var(--surface)}
+.gc-fact b{font-size:14px;font-weight:500}
+.gc-fact i{font-style:normal;font-size:12.5px;line-height:1.4;color:var(--mut)}
+.gc-ov .sw{flex:none}
+.gc-ov .shead button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}

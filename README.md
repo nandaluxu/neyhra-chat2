@@ -52,6 +52,41 @@ Grup 2-5 karakter yang saling membalas. Desain lengkap ada di `design.md`.
 - **Biaya**: satu giliran = satu panggilan ChatGPT anonim, jadi grup bisa kena limit lebih cepat. Kalau voice nyala, voice note dibuat otomatis tiap balasan dan tampilannya sama seperti chat biasa (waveform, progres, subtitle). Voice note diputar otomatis satu per satu: karakter berikutnya boleh sudah selesai mikir/merekam, tapi bubble-nya baru muncul dan bicara setelah voice note sebelumnya selesai. Kalau voice mati, balasan tampil sebagai teks.
 - **Relasi**: field opsional di `char/<nama>.js`: `relations: { ram: '...' }` (hanya yang hadir di grup masuk prompt) dan `trait: '...'` (satu baris sifat di daftar anggota; kalau kosong diambil dari "Kepribadian:" di prompt).
 
+## Chat global
+
+Satu ruang obrolan untuk semua pengguna: teks saja, maks 256 karakter. Tombol **Chat global** ada di menu utama. Arsitekturnya **hybrid P2P (Redis + WebRTC)**:
+
+- **Riwayat penuh ada di perangkat masing-masing** (IndexedDB, db `neyhra-gc`, maks 2000 pesan, tampilan 300 terakhir) dan ditukar antar-browser lewat **WebRTC DataChannel** (signaling lewat server).
+- **Redis hanya menyimpan 10 pesan terbaru dengan TTL 24 jam** — jalur bootstrap pengguna baru dan fallback kalau P2P gagal, bukan penyimpanan utama. Redis Pub/Sub sengaja tidak dipakai: serverless tidak bisa memegang subscription dan itu bukan penyimpanan event.
+- **Realtime**: pesan baru didorong langsung ke peer yang terhubung (relay terbatas, maks 3 lompatan di dalam mesh, maks 3 koneksi per pengguna). Di luar mesh, pesan sampai lewat polling adaptif: 3 dtk saat ramai, melambat ke 10 dtk saat sepi (bisa diatur lewat env `GC_POLL_BASE`/`GC_POLL_BURST`, dikirim ke client saat sync).
+- **Keamanan**: server yang membuat id pesan (UUID), timestamp, dan menstempel nama; teks divalidasi (1–256 karakter, karakter kontrol dibuang); rate-limit per clientId (6 pesan/12 dtk, signaling 60/12 dtk, heartbeat 90/15 dtk). Setiap pesan **ditandatangani kunci ECDSA P-256** yang dibuat sekali dan disimpan di Redis — browser memverifikasi tanda tangan pesan yang diterima dari peer, jadi peer jahat tidak bisa memalsukan/mengubah pesan. Signaling juga divalidasi: `from` harus tercatat hidup di presence dan ukurannya dibatasi.
+
+### File
+
+- `public/globalchat.js` — UI (tidak tahu soal jaringan).
+- `public/globalchat.adapter.js` — adapter sungguhan yang mengisi `window.GlobalChatAdapter` (kontrak sama seperti yang didokumentasikan di kepala `globalchat.mock.js`). Mengurus IndexedDB, polling, WebRTC, verifikasi tanda tangan, dan tombstone. `globalchat.mock.js` tidak lagi dimuat (disimpan sebagai referensi kontrak).
+- `lib/gc.js` — router API. `lib/gcstore.js` — lapisan Redis (REST ala Upstash / TCP RESP2 / memori lokal, pola sama seperti `lib/online.js`; semua operasi dibungkus satu skrip Lua = satu perintah, hemat kuota Upstash).
+
+### API (semua POST, satu domain dengan frontend)
+
+- `/api/gc/sync` — heartbeat presence + daftar peer + pesan baru sejak `since` + signaling untuk saya + tombstone/watermark + kunci publik + interval polling. Dipanggil tiap beberapa detik selama ruang dibuka.
+- `/api/gc/send` — kirim pesan (`clientId`, `name`, `text`). Balasan berisi pesan final yang sudah ditandatangani.
+- `/api/gc/signal` — signaling WebRTC (`from`, `to`, `t`: o/a/i, `d`). Hanya diterima kalau `from` ada di presence.
+- `/api/gc/delete` — hapus satu pesan (`code`, `id`) atau semua (`code`, `all:1`). `code` divalidasi di backend dengan hash yang sama seperti Mode dev di browser (cyrb53, default sama dengan `DEV_SECRET`; bisa diganti lewat env `GC_DEV_HASH` untuk pengujian). Tanpa auth baru.
+
+### Penghapusan (Mode dev)
+
+Tombol tempat sampah per bubble dan "Hapus semua pesan" (panel dev, keduanya tap dua kali) memanggil adapter yang mengirim kode dev ke `/api/gc/delete`. Kode ditangkap otomatis saat Mode dev dibuka (pembungkus `GX.hash`), atau diminta lewat prompt kalau halaman dimuat ulang; validasi sebenarnya tetap di server. Hasil penghapusan adalah **tombstone persisten**: id pesan masuk ZSET `neyhra:gc:tombs` (TTL 60 hari), "hapus semua" menaikkan watermark `neyhra:gc:clear` (pesan dengan `ts <= watermark` dianggap terhapus). Tombstone disebarkan lewat polling, dibroadcast lewat P2P, dan **disimpan permanen di IndexedDB** setiap pengguna — jadi pesan yang dihapus tidak bisa muncul lagi lewat IndexedDB, Redis, maupun transfer P2P. Pengguna yang offline menerima tombstone begitu kembali (selama masih dalam TTL Redis, atau selamanya lewat peer yang sempat menerimanya).
+
+### Keterbatasan yang disadari
+
+- **Tanpa TURN**: hanya STUN publik. Dua pengguna di NAT simetris tidak bisa terhubung P2P — chat tetap jalan lewat polling, hanya tidak realtime (ini alasan utama arsitektur hybrid).
+- **Antara dua polling bisa ada pesan terlewat dari jalur Redis** (Redis hanya 10 terakhir). Celah ini ditambal: adapter meminta celah itu ke peer yang terhubung (`gapFill`), dan pertukaran riwayat P2P memakai batch maks 25 pesan dengan batas ukuran frame.
+- **Tombstone di Redis berumur 60 hari**. Kalau semua pengguna yang pernah menerimanya hilang selamanya DAN Redis-nya kedaluwarsa, pesan lama dari IndexedDB orang yang tidak pernah menerima tombstone bisa muncul lagi di transfer P2P. Untuk alat dev di aplikasi ini risikonya diterima.
+- **Identitas tidak diautentikasi**: siapa pun bisa memakai nama apa pun (sama seperti seluruh aplikasi, tanpa login). Rate-limit membatasi spam; presence bisa "dipenuhi" id palsu oleh penyerang yang sengaja menembak API — paling berdampak ke hitungan "N aktif" dan koneksi P2P yang gagal (self-healing).
+- **Kunci tanda tangan ikut hilang kalau Redis di-flush** — pesan lama yang tersimpan di peer akan gagal verifikasi dan dibuang.
+- Butuh Redis (sama seperti indikator online). Di Vercel tanpa env Redis, semua endpoint `/api/gc/*` menjawab `enabled:false` dan UI menampilkan status offline dengan alasan; riwayat lokal tetap bisa dibaca.
+
 ## Lainnya
 
 - Taruh `reze.jpg` dll di `public/assets/`.
