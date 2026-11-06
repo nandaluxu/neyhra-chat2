@@ -262,7 +262,7 @@ A.subscribe(s => render(s));
 function open() {
   if (isOpen) return;
   if (!started) { started = true; A.connect(); }
-  isOpen = true; gc.classList.add('show'); gc.setAttribute('aria-hidden', 'false');
+  isOpen = true; nUnread = 0; paintBadge(); hideNote(); gc.classList.add('show'); gc.setAttribute('aria-hidden', 'false');
   syncDev(); primed = false; unread = 0; render(A.getState(), true);
   if (matchMedia('(hover:hover)').matches) setTimeout(() => inp.focus({ preventScroll: true }), 300);
 }
@@ -320,4 +320,69 @@ $('sdevg').append(sRow);
 sRow.onclick = () => { closeSettings(); openDev(); };
 $('setbtn').addEventListener('click', () => sRow.classList.toggle('hide', !devOn())); // jalan setelah handler bawaan yang membuka Pengaturan
 $('sdev').addEventListener('change', () => { sRow.classList.toggle('hide', !devOn()); syncDev(); });
+
+/* ---------- Notifikasi pesan baru (jalan walau lagi chat dengan karakter / grup) ----------
+   Diatur di Pengaturan (switch #sgcn, disimpan di localStorage 'gcn'; default menyala).
+   Menyala -> adapter tetap sinkron di latar belakang (A.keepAlive). Pesan dianggap "baru" kalau ts-nya lebih baru dari
+   semua pesan yang sudah terlihat, jadi riwayat yang baru ditarik dari peer/Redis tidak memicu notifikasi. */
+const NKEY = 'gcn';
+let notifOn = store.get(NKEY) !== '0', nReady = false, nMax = 0, nUnread = 0, nBatch = [], nT = 0;
+const nSw = $('sgcn');
+
+const note = el('div'); note.id = 'gcnote'; note.setAttribute('role', 'status'); note.setAttribute('aria-live', 'polite');
+note.innerHTML = `<span class="gcn-av" aria-hidden="true"></span><span class="gcn-t"><b></b><span></span></span><button type="button" class="gcn-x" aria-label="Tutup notifikasi">${I.close}</button>`;
+app.append(note);
+const gcBtn = $('gcbtn'), badge = el('i', 'gc-badge hide'); gcBtn.append(badge);
+
+function paintBadge() { badge.classList.toggle('hide', !nUnread || !notifOn); badge.textContent = nUnread > 9 ? '9+' : nUnread; }
+function hideNote() { clearTimeout(nT); note.classList.remove('show'); nBatch = []; }
+function showNote(fresh) {
+  nBatch = nBatch.concat(fresh).slice(-20);
+  const last = nBatch[nBatch.length - 1], names = [...new Set(nBatch.map(m => m.senderName))];
+  const av = note.querySelector('.gcn-av'); av.style.setProperty('--h', hue(last.senderId)); av.textContent = [...last.senderName][0] || '?';
+  note.querySelector('b').textContent = names.length === 1 ? names[0] + (nBatch.length > 1 ? ' · ' + nBatch.length + ' pesan' : '') : names[0] + ' +' + (names.length - 1) + ' lainnya · ' + nBatch.length + ' pesan';
+  note.querySelector('.gcn-t span').textContent = last.text.replace(/\s+/g, ' ').slice(0, 90);
+  note.classList.add('show'); clearTimeout(nT); nT = setTimeout(hideNote, 5500);
+}
+function sysNote(fresh) { // tab di latar (Android/desktop): notifikasi sistem kalau sudah diizinkan
+  try {
+    if (!document.hidden || typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+    const m = fresh[fresh.length - 1];
+    const n = new Notification('Chat Global · ' + m.senderName, { body: m.text.slice(0, 120), tag: 'neyhra-gc', renotify: true });
+    n.onclick = () => { window.focus(); n.close(); openFromNote(); };
+  } catch {}
+}
+function notifyScan(s) {
+  const msgs = s.messages;
+  if (!nReady) { // baseline: semua yang ada saat pertama online dianggap sudah dilihat
+    if (s.status !== 'online') return;
+    nReady = true; nMax = msgs.length ? msgs[msgs.length - 1].ts : 0; return;
+  }
+  const me = selfId(), top = msgs.length ? msgs[msgs.length - 1].ts : 0, fresh = [];
+  for (const m of msgs) if (m.ts > nMax && m.senderId !== me) fresh.push(m);
+  if (top > nMax) nMax = top;
+  if (!fresh.length || !notifOn || isOpen) return;
+  nUnread += fresh.length; paintBadge(); showNote(fresh); sysNote(fresh);
+}
+A.subscribe(notifyScan);
+
+function openFromNote() {
+  hideNote();
+  ['nmodal', 'vmodal', 'smodal', 'pmodal', 'mmodal'].forEach(id => { const m = $(id); if (m) m.classList.add('hide'); }); // modal z-index 10 menutupi Chat Global
+  open();
+}
+note.addEventListener('click', e => { if (e.target.closest('.gcn-x')) hideNote(); else openFromNote(); });
+
+function startBg() { if (!started) { started = true; } A.keepAlive(true); }
+function setNotif(on, ask) {
+  notifOn = on; store.set(NKEY, on ? '1' : '0'); nSw.checked = on;
+  if (on) {
+    startBg();
+    if (ask && typeof Notification !== 'undefined' && Notification.permission === 'default') { try { Notification.requestPermission(); } catch {} }
+  } else { A.keepAlive(false); hideNote(); nUnread = 0; }
+  paintBadge();
+}
+nSw.checked = notifOn;
+nSw.addEventListener('change', () => setNotif(nSw.checked, true));
+if (notifOn) setTimeout(startBg, 1800); // tunggu animasi menu selesai dulu
 })();

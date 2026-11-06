@@ -405,9 +405,7 @@ header>button:active,.mwrap>button:active{transform:scale(.88)}
       <p class="m-sub">Pilih siapa yang mau diajak ngobrol.</p>
       <div class="m-pills">
         <button class="m-name" id="namebtn" type="button"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c1-4 4-6 8-6s7 2 8 6"/></svg><span id="nlabel">Isi namamu</span></button>
-        <button class="m-voice" id="voicebtn" type="button"><svg viewBox="0 0 24 24"><path d="M9 3h6v10a3 3 0 01-6 0zM5 11a7 7 0 0014 0M12 18v3"/></svg><span id="vlabel">Voice mati</span></button>
         <button class="m-set" id="setbtn" type="button"><svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg><span>Pengaturan</span></button>
-        <button class="m-set" id="membtn" type="button"><svg viewBox="0 0 24 24"><path d="M6 4h12v16l-6-4-6 4z"/></svg><span>Memori</span></button>
         <button class="m-set" id="gcbtn" type="button"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3z"/></svg><span>Chat global</span><i class="gc-dot" data-s="idle"></i></button>
       </div>
     </div>
@@ -470,6 +468,13 @@ header>button:active,.mwrap>button:active{transform:scale(.88)}
   <div id="smodal" class="hide">
     <div class="nbox sbox" role="dialog" aria-labelledby="stitle">
       <div class="shead"><h2 id="stitle">Pengaturan</h2><button id="sx" type="button" aria-label="Tutup"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+      <div class="sgroup"><h3>Notifikasi</h3>
+        <label class="srow"><span><b>Notifikasi Chat Global</b><i>Munculkan pemberitahuan di atas layar kalau ada yang chat di Chat Global, termasuk saat kamu lagi ngobrol dengan karakter. Matikan kalau nggak mau terganggu.</i></span><input type="checkbox" id="sgcn" class="sw"></label>
+      </div>
+      <div class="sgroup"><h3>Fitur</h3>
+        <button class="srow" id="voicebtn" type="button"><span><b>Voice note</b><i id="vlabel">Voice mati</i></span><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
+        <button class="srow" id="membtn" type="button"><span><b>Memori</b><i>Ringkasan obrolan lama yang diingat tiap karakter. Bisa dilihat dan dihapus.</i></span><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
+      </div>
       <div class="sgroup"><h3>Pemutaran</h3>
         <label class="srow"><span><b>Putar otomatis berikutnya</b><i>Setelah satu voice note selesai, lanjut ke voice note di bawahnya.</i></span><input type="checkbox" id="sauto" class="sw"></label>
       </div>
@@ -646,7 +651,7 @@ function addVN(m, takes, t, g){
   let regen=false;
   re.onclick=async()=>{
     if(regen) return;
-    if(!vcode){ toast('Aktifkan voice dulu di menu utama'); return; }
+    if(!vcode){ toast('Aktifkan voice dulu di Pengaturan'); return; }
     if(list.length>=MAXV){ toast('Maksimal '+MAXV+' versi per voice note'); return; }
     regen=true; re.classList.add('spin');
     try{
@@ -679,7 +684,7 @@ function typingBubble(){
   chat.appendChild(row); scroll(); return row;
 }
 
-/* ===== Pengaturan voice (diatur di menu utama, tersimpan di localStorage) ===== */
+/* ===== Pengaturan voice (diatur di Pengaturan, tersimpan di localStorage) ===== */
 const store={get(k){try{return localStorage.getItem(k)}catch{return null}},set(k,v){try{v==null?localStorage.removeItem(k):localStorage.setItem(k,v)}catch{}}};
 const SUBS={both:'Indonesia + Jepang',id:'Indonesia saja',jp:'Jepang saja',auto:'Ikuti bahasa voice'};
 let voiceLang=store.get('vl')==='id'?'id':'jp';
@@ -864,7 +869,7 @@ const app=$('app'), menu=$('menu'), view=$('chatview'), list=$('list');
 const DUR=matchMedia('(prefers-reduced-motion:reduce)').matches?1:700;
 let ox=0, oy=0, moving=false;
 
-/* ===== Panel voice di menu utama ===== */
+/* ===== Panel voice (dibuka dari Pengaturan) ===== */
 const vm=$('vmodal'), vsw=$('vswitch'), vbox=$('vcode'), vcinp=$('vcinp'), vcok=$('vcok'), vhint=$('vhint');
 const HINT='Butuh kode untuk menyalakan voice. Belum punya? Tanya owner dulu, nanti dikasih petunjuknya.';
 function paintVoice(){
@@ -901,7 +906,7 @@ vcinp.addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();sub
 vcinp.addEventListener('input',()=>{ if(vhint.id==='verr'){vhint.id='vhint';vhint.textContent=HINT} });
 $('seg-l').onclick=e=>{ const b=e.target.closest('button'); if(!b) return; voiceLang=b.dataset.v==='id'?'id':'jp'; store.set('vl',voiceLang); paintVoice(); };
 $('seg-s').onclick=e=>{ const b=e.target.closest('button'); if(!b||!SUBS[b.dataset.v]) return; subLang=b.dataset.v; store.set('sl',subLang); paintVoice(); };
-$('voicebtn').onclick=openVoice;
+$('voicebtn').onclick=()=>{ closeSettings(); openVoice(); };
 $('vdone').onclick=closeVoice;
 vm.addEventListener('click',e=>{ if(e.target===vm) closeVoice(); });
 paintVoice();
@@ -1412,7 +1417,7 @@ function renderDev(){
     row.append(sp,btn); box.appendChild(row);
   }
 }
-$('membtn').onclick=()=>openMem(); $('mmx').onclick=closeMem;
+$('membtn').onclick=()=>{ closeSettings(); openMem(); }; $('mmx').onclick=closeMem;
 memModal.addEventListener('click',e=>{ if(e.target===memModal) closeMem(); });
 
 /* Daftar karakter: menu awal cuma 3 pertama, sisanya lewat panel "Lihat semua" + pencarian */

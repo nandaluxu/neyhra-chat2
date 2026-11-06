@@ -501,15 +501,14 @@ function retry(id) {
 function sleep() { if (!booted) return; sleeping = true; alive = false; clearTimeout(beatT); stopWatchdogs(); byeAll(); setStatus('offline', null); }
 function wake() { if (!booted) return; sleeping = false; alive = true; failN = 0; if (st.status !== 'online') setStatus('connecting'); beat(); }
 
-let life = false;
+let life = false, bg = false, sleepT = 0; // bg: mode notifikasi, koneksi tetap hidup walau ruang chat global ditutup
 function setupLifecycle() {
   if (life) return; life = true;
   const gcEl = document.getElementById('gc');
   if (gcEl) {
-    let sleepT = 0;
     new MutationObserver(() => {
       if (gcEl.classList.contains('show')) { clearTimeout(sleepT); if (sleeping || !alive) wake(); }
-      else sleepT = setTimeout(sleep, IDLE_SLEEP); // buka-tutup cepat tidak memutus koneksi
+      else if (!bg) sleepT = setTimeout(sleep, IDLE_SLEEP); // buka-tutup cepat tidak memutus koneksi; mode notifikasi tidak pernah tidur
     }).observe(gcEl, { attributes: true, attributeFilter: ['class'] });
   }
   document.addEventListener('visibilitychange', () => { if (!document.hidden && alive) { clearTimeout(beatT); beat(); } });
@@ -529,6 +528,11 @@ const A = window.GlobalChatAdapter = {
     touch();
     alive = true; delay = POLL.burst;
     beat();
+  },
+  keepAlive(on) { // notifikasi menyala -> tetap sinkron di latar belakang; mati -> boleh tidur seperti biasa
+    bg = !!on; clearTimeout(sleepT);
+    if (bg) { if (!booted) A.connect(); else if (sleeping || !alive) wake(); }
+    else { const g = document.getElementById('gc'); if (booted && !(g && g.classList.contains('show'))) sleepT = setTimeout(sleep, IDLE_SLEEP); }
   },
   reconnect() {
     if (!booted) return A.connect();
