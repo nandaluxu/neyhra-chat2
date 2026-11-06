@@ -541,6 +541,7 @@ header .pfp,header .who{cursor:pointer}
           <input id="lmodel" type="text" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="openai/gpt-4o-mini" aria-label="Model Lorka">
           <button type="button" class="lmbtn" id="lmbtn">Lihat daftar model</button>
           <div id="lmbox" class="hide">
+            <div class="seg" id="lmver"><button type="button" data-v="v2">API v2</button><button type="button" data-v="v1">API v1</button></div>
             <input id="lmq" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Cari model…" aria-label="Cari model">
             <div id="lmlist" role="listbox" aria-label="Daftar model Lorka"></div>
             <p class="mhelp" id="lmstat" role="status"></p>
@@ -1574,32 +1575,38 @@ function paintEng(){
 $('seg-eng').onclick=e=>{ const b=e.target.closest('button'); if(!b) return; store.set('eng',b.dataset.v==='lorka'?'lorka':null); paintEng(); };
 $('lmodel').addEventListener('input',()=>{ store.set('lmodel',$('lmodel').value.trim()||null); markModel(); });
 /* daftar model Lorka: diambil dari server (/api/lorka/models), ketuk satu untuk memakainya */
-let lmAll=null;
+let lmAll={v1:null,v2:null}, lmVer='v2';
 const curModel=()=>(store.get('lmodel')||'').trim()||'openai/gpt-4o-mini';
 function markModel(){ const cur=curModel(); $('lmlist').querySelectorAll('button').forEach(b=>b.classList.toggle('sel',b.dataset.id===cur)); }
 function drawModels(){
   const k=$('lmq').value.trim().toLowerCase(), box=$('lmlist'); box.textContent=''; let n=0;
-  for(const m of lmAll||[]){
+  for(const m of lmAll[lmVer]||[]){
     if(k&&!(m.id+' '+m.name).toLowerCase().includes(k)) continue;
     const b=document.createElement('button'); b.type='button'; b.dataset.id=m.id; b.setAttribute('role','option');
     b.append(m.id); if(m.name){ const sm=document.createElement('small'); sm.textContent=m.name; b.appendChild(sm); }
     box.appendChild(b); n++;
   }
-  $('lmstat').textContent=lmAll?(n+' dari '+lmAll.length+' model. Ketuk untuk memakai.'):''; markModel();
+  $('lmstat').textContent=lmAll[lmVer]?(n+' dari '+lmAll[lmVer].length+' model ('+lmVer+'). Ketuk untuk memakai.'):''; markModel();
+  $('lmver').querySelectorAll('button').forEach(b=>b.classList.toggle('sel',b.dataset.v===lmVer));
 }
 $('lmlist').onclick=e=>{ const b=e.target.closest('button'); if(!b) return; $('lmodel').value=b.dataset.id; store.set('lmodel',b.dataset.id); markModel(); toast('Model: '+b.dataset.id); };
 $('lmq').addEventListener('input',drawModels);
-$('lmbtn').onclick=async()=>{
+async function loadModels(){
+  const v=lmVer;
+  $('lmver').querySelectorAll('button').forEach(b=>b.classList.toggle('sel',b.dataset.v===v));
+  if(lmAll[v]){ drawModels(); return; }
+  $('lmstat').textContent='Memuat daftar model '+v+'…'; $('lmlist').textContent='';
+  try{
+    const r=await fetch('/api/lorka/models?v='+v), j=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error||'Gagal memuat daftar model');
+    lmAll[v]=j.models||[]; if(v===lmVer) drawModels();
+  }catch(e){ if(v===lmVer){ $('lmlist').textContent=''; $('lmstat').textContent=e.message; } }
+}
+$('lmver').onclick=e=>{ const b=e.target.closest('button'); if(!b||b.dataset.v===lmVer) return; lmVer=b.dataset.v; loadModels(); }; /* v1 dan v2 diambil terpisah, masing-masing di-cache */
+$('lmbtn').onclick=()=>{
   const box=$('lmbox');
   if(!box.classList.contains('hide')){ box.classList.add('hide'); $('lmbtn').textContent='Lihat daftar model'; return; }
-  box.classList.remove('hide'); $('lmbtn').textContent='Tutup daftar model';
-  if(lmAll){ drawModels(); return; }
-  $('lmstat').textContent='Memuat daftar model…'; $('lmlist').textContent='';
-  try{
-    const r=await fetch('/api/lorka/models'), j=await r.json().catch(()=>({}));
-    if(!r.ok) throw new Error(j.error||'Gagal memuat daftar model');
-    lmAll=j.models||[]; drawModels();
-  }catch(e){ $('lmstat').textContent=e.message; }
+  box.classList.remove('hide'); $('lmbtn').textContent='Tutup daftar model'; loadModels();
 };
 function paintDev(){ $('sdevg').classList.toggle('hide',store.get('devu')!=='1'); $('sdev').checked=store.get('dev')==='1'; paintEng(); }
 function tryDev(text){
