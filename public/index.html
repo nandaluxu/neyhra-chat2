@@ -152,8 +152,9 @@ footer:has(#send:not(.hide)) #recbar{right:106px}
 .all-empty{text-align:center;color:var(--mut);font-size:14px;margin-top:30px}
 
 /* ===== Sapaan & nama user ===== */
-#mtitle.greet{font-size:clamp(30px,10.4vw,44px);line-height:1.1;letter-spacing:-.035em;text-wrap:balance}
+#mtitle.greet{font-size:clamp(22px,6.8vw,28px);line-height:1.15;letter-spacing:-.025em;text-wrap:balance}
 #mtitle.greet .tw{padding-bottom:.14em}
+#mtitle.greet .tw+.tw{margin-top:2px;font-size:.58em;line-height:1.3;font-weight:500;letter-spacing:0;color:var(--mut)}
 .m-name{display:inline-flex;align-items:center;gap:8px;margin-top:14px;padding:9px 15px 9px 12px;border-radius:99px;background:var(--surface);font-size:13px;font-weight:500;animation:rise2 .8s .95s cubic-bezier(.2,.9,.2,1) both;transition:transform .2s}
 .m-name:active{transform:scale(.96)}
 .m-name svg{width:15px;height:15px}
@@ -238,7 +239,7 @@ header>button:active,.mwrap>button:active{transform:scale(.88)}
   .m-hero{margin:auto auto 0;width:100%;max-width:480px}
   .m-list{margin:30px auto auto;width:100%;max-width:480px}
   #mtitle{font-size:88px}
-  #mtitle.greet{font-size:54px}
+  #mtitle.greet{font-size:36px}
   .m-sub{font-size:16px}
   .o1{width:420px;height:420px}.o2{width:360px;height:360px}
 }
@@ -345,7 +346,7 @@ header>button:active,.mwrap>button:active{transform:scale(.88)}
   .m-pills{margin-top:10px}
   #menu{padding-top:calc(18px + env(safe-area-inset-top,0px));padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))}
   #mtitle{font-size:clamp(40px,13vw,54px)}
-  #mtitle.greet{font-size:clamp(25px,8vw,32px)}
+  #mtitle.greet{font-size:clamp(20px,6vw,24px)}
   .m-sub{margin-top:10px}
   .m-card{padding:10px 12px;border-radius:22px}
   .m-av{width:46px;height:46px}
@@ -918,9 +919,25 @@ const saveName=n=>{uname=n;try{n?localStorage.setItem('uname',n):localStorage.re
 const period=()=>{const h=new Date().getHours();return h>=4&&h<11?'pagi':h>=11&&h<15?'siang':h>=15&&h<18?'sore':'malam'};
 
 /* Judul menu: belum ada nama -> "neyhra chat"; sudah ada -> sapaan sesuai jam */
+/* Sapaan: dipilih acak tiap halaman dimuat (refresh = ganti), dari grup sesuai waktu + grup umum. {n} = nama. Tidak pernah sama dua kali berturut-turut. */
+const GREET={
+  dini:[['Masih melek, {n}?','Aku temenin ngobrol, ya'],['Dini hari, {n}.','Jangan begadang terlalu lama'],['Hai {n}, belum tidur?','Mau cerita apa malam ini?']],
+  pagi:[['Selamat pagi, {n}.','Semoga harimu menyenangkan'],['Pagi, {n}!','Udah sarapan belum?'],['Bangun pagi nih, {n}.','Mau ngobrol sama siapa dulu?'],['Hai {n}, selamat pagi.','Selamat datang di neyhra chat']],
+  siang:[['Selamat siang, {n}.','Udah makan siang belum?'],['Siang, {n}!','Lagi istirahat? Sini ngobrol'],['Selamat siang, {n}.','Selamat datang di neyhra chat']],
+  sore:[['Selamat sore, {n}.','Santai dulu yuk'],['Sore, {n}!','Gimana harimu sejauh ini?'],['Selamat sore, {n}.','Selamat datang di neyhra chat']],
+  malam:[['Selamat malam, {n}.','Selamat datang di neyhra chat'],['Malam, {n}.','Belum tidur, ya?'],['Selamat malam, {n}.','Hari ini ada cerita apa?']],
+  umum:[['Halo, {n}!','Mau ngobrol sama siapa?'],['Hai {n}, apa kabar?','Pilih teman ngobrolmu'],['Selamat datang kembali, {n}.','Kangen ngobrol, ya?'],['{n}, akhirnya datang juga!','Sini, ada yang nunggu'],['Welcome back, {n}.','Selamat datang di neyhra chat']]
+};
+let greetPick=null;
+function pickGreet(){
+  const h=new Date().getHours(), pool=(h<4?GREET.dini:GREET[period()]).concat(GREET.umum);
+  const last=store.get('lastgreet'); let c=pool.filter(g=>g[0]+g[1]!==last); if(!c.length) c=pool;
+  const g=c[Math.floor(Math.random()*c.length)]; store.set('lastgreet',g[0]+g[1]); return g;
+}
 function renderHero(){
   const t=$('mtitle'); t.textContent=''; t.classList.toggle('greet',!!uname);
-  const lines=uname?['Selamat '+period()+', '+uname+'.','Selamat datang di neyhra chat']:['neyhra','chat'];
+  if(uname&&!greetPick) greetPick=pickGreet(); /* tetap sama selama halaman ini terbuka, termasuk saat nama diganti */
+  const lines=uname?greetPick.map(l=>l.replace('{n}',uname)):['neyhra','chat'];
   t.setAttribute('aria-label',lines.join(' '));
   let i=0;
   lines.forEach(l=>{
