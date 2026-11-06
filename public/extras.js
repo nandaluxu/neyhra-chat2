@@ -208,10 +208,8 @@ $('sumbtn').addEventListener('click', () => { closeSettings(); openSum(); });
 /* ---- gambar untuk dibagikan (canvas 1080x1350) ---- */
 const loadImg = src => new Promise(res => { if (!src) return res(null); const i = new Image(); i.onload = () => res(i); i.onerror = () => res(null); i.src = src; });
 function rr(g, x, y, w, hh, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + hh, r); g.arcTo(x + w, y + hh, x, y + hh, r); g.arcTo(x, y + hh, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
-async function shareImg(btn) {
-  const st = lastStats, stat = $('xsum-st'); if (!st || !st.total) return;
-  btn.disabled = true; stat.textContent = 'Membuat gambar…';
-  try {
+async function drawImg(st) {
+  {
     const W = 1080, H = 1350, k = document.createElement('canvas'); k.width = W; k.height = H; const g = k.getContext('2d');
     const top = st.top[0], ac = top ? await hueOf(top.c) : null, hue = ac && !ac.n ? ac.h : 220, sat = ac && !ac.n ? Math.min(ac.s, 60) : 20;
     const bg = g.createLinearGradient(0, 0, W * .6, H); bg.addColorStop(0, `hsl(${hue} ${sat}% 22%)`); bg.addColorStop(1, '#0b0b0c'); g.fillStyle = bg; g.fillRect(0, 0, W, H);
@@ -251,14 +249,39 @@ async function shareImg(btn) {
     }
     g.fillStyle = 'rgba(255,255,255,.5)'; g.font = `500 28px ${F}`;
     g.fillText([st.peak >= 0 ? 'Paling ramai jam ' + String(st.peak).padStart(2, '0') + ':00' : '', st.streak > 1 ? st.streak + ' hari beruntun' : ''].filter(Boolean).join('  ·  '), P, H - 70);
-    const blob = await new Promise(res => k.toBlob(res, 'image/png')); if (!blob) throw 0;
-    const file = new File([blob], 'ringkasan-neyhra.png', { type: 'image/png' });
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      try { await navigator.share({ files: [file], title: 'Ringkasan neyhra chat' }); stat.textContent = ''; btn.disabled = false; return; }
-      catch (e) { if (e && e.name === 'AbortError') { stat.textContent = ''; btn.disabled = false; return; } }
-    }
-    saveBlob(blob, 'ringkasan-neyhra.png'); stat.textContent = 'Gambar disimpan ke perangkat.';
-  } catch { stat.textContent = 'Gagal membuat gambar, coba lagi.'; }
-  btn.disabled = false;
+    const blob = await new Promise(res => { try { k.toBlob(res, 'image/png'); } catch { res(null); } });
+    if (blob) return blob;
+    const u = k.toDataURL('image/png'), bin = atob(u.split(',')[1]), arr = new Uint8Array(bin.length); // cadangan kalau toBlob mengembalikan null
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    return new Blob([arr], { type: 'image/png' });
+  }
+}
+
+/* Dua langkah: (1) buat gambar + tampilkan pratinjau, (2) Bagikan / Simpan dari tombol sendiri.
+   Share dipanggil langsung dari tap (tanpa await di depannya) supaya izin gesture tidak kedaluwarsa. */
+let prevUrl = '';
+async function shareImg(btn) {
+  const st = lastStats, stat = $('xsum-st'); if (!st || !st.total) return;
+  btn.disabled = true; stat.textContent = 'Membuat gambar…';
+  let blob;
+  try { blob = await drawImg(st); }
+  catch (e) { stat.textContent = 'Gagal membuat gambar: ' + ((e && (e.name || e.message)) || e); btn.disabled = false; return; }
+  if (prevUrl) URL.revokeObjectURL(prevUrl);
+  prevUrl = URL.createObjectURL(blob);
+  const acts = btn.parentNode; acts.textContent = '';
+  const pv = h('img', 'x-prev'); pv.alt = 'Pratinjau ringkasan'; pv.src = prevUrl; acts.before(pv);
+  let file = null; try { file = new File([blob], 'ringkasan-neyhra.png', { type: 'image/png' }); } catch {}
+  const canShare = !!(file && navigator.canShare && navigator.canShare({ files: [file] }));
+  const save = h('button', 'x-btn' + (canShare ? ' ghost' : ''), 'Simpan'); save.type = 'button';
+  save.onclick = () => { try { saveBlob(blob, 'ringkasan-neyhra.png'); stat.textContent = 'Disimpan ke perangkat. Kalau tidak muncul, tekan lama gambar di atas.'; } catch (e) { stat.textContent = 'Gagal menyimpan: ' + ((e && e.name) || e) + '. Tekan lama gambar di atas untuk menyimpan.'; } };
+  if (canShare) {
+    const sh = h('button', 'x-btn', 'Bagikan'); sh.type = 'button';
+    sh.onclick = () => navigator.share({ files: [file], title: 'Ringkasan neyhra chat' }).then(() => { stat.textContent = ''; }, e => {
+      if (e && e.name === 'AbortError') return;
+      stat.textContent = 'Gagal membagikan (' + ((e && (e.name || e.message)) || e) + '). Coba Simpan, atau tekan lama gambar di atas.';
+    });
+    acts.append(sh);
+  }
+  acts.append(save); stat.textContent = canShare ? '' : 'Perangkat ini nggak mendukung menu bagikan, pakai Simpan atau tekan lama gambarnya.';
 }
 })();
