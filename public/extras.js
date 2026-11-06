@@ -51,7 +51,7 @@ function hueOf(c) {
         res({ h: Math.round((Math.atan2(Y, X) * 180 / Math.PI + 360) % 360), s: Math.round(Math.min(.8, Math.max(.45, SS / W)) * 100) });
       } catch { res(null); }
     };
-    im.onerror = () => res(null); im.src = c.avatar;
+    im.onerror = () => res(null); im.crossOrigin = 'anonymous'; im.src = c.avatar;
   });
   memo.set(c.id, p); p.then(v => { if (v) store.set('ac:' + c.id, JSON.stringify(v)); });
   return p;
@@ -206,9 +206,9 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && !ov.classL
 $('sumbtn').addEventListener('click', () => { closeSettings(); openSum(); });
 
 /* ---- gambar untuk dibagikan (canvas 1080x1350) ---- */
-const loadImg = src => new Promise(res => { if (!src) return res(null); const i = new Image(); i.onload = () => res(i); i.onerror = () => res(null); i.src = src; });
+const loadImg = src => new Promise(res => { if (!src) return res(null); const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => res(i); i.onerror = () => res(null); i.src = src; });
 function rr(g, x, y, w, hh, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + hh, r); g.arcTo(x + w, y + hh, x, y + hh, r); g.arcTo(x, y + hh, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
-async function drawImg(st) {
+async function drawImg(st, noImg) {
   {
     const W = 1080, H = 1350, k = document.createElement('canvas'); k.width = W; k.height = H; const g = k.getContext('2d');
     const top = st.top[0], ac = top ? await hueOf(top.c) : null, hue = ac && !ac.n ? ac.h : 220, sat = ac && !ac.n ? Math.min(ac.s, 60) : 20;
@@ -227,7 +227,7 @@ async function drawImg(st) {
       g.fillStyle = '#fff'; g.font = `700 60px ${F}`; g.fillText(String(n2), x + 30, 700); g.fillStyle = 'rgba(255,255,255,.6)'; g.font = `500 28px ${F}`; g.fillText(l, x + 30, 745);
     });
     let y = 850; g.fillStyle = 'rgba(255,255,255,.55)'; g.font = `600 26px ${F}`; g.fillText('PALING SERING DIAJAK NGOBROL', P, y);
-    const imgs = await Promise.all(st.top.map(t => loadImg(t.c.avatar))); y += 28;
+    const imgs = noImg ? st.top.map(() => null) : await Promise.all(st.top.map(t => loadImg(t.c.avatar))); y += 28;
     st.top.forEach((t, i) => {
       const cy = y + 40 + i * 96;
       g.save(); g.beginPath(); g.arc(P + 38, cy, 38, 0, Math.PI * 2); g.clip();
@@ -264,7 +264,10 @@ async function shareImg(btn) {
   const st = lastStats, stat = $('xsum-st'); if (!st || !st.total) return;
   btn.disabled = true; stat.textContent = 'Membuat gambar…';
   let blob;
-  try { blob = await drawImg(st); }
+  try {
+    try { blob = await drawImg(st); }
+    catch (e0) { if (e0 && e0.name === 'SecurityError') blob = await drawImg(st, true); else throw e0; } // canvas tainted (CORS foto gagal) -> gambar tetap jadi, foto diganti kotak polos
+  }
   catch (e) { stat.textContent = 'Gagal membuat gambar: ' + ((e && (e.name || e.message)) || e); btn.disabled = false; return; }
   if (prevUrl) URL.revokeObjectURL(prevUrl);
   prevUrl = URL.createObjectURL(blob);
