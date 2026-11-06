@@ -41,7 +41,18 @@ Pill "N online" di menu utama. Browser kirim heartbeat ke `/api/online` tiap 60 
 
 Server stateless: riwayat chat, nama, dan pengaturan disimpan di localStorage browser.
 
+## Chat grup (fitur rahasia)
+
+Grup 2-5 karakter yang saling membalas. Desain lengkap ada di `design.md`.
+
+- **Membuka**: kirim pesan rahasia ke Reze (kodenya hash di `public/group.js`, konstanta `SECRET`). Pesan itu dicegat di browser: tidak dikirim ke ChatGPT maupun Fish Audio, tidak jadi bubble, tidak dicatat. Yang muncul cuma notifikasi di atas layar. Setelah itu menu utama punya tombol "Buat grup".
+- **Mengganti kode**: buka console, jalankan `GX.hash('kode baru')`, tempel angkanya ke `SECRET`. Ini pagar UI, bukan keamanan.
+- **Alur**: browser mengatur rantai giliran (satu request = satu karakter bicara). Server stateless: `POST /api/chat` dengan field tambahan `group` (`members`, `muted`, `scene`, `replyTo`, `depth`) dan riwayat `[pengirim, teks]`. Respons ditambah `next` (id anggota atau `null`). Tanpa field `group`, chat 1-lawan-1 sama persis seperti dulu.
+- **Rem**: konstanta di `CFG` (`public/group.js`): `MAX_CHAIN`, `MAX_PER_CHAR`, `ACCEPT`, `AUTO_CHAIN`. Server memvalidasi anggota ke `char/`, `next` hanya diterima kalau anggota yang tidak dibisukan.
+- **Biaya**: satu giliran = satu panggilan ChatGPT anonim, jadi grup bisa kena limit lebih cepat. Audio Fish Audio dibuat malas, baru saat voice note diketuk.
+- **Relasi**: field opsional di `char/<nama>.js`: `relations: { ram: '...' }` (hanya yang hadir di grup masuk prompt) dan `trait: '...'` (satu baris sifat di daftar anggota; kalau kosong diambil dari "Kepribadian:" di prompt).
+
 ## Lainnya
 
 - Taruh `reze.jpg` dll di `public/assets/`.
-- Karakter baru: buat `char/<nama>.js` (lihat `char/reze.js`). Field wajib: `id`, `name`, `voiceId`, `prompt`. Opsional: `tagline`, `avatar`, `pronounce`.
+- Karakter baru: buat `char/<nama>.js` (lihat `char/reze.js`). Field wajib: `id`, `name`, `voiceId`, `prompt`. Opsional: `tagline`, `avatar`, `pronounce`, `trait`, `relations`.

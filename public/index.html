@@ -351,6 +351,7 @@ header>button:active,.mwrap>button:active{transform:scale(.88)}
   .m-logo{width:36px;height:36px;border-radius:12px}
 }
 </style>
+<link rel="stylesheet" href="group.css">
 </head>
 <body>
 <div id="app">
@@ -735,6 +736,9 @@ const setStatus=(t,typing)=>{ status.textContent=t; status.classList.toggle('typ
 
 async function submit(){
   const text=inp.value.trim();
+  if(window.GX&&GX.cur) return GX.submit(); /* layar grup: mesin giliran ada di group.js */
+  /* pesan rahasia ke Reze: dicegat di sini, TIDAK dikirim ke server (tanpa ChatGPT, tanpa Fish Audio) dan pesannya dibuang: tidak jadi bubble, tidak dicatat */
+  if(text&&ch&&window.GX&&GX.trySecret(text)){ inp.value=''; grow(); refresh(); clearTimeout(draftT); store.set('draft:'+ch.id,null); return; }
   if(busy||!text||!ch||!ready){ inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake'); return; }
   busy=true; inp.value=''; grow(); refresh(); addText(text);
   const chId=ch.id; record(chId,{r:'me',x:text}); clearTimeout(draftT); store.set('draft:'+chId,null);
@@ -893,6 +897,7 @@ const reach=()=>{const w=app.clientWidth,h=app.clientHeight;return Math.hypot(Ma
 function openChat(c,avEl){
   if(moving||app.classList.contains('open')) return;
   moving=true; setTimeout(()=>moving=false,DUR);
+  if(window.GX) GX.reset(); /* keluar dari mode grup (tombol titik tiga grup, placeholder, dll) */
   ch=c; closeSearch(); if(current) current.stop(); openSub=null; urls.forEach(u=>URL.revokeObjectURL(u)); urls=[]; clearTimeout(clrT); clrT=0;
   chat.innerHTML=''; lastDay=''; ready=false; const tok=++openTok; setStatus('online',false);
   clearTimeout(draftT); inp.value=store.get('draft:'+c.id)||''; grow(); refresh(); /* draft pesan karakter ini */
@@ -909,13 +914,14 @@ function closeChat(){
   if(moving||!app.classList.contains('open')) return;
   moving=true; setTimeout(()=>moving=false,DUR);
   closeSearch(); closePicker(); clearTimeout(draftT);
-  if(ch) store.set('draft:'+ch.id,inp.value.trim()?inp.value:null);
+  if(window.GX&&GX.cur) GX.onClose(); /* grup: hentikan rantai, simpan draft grup */
+  else if(ch) store.set('draft:'+ch.id,inp.value.trim()?inp.value:null);
   if(current) current.stop();
   menu.classList.remove('away');
   const an=view.animate({clipPath:[circle(reach()),circle(0)]},{duration:DUR,easing:'cubic-bezier(.7,0,.2,1)',fill:'forwards'});
   an.onfinish=()=>{app.classList.remove('open'); an.cancel()};
 }
-document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ if(!pm.classList.contains('hide')) closePicker(); else if(!sm.classList.contains('hide')) closeSettings(); else if(!vm.classList.contains('hide')) closeVoice(); else if(!nm.classList.contains('hide')) closeName(); else if(app.classList.contains('open')) closeChat(); else if(all.classList.contains('show')) closeAll(); } });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ if(window.GX&&GX.esc()) return; if(!pm.classList.contains('hide')) closePicker(); else if(!sm.classList.contains('hide')) closeSettings(); else if(!vm.classList.contains('hide')) closeVoice(); else if(!nm.classList.contains('hide')) closeName(); else if(app.classList.contains('open')) closeChat(); else if(all.classList.contains('show')) closeAll(); } });
 $('back').addEventListener('click',closeChat);
 const savePlaying=()=>{ if(current&&current.save) current.save(); };
 window.addEventListener('pagehide',savePlaying);
@@ -995,10 +1001,12 @@ $('sjson').onclick=async()=>{
       }
       nMsg+=log.length; chars.push({id,name:names[id]||id,log,hist:loadHist(id),audio});
     }
-    if(!chars.length){ setStat('Belum ada obrolan untuk diekspor.'); return; }
-    const blob=new Blob([JSON.stringify({app:'neyhra-chat',version:1,exportedAt:new Date().toISOString(),chars})],{type:'application/json'}), d=new Date();
+    const gd=window.GX&&GX.enabled()?await GX.exportData():{groups:[],nAud:0,nMsg:0}; /* grup + pesan + audio yang sudah dibuat */
+    nMsg+=gd.nMsg; nAud+=gd.nAud;
+    if(!chars.length&&!gd.groups.length){ setStat('Belum ada obrolan untuk diekspor.'); busyData(false); return; }
+    const blob=new Blob([JSON.stringify({app:'neyhra-chat',version:1,exportedAt:new Date().toISOString(),chars,...(gd.groups.length&&{groups:gd.groups})})],{type:'application/json'}), d=new Date();
     saveBlob(blob,'neyhra-chat-'+d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0')+'.json');
-    setStat('Cadangan disimpan: '+chars.length+' karakter, '+nMsg+' pesan, '+nAud+' audio ('+fmtB(blob.size)+').');
+    setStat('Cadangan disimpan: '+chars.length+' karakter'+(gd.groups.length?', '+gd.groups.length+' grup':'')+', '+nMsg+' pesan, '+nAud+' audio ('+fmtB(blob.size)+').');
   }catch{ setStat('Gagal membuat cadangan.'); }
   busyData(false);
 };
@@ -1041,7 +1049,9 @@ async function importJSON(file){
       if(!store.get('h:'+c.id)&&Array.isArray(c.hist)&&c.hist.length) saveHist(c.id,c.hist.filter(h=>Array.isArray(h)&&typeof h[1]==='string'));
       added+=add; if(add) chN++;
     }
-    setStat(added||aud?'Impor selesai: '+added+' pesan baru dari '+chN+' karakter, '+aud+' audio ditambahkan.':'Nggak ada yang baru, semua sudah ada di perangkat ini.');
+    let gi=null; if(window.GX&&Array.isArray(data.groups)&&data.groups.length) gi=await GX.importData(data.groups); /* grup dari cadangan */
+    if(gi){ added+=gi.msgs; aud+=gi.aud; }
+    setStat(added||aud||(gi&&gi.groups)?'Impor selesai: '+added+' pesan baru dari '+chN+' karakter'+(gi&&gi.groups?' dan '+gi.groups+' grup':'')+', '+aud+' audio ditambahkan.':'Nggak ada yang baru, semua sudah ada di perangkat ini.');
     refreshStorage();
   }catch{ setStat('File nggak valid. Pilih file JSON hasil ekspor aplikasi ini.'); }
   busyData(false);
@@ -1117,6 +1127,7 @@ function makeZip(files){
 }
 let exporting=false;
 $('exp').onclick=async()=>{
+  if(window.GX&&GX.cur) return GX.exportChat();
   if(!ch||!ready||exporting) return;
   const l=loadLog(ch.id);
   if(!l.length){ toast('Belum ada obrolan untuk diekspor'); return; }
@@ -1146,6 +1157,7 @@ $('exp').onclick=async()=>{
   exporting=false;
 };
 $('clr').onclick=()=>{
+  if(window.GX&&GX.cur) return GX.clear();
   if(!ch||busy||!ready) return;
   if(!clrT){ toast('Tap lagi untuk hapus obrolan ini'); clrT=setTimeout(()=>clrT=0,2500); return; }
   clearTimeout(clrT); clrT=0;
@@ -1181,9 +1193,11 @@ q.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); const
 /* menu awal: karakter yang terakhir dibuka dulu (max 3), kekurangannya diisi urutan bawaan */
 let allBtn=null;
 function renderList(){
-  const by=new Map(allChars.map(c=>[c.id,c])), top=recent.map(i=>by.get(i)).filter(Boolean).slice(0,SHOW);
+  const by=new Map(allChars.map(c=>[c.id,c])), gx=window.GX&&GX.enabled(), top=[];
+  for(const r of recent){ if(top.length>=SHOW) break; const e=gx&&GX.entry(r)||by.get(r); if(e) top.push(e); } /* grup (fitur rahasia) ikut daftar "terakhir dibuka" */
   for(const c of allChars){ if(top.length>=SHOW) break; if(!top.includes(c)) top.push(c); }
-  list.innerHTML=''; top.forEach(c=>list.append(card(c)));
+  list.innerHTML=''; top.forEach(e=>list.append(e.isGroup?GX.card(e):card(e)));
+  if(gx) list.append(GX.newBtn());
   if(allBtn) list.append(allBtn);
 }
 fetch('/api/chars').then(r=>r.json()).then(cs=>{
@@ -1199,6 +1213,7 @@ fetch('/api/chars').then(r=>r.json()).then(cs=>{
     rows=cs.map(c=>({c,el:card(c)})); $('alllist').append(...rows.map(r=>r.el));
     $('allcount').textContent=cs.length+' karakter';
   }
+  if(window.GX) GX.paintAll(); /* kartu grup di panel "Semua karakter" */
 }).catch(()=>{ list.textContent='Gagal memuat karakter'; });
 
 /* ===== Indikator online: heartbeat ke /api/online tiap 60 dtk selama tab kelihatan. Kalau server belum mendukung (enabled:false), pill tetap tersembunyi. ===== */
@@ -1219,5 +1234,6 @@ fetch('/api/chars').then(r=>r.json()).then(cs=>{
 })();
 
 </script>
+<script src="group.js"></script>
 </body>
 </html>

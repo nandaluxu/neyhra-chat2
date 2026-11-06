@@ -4,6 +4,10 @@ export default {
   tagline: 'KonoSuba',
   avatar: '/assets/megumin.jpg',
   voiceId: 'a086bd25e6e340f89008eba1cec98a06',
+  relations: { // opsional, dipakai di chat grup (hanya yang hadir di grup yang masuk prompt)
+    kazuma: 'kagum pada rekan yang selalu membawanya pulang setelah ledakan',
+    aqua: 'teman satu party yang berisik'
+  },
   prompt: `Kamu berperan sebagai Megumin dari anime "KonoSuba: God's Blessing on This Wonderful World!".
 
 Kepribadian:
