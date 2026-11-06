@@ -38,7 +38,10 @@ const hash = (str, seed = 0) => { // cyrb53
 const norm = s => String(s || '').trim().toLowerCase().replace(/\s+/g, '');
 const ID_RE = /^[\w-]{1,64}$/;
 const cleanLine = t => String(t == null ? '' : t).replace(/[\u0000-\u001f<>\[\]{}`]/g, ' ').replace(/\s+/g, ' ').trim();
-const hue = id => hash(String(id)) % 360;
+// Warna bubble grup = hue warna terbanyak di avatar karakter (dihitung dari assets/*.jpg, warna kulit, abu-abu, hitam, dan putih diabaikan).
+// Karakter baru yang belum ada di daftar ini jatuh ke hue acak dari id seperti sebelumnya.
+const AVATAR_HUE = { aqua: 207, asa: 3, asuka: 24, ayumu: 203, darkness: 27, denji: 55, emilia: 266, furina: 218, gojo: 102, hutao: 9, iroha: 327, kafka: 325, kazuma: 23, kobeni: 40, kurumi: 355, makima: 356, megumin: 349, nagumo: 214, ram: 295, raphael: 204, rem: 208, ren: 235, reze: 6, rimuru: 38, shinobu: 251, subaru: 340, subaru1: 200, sukuna: 327, theherta: 248, tohka: 246, urabe: 34, yuuji: 4, zeta: 4 };
+const hue = id => AVATAR_HUE[id] ?? hash(String(id)) % 360;
 const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 const escRe = s => s.replace(/[.*+?^${}()|[\]\\\/]/g, '\\$&');
 const STOP = ['the', 'and', 'dan', 'iff', 'gluttony'];
