@@ -100,6 +100,19 @@ Tombol tempat sampah per bubble dan "Hapus semua pesan" (panel dev, keduanya tap
 - **Cari isi semua obrolan**: ketik minimal 2 huruf di kotak cari panel "Lihat semua karakter"; hasil dari pesan di semua karakter muncul di atas daftar (terbaru dulu, maks 30). Tap hasil untuk membuka chat dan melompat ke pesannya. Hanya chat 1-lawan-1 (chat grup belum ikut), dan terbatas pada 150 pesan terakhir per karakter (`LOGMAX`).
 - **Ringkasan harian** (Pengaturan → Fitur): Hari ini / Kemarin / 7 hari terakhir: jumlah pesan, balasan, voice note, karakter teratas, kata yang sering dipakai, jam paling ramai, dan streak. "Bagikan sebagai gambar" membuat PNG 1080x1350 lewat canvas (Web Share bila ada, kalau tidak diunduh). Semua dihitung di perangkat dari `log:<id>`.
 
+## Hubungan & mood (chat 1-lawan-1)
+
+Karakter tidak langsung suka: tiap karakter mulai dari **Asing** dan hubungannya naik pelan-pelan lewat obrolan. Lihat lewat **tap foto/nama karakter di header chat** -> panel Profil (tahap hubungan, bar kedekatan, mood, daftar tahap, tombol Reset hubungan).
+
+- **Tahap** (`lib/relation.js`, `STAGES`): Asing 0, Kenalan 12, Teman 30, Dekat 55, Spesial 80 (skala 0-100). Tiap tahap punya `rule` (masuk prompt, mengatur seberapa dekat/terbuka karakter) dan `desc` (tampil di panel). **Mood** 0-100 (netral 50) dengan label di `MOODS`.
+- **Cara menghitung**: model menambahkan blok `<rel>+2</rel><mood>-3</mood>` di akhir balasannya. Blok itu **tidak tampil di chat**: server membuangnya dari teks, membatasi angkanya (rel -10..+4, mood -15..+15), lalu mengirim `dRel` dan `dMood` ke browser. Browser yang menambahkannya ke skor.
+- **Penyimpanan**: server tetap stateless. Skor disimpan di localStorage `rel:<id>` (ikut ekspor/impor JSON dan Reset semua) dan dikirim tiap pesan sebagai `rel: { rel, mood, shift }`. Blok `[STATUS HUBUNGAN ...]` ditempel di **setiap** pesan supaya tahap dan mood terbaru selalu terbaca model.
+- **Supaya ada alurnya**: kenaikan rel dibatasi `DAILY_CAP` (15/hari, jadi dari Asing ke Spesial minimal beberapa hari), mood rendah menahan kenaikan rel (maks +1 kalau mood < 30), rayuan atau permintaan "naikin hubungan" disuruh dinilai 0/negatif, dan mood pelan-pelan kembali ke 50 (`MOOD_DECAY` poin/jam). Waktu naik/turun tahap, muncul toast dan pesan berikutnya membawa `shift: 'up'|'down'` supaya karakter menunjukkan perubahan sikap.
+- **Cerita per karakter (opsional)**: di `char/<nama>.js` tambahkan `story: { 0: '...', 1: '...', 2: '...', 3: '...', 4: '...' }` (kunci = nomor tahap 0-4, atau nama tahap). Teksnya masuk prompt hanya saat hubungan ada di tahap itu, mis. `1: 'mulai penasaran pada user tapi gengsi mengakuinya'`.
+- **Belum**: chat grup tidak memakai sistem ini (field `rel` hanya dikirim di chat 1-lawan-1).
+- **Debug**: set env `DEBUG_RAW=1` untuk mencetak balasan mentah model di log server (berguna kalau format balasan aneh).
+- **Format balasan**: semua paragraf harus di dalam satu `<id>...</id>`. Parser (`idText` di `lib/sessions.js`) juga menggabungkan kalau model membuat `<id>` per paragraf atau menulis sisanya di luar tag, dan jeda paragraf dipertahankan sampai ke bubble chat.
+
 ## Lainnya
 
 - Taruh `reze.jpg` dll di `public/assets/`.
