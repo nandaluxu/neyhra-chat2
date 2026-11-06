@@ -209,6 +209,9 @@ mark{background:#ffe066;color:#111;border-radius:3px;padding:0 1px}
 mark.cur{background:#ff9f43}
 .bub.hit{outline:2px solid #ffe066;outline-offset:1px}
 .bub.hit.cur{outline-color:#ff9f43}
+/* Mode roleplay: narasi *miring* */
+.txt em{font-style:italic;opacity:.72}
+.sub .w.em{font-style:italic;color:var(--mut)}
 .txt{transition:opacity .2s}
 .txt.lp{opacity:.55}
 @media(pointer:coarse){.txt{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}}
@@ -515,6 +518,7 @@ header .pfp,header .who{cursor:pointer}
         <label class="srow"><span><b>Warna aksen per karakter</b><i>Gelembung pesanmu dan tombol kirim ikut warna khas karakter yang lagi diajak ngobrol (diambil dari fotonya).</i></span><input type="checkbox" id="sacc" class="sw"></label>
       </div>
       <div class="sgroup"><h3>Fitur</h3>
+        <label class="srow"><span><b>Mode roleplay</b><i>Balasan karakter jadi gaya roleplay: gerak-gerik dan ekspresi ditulis miring, ucapan dalam tanda kutip. Di voice note hanya ucapannya yang dibacakan, dipisah jeda panjang. Berlaku untuk chat 1-lawan-1.</i></span><input type="checkbox" id="srp" class="sw"></label>
         <button class="srow" id="voicebtn" type="button"><span><b>Voice note</b><i id="vlabel">Voice mati</i></span><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
         <button class="srow" id="sumbtn" type="button"><span><b>Ringkasan harian</b><i>Rekap obrolanmu hari ini, kemarin, atau 7 hari terakhir. Bisa dibagikan sebagai gambar.</i></span><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
         <button class="srow" id="membtn" type="button"><span><b>Memori</b><i>Ringkasan obrolan lama yang diingat tiap karakter. Bisa dilihat dan dihapus.</i></span><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
@@ -617,11 +621,22 @@ function reduce(bins,n){
   return out.map(v=>Math.max(.14,Math.pow(v/mx,.7)));
 }
 
+/* Teks roleplay: *narasi* tampil miring dan tanda bintangnya disembunyikan. Dibangun lewat DOM (bukan innerHTML). Teks mentah disimpan di data-raw. */
+const RP_RE=/(^|[^\w*])\*([^\s*](?:[^*]*[^\s*])?)\*(?![\w*])/g;
+function rpRender(el,text){
+  el.textContent=''; let last=0, m, any=false; RP_RE.lastIndex=0;
+  while((m=RP_RE.exec(text))){
+    const s=m.index+m[1].length; el.append(text.slice(last,s));
+    const em=document.createElement('em'); em.textContent=m[2]; el.append(em); last=s+m[2].length+2; any=true;
+  }
+  el.append(text.slice(last));
+  if(any) el.dataset.raw=text; else delete el.dataset.raw;
+}
 function addText(text,t){
   t=t||Date.now(); ensureDay(t);
   const row=document.createElement('div'); row.className='row me'+(restoring?' rs':'');
   row.innerHTML='<div class="bub"><div class="txt"></div><div class="ts">'+now(t)+'</div></div>';
-  row.querySelector('.txt').textContent=text;
+  rpRender(row.querySelector('.txt'),text);
   chat.appendChild(row); scroll();
 }
 
@@ -686,7 +701,8 @@ function addVN(m, takes, t, g){
   const renderSub=()=>{
     const t=subText(m), sp=sub.querySelector('span');
     if(sp.dataset.k===t) return; sp.dataset.k=t;
-    let k=0; sp.innerHTML=t.split(/(\s+)/).map(w=>/\S/.test(w)?`<span class="w" style="--d:${k++*45}ms">${w.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</span>`:w).join('');
+    let k=0, em=false; /* kata di antara *...* tampil miring (narasi roleplay) */
+    sp.innerHTML=t.split(/(\s+)/).map(w=>{ if(!/\S/.test(w)) return w; if(/^\*+[^*]/.test(w)) em=true; const shown=w.replace(/^\*+/,'').replace(/\*+$/,''), cl=em?'w em':'w'; if(/[^*]\*+$/.test(w)) em=false; return shown?`<span class="${cl}" style="--d:${k++*45}ms">${shown.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</span>`:''; }).join('');
   };
   row.renderSub=()=>{ if(sub.classList.contains('show')) renderSub(); };
   const startSim=()=>{ usingSim=true; const t0=performance.now(); const go=()=>{ simT=(performance.now()-t0)/1000; paint(simT/dur); const tx=fmt(simT); if(d.textContent!==tx) d.textContent=tx; if(simT>=dur){stop(true);return} raf=requestAnimationFrame(go); }; raf=requestAnimationFrame(go); };
@@ -767,6 +783,7 @@ function typingBubble(){
 
 /* ===== Pengaturan voice (diatur di Pengaturan, tersimpan di localStorage) ===== */
 const store={get(k){try{return localStorage.getItem(k)}catch{return null}},set(k,v){try{v==null?localStorage.removeItem(k):localStorage.setItem(k,v)}catch{}}};
+const rpOn=()=>store.get('rp')==='1'; /* Mode roleplay (Pengaturan) */
 const SUBS={both:'Indonesia + Jepang',id:'Indonesia saja',jp:'Jepang saja',auto:'Ikuti bahasa voice'};
 let voiceLang=store.get('vl')==='id'?'id':'jp';
 let subLang=SUBS[store.get('sl')]?store.get('sl'):'both';
@@ -875,7 +892,7 @@ function addThem(text,t){
   t=t||Date.now(); ensureDay(t);
   const row=document.createElement('div'); row.className='row them'+(restoring?' rs':'');
   row.innerHTML='<div class="bub"><div class="txt"></div><div class="ts">'+now(t)+'</div></div>';
-  row.querySelector('.txt').textContent=text; chat.appendChild(row); scroll();
+  rpRender(row.querySelector('.txt'),text); chat.appendChild(row); scroll();
 }
 function dots(){
   const row=document.createElement('div'); row.className='row them';
@@ -897,7 +914,7 @@ async function submit(){
   let t=thinkBubble(ch.name); /* fase 1: ChatGPT lagi mikir */
   try{
     const hist=loadHist(ch.id);
-    const r=await (await post('/api/chat',{clientId:cid,char:ch.id,message:text,userName:uname,history:hist,voice:{on:useVoice,lang},memory:memUse(chId).list,rel:relPayload(chId),...engPayload()})).json();
+    const r=await (await post('/api/chat',{clientId:cid,char:ch.id,message:text,userName:uname,history:hist,voice:{on:useVoice,lang},memory:memUse(chId).list,rel:relPayload(chId),...engPayload(),...(rpOn()?{rp:true}:{})})).json();
     saveHist(chId,[...loadHist(chId),['user',text],['char',r.id]]); okReply=true;
     relNote=relApply(chId,r.dRel,r.dMood); /* hubungan & mood: angka dari balasan AI (sudah di-clamp server) */ /* baca ulang h: karena peringkasan di latar bisa saja baru membuang bagian lamanya */
     if(!useVoice){ t.remove(); showThem(chId,r.id); }
@@ -1252,7 +1269,7 @@ $('sfile').onchange=()=>{ const f=$('sfile').files[0]; if(f) importJSON(f); };
 const sbar=$('sbar'), sq=$('sq'), scnt=$('scnt');
 let hits=[], hi=-1;
 function clearHL(){
-  chat.querySelectorAll('.txt[data-orig]').forEach(el=>{ el.textContent=el.dataset.orig; delete el.dataset.orig; });
+  chat.querySelectorAll('.txt[data-orig]').forEach(el=>{ if(el.dataset.raw) rpRender(el,el.dataset.raw); else el.textContent=el.dataset.orig; delete el.dataset.orig; });
   chat.querySelectorAll('.bub.hit').forEach(b=>b.classList.remove('hit','cur'));
   hits=[]; hi=-1;
 }
@@ -1614,6 +1631,7 @@ function tryDev(text){
   const was=store.get('devu')==='1'; store.set('devu','1'); if(!was) store.set('dev','1');
   paintDev(); toast(was?'Mode dev sudah terbuka, atur di Pengaturan':'Mode dev terbuka dan aktif'); return true;
 }
+$('srp').checked=rpOn(); $('srp').onchange=()=>{ store.set('rp',$('srp').checked?'1':null); };
 $('sdev').onchange=()=>{ store.set('dev',$('sdev').checked?'1':null); renderDev(); paintEng(); };
 function renderDev(){
   const box=$('mdev'); box.textContent='';
