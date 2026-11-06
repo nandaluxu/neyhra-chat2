@@ -481,9 +481,10 @@ function addText(text,t){
 
 let openSub=null; /* subtitle voice note yang lagi kebuka; ditutup waktu voice note lain diputar */
 /* takes = daftar versi voice note ([{url,dur,bins,k}]); versi pertama = aslinya, sisanya hasil kirim ulang */
-function addVN(m, takes, t){
+/* g (opsional, dipakai chat grup): {owner,gid,name,char,hue,onStop(ended),persist(ks,si)} -> bubble dengan avatar + nama pengirim */
+function addVN(m, takes, t, g){
   t=t||Date.now(); ensureDay(t);
-  const owner=ch&&ch.id, list=Array.isArray(takes)?takes.slice():[takes||{}];
+  const owner=g?g.owner:ch&&ch.id, posId=g?'g:'+g.gid:owner, list=Array.isArray(takes)?takes.slice():[takes||{}];
   let si=Math.min(Math.max(m.si||0,0),list.length-1), pre=list[si];
   const text = (m.lang==='jp'&&m.jp) ? m.jp : m.id;
   const est = Math.max(2, Math.round(text.split(' ').length*0.42));
@@ -491,17 +492,18 @@ function addVN(m, takes, t){
   const barsFor=(p,dd)=>{ const n=Math.min(30,Math.max(20,Math.round(dd*4))); return (p&&p.bins)?reduce(p.bins,n):Array.from({length:n},(_,i)=>.2+Math.abs(Math.sin(i*1.9+text.length))*.7); };
   const barHTML=hs=>hs.map((h,i)=>`<i style="height:${(h*100).toFixed(1)}%;--k:${i}"></i>`).join('');
   const hs = barsFor(pre,dur);
-  const row=document.createElement('div'); row.className='row them'+(restoring?' rs':'');
-  row.innerHTML=`<div class="bub"><div class="vn"><button class="play">${PLAY}</button><div class="wave">${barHTML(hs)}</div><span class="dur">${fmt(dur)}</span></div>
+  const row=document.createElement('div'); row.className='row them'+(g?' grow':'')+(restoring?' rs':'');
+  row.innerHTML=`<div class="bub">${g?'<div class="gname"></div>':''}<div class="vn"><button class="play">${PLAY}</button><div class="wave">${barHTML(hs)}</div><span class="dur">${fmt(dur)}</span></div>
   <div class="sub"><b>SUBTITLE</b><span></span></div><div class="vfoot"><div class="vctl single"><button type="button" class="vnav vprev" aria-label="Versi sebelumnya"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button><span class="vcnt">1/1</span><button type="button" class="vnav vnext" aria-label="Versi berikutnya"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button><button type="button" class="vspd" title="Kecepatan putar" aria-label="Kecepatan putar">1×</button><button type="button" class="vdl" title="Download voice note" aria-label="Download voice note"><svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 19h14"/></svg></button><button type="button" class="vre" title="Kirim ulang voice note" aria-label="Kirim ulang voice note"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5"/></svg></button></div><div class="ts">${now(t)}</div></div></div>`;
   row.dataset.q=(m.id||'')+' '+(m.jp||''); /* buat pencarian */
+  if(g){ row.dataset.from=g.owner; row.style.setProperty('--h',g.hue); row.prepend(img(g.char,'gav')); row.querySelector('.gname').textContent=g.name; }
   chat.appendChild(row); scroll();
   const btn=row.querySelector('.play'), wave=row.querySelector('.wave'), d=row.querySelector('.dur'), sub=row.querySelector('.sub');
   let bs=[...wave.children], audio;
   let simT=0, usingSim=false, raf=0, shown=0, lt=-1, ls=0, lastSave=0;
   /* posisi putar terakhir per voice note (per versi), disimpan di perangkat */
-  const getPos=()=>{ try{ const v=JSON.parse(store.get('pos:'+owner)||'{}')[t+'.'+si]; return v>0.3&&v<dur-0.3?v:0 }catch{ return 0 } };
-  const savePos=v=>{ if(!owner) return; try{ const o=JSON.parse(store.get('pos:'+owner)||'{}'), k=t+'.'+si; if(v>0.3) o[k]=+v.toFixed(2); else delete o[k]; store.set('pos:'+owner,Object.keys(o).length?JSON.stringify(o):null); }catch{} };
+  const getPos=()=>{ try{ const v=JSON.parse(store.get('pos:'+posId)||'{}')[t+'.'+si]; return v>0.3&&v<dur-0.3?v:0 }catch{ return 0 } };
+  const savePos=v=>{ if(!posId) return; try{ const o=JSON.parse(store.get('pos:'+posId)||'{}'), k=t+'.'+si; if(v>0.3) o[k]=+v.toFixed(2); else delete o[k]; store.set('pos:'+posId,Object.keys(o).length?JSON.stringify(o):null); }catch{} };
   /* pasang versi voice note tertentu (audio, durasi, waveform) */
   const mount=(p,rebuild)=>{
     pre=p; dur=(p&&p.dur)||est; shown=0; lt=-1; usingSim=false;
@@ -531,6 +533,7 @@ function addVN(m, takes, t){
     cancelAnimationFrame(raf); raf=0; audio.pause();
     if(reset){audio.currentTime=0; shown=0; lt=-1; paint(0); d.textContent=fmt(dur); savePos(0)} else savePos(audio.currentTime);
     btn.innerHTML=PLAY; btn.classList.remove('on'); sub.classList.add('idle'); if(current===api) current=null;
+    if(g&&g.onStop) g.onStop(reset); /* grup: kabari antrean kalau voice note ini selesai (reset=true) atau dihentikan */
   };
   const api={stop,save:()=>savePos(audio.currentTime)};
   /* subtitle ikut pengaturan di menu titik tiga; dibangun ulang hanya kalau teksnya berubah */
@@ -564,7 +567,7 @@ function addVN(m, takes, t){
   /* versi voice note: panah kiri/kanan ganti versi, tombol putar-ulang bikin versi baru (yang lama tetap ada) */
   const re=row.querySelector('.vre'), vctl=row.querySelector('.vctl'), prev=row.querySelector('.vprev'), next=row.querySelector('.vnext'), cnt=row.querySelector('.vcnt'), dl=row.querySelector('.vdl'), spd=row.querySelector('.vspd'), MAXV=5;
   const ctl=()=>{ vctl.classList.toggle('single',list.length<2); cnt.textContent=(si+1)+'/'+list.length; prev.disabled=si===0; next.disabled=si===list.length-1; re.hidden=!m.vn; dl.hidden=!(list[si]&&list[si].url); };
-  const persist=()=>{ if(!owner) return; const ks=list.filter(x=>x.k).map(x=>x.k), i=Math.max(0,ks.indexOf(list[si]&&list[si].k)); patchLog(owner,t,e=>{ e.ks=ks; e.si=i; delete e.k; }); };
+  const persist=()=>{ if(!owner) return; const ks=list.filter(x=>x.k).map(x=>x.k), i=Math.max(0,ks.indexOf(list[si]&&list[si].k)); if(g) g.persist(ks,i); else patchLog(owner,t,e=>{ e.ks=ks; e.si=i; delete e.k; }); };
   const select=i=>{
     if(i<0||i>=list.length||i===si) return;
     const was=current===api; if(was) stop();
@@ -573,7 +576,7 @@ function addVN(m, takes, t){
   };
   dl.onclick=()=>{ /* download versi yang lagi dipilih sebagai mp3 */
     const p=list[si]; if(!p||!p.url) return; const d=new Date(t);
-    saveUrl(p.url,safeName(ch&&ch.name)+'-voice-'+String(d.getHours()).padStart(2,'0')+String(d.getMinutes()).padStart(2,'0')+(si?'-v'+(si+1):'')+'.mp3');
+    saveUrl(p.url,safeName(g?g.name:ch&&ch.name)+'-voice-'+String(d.getHours()).padStart(2,'0')+String(d.getMinutes()).padStart(2,'0')+(si?'-v'+(si+1):'')+'.mp3');
   };
   /* kecepatan putar (1x / 1.25x / 1.5x / 2x) berlaku buat semua voice note */
   const spdFx=()=>{ if(!row.isConnected){ document.removeEventListener('vspeed',spdFx); return; } spd.textContent=vSpeed+'×'; if(audio) audio.playbackRate=vSpeed; };
@@ -606,6 +609,7 @@ function addVN(m, takes, t){
     if(usingSim) return;
     const r=wave.getBoundingClientRect(); audio.currentTime=((e.clientX-r.left)/r.width)*tot();
   };
+  return row;
 }
 
 function typingBubble(){

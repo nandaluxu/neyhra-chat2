@@ -47,7 +47,6 @@ const charOf = id => allChars.find(c => c.id === id) || null;
 const pseudo = id => ({ id, name: id.charAt(0).toUpperCase() + id.slice(1), avatar: '' });
 const cOrP = id => charOf(id) || pseudo(id);
 const firstName = c => String(c.name).replace(/\([^)]*\)/g, ' ').trim().split(/[\s/]+/)[0] || c.name;
-const GV = '<span>Voice</span>';
 
 const GX = window.GX = { cur: null, hash: s => hash(norm(s)), CFG };
 const enabled = GX.enabled = () => store.get('gx') === '1';
@@ -77,7 +76,8 @@ const delAudio = l => l.forEach(m => keysOf(m).forEach(k => idb.del(k)));
 const persist = st => { trimMsgs(st.msgs); saveMsgs(st.g.id, st.msgs); };
 function patchMsg(gid, m, fn) { fn(m); const l = loadMsgs(gid), e = l.find(x => x.ts === m.ts && x.from === m.from); if (e) { fn(e); saveMsgs(gid, l); } }
 
-let state = null; // { g, msgs, ctl, running } untuk grup yang lagi dibuka
+let state = null; // { g, msgs, ctl, running, pending, tail } untuk grup yang lagi dibuka
+// pending = balasan yang sudah jadi tapi belum tampil (menunggu voice note sebelumnya selesai); tail = promise "voice note terakhir selesai"
 
 /* ---------- Notifikasi atas layar ---------- */
 let noteEl = null, noteT = 0;
@@ -279,7 +279,7 @@ const paintHeader = () => {
 function open(g, avEl) {
   if (moving || app.classList.contains('open')) return;
   moving = true; setTimeout(() => moving = false, DUR);
-  ch = null; GX.cur = g; state = { g, msgs: [], ctl: null, running: false };
+  ch = null; GX.cur = g; state = { g, msgs: [], ctl: null, running: false, pending: [], tail: null };
   closeSearch(); if (current) current.stop(); openSub = null; urls.forEach(u => URL.revokeObjectURL(u)); urls = []; clearTimeout(clrT); clrT = 0;
   chat.innerHTML = ''; lastDay = ''; ready = false; const tok = ++openTok;
   clearTimeout(draftT); inp.value = store.get('draft:g:' + g.id) || ''; grow(); refresh();
@@ -294,11 +294,13 @@ function open(g, avEl) {
   setTimeout(() => { if (app.classList.contains('open') && GX.cur === g) inp.focus({ preventScroll: true }); }, DUR);
 }
 
-function restore(g, tok) {
+async function restore(g, tok) {
   if (tok !== openTok || GX.cur !== g) return;
-  const msgs = loadMsgs(g.id); state.msgs = msgs;
+  const st = state, msgs = loadMsgs(g.id); st.msgs = msgs;
+  const recs = await Promise.all(msgs.map(m => Promise.all(keysOf(m).map(k => idb.get(k)))));
+  if (tok !== openTok || GX.cur !== g || state !== st) return; // sudah pindah layar
   restoring = true;
-  try { msgs.forEach(render); } catch {}
+  try { msgs.forEach((m, i) => render(m, recs[i])); } catch {}
   restoring = false;
   if (!msgs.length) { ensureDay(Date.now()); emptyHint(); }
   ready = true; chat.scrollTop = chat.scrollHeight; updDown();
@@ -312,10 +314,14 @@ function emptyHint() {
 }
 const dropHint = () => { const h = chat.querySelector('.gempty'); if (h) h.remove(); };
 
-function render(m) {
+function render(m, recs) {
   if (m.from === 'user') addText(m.text, m.ts);
   else if (m.from === 'system') sysLine(m.text, m.ts);
-  else bubble(m);
+  else {
+    const ks = keysOf(m), takes = [];
+    (recs || []).forEach((a, j) => { if (a && a.ab) { const u = URL.createObjectURL(new Blob([a.ab], { type: 'audio/mpeg' })); urls.push(u); takes.push({ url: u, dur: a.dur, bins: a.bins, k: ks[j] }); } });
+    if (m.vn && takes.length) vnBubble(m, takes); else bubble(m); // audio sudah dibuang -> tampil sebagai teks
+  }
 }
 function sysLine(text, t) {
   ensureDay(t || Date.now());
@@ -329,24 +335,32 @@ function errLine(text) {
   const d = document.createElement('div'); d.className = 'gsys err'; d.textContent = text; chat.append(d); scroll();
 }
 
+// bubble teks biasa (voice mati, suara gagal dibuat, atau audio lama sudah dibuang)
 function bubble(m) {
   const t = m.ts || Date.now(); ensureDay(t);
   const c = cOrP(m.from), row = document.createElement('div');
   row.className = 'row them grow' + (restoring ? ' rs' : ''); row.dataset.from = m.from; row.style.setProperty('--h', hue(m.from));
-  row.innerHTML = '<div class="bub"><div class="gname"></div><div class="txt"></div><div class="gsub"></div><div class="gfoot"><div class="ts">' + now(t) + '</div></div></div>';
+  row.innerHTML = '<div class="bub"><div class="gname"></div><div class="txt"></div><div class="ts">' + now(t) + '</div></div>';
   row.prepend(img(c, 'gav'));
   row.querySelector('.gname').textContent = c.name;
   row.querySelector('.txt').textContent = m.text;
-  if (m.vn) {
-    const b = document.createElement('button'); b.type = 'button'; b.className = 'gv'; b.title = 'Putar voice note'; b.setAttribute('aria-label', 'Putar voice note ' + c.name);
-    b.innerHTML = PLAY + GV; row.querySelector('.gfoot').prepend(b);
-    const mode = subLang === 'auto' ? m.lang : subLang;
-    if (m.jp && (mode === 'both' || mode === 'jp')) row.querySelector('.gsub').textContent = m.jp;
-    wireVoice(row, m, state && state.g.id);
-  }
   chat.append(row); scroll();
 }
 
+// voice note: pakai pemutar yang sama persis dengan chat biasa (addVN di index.html): waveform, progres, subtitle, kecepatan, versi, download.
+// `done` selesai (true) kalau voice note habis diputar, (false) kalau dijeda / diganti yang lain.
+function vnBubble(m, takes) {
+  const c = cOrP(m.from), gid = state.g.id;
+  let fin; const done = new Promise(r => fin = r);
+  const row = addVN({ id: m.text, jp: m.jp, lang: m.lang, vn: m.vn, si: m.si || 0 }, takes, m.ts, {
+    owner: m.from, gid, name: c.name, char: c, hue: hue(m.from),
+    onStop: ended => fin(!!ended),
+    persist: (ks, si) => patchMsg(gid, m, e => { e.ks = ks; e.si = si; })
+  });
+  return { row, done };
+}
+
+// indikator sebelum bubble muncul: titik (berpikir) lalu mic + bar (sedang merekam suara / menunggu giliran)
 function typingRow(id) {
   const c = cOrP(id), row = document.createElement('div');
   row.className = 'row them grow typ'; row.style.setProperty('--h', hue(id));
@@ -355,50 +369,14 @@ function typingRow(id) {
   chat.append(row); scroll(); setStatus(c.name + ' sedang mengetik…', true);
   return row;
 }
-
-/* ---------- Voice per baris: audio dibuat malas (saat diketuk), bukan otomatis ---------- */
-const badCode = () => { vcode = ''; voiceOn = false; store.set('vcode', null); store.set('von', '0'); paintVoice(); toast('Kode voice tidak valid, voice dimatikan'); };
-function wireVoice(row, m, gid) {
-  const btn = row.querySelector('.gv'), sub = row.querySelector('.gsub');
-  let audio = null, url = '', loading = false;
-  const api = {
-    stop() { if (audio) audio.pause(); btn.innerHTML = PLAY + GV; btn.classList.remove('on'); if (current === api) current = null; },
-    save() {}
-  };
-  async function getUrl() {
-    if (url) return url;
-    const k = keysOf(m)[0], rec = k ? await idb.get(k) : null;
-    if (rec && rec.ab) { url = URL.createObjectURL(new Blob([rec.ab], { type: 'audio/mpeg' })); urls.push(url); return url; }
-    if (!vcode) { toast('Aktifkan voice dulu di menu utama'); return ''; }
-    // baru di sini Fish Audio dipanggil: suara karakter pengirim baris ini (vv:<charId>)
-    const ab = await (await post('/api/tts', { char: m.from, text: m.vn, voice: voiceKeyOf(m.from) }, { 'x-voice-code': vcode })).arrayBuffer();
-    const p = await decode(ab); urls.push(p.url); url = p.url;
-    const key = newKey();
-    if (await idb.put(key, { ab, dur: p.dur, bins: p.bins })) patchMsg(gid, m, e => { e.ks = [key]; });
-    return url;
-  }
-  const playNext = () => { let r = row.nextElementSibling; while (r && !r._gvn) r = r.nextElementSibling; if (r) r._gvn.play(true); };
-  const play = async auto => {
-    if (current === api) { api.stop(); return; }
-    if (loading) return;
-    if (current) current.stop();
-    loading = true; btn.classList.add('ld');
-    let u = '';
-    try { u = await getUrl(); } catch (e) { if (e.status === 403) badCode(); else toast(e.message || 'Suara gagal dibuat'); }
-    loading = false; btn.classList.remove('ld');
-    if (!u || !row.isConnected) return;
-    if (current && current !== api) current.stop();
-    if (!audio) { audio = new Audio(u); audio.preload = 'auto'; }
-    audio.playbackRate = vSpeed;
-    audio.onended = () => { api.stop(); audio.currentTime = 0; if (autoNext) playNext(); };
-    current = api; btn.innerHTML = PAUSE + GV; btn.classList.add('on');
-    if (sub.textContent) sub.classList.add('show');
-    audio.play().catch(() => { api.stop(); toast(auto === true ? 'Browser menahan putar otomatis, tap play dulu' : 'Gagal memutar suara'); });
-  };
-  btn.onclick = () => play();
-  sub.onclick = () => sub.classList.remove('show');
-  row._gvn = { play };
+function recRow(row, id) {
+  const tb = row.querySelector('.typing-b'); if (!tb) return;
+  const rec = document.createElement('div'); rec.className = 'rec-b';
+  rec.innerHTML = '<svg viewBox="0 0 24 24"><path d="M9 3h6v10a3 3 0 01-6 0zM5 11a7 7 0 0014 0M12 18v3"/></svg><div class="bars">' + '<i></i>'.repeat(14) + '</div>';
+  rec.querySelectorAll('.bars i').forEach((b, i) => b.style.animationDelay = (i * 0.07) + 's');
+  tb.replaceWith(rec); scroll(); setStatus(cOrP(id).name + ' merekam suara…', true);
 }
+const badCode = () => { vcode = ''; voiceOn = false; store.set('vcode', null); store.set('von', '0'); paintVoice(); toast('Kode voice tidak valid, voice dimatikan'); };
 
 /* ---------- Mesin giliran ---------- */
 function activeIds(g) { return g.members.filter(i => charOf(i) && !(g.muted || []).includes(i)); }
@@ -436,13 +414,15 @@ function pickFirst(g, text) {
 
 function abortChain() {
   if (state && state.ctl) { state.ctl.abort(); state.ctl = null; state.running = false; }
+  if (state) state.pending = [];
   chat.querySelectorAll('.row.typ').forEach(r => r.remove());
   baseStatus();
 }
 
 async function callChat(g, sp, { userText, replyTo, depth, ctl }) {
   const useVoice = voiceOn && !!vcode, lang = voiceLang;
-  const history = state.msgs.filter(m => m.from !== 'system').slice(-CFG.HIST).map(m => [m.from, String(m.text).slice(0, 600)]);
+  // balasan yang sudah jadi tapi belum tampil tetap ikut jadi konteks, supaya karakter berikutnya nyambung
+  const history = [...state.msgs, ...state.pending].filter(m => m.from !== 'system').slice(-CFG.HIST).map(m => [m.from, String(m.text).slice(0, 600)]);
   const body = {
     clientId: cid, char: sp, message: userText || '', userName: uname, history,
     group: { members: g.members.filter(charOf), muted: g.muted || [], scene: g.scene || '', ...(replyTo && { replyTo }), depth },
@@ -453,8 +433,11 @@ async function callChat(g, sp, { userText, replyTo, depth, ctl }) {
   return { ...(await r.json()), lang };
 }
 
-// satu karakter bicara. { ok:false } = rantai berhenti (error, dibatalkan, atau user pindah layar)
-async function turn(st, sp, opts) {
+const aborted = ctl => new Promise(r => { if (ctl.signal.aborted) r(null); else ctl.signal.addEventListener('abort', () => r(null), { once: true }); });
+
+// Tahap 1: satu karakter berpikir (ChatGPT), lalu kalau voice nyala suaranya langsung dibuat (Fish Audio). Belum ditampilkan.
+// Tahap ini boleh jalan sementara voice note karakter sebelumnya masih diputar.
+async function compose(st, sp, opts) {
   const { ctl } = opts, c = charOf(sp);
   if (!c) return { ok: false };
   const row = typingRow(sp), t0 = Date.now();
@@ -462,25 +445,62 @@ async function turn(st, sp, opts) {
     const r = await callChat(st.g, sp, opts);
     const text = String(r.id || '').trim();
     if (!text) throw new Error('Balasan kosong');
-    const min = Math.min(1800, 800 + text.length * 14), el = Date.now() - t0; // jeda 0,8-1,8 dtk sebanding panjang teks, biar terasa hidup
-    if (el < min) await wait(min - el);
-    row.remove();
-    if (ctl.signal.aborted || state !== st) return { ok: false };
-    const m = { from: sp, text, ts: Date.now(), ...(r.vn ? { vn: r.vn, jp: r.jpText || '', lang: r.lang } : {}) };
-    st.msgs.push(m); persist(st); bubble(m);
-    return { ok: true, text, next: typeof r.next === 'string' ? r.next : null };
+    const m = { from: sp, text, ts: 0 };
+    let take = null;
+    if (voiceOn && vcode && r.vn) {
+      m.vn = r.vn; m.jp = r.jpText || ''; m.lang = r.lang;
+      recRow(row, sp);
+      try {
+        const ab = await (await post('/api/tts', { char: sp, text: r.vn, voice: voiceKeyOf(sp) }, { 'x-voice-code': vcode })).arrayBuffer();
+        const p = await decode(ab); urls.push(p.url); take = { ...p, ab };
+      } catch (e) {
+        delete m.vn; delete m.jp; delete m.lang; // suara gagal -> teksnya tetap tampil
+        if (e.status === 403) badCode(); else if (!ctl.signal.aborted) toast(e.message || 'Suara gagal dibuat');
+      }
+    } else {
+      const min = Math.min(1800, 800 + text.length * 14), el = Date.now() - t0; // jeda 0,8-1,8 dtk sebanding panjang teks, biar terasa hidup
+      if (el < min) await wait(min - el);
+    }
+    if (ctl.signal.aborted || state !== st) { row.remove(); return { ok: false }; }
+    st.pending.push(m);
+    return { ok: true, text, next: typeof r.next === 'string' ? r.next : null, m, take, row };
   } catch (e) {
     row.remove();
     if (ctl.signal.aborted || e.name === 'AbortError' || state !== st) return { ok: false };
     errLine(c.name + ': ' + (e.message || 'gagal membalas')); // rantai berhenti, pesan yang sudah ada tetap tersimpan
+    baseStatus();
     return { ok: false };
   }
+}
+
+// Tahap 2: tunggu voice note sebelumnya selesai, baru tampilkan bubble ini dan putar otomatis.
+// Mengembalikan promise yang selesai saat voice note ini selesai diputar, jadi bisa dirantai (st.tail).
+async function reveal(st, res, prev, ctl, shown) {
+  try {
+    const ended = await Promise.race([prev, aborted(ctl)]); // false = sebelumnya dijeda user, jangan putar otomatis
+    res.row.remove();
+    if (ctl.signal.aborted || state !== st) return null;
+    const m = res.m; m.ts = Date.now();
+    st.pending = st.pending.filter(x => x !== m);
+    const gid = st.g.id;
+    if (!chat.querySelector('.row.typ')) baseStatus();
+    st.msgs.push(m); persist(st);
+    if (!res.take) { bubble(m); shown(); return true; }
+    const p = res.take, v = vnBubble(m, [p]);
+    shown(); // bubble sudah tampil: karakter berikutnya boleh mulai mikir selagi voice note ini diputar
+    const k = newKey(); // audio disimpan lokal (IndexedDB) supaya voice note bisa diputar lagi nanti
+    idb.put(k, { ab: p.ab, dur: p.dur, bins: p.bins }).then(ok => { if (ok) { p.k = k; patchMsg(gid, m, e => { e.ks = [k]; e.si = 0; }); } });
+    if (ended === false) return false;
+    v.row._vn.play(true);
+    return await v.done;
+  } finally { shown(); }
 }
 
 async function runChain(g, { userText, first, max }) {
   const st = state, ctl = new AbortController(), counts = {};
   st.ctl = ctl; st.running = true;
-  let depth = 0, nextId = null, replyTo = null;
+  st.tail = (st.tail || Promise.resolve(true)).then(v => v === false ? true : v); // rantai baru: kalau user menjeda tadi, balasan baru tetap boleh putar otomatis
+  let depth = 0, nextId = null, replyTo = null, shownPrev = Promise.resolve();
   const queue = [...first];
   try {
     while (depth < max && !ctl.signal.aborted && state === st) {
@@ -489,8 +509,12 @@ async function runChain(g, { userText, first, max }) {
       else if (nextId) { sp = nextId; nextId = null; }
       else break;
       if (!activeIds(g).includes(sp)) continue;
-      const r = await turn(st, sp, { userText, replyTo, depth, ctl });
+      await Promise.race([shownPrev, aborted(ctl)]); // karakter berikutnya mulai mikir setelah yang sebelumnya tampil (tidak numpuk indikator)
+      if (ctl.signal.aborted || state !== st) break;
+      const r = await compose(st, sp, { userText, replyTo, depth, ctl });
       if (!r.ok) break;
+      let shown; shownPrev = new Promise(res => shown = res);
+      st.tail = reveal(st, r, st.tail || Promise.resolve(true), ctl, shown); // antre: tampil + putar setelah voice note sebelumnya selesai
       depth++; counts[sp] = (counts[sp] || 0) + 1;
       if (queue.length) continue;
       const nx = r.next;
@@ -498,6 +522,7 @@ async function runChain(g, { userText, first, max }) {
       if (!accept) break;
       nextId = nx; replyTo = { from: sp, text: r.text };
     }
+    if (!ctl.signal.aborted && state === st && st.tail) await Promise.race([st.tail, aborted(ctl)]); // tunggu bubble terakhir tampil dan selesai diputar
   } finally {
     if (st.ctl === ctl) { st.ctl = null; st.running = false; if (state === st) baseStatus(); }
   }
@@ -713,8 +738,8 @@ function cleanMsg(e) { // file impor itu data tak tepercaya
   const o = { from: e.from, ts: e.ts, text: String(e.text == null ? '' : e.text).slice(0, 8000) };
   if (e.from !== 'user' && e.from !== 'system') {
     if (typeof e.vn === 'string' && e.vn) { o.vn = e.vn.slice(0, 8000); o.jp = typeof e.jp === 'string' ? e.jp.slice(0, 8000) : ''; o.lang = typeof e.lang === 'string' ? e.lang.slice(0, 8) : 'jp'; }
-    const ks = (Array.isArray(e.ks) ? e.ks : []).filter(isKey).slice(0, 1);
-    if (ks.length) o.ks = ks;
+    const ks = (Array.isArray(e.ks) ? e.ks : []).filter(isKey).slice(0, 5);
+    if (ks.length) { o.ks = ks; if (isNum(e.si)) o.si = Math.max(0, Math.min(ks.length - 1, e.si | 0)); }
   }
   return o;
 }

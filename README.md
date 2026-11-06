@@ -49,7 +49,7 @@ Grup 2-5 karakter yang saling membalas. Desain lengkap ada di `design.md`.
 - **Mengganti kode**: buka console, jalankan `GX.hash('kode baru')`, tempel angkanya ke `SECRET`. Ini pagar UI, bukan keamanan.
 - **Alur**: browser mengatur rantai giliran (satu request = satu karakter bicara). Server stateless: `POST /api/chat` dengan field tambahan `group` (`members`, `muted`, `scene`, `replyTo`, `depth`) dan riwayat `[pengirim, teks]`. Respons ditambah `next` (id anggota atau `null`). Tanpa field `group`, chat 1-lawan-1 sama persis seperti dulu.
 - **Rem**: konstanta di `CFG` (`public/group.js`): `MAX_CHAIN`, `MAX_PER_CHAR`, `ACCEPT`, `AUTO_CHAIN`. Server memvalidasi anggota ke `char/`, `next` hanya diterima kalau anggota yang tidak dibisukan.
-- **Biaya**: satu giliran = satu panggilan ChatGPT anonim, jadi grup bisa kena limit lebih cepat. Audio Fish Audio dibuat malas, baru saat voice note diketuk.
+- **Biaya**: satu giliran = satu panggilan ChatGPT anonim, jadi grup bisa kena limit lebih cepat. Kalau voice nyala, voice note dibuat otomatis tiap balasan dan tampilannya sama seperti chat biasa (waveform, progres, subtitle). Voice note diputar otomatis satu per satu: karakter berikutnya boleh sudah selesai mikir/merekam, tapi bubble-nya baru muncul dan bicara setelah voice note sebelumnya selesai. Kalau voice mati, balasan tampil sebagai teks.
 - **Relasi**: field opsional di `char/<nama>.js`: `relations: { ram: '...' }` (hanya yang hadir di grup masuk prompt) dan `trait: '...'` (satu baris sifat di daftar anggota; kalau kosong diambil dari "Kepribadian:" di prompt).
 
 ## Lainnya
