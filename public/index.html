@@ -236,6 +236,7 @@ header>button:active,.mwrap>button:active{transform:scale(.88)}
   #recbar{left:calc(var(--g) + 40px);right:calc(var(--g) + 40px)}
   footer:has(#send:not(.hide)) #recbar{right:calc(var(--g) + 88px)}
   #menu{padding:40px 56px}
+  .m-word{display:block}
   .m-hero{margin:auto auto 0;width:100%;max-width:480px}
   .m-list{margin:30px auto auto;width:100%;max-width:480px}
   #mtitle{font-size:88px}
@@ -272,6 +273,8 @@ header>button:active,.mwrap>button:active{transform:scale(.88)}
   .nact button{padding:12px 20px}
 }
 /* ===== Pemilih suara karakter (titik tiga) + indikator online ===== */
+.m-brand{display:flex;align-items:center;gap:12px}
+.m-word{display:none;font-size:18px;font-weight:700;letter-spacing:-.03em;animation:rise2 .7s .15s cubic-bezier(.2,.9,.2,1) both}
 .m-top{display:flex;align-items:center;justify-content:space-between;position:relative}
 .m-online{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:99px;background:var(--surface);font-size:12.5px;font-weight:500;font-variant-numeric:tabular-nums;animation:rise2 .6s both}
 .m-online::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 0 var(--ok);animation:ping2 2s infinite}
@@ -400,7 +403,7 @@ header>button:active,.mwrap>button:active{transform:scale(.88)}
 <div id="app">
   <section id="menu">
     <div class="orb o1"></div><div class="orb o2"></div>
-    <div class="m-top"><div class="m-logo"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg></div><span class="m-online hide" id="online" role="status" aria-live="off"><span><span id="onum">0</span> online</span></span></div>
+    <div class="m-top"><div class="m-brand"><div class="m-logo"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg></div><span class="m-word">neyhra chat</span></div><span class="m-online hide" id="online" role="status" aria-live="off"><span><span id="onum">0</span> online</span></span></div>
     <div class="m-hero">
       <h1 id="mtitle" aria-label="neyhra chat">neyhra chat</h1>
       <p class="m-sub">Pilih siapa yang mau diajak ngobrol.</p>
