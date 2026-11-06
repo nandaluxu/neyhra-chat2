@@ -158,7 +158,7 @@ footer:has(#send:not(.hide)) #recbar{right:106px}
 .m-name:active{transform:scale(.96)}
 .m-name svg{width:15px;height:15px}
 .m-name:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
-#nmodal,#vmodal,#smodal,#pmodal{position:absolute;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(0,0,0,.45);backdrop-filter:blur(3px)}
+#nmodal,#vmodal,#smodal,#pmodal,#mmodal{position:absolute;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(0,0,0,.45);backdrop-filter:blur(3px)}
 .nbox{width:100%;max-width:340px;background:var(--bg);border:1px solid var(--line);border-radius:22px;padding:20px;animation:nin .25s cubic-bezier(.2,.9,.3,1.2)}
 @keyframes nin{from{opacity:0;transform:scale(.92) translateY(8px)}}
 .nbox h2{font-size:18px;font-weight:600;letter-spacing:-.02em}
@@ -266,7 +266,7 @@ header>button:active,.mwrap>button:active{transform:scale(.88)}
   .pfp{width:40px;height:40px}
   .name{font-size:16px}
   /* kotak nama jadi bottom sheet, gampang dijangkau jempol */
-  #nmodal,#vmodal,#smodal{align-items:flex-end;padding:12px 12px calc(12px + env(safe-area-inset-bottom,0px))}
+  #nmodal,#vmodal,#smodal,#mmodal{align-items:flex-end;padding:12px 12px calc(12px + env(safe-area-inset-bottom,0px))}
   .nbox{max-width:none;border-radius:26px;padding:22px 20px 20px}
   .nact button{padding:12px 20px}
 }
@@ -301,9 +301,6 @@ header>button:active,.mwrap>button:active{transform:scale(.88)}
 .srow b{display:block;font-size:14px;font-weight:500}
 .srow i{display:block;font-style:normal;font-size:12px;line-height:1.35;color:var(--mut);margin-top:2px}
 .srow>svg{width:18px;height:18px;flex:none;color:var(--mut)}
-.srow.danger b,.srow.danger>svg{color:#e5484d}
-.srow.danger.arm{background:#e5484d;transition:background .15s}
-.srow.danger.arm b,.srow.danger.arm i,.srow.danger.arm>svg{color:#fff}
 .sw{appearance:none;-webkit-appearance:none;display:block;box-sizing:border-box;width:50px;height:30px;margin:0;padding:0;border:0;border-radius:99px;background:var(--off);position:relative;flex:none;transition:background .2s;cursor:pointer;outline:0}
 .sw::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:var(--bg);transition:transform .25s cubic-bezier(.2,.9,.3,1.3)}
 .sw:checked,.sw[aria-checked=true]{background:var(--on)}
@@ -353,6 +350,35 @@ header>button:active,.mwrap>button:active{transform:scale(.88)}
   .m-list{gap:8px}
   .m-logo{width:36px;height:36px;border-radius:12px}
 }
+/* ===== Memori ===== */
+.mhelp{margin-top:4px;font-size:12.5px;line-height:1.45;color:var(--mut)}
+.mchips{display:flex;gap:6px;overflow-x:auto;margin-top:12px;padding-bottom:2px;scrollbar-width:none}
+.mchips::-webkit-scrollbar{display:none}
+.mchips button{flex:none;padding:7px 12px;border-radius:99px;background:var(--surface);font-size:12.5px;font-weight:500;border:1.5px solid transparent}
+.mchips button.on{border-color:var(--ink)}
+.mgrp{margin-top:10px}
+.mghead{display:flex;align-items:center;gap:10px;width:100%;padding:9px 12px 9px 9px;border-radius:14px;background:var(--surface);text-align:left}
+.mghead img{width:32px;height:32px;border-radius:50%;object-fit:cover;flex:none;background:var(--line)}
+.mghead b{flex:1;min-width:0;font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mghead small{font-size:12px;color:var(--mut);font-variant-numeric:tabular-nums}
+.mghead svg{width:16px;height:16px;color:var(--mut);flex:none;transition:transform .2s}
+.mgrp.open .mghead svg{transform:rotate(180deg)}
+.mgbody{display:none;padding-top:2px}
+.mgrp.open .mgbody{display:block}
+.ment{margin-top:6px;padding:11px 12px;border-radius:14px;border:1px solid var(--line)}
+.ment.hl{animation:mhl 1.8s ease-out}
+@keyframes mhl{from{box-shadow:0 0 0 2px var(--ink)}to{box-shadow:0 0 0 2px transparent}}
+.ment.dim h4,.ment.dim .mbody{opacity:.5}
+.ment h4{font-size:14px;font-weight:600;letter-spacing:-.01em}
+.mdate{display:block;margin-top:1px;font-size:11.5px;color:var(--mut)}
+.mbody{margin-top:6px;font-size:13.5px;line-height:1.45;overflow-wrap:anywhere}
+.mbody b{font-weight:600;color:var(--mut)}
+.mact{display:flex;justify-content:flex-end;margin-top:8px}
+.mdel{padding:6px 12px;border-radius:99px;font-size:12.5px;font-weight:500;background:var(--surface);color:var(--mut);transition:background .15s,color .15s}
+.mdel.arm{background:var(--rec);color:#fff}
+.mempty{padding:22px 8px 8px;font-size:13.5px;line-height:1.45;color:var(--mut);text-align:center}
+#mtoast{position:absolute;left:50%;top:calc(12px + env(safe-area-inset-top,0px));z-index:30;transform:translate(-50%,-10px);max-width:calc(100% - 28px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:99px;font-size:13px;font-weight:500;box-shadow:0 4px 16px rgba(0,0,0,.18);opacity:0;pointer-events:none;transition:opacity .25s,transform .25s}
+#mtoast.show{opacity:1;transform:translate(-50%,0);pointer-events:auto;cursor:pointer}
 </style>
 <link rel="stylesheet" href="group.css">
 </head>
@@ -368,6 +394,7 @@ header>button:active,.mwrap>button:active{transform:scale(.88)}
         <button class="m-name" id="namebtn" type="button"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c1-4 4-6 8-6s7 2 8 6"/></svg><span id="nlabel">Isi namamu</span></button>
         <button class="m-voice" id="voicebtn" type="button"><svg viewBox="0 0 24 24"><path d="M9 3h6v10a3 3 0 01-6 0zM5 11a7 7 0 0014 0M12 18v3"/></svg><span id="vlabel">Voice mati</span></button>
         <button class="m-set" id="setbtn" type="button"><svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg><span>Pengaturan</span></button>
+        <button class="m-set" id="membtn" type="button"><svg viewBox="0 0 24 24"><path d="M6 4h12v16l-6-4-6 4z"/></svg><span>Memori</span></button>
       </div>
     </div>
     <div class="m-list" id="list"></div>
@@ -443,11 +470,17 @@ header>button:active,.mwrap>button:active{transform:scale(.88)}
         <div class="stor"><div class="sl"><span>Voice note (audio)</span><span id="st2">…</span></div><div class="sbar2"><i id="st2b"></i></div></div>
         <p id="st3"></p>
       </div>
-      <div class="sgroup"><h3>Reset</h3>
-        <button class="srow danger" id="sreset" type="button"><span><b>Reset semua</b><i>Hapus semua obrolan (karakter &amp; grup), voice note, nama, grup, dan pengaturan di perangkat ini. Nggak bisa dibatalkan, ekspor dulu kalau perlu.</i></span><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12h10l1-12M9 7V4h6v3"/></svg></button>
-      </div>
     </div>
   </div>
+  <div id="mmodal" class="hide">
+    <div class="nbox sbox" role="dialog" aria-labelledby="mmtitle">
+      <div class="shead"><h2 id="mmtitle">Memori</h2><button id="mmx" type="button" aria-label="Tutup"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+      <p class="mhelp">Setelah ngobrol cukup lama, karakter menyimpan ringkasannya di sini. Disimpan di perangkat ini saja, bisa kamu hapus tapi tidak bisa diedit. Teks obrolan dikirim ke ChatGPT saat diringkas, dan ringkasannya ikut terkirim setiap kali karakter membalas.</p>
+      <div class="mchips hide" id="mchips"></div>
+      <div id="mlist"></div>
+    </div>
+  </div>
+  <div id="mtoast" role="status" aria-live="polite"></div>
   <div id="nmodal" class="hide">
     <div class="nbox" role="dialog" aria-labelledby="ntitle">
       <h2 id="ntitle">Siapa namamu?</h2>
@@ -646,7 +679,7 @@ const subText=m=>{
 };
 /* riwayat obrolan per karakter disimpan di browser dan dikirim tiap pesan (server tidak menyimpan apa pun) */
 const loadHist=id=>{try{const h=JSON.parse(store.get('h:'+id)||'[]');return Array.isArray(h)?h:[]}catch{return []}};
-const saveHist=(id,h)=>store.set('h:'+id,JSON.stringify(h.slice(-24)));
+const saveHist=(id,h)=>store.set('h:'+id,JSON.stringify(h.slice(-40))); /* 40 (bukan 24) supaya pesan belum sempat diringkas jadi memori; server tetap cuma memakai 24 terakhir */
 /* ===== Riwayat tampilan chat: cuma disimpan di perangkat ini (teks di localStorage, audio voice note di IndexedDB) ===== */
 const LOGMAX=150, AUDMAX=30; /* maks pesan per karakter, dan maks voice note yang audionya disimpan */
 const keysOf=e=>e.ks||(e.k?[e.k]:[]); /* kunci audio di IndexedDB (satu per versi voice note) */
@@ -655,7 +688,7 @@ const idb=(()=>{
   let p; const open=()=>p||(p=new Promise(res=>{ try{ const r=indexedDB.open('neyhra',1); r.onupgradeneeded=()=>r.result.createObjectStore('vn'); r.onsuccess=()=>res(r.result); r.onerror=()=>res(null); }catch{ res(null) } }));
   const tx=async(mode,fn)=>{ const db=await open(); if(!db) return null; return new Promise(res=>{ try{ const t=db.transaction('vn',mode), rq=fn(t.objectStore('vn')); t.oncomplete=()=>res(rq?rq.result:null); t.onerror=t.onabort=()=>res(null); }catch{ res(null) } }); };
   const stats=async()=>{ const db=await open(); if(!db) return null; return new Promise(res=>{ let n=0,b=0; try{ const rq=db.transaction('vn','readonly').objectStore('vn').openCursor(); rq.onsuccess=()=>{ const c=rq.result; if(c){ n++; b+=(c.value&&c.value.ab&&c.value.ab.byteLength)||0; c.continue(); } else res({n,b}); }; rq.onerror=()=>res(null); }catch{ res(null) } }); };
-  return { clear:()=>tx('readwrite',s=>s.clear()), put:(k,v)=>tx('readwrite',s=>s.put(v,k)), get:k=>tx('readonly',s=>s.get(k)), del:k=>tx('readwrite',s=>s.delete(k)), stats };
+  return { put:(k,v)=>tx('readwrite',s=>s.put(v,k)), get:k=>tx('readonly',s=>s.get(k)), del:k=>tx('readwrite',s=>s.delete(k)), stats };
 })();
 function trimLog(l){
   while(l.length>LOGMAX){ const o=l.shift(); keysOf(o).forEach(k=>idb.del(k)); }
@@ -752,12 +785,12 @@ async function submit(){
   if(busy||!text||!ch||!ready){ inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake'); return; }
   busy=true; inp.value=''; grow(); refresh(); addText(text);
   const chId=ch.id; record(chId,{r:'me',x:text}); clearTimeout(draftT); store.set('draft:'+chId,null);
-  const useVoice=voiceOn&&!!vcode, lang=voiceLang;
+  const useVoice=voiceOn&&!!vcode, lang=voiceLang; let okReply=false;
   let t=thinkBubble(ch.name); /* fase 1: ChatGPT lagi mikir */
   try{
     const hist=loadHist(ch.id);
-    const r=await (await post('/api/chat',{clientId:cid,char:ch.id,message:text,userName:uname,history:hist,voice:{on:useVoice,lang}})).json();
-    saveHist(ch.id,[...hist,['user',text],['char',r.id]]);
+    const r=await (await post('/api/chat',{clientId:cid,char:ch.id,message:text,userName:uname,history:hist,voice:{on:useVoice,lang},memory:memUse(chId).list})).json();
+    saveHist(chId,[...loadHist(chId),['user',text],['char',r.id]]); okReply=true; /* baca ulang h: karena peringkasan di latar bisa saja baru membuang bagian lamanya */
     if(!useVoice){ t.remove(); showThem(chId,r.id); }
     else{
       t.remove(); t=typingBubble(); setStatus('merekam suara',true); /* fase 2: masuk Fish Audio -> indikator voice */
@@ -778,6 +811,7 @@ async function submit(){
     }
   }catch(e){ t.remove(); toast(e.message); }
   setStatus('online',false); busy=false; refresh();
+  if(okReply) maybeMemorize(chId);
 }
 
 function refresh(){ sendB.disabled=busy||!inp.value.trim(); }
@@ -931,7 +965,7 @@ function closeChat(){
   const an=view.animate({clipPath:[circle(reach()),circle(0)]},{duration:DUR,easing:'cubic-bezier(.7,0,.2,1)',fill:'forwards'});
   an.onfinish=()=>{app.classList.remove('open'); an.cancel()};
 }
-document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ if(window.GX&&GX.esc()) return; if(!pm.classList.contains('hide')) closePicker(); else if(!sm.classList.contains('hide')) closeSettings(); else if(!vm.classList.contains('hide')) closeVoice(); else if(!nm.classList.contains('hide')) closeName(); else if(app.classList.contains('open')) closeChat(); else if(all.classList.contains('show')) closeAll(); } });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ if(window.GX&&GX.esc()) return; if(!pm.classList.contains('hide')) closePicker(); else if(!memModal.classList.contains('hide')) closeMem(); else if(!sm.classList.contains('hide')) closeSettings(); else if(!vm.classList.contains('hide')) closeVoice(); else if(!nm.classList.contains('hide')) closeName(); else if(app.classList.contains('open')) closeChat(); else if(all.classList.contains('show')) closeAll(); } });
 $('back').addEventListener('click',closeChat);
 const savePlaying=()=>{ if(current&&current.save) current.save(); };
 window.addEventListener('pagehide',savePlaying);
@@ -979,19 +1013,6 @@ $('setbtn').onclick=openSettings; $('sx').onclick=closeSettings;
 sm.addEventListener('click',e=>{ if(e.target===sm) closeSettings(); });
 sauto.onchange=()=>{ autoNext=sauto.checked; store.set('autonext',autoNext?'1':null); };
 
-/* Reset semua: tap dua kali (tombol berubah merah + teks konfirmasi). Hapus localStorage situs ini + semua audio di IndexedDB, lalu muat ulang. */
-let rstT=0;
-$('sreset').onclick=async()=>{
-  const b=$('sreset'), lab=b.querySelector('b');
-  if(!rstT){ b.classList.add('arm'); lab.textContent='Tap lagi untuk hapus SEMUA'; rstT=setTimeout(()=>{ rstT=0; b.classList.remove('arm'); lab.textContent='Reset semua'; },3500); return; }
-  clearTimeout(rstT); rstT=0; b.disabled=true; lab.textContent='Menghapus…';
-  try{ if(current) current.stop(); }catch{}
-  await idb.clear();
-  try{ localStorage.clear(); }catch{}
-  try{ sessionStorage.clear(); }catch{}
-  location.reload();
-};
-
 async function refreshStorage(){
   let chars=0; try{ for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); chars+=k.length+(localStorage.getItem(k)||'').length; } }catch{}
   const LS=5*1024*1024; /* batas localStorage kira-kira 5 MB */
@@ -1013,16 +1034,16 @@ $('sjson').onclick=async()=>{
   busyData(true); setStat('Menyiapkan cadangan…');
   try{
     const names=Object.fromEntries(allChars.map(c=>[c.id,c.name])), ids=[];
-    for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k.startsWith('log:')) ids.push(k.slice(4)); }
+    for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k.startsWith('log:')||k.startsWith('mem:')){ const i=k.slice(4); if(!ids.includes(i)) ids.push(i); } }
     const chars=[]; let nMsg=0, nAud=0;
     for(const id of ids){
-      const log=loadLog(id); if(!log.length) continue;
+      const log=loadLog(id), mem=loadMem(id); if(!log.length&&!mem.length) continue;
       const audio={};
       for(const e of log) for(const k of keysOf(e)){
         if(audio[k]) continue; const a=await idb.get(k);
         if(a&&a.ab){ audio[k]={mime:'audio/mpeg',dur:a.dur==null?null:a.dur,bins:a.bins?Array.from(a.bins):null,data:b64(a.ab)}; nAud++; }
       }
-      nMsg+=log.length; chars.push({id,name:names[id]||id,log,hist:loadHist(id),audio});
+      nMsg+=log.length; chars.push({id,name:names[id]||id,log,hist:loadHist(id),audio,...(mem.length?{mem}:{})});
     }
     const gd=window.GX&&GX.enabled()?await GX.exportData():{groups:[],nAud:0,nMsg:0}; /* grup + pesan + audio yang sudah dibuat */
     nMsg+=gd.nMsg; nAud+=gd.nAud;
@@ -1053,7 +1074,7 @@ async function importJSON(file){
     if(file.size>300*1048576) throw 0;
     const data=JSON.parse(await file.text());
     if(!data||data.app!=='neyhra-chat'||!Array.isArray(data.chars)) throw 0;
-    let added=0, chN=0, aud=0;
+    let added=0, chN=0, aud=0, memAdded=0;
     for(const c of data.chars){
       if(!c||typeof c.id!=='string'||!/^[\w-]{1,64}$/.test(c.id)||!Array.isArray(c.log)) continue;
       for(const [k,a] of Object.entries(c.audio||{})){
@@ -1070,11 +1091,16 @@ async function importJSON(file){
       }
       cur.sort((a,b)=>a.t-b.t); trimLog(cur); store.set('log:'+c.id,JSON.stringify(cur));
       if(!store.get('h:'+c.id)&&Array.isArray(c.hist)&&c.hist.length) saveHist(c.id,c.hist.filter(h=>Array.isArray(h)&&typeof h[1]==='string'));
+      if(Array.isArray(c.mem)&&c.mem.length){ /* memori digabung berdasarkan id, tidak menimpa */
+        const cm=loadMem(c.id), seen=new Set(cm.map(x=>x.id)); let a=0;
+        for(const raw of c.mem.slice(0,100)){ const e=cleanMemEntry(raw); if(e&&!seen.has(e.id)){ cm.push(e); seen.add(e.id); a++; } }
+        if(a){ cm.sort((x,y)=>x.ts-y.ts); if(saveMem(c.id,cm)) memAdded+=a; }
+      }
       added+=add; if(add) chN++;
     }
     let gi=null; if(window.GX&&Array.isArray(data.groups)&&data.groups.length) gi=await GX.importData(data.groups); /* grup dari cadangan */
     if(gi){ added+=gi.msgs; aud+=gi.aud; }
-    setStat(added||aud||(gi&&gi.groups)?'Impor selesai: '+added+' pesan baru dari '+chN+' karakter'+(gi&&gi.groups?' dan '+gi.groups+' grup':'')+', '+aud+' audio ditambahkan.':'Nggak ada yang baru, semua sudah ada di perangkat ini.');
+    setStat(added||aud||memAdded||(gi&&gi.groups)?'Impor selesai: '+added+' pesan baru dari '+chN+' karakter'+(gi&&gi.groups?' dan '+gi.groups+' grup':'')+', '+aud+' audio'+(memAdded?' dan '+memAdded+' memori':'')+' ditambahkan.':'Nggak ada yang baru, semua sudah ada di perangkat ini.');
     refreshStorage();
   }catch{ setStat('File nggak valid. Pilih file JSON hasil ekspor aplikasi ini.'); }
   busyData(false);
@@ -1186,10 +1212,136 @@ $('clr').onclick=()=>{
   clearTimeout(clrT); clrT=0;
   if(current) current.stop(); openSub=null;
   loadLog(ch.id).forEach(e=>keysOf(e).forEach(k=>idb.del(k)));
+  memEpoch[ch.id]=(memEpoch[ch.id]||0)+1; /* peringkasan yang masih jalan -> hasilnya dibuang */
   store.set('log:'+ch.id,null); store.set('h:'+ch.id,null); store.set('pos:'+ch.id,null); /* riwayat konteks AI ikut dihapus = mulai obrolan baru */
   urls.forEach(u=>URL.revokeObjectURL(u)); urls=[];
   chat.innerHTML=''; lastDay=''; ensureDay(Date.now()); toast('Obrolan dihapus');
 };
+
+
+/* ===== Memori: ringkasan obrolan lama per karakter, disimpan di perangkat (mem:<id>) =====
+   Bubble di layar (log:) tidak disentuh. Yang dibuang hanya konteks AI (h:) bagian lama, diganti ringkasan. */
+const MEM_TRIGGER=16, MEM_KEEP=4, MEM_MAX_USE=1500, MEM_RETRY=60000;
+const memBusy={}, memEpoch={}, memTry={};
+const loadMem=id=>{try{const m=JSON.parse(store.get('mem:'+id)||'[]');return Array.isArray(m)?m.filter(e=>e&&typeof e.id==='string'&&typeof e.title==='string'&&typeof e.body==='string'):[]}catch{return []}};
+const saveMem=(id,m)=>{ const v=m.length?JSON.stringify(m):null; store.set('mem:'+id,v); return store.get('mem:'+id)===v; }; /* store.set menelan error, jadi cek dengan baca ulang */
+const cleanMemEntry=e=>{ /* file impor itu data tak tepercaya */
+  if(!e||typeof e!=='object'||!isKey(e.id)||typeof e.title!=='string'||typeof e.body!=='string') return null;
+  const tidy=(t,n)=>t.replace(/[\u0000-\u001f<>]/g,' ').replace(/\s+/g,' ').trim().slice(0,n), title=tidy(e.title,40), body=tidy(e.body,500);
+  return title&&body?{id:e.id,title,body,ts:isNum(e.ts)?e.ts:0,n:isNum(e.n)?Math.max(0,Math.min(40,Math.round(e.n))):0}:null;
+};
+/* memori yang ikut dikirim ke server: terbaru dulu, sampai muat MEM_MAX_USE (juga dipakai menu untuk label "belum dipakai") */
+function memUse(id){
+  const all=loadMem(id), list=[], used=new Set(); let left=MEM_MAX_USE;
+  for(let i=all.length-1;i>=0;i--){ const e=all[i], n=e.title.length+e.body.length+4; if(n>left) break; left-=n; list.push({title:e.title,body:e.body}); used.add(e.id); }
+  return {list,used};
+}
+const charOf=id=>allChars.find(x=>x.id===id);
+const shortName=c=>{ const n=String((c&&c.name)||'').replace(/\([^)]*\)/g,' ').replace(/\s+/g,' ').trim(); return n.length<=12?n:(n.split(/[\s/]+/)[0]||n); };
+
+/* buang bagian h: yang sudah diringkas. Normalnya h: cuma bertambah di ujung, jadi chunk masih di depan; kalau depan sempat terpotong batas 40, cari ujung chunk. */
+function dropChunk(h,chunk){
+  const same=(a,b)=>a&&b&&a[0]===b[0]&&a[1]===b[1], n=chunk.length;
+  if(chunk.every((c,i)=>same(h[i],c))) return h.slice(n);
+  const i=h.findIndex(x=>same(x,chunk[n-1]));
+  return i>=0?h.slice(i+1):h;
+}
+async function maybeMemorize(id){
+  if(memBusy[id]) return;
+  const h=loadHist(id);
+  if(h.length<MEM_TRIGGER||Date.now()-(memTry[id]||0)<MEM_RETRY) return;
+  const chunk=h.slice(0,h.length-MEM_KEEP); if(chunk.length<2) return;
+  memBusy[id]=true; memTry[id]=Date.now();
+  const epoch=memEpoch[id]||0;
+  try{
+    const r=await (await post('/api/memory',{clientId:cid,char:id,userName:uname,history:chunk.map(x=>[x[0]==='user'?'user':'char',String(x[1]).slice(0,600)])})).json();
+    if((memEpoch[id]||0)!==epoch) return; /* obrolan dihapus selagi diringkas -> hasil dibuang */
+    const title=String(r.title||'').slice(0,40), body=String(r.body||'').slice(0,500); if(!title||!body) return;
+    const mem=loadMem(id), e={id:'m'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),title,body,ts:Date.now(),n:chunk.length};
+    mem.push(e);
+    if(!saveMem(id,mem)){ toast('Penyimpanan penuh, memori tidak tersimpan'); return; } /* h: dibiarkan utuh */
+    saveHist(id,dropChunk(loadHist(id),chunk)); memTry[id]=0;
+    memToast(id,e.id); if(!memModal.classList.contains('hide')) renderMem();
+  }catch{ /* gagal: h: tetap utuh, dicoba lagi di balasan berikutnya (jeda MEM_RETRY) */ }
+  finally{ memBusy[id]=false; }
+}
+
+/* toast khusus memori: lebih lama, bisa di-tap, dan antre kalau ada beberapa */
+const memToastEl=$('mtoast'), MEM_MSGS=['{c} mengingat obrolan ini','Obrolan tadi sudah masuk ingatan {c}','{c} mencatat sesuatu tentangmu','Ada yang baru di ingatan {c}','{c} menyimpan ini baik-baik'];
+let mtQ=[], mtOn=false;
+function memToast(id,memId){
+  const c=charOf(id); mtQ.push({id,memId,text:MEM_MSGS[Math.floor(Math.random()*MEM_MSGS.length)].replace('{c}',c?shortName(c):'Karakter')});
+  if(!mtOn) nextMemToast();
+}
+function nextMemToast(){
+  const t=mtQ.shift(); if(!t){ mtOn=false; return; }
+  mtOn=true; memToastEl._t=t; memToastEl.textContent=t.text; memToastEl.classList.add('show');
+  setTimeout(()=>{ memToastEl.classList.remove('show'); setTimeout(nextMemToast,300); },3500);
+}
+memToastEl.onclick=()=>{ const t=memToastEl._t; if(t&&memToastEl.classList.contains('show')){ memToastEl.classList.remove('show'); openMem(t.id,t.memId); } };
+
+/* menu Memori: lihat + hapus (tidak ada edit). Semua teks lewat textContent karena isinya dari model. */
+const memModal=$('mmodal'), mlist=$('mlist'), mchips=$('mchips');
+let mmFilter='', mmHL=''; const mmOpenIds=new Set();
+const memIds=()=>{ const ids=[]; try{ for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k.startsWith('mem:')&&loadMem(k.slice(4)).length) ids.push(k.slice(4)); } }catch{} return ids; };
+function memArm(btn,idle,fn){ /* tap dua kali, seperti tombol hapus obrolan */
+  btn.textContent=idle;
+  btn.onclick=()=>{
+    if(btn.classList.contains('arm')){ clearTimeout(btn._t); fn(); return; }
+    btn.classList.add('arm'); btn.textContent='Tap lagi untuk hapus';
+    btn._t=setTimeout(()=>{ btn.classList.remove('arm'); btn.textContent=idle; },3000);
+  };
+}
+function renderMem(){
+  const gs=memIds().map(id=>({id,mem:loadMem(id)})).sort((a,b)=>(b.mem[b.mem.length-1].ts||0)-(a.mem[a.mem.length-1].ts||0));
+  mlist.textContent=''; mchips.textContent='';
+  if(!gs.length){ const p=document.createElement('p'); p.className='mempty'; p.textContent='Belum ada memori. Karakter akan menyimpannya sendiri setelah kalian ngobrol cukup lama.'; mlist.appendChild(p); mchips.classList.add('hide'); return; }
+  if(mmFilter&&!gs.some(g=>g.id===mmFilter)) mmFilter='';
+  const chips=gs.length>3; mchips.classList.toggle('hide',!chips); if(!chips) mmFilter='';
+  if(chips) for(const [v,label] of [['','Semua'],...gs.map(g=>[g.id,shortName(charOf(g.id))||g.id])]){
+    const b=document.createElement('button'); b.type='button'; b.textContent=label; b.classList.toggle('on',v===mmFilter);
+    b.onclick=()=>{ mmFilter=v; renderMem(); }; mchips.appendChild(b);
+  }
+  const yr=new Date().getFullYear();
+  for(const g of gs){
+    if(mmFilter&&g.id!==mmFilter) continue;
+    const c=charOf(g.id), nm=c?shortName(c):g.id, used=memUse(g.id).used;
+    const grp=document.createElement('div'); grp.className='mgrp'+(mmOpenIds.has(g.id)?' open':'');
+    const head=document.createElement('button'); head.type='button'; head.className='mghead';
+    if(c) head.appendChild(img(c));
+    const b=document.createElement('b'); b.textContent=c?c.name:g.id; const sm2=document.createElement('small'); sm2.textContent=g.mem.length;
+    head.append(b,sm2); head.insertAdjacentHTML('beforeend','<svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>');
+    head.onclick=()=>{ grp.classList.toggle('open'); grp.classList.contains('open')?mmOpenIds.add(g.id):mmOpenIds.delete(g.id); };
+    const body=document.createElement('div'); body.className='mgbody';
+    for(const e of g.mem.slice().reverse()){ /* terbaru di atas */
+      const el=document.createElement('div'); el.className='ment'+(used.has(e.id)?'':' dim')+(e.id===mmHL?' hl':''); el.dataset.m=e.id;
+      const d=new Date(e.ts||0), when=e.ts?d.toLocaleDateString('id-ID',{day:'numeric',month:'short',year:d.getFullYear()===yr?undefined:'numeric'}):'';
+      const h4=document.createElement('h4'); h4.textContent=e.title;
+      const dt=document.createElement('span'); dt.className='mdate'; dt.textContent=[when,used.has(e.id)?'':'belum dipakai'].filter(Boolean).join(' · ');
+      const bd=document.createElement('p'); bd.className='mbody'; const pre=document.createElement('b'); pre.textContent=nm+' mengingat:'; /* prefix cuma saat tampil, data tetap netral */
+      bd.append(pre,' '+e.body);
+      const act=document.createElement('div'); act.className='mact'; const del=document.createElement('button'); del.type='button'; del.className='mdel'; act.appendChild(del);
+      memArm(del,'Hapus',()=>{ saveMem(g.id,loadMem(g.id).filter(x=>x.id!==e.id)); renderMem(); });
+      el.append(h4,dt,bd,act); body.appendChild(el);
+    }
+    if(g.mem.length>1){ /* hapus semua memori karakter ini */
+      const act=document.createElement('div'); act.className='mact'; const all2=document.createElement('button'); all2.type='button'; all2.className='mdel'; act.appendChild(all2);
+      memArm(all2,'Hapus semua memori '+nm,()=>{ saveMem(g.id,[]); renderMem(); });
+      body.appendChild(act);
+    }
+    grp.append(head,body); mlist.appendChild(grp);
+  }
+  mmHL='';
+}
+function openMem(id,memId){
+  mmFilter=''; mmHL=memId||'';
+  if(id) mmOpenIds.add(id); else if(!mmOpenIds.size){ const ids=memIds(); if(ids.length===1) mmOpenIds.add(ids[0]); }
+  renderMem(); memModal.classList.remove('hide');
+  if(memId){ const el=mlist.querySelector('[data-m="'+memId+'"]'); if(el) el.scrollIntoView({block:'center'}); }
+}
+function closeMem(){ memModal.classList.add('hide'); }
+$('membtn').onclick=()=>openMem(); $('mmx').onclick=closeMem;
+memModal.addEventListener('click',e=>{ if(e.target===memModal) closeMem(); });
 
 /* Daftar karakter: menu awal cuma 3 pertama, sisanya lewat panel "Lihat semua" + pencarian */
 const SHOW=3, all=$('all'), q=$('q');
