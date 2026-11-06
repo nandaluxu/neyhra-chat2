@@ -380,6 +380,15 @@ header>button:active,.mwrap>button:active{transform:scale(.88)}
 .mdel{padding:6px 12px;border-radius:99px;font-size:12.5px;font-weight:500;background:var(--surface);color:var(--mut);transition:background .15s,color .15s}
 .mdel.arm{background:var(--rec);color:#fff}
 .mempty{padding:22px 8px 8px;font-size:13.5px;line-height:1.45;color:var(--mut);text-align:center}
+#mdev{margin-top:12px;padding:10px 12px 12px;border:1px dashed var(--line);border-radius:14px}
+#mdev h3{font-size:11.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
+.mdrow{display:flex;align-items:center;gap:10px;margin-top:8px}
+.mdrow img{width:28px;height:28px;border-radius:50%;object-fit:cover;flex:none;background:var(--line)}
+.mdrow>span{flex:1;min-width:0}
+.mdrow b{display:block;font-size:13.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mdrow small{display:block;font-size:11.5px;color:var(--mut)}
+.mdrow small.err{color:var(--rec)}
+.mdrow .mdel:disabled{opacity:.5}
 #mtoast{position:absolute;left:50%;top:calc(12px + env(safe-area-inset-top,0px));z-index:30;transform:translate(-50%,-10px);max-width:calc(100% - 28px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:99px;font-size:13px;font-weight:500;box-shadow:0 4px 16px rgba(0,0,0,.18);opacity:0;pointer-events:none;transition:opacity .25s,transform .25s}
 #mtoast.show{opacity:1;transform:translate(-50%,0);pointer-events:auto;cursor:pointer}
 </style>
@@ -473,6 +482,9 @@ header>button:active,.mwrap>button:active{transform:scale(.88)}
         <div class="stor"><div class="sl"><span>Voice note (audio)</span><span id="st2">…</span></div><div class="sbar2"><i id="st2b"></i></div></div>
         <p id="st3"></p>
       </div>
+      <div class="sgroup hide" id="sdevg"><h3>Dev</h3>
+        <label class="srow"><span><b>Mode dev</b><i>Munculkan tombol "Ringkas sekarang" di menu Memori.</i></span><input type="checkbox" id="sdev" class="sw"></label>
+      </div>
       <div class="sgroup"><h3>Reset</h3>
         <button class="srow danger" id="sreset" type="button"><span><b>Reset semua</b><i>Hapus semua obrolan (karakter &amp; grup), voice note, nama, grup, dan pengaturan di perangkat ini. Nggak bisa dibatalkan, ekspor dulu kalau perlu.</i></span><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12h10l1-12M9 7V4h6v3"/></svg></button>
       </div>
@@ -482,6 +494,7 @@ header>button:active,.mwrap>button:active{transform:scale(.88)}
     <div class="nbox sbox" role="dialog" aria-labelledby="mmtitle">
       <div class="shead"><h2 id="mmtitle">Memori</h2><button id="mmx" type="button" aria-label="Tutup"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
       <p class="mhelp">Setelah ngobrol cukup lama, karakter menyimpan ringkasannya di sini. Disimpan di perangkat ini saja, bisa kamu hapus tapi tidak bisa diedit. Teks obrolan dikirim ke ChatGPT saat diringkas, dan ringkasannya ikut terkirim setiap kali karakter membalas.</p>
+      <div id="mdev" class="hide"></div>
       <div class="mchips hide" id="mchips"></div>
       <div id="mlist"></div>
     </div>
@@ -787,6 +800,7 @@ async function submit(){
   const text=inp.value.trim();
   if(window.GX&&GX.cur) return GX.submit(); /* layar grup: mesin giliran ada di group.js */
   /* pesan rahasia ke Reze: dicegat di sini, TIDAK dikirim ke server (tanpa ChatGPT, tanpa Fish Audio) dan pesannya dibuang: tidak jadi bubble, tidak dicatat */
+  if(text&&ch&&ch.id==='reze'&&tryDev(text)){ inp.value=''; grow(); refresh(); clearTimeout(draftT); store.set('draft:'+ch.id,null); return; } /* kode mode dev: dicegat di browser, tidak dikirim dan tidak dicatat */
   if(text&&ch&&window.GX&&GX.trySecret(text)){ inp.value=''; grow(); refresh(); clearTimeout(draftT); store.set('draft:'+ch.id,null); return; }
   if(busy||!text||!ch||!ready){ inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake'); return; }
   busy=true; inp.value=''; grow(); refresh(); addText(text);
@@ -1013,7 +1027,7 @@ const sm=$('smodal'), sauto=$('sauto'), sstat=$('sstat');
 let allChars=[];
 const setStat=t=>{ sstat.textContent=t; };
 const fmtB=n=>n<1024?Math.round(n)+' B':n<1048576?(n/1024).toFixed(n<10240?1:0)+' KB':n<1073741824?(n/1048576).toFixed(n<10485760?1:0)+' MB':(n/1073741824).toFixed(2)+' GB';
-function openSettings(){ sauto.checked=autoNext; setStat(''); sm.classList.remove('hide'); refreshStorage(); }
+function openSettings(){ paintDev(); sauto.checked=autoNext; setStat(''); sm.classList.remove('hide'); refreshStorage(); }
 function closeSettings(){ sm.classList.add('hide'); }
 $('setbtn').onclick=openSettings; $('sx').onclick=closeSettings;
 sm.addEventListener('click',e=>{ if(e.target===sm) closeSettings(); });
@@ -1265,25 +1279,28 @@ function dropChunk(h,chunk){
   const i=h.findIndex(x=>same(x,chunk[n-1]));
   return i>=0?h.slice(i+1):h;
 }
-async function maybeMemorize(id){
-  if(memBusy[id]) return;
+/* keep = berapa pesan terakhir yang dibiarkan di h:. manual = dari tombol dev: lewati syarat 16 pesan dan jeda 60 detik. Hasil: {ok} atau {err}. */
+async function memorize(id,keep,manual){
+  if(memBusy[id]) return {err:'Masih meringkas, tunggu sebentar'};
   const h=loadHist(id);
-  if(h.length<MEM_TRIGGER||Date.now()-(memTry[id]||0)<MEM_RETRY) return;
-  const chunk=h.slice(0,h.length-MEM_KEEP); if(chunk.length<2) return;
+  if(!manual&&(h.length<MEM_TRIGGER||Date.now()-(memTry[id]||0)<MEM_RETRY)) return {};
+  const chunk=h.slice(0,h.length-keep); if(chunk.length<2) return {err:'Riwayat konteks belum cukup (minimal 2 pesan)'};
   memBusy[id]=true; memTry[id]=Date.now();
   const epoch=memEpoch[id]||0;
   try{
     const r=await (await post('/api/memory',{clientId:cid,char:id,userName:uname,history:chunk.map(x=>[x[0]==='user'?'user':'char',String(x[1]).slice(0,600)])})).json();
-    if((memEpoch[id]||0)!==epoch) return; /* obrolan dihapus selagi diringkas -> hasil dibuang */
-    const title=String(r.title||'').slice(0,40), body=String(r.body||'').slice(0,500); if(!title||!body) return;
+    if((memEpoch[id]||0)!==epoch) return {err:'Obrolan dihapus selagi diringkas, hasil dibuang'}; /* hasil dibuang */
+    const title=String(r.title||'').slice(0,40), body=String(r.body||'').slice(0,500); if(!title||!body) return {err:'Respons kosong'};
     const mem=loadMem(id), e={id:'m'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),title,body,ts:Date.now(),n:chunk.length};
     mem.push(e);
-    if(!saveMem(id,mem)){ toast('Penyimpanan penuh, memori tidak tersimpan'); return; } /* h: dibiarkan utuh */
+    if(!saveMem(id,mem)){ toast('Penyimpanan penuh, memori tidak tersimpan'); return {err:'Penyimpanan penuh'}; } /* h: dibiarkan utuh */
     saveHist(id,dropChunk(loadHist(id),chunk)); memTry[id]=0;
     memToast(id,e.id); if(!memModal.classList.contains('hide')) renderMem();
-  }catch{ /* gagal: h: tetap utuh, dicoba lagi di balasan berikutnya (jeda MEM_RETRY) */ }
+    return {ok:true};
+  }catch(e){ return {err:e.message||'Gagal meringkas'}; } /* otomatis: diam, h: utuh, dicoba lagi di balasan berikutnya (jeda MEM_RETRY) */
   finally{ memBusy[id]=false; }
 }
+const maybeMemorize=id=>memorize(id,MEM_KEEP,false);
 
 /* toast khusus memori: lebih lama, bisa di-tap, dan antre kalau ada beberapa */
 const memToastEl=$('mtoast'), MEM_MSGS=['{c} mengingat obrolan ini','Obrolan tadi sudah masuk ingatan {c}','{c} mencatat sesuatu tentangmu','Ada yang baru di ingatan {c}','{c} menyimpan ini baik-baik'];
@@ -1353,12 +1370,46 @@ function renderMem(){
   mmHL='';
 }
 function openMem(id,memId){
+  renderDev();
   mmFilter=''; mmHL=memId||'';
   if(id) mmOpenIds.add(id); else if(!mmOpenIds.size){ const ids=memIds(); if(ids.length===1) mmOpenIds.add(ids[0]); }
   renderMem(); memModal.classList.remove('hide');
   if(memId){ const el=mlist.querySelector('[data-m="'+memId+'"]'); if(el) el.scrollIntoView({block:'center'}); }
 }
 function closeMem(){ memModal.classList.add('hide'); }
+/* ===== Mode dev: kode rahasia ke Reze membuka switch di Pengaturan; kalau aktif, menu Memori punya tombol "Ringkas sekarang" ===== */
+const DEV_SECRET=3608493969801461; /* hash dari kodenya (GX.hash, huruf besar/kecil dan spasi diabaikan). Cuma pagar UI, bukan keamanan. */
+const devOn=()=>store.get('devu')==='1'&&store.get('dev')==='1';
+function paintDev(){ $('sdevg').classList.toggle('hide',store.get('devu')!=='1'); $('sdev').checked=store.get('dev')==='1'; }
+function tryDev(text){
+  if(!window.GX||!GX.hash||GX.hash(text.trim().toLowerCase().replace(/\s+/g,''))!==DEV_SECRET) return false;
+  const was=store.get('devu')==='1'; store.set('devu','1'); if(!was) store.set('dev','1');
+  paintDev(); toast(was?'Mode dev sudah terbuka, atur di Pengaturan':'Mode dev terbuka dan aktif'); return true;
+}
+$('sdev').onchange=()=>{ store.set('dev',$('sdev').checked?'1':null); renderDev(); };
+function renderDev(){
+  const box=$('mdev'); box.textContent='';
+  if(!devOn()){ box.classList.add('hide'); return; }
+  box.classList.remove('hide');
+  const h3=document.createElement('h3'); h3.textContent='Dev: ringkas sekarang'; box.appendChild(h3);
+  const help=document.createElement('p'); help.className='mhelp'; help.textContent='Meringkas seluruh riwayat konteks karakter itu sekarang juga, tanpa menunggu 16 pesan dan tanpa menyisakan 4 pesan terakhir.'; box.appendChild(help);
+  const ids=[]; try{ for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k.startsWith('h:')&&loadHist(k.slice(2)).length>=2) ids.push(k.slice(2)); } }catch{}
+  if(!ids.length){ const p=document.createElement('p'); p.className='mhelp'; p.textContent='Belum ada riwayat konteks yang bisa diringkas.'; box.appendChild(p); return; }
+  for(const id of ids){
+    const c=charOf(id), row=document.createElement('div'); row.className='mdrow';
+    if(c) row.appendChild(img(c));
+    const sp=document.createElement('span'), b=document.createElement('b'), sm3=document.createElement('small');
+    b.textContent=c?c.name:id; sm3.textContent=loadHist(id).length+' pesan di konteks'; sp.append(b,sm3);
+    const btn=document.createElement('button'); btn.type='button'; btn.className='mdel'; btn.textContent='Ringkas sekarang';
+    btn.onclick=async()=>{
+      btn.disabled=true; btn.textContent='Meringkas…'; sm3.classList.remove('err');
+      const r=await memorize(id,0,true);
+      if(r.err){ btn.disabled=false; btn.textContent='Ringkas sekarang'; sm3.textContent=r.err; sm3.classList.add('err'); }
+      else renderDev(); /* memorize sudah menampilkan toast dan memperbarui daftar memori */
+    };
+    row.append(sp,btn); box.appendChild(row);
+  }
+}
 $('membtn').onclick=()=>openMem(); $('mmx').onclick=closeMem;
 memModal.addEventListener('click',e=>{ if(e.target===memModal) closeMem(); });
 
