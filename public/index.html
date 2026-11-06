@@ -28,7 +28,7 @@ header>button:active,.mwrap>button:active{background:var(--surface)}
 .pfp{width:38px;height:38px;border-radius:50%;object-fit:cover;background:var(--surface);flex:none;margin:0 10px 0 2px}
 .who{flex:1;min-width:0;line-height:1.2}
 .name{font-weight:600;font-size:15px}
-.status{font-size:12px;color:var(--mut);margin-top:1px;display:flex;align-items:center;gap:5px}
+.status{font-size:12px;color:var(--mut);margin-top:1px;display:flex;align-items:center;gap:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .status::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--ok)}
 .status.typing::before{animation:pulse .9s ease-in-out infinite}
 @keyframes pulse{50%{opacity:.25}}
@@ -61,9 +61,9 @@ header>button:active,.mwrap>button:active{background:var(--surface)}
 .typing-b{display:flex;gap:4px;padding:7px 3px}
 .typing-b i{width:6px;height:6px;border-radius:50%;background:var(--mut);animation:bn 1.1s infinite}
 .typing-b i:nth-child(2){animation-delay:.15s}.typing-b i:nth-child(3){animation-delay:.3s}
-.think{display:flex;align-items:center;gap:8px;padding:2px 4px;animation:in .18s ease-out}
-.think-t{font-size:13px;color:var(--mut);animation:thinkIn .4s ease both}
-.think .typing-b{padding:7px 0 7px 2px}
+.think{display:flex;align-items:center;gap:8px;padding:2px 4px;max-width:100%;min-width:0;animation:in .18s ease-out}
+.think-t{font-size:13px;color:var(--mut);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;animation:thinkIn .4s ease both}
+.think .typing-b{padding:7px 0 7px 2px;flex:none}
 @keyframes thinkIn{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
 @keyframes bn{0%,60%,100%{transform:translateY(0);opacity:.4}30%{transform:translateY(-4px);opacity:1}}
 
@@ -331,6 +331,8 @@ header>button:active,.mwrap>button:active{transform:scale(.88)}
 .m-voice:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
 .v-row{display:flex;align-items:center;justify-content:space-between;margin-top:16px;font-size:15px;font-weight:500}
 .vlab{display:block;margin-top:16px;font-size:12px;color:var(--mut)}
+#lmodel{width:100%;margin-top:8px;border:0;outline:0;background:var(--surface);color:var(--ink);border-radius:12px;padding:11px 13px;font:inherit;font-size:16px}
+#lmodel:focus{box-shadow:0 0 0 2px var(--ink)}
 .seg{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
 .seg button{padding:11px 8px;border-radius:12px;background:var(--surface);font-size:13.5px;font-weight:500;border:1.5px solid transparent;transition:border-color .15s,transform .15s}
 .seg button:active{transform:scale(.96)}
@@ -525,6 +527,12 @@ header .pfp,header .who{cursor:pointer}
       </div>
       <div class="sgroup hide" id="sdevg"><h3>Dev</h3>
         <label class="srow"><span><b>Mode dev</b><i>Munculkan alat dev: "Ringkas sekarang" di menu Memori dan kelola Chat Global.</i></span><input type="checkbox" id="sdev" class="sw"></label>
+        <div id="sengbox" class="hide">
+          <span class="vlab">Mesin AI (uji)</span>
+          <div class="seg" id="seg-eng"><button type="button" data-v="chatgpt">ChatGPT (utama)</button><button type="button" data-v="lorka">Lorka</button></div>
+          <input id="lmodel" type="text" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="openai/gpt-4o-mini" aria-label="Model Lorka">
+          <p class="mhelp" id="lhelp">Hanya untuk chat 1-lawan-1 (voice note ikut). Grup dan ringkasan memori tetap ChatGPT. Ganti mesin atau model = percakapan di server dimulai baru, riwayat tetap ikut.</p>
+        </div>
       </div>
       <div class="sgroup"><h3>Reset</h3>
         <button class="srow danger" id="sreset" type="button"><span><b>Reset semua</b><i>Hapus semua obrolan (karakter &amp; grup), voice note, nama, grup, dan pengaturan di perangkat ini. Nggak bisa dibatalkan, ekspor dulu kalau perlu.</i></span><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12h10l1-12M9 7V4h6v3"/></svg></button>
@@ -841,7 +849,7 @@ function thinkBubble(name){
     let i; do{ i=Math.floor(Math.random()*THINK.length); }while(i===last&&THINK.length>1);
     last=i; const t=THINK[i].replace('{n}',name);
     tx.textContent=t; tx.style.animation='none'; void tx.offsetWidth; tx.style.animation=''; /* ulang animasi fade */
-    setStatus(t,true); scroll();
+    scroll(); /* status di bawah nama sengaja tidak diubah: tetap biasa (online) */
     tm=setTimeout(tick,3000+Math.random()*2000);
   };
   const rm=row.remove.bind(row); row.remove=()=>{ clearTimeout(tm); rm(); };
@@ -874,7 +882,7 @@ async function submit(){
   let t=thinkBubble(ch.name); /* fase 1: ChatGPT lagi mikir */
   try{
     const hist=loadHist(ch.id);
-    const r=await (await post('/api/chat',{clientId:cid,char:ch.id,message:text,userName:uname,history:hist,voice:{on:useVoice,lang},memory:memUse(chId).list,rel:relPayload(chId)})).json();
+    const r=await (await post('/api/chat',{clientId:cid,char:ch.id,message:text,userName:uname,history:hist,voice:{on:useVoice,lang},memory:memUse(chId).list,rel:relPayload(chId),...engPayload()})).json();
     saveHist(chId,[...loadHist(chId),['user',text],['char',r.id]]); okReply=true;
     relNote=relApply(chId,r.dRel,r.dMood); /* hubungan & mood: angka dari balasan AI (sudah di-clamp server) */ /* baca ulang h: karena peringkasan di latar bisa saja baru membuang bagian lamanya */
     if(!useVoice){ t.remove(); showThem(chId,r.id); }
@@ -1540,13 +1548,24 @@ function closeMem(){ memModal.classList.add('hide'); }
 /* ===== Mode dev: kode rahasia ke Reze membuka switch di Pengaturan; kalau aktif, menu Memori punya tombol "Ringkas sekarang" ===== */
 const DEV_SECRET=3608493969801461; /* hash dari kodenya (GX.hash, huruf besar/kecil dan spasi diabaikan). Cuma pagar UI, bukan keamanan. */
 const devOn=()=>store.get('devu')==='1'&&store.get('dev')==='1';
-function paintDev(){ $('sdevg').classList.toggle('hide',store.get('devu')!=='1'); $('sdev').checked=store.get('dev')==='1'; }
+/* Mesin AI uji (Mode dev): ChatGPT tetap utama. Lorka hanya terpakai kalau Mode dev aktif DAN dipilih di sini. */
+const engName=()=>devOn()&&store.get('eng')==='lorka'?'lorka':'chatgpt';
+const engPayload=()=>engName()==='lorka'?{engine:{name:'lorka',model:(store.get('lmodel')||'').trim()||undefined}}:{};
+function paintEng(){
+  const on=store.get('devu')==='1'&&store.get('dev')==='1';
+  $('sengbox').classList.toggle('hide',!on);
+  $('seg-eng').querySelectorAll('button').forEach(b=>b.classList.toggle('sel',b.dataset.v===(store.get('eng')==='lorka'?'lorka':'chatgpt')));
+  $('lmodel').classList.toggle('hide',store.get('eng')!=='lorka'); $('lmodel').value=store.get('lmodel')||'';
+}
+$('seg-eng').onclick=e=>{ const b=e.target.closest('button'); if(!b) return; store.set('eng',b.dataset.v==='lorka'?'lorka':null); paintEng(); };
+$('lmodel').addEventListener('input',()=>store.set('lmodel',$('lmodel').value.trim()||null));
+function paintDev(){ $('sdevg').classList.toggle('hide',store.get('devu')!=='1'); $('sdev').checked=store.get('dev')==='1'; paintEng(); }
 function tryDev(text){
   if(!window.GX||!GX.hash||GX.hash(text.trim().toLowerCase().replace(/\s+/g,''))!==DEV_SECRET) return false;
   const was=store.get('devu')==='1'; store.set('devu','1'); if(!was) store.set('dev','1');
   paintDev(); toast(was?'Mode dev sudah terbuka, atur di Pengaturan':'Mode dev terbuka dan aktif'); return true;
 }
-$('sdev').onchange=()=>{ store.set('dev',$('sdev').checked?'1':null); renderDev(); };
+$('sdev').onchange=()=>{ store.set('dev',$('sdev').checked?'1':null); renderDev(); paintEng(); };
 function renderDev(){
   const box=$('mdev'); box.textContent='';
   if(!devOn()){ box.classList.add('hide'); return; }
