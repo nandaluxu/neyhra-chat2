@@ -94,6 +94,12 @@ Tombol tempat sampah per bubble dan "Hapus semua pesan" (panel dev, keduanya tap
 - **Kunci tanda tangan ikut hilang kalau Redis di-flush** — pesan lama yang tersimpan di peer akan gagal verifikasi dan dibuang.
 - Butuh Redis (sama seperti indikator online). Di Vercel tanpa env Redis, semua endpoint `/api/gc/*` menjawab `enabled:false` dan UI menampilkan status offline dengan alasan; riwayat lokal tetap bisa dibaca.
 
+## Tema, pencarian, ringkasan (public/extras.js + extras.css)
+
+- **Tema & aksen** (Pengaturan → Tampilan): mode Ikuti sistem / Terang / Gelap, dan switch "Warna aksen per karakter". Warna khas tiap karakter dihitung di browser dari rata-rata rona foto avatarnya (di-cache di localStorage `ac:<id>`), lalu dipakai untuk gelembung pesanmu, tombol kirim, dan gelombang voice note di chat karakter itu. Foto abu-abu = tanpa aksen. Chat grup tidak memakai aksen.
+- **Cari isi semua obrolan**: ketik minimal 2 huruf di kotak cari panel "Lihat semua karakter"; hasil dari pesan di semua karakter muncul di atas daftar (terbaru dulu, maks 30). Tap hasil untuk membuka chat dan melompat ke pesannya. Hanya chat 1-lawan-1 (chat grup belum ikut), dan terbatas pada 150 pesan terakhir per karakter (`LOGMAX`).
+- **Ringkasan harian** (Pengaturan → Fitur): Hari ini / Kemarin / 7 hari terakhir: jumlah pesan, balasan, voice note, karakter teratas, kata yang sering dipakai, jam paling ramai, dan streak. "Bagikan sebagai gambar" membuat PNG 1080x1350 lewat canvas (Web Share bila ada, kalau tidak diunduh). Semua dihitung di perangkat dari `log:<id>`.
+
 ## Lainnya
 
 - Taruh `reze.jpg` dll di `public/assets/`.
