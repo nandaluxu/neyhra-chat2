@@ -301,6 +301,9 @@ header>button:active,.mwrap>button:active{transform:scale(.88)}
 .srow b{display:block;font-size:14px;font-weight:500}
 .srow i{display:block;font-style:normal;font-size:12px;line-height:1.35;color:var(--mut);margin-top:2px}
 .srow>svg{width:18px;height:18px;flex:none;color:var(--mut)}
+.srow.danger b,.srow.danger>svg{color:#e5484d}
+.srow.danger.arm{background:#e5484d;transition:background .15s}
+.srow.danger.arm b,.srow.danger.arm i,.srow.danger.arm>svg{color:#fff}
 .sw{appearance:none;-webkit-appearance:none;display:block;box-sizing:border-box;width:50px;height:30px;margin:0;padding:0;border:0;border-radius:99px;background:var(--off);position:relative;flex:none;transition:background .2s;cursor:pointer;outline:0}
 .sw::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:var(--bg);transition:transform .25s cubic-bezier(.2,.9,.3,1.3)}
 .sw:checked,.sw[aria-checked=true]{background:var(--on)}
@@ -469,6 +472,9 @@ header>button:active,.mwrap>button:active{transform:scale(.88)}
         <div class="stor"><div class="sl"><span>Teks &amp; pengaturan</span><span id="st1">…</span></div><div class="sbar2"><i id="st1b"></i></div></div>
         <div class="stor"><div class="sl"><span>Voice note (audio)</span><span id="st2">…</span></div><div class="sbar2"><i id="st2b"></i></div></div>
         <p id="st3"></p>
+      </div>
+      <div class="sgroup"><h3>Reset</h3>
+        <button class="srow danger" id="sreset" type="button"><span><b>Reset semua</b><i>Hapus semua obrolan (karakter &amp; grup), voice note, nama, grup, dan pengaturan di perangkat ini. Nggak bisa dibatalkan, ekspor dulu kalau perlu.</i></span><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12h10l1-12M9 7V4h6v3"/></svg></button>
       </div>
     </div>
   </div>
@@ -688,7 +694,7 @@ const idb=(()=>{
   let p; const open=()=>p||(p=new Promise(res=>{ try{ const r=indexedDB.open('neyhra',1); r.onupgradeneeded=()=>r.result.createObjectStore('vn'); r.onsuccess=()=>res(r.result); r.onerror=()=>res(null); }catch{ res(null) } }));
   const tx=async(mode,fn)=>{ const db=await open(); if(!db) return null; return new Promise(res=>{ try{ const t=db.transaction('vn',mode), rq=fn(t.objectStore('vn')); t.oncomplete=()=>res(rq?rq.result:null); t.onerror=t.onabort=()=>res(null); }catch{ res(null) } }); };
   const stats=async()=>{ const db=await open(); if(!db) return null; return new Promise(res=>{ let n=0,b=0; try{ const rq=db.transaction('vn','readonly').objectStore('vn').openCursor(); rq.onsuccess=()=>{ const c=rq.result; if(c){ n++; b+=(c.value&&c.value.ab&&c.value.ab.byteLength)||0; c.continue(); } else res({n,b}); }; rq.onerror=()=>res(null); }catch{ res(null) } }); };
-  return { put:(k,v)=>tx('readwrite',s=>s.put(v,k)), get:k=>tx('readonly',s=>s.get(k)), del:k=>tx('readwrite',s=>s.delete(k)), stats };
+  return { clear:()=>tx('readwrite',s=>s.clear()), put:(k,v)=>tx('readwrite',s=>s.put(v,k)), get:k=>tx('readonly',s=>s.get(k)), del:k=>tx('readwrite',s=>s.delete(k)), stats };
 })();
 function trimLog(l){
   while(l.length>LOGMAX){ const o=l.shift(); keysOf(o).forEach(k=>idb.del(k)); }
@@ -1012,6 +1018,19 @@ function closeSettings(){ sm.classList.add('hide'); }
 $('setbtn').onclick=openSettings; $('sx').onclick=closeSettings;
 sm.addEventListener('click',e=>{ if(e.target===sm) closeSettings(); });
 sauto.onchange=()=>{ autoNext=sauto.checked; store.set('autonext',autoNext?'1':null); };
+
+/* Reset semua: tap dua kali (tombol berubah merah + teks konfirmasi). Hapus localStorage situs ini + semua audio di IndexedDB, lalu muat ulang. */
+let rstT=0;
+$('sreset').onclick=async()=>{
+  const b=$('sreset'), lab=b.querySelector('b');
+  if(!rstT){ b.classList.add('arm'); lab.textContent='Tap lagi untuk hapus SEMUA'; rstT=setTimeout(()=>{ rstT=0; b.classList.remove('arm'); lab.textContent='Reset semua'; },3500); return; }
+  clearTimeout(rstT); rstT=0; b.disabled=true; lab.textContent='Menghapus…';
+  try{ if(current) current.stop(); }catch{}
+  await idb.clear();
+  try{ localStorage.clear(); }catch{}
+  try{ sessionStorage.clear(); }catch{}
+  location.reload();
+};
 
 async function refreshStorage(){
   let chars=0; try{ for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); chars+=k.length+(localStorage.getItem(k)||'').length; } }catch{}
