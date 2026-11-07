@@ -325,6 +325,8 @@ header>button:active,.mwrap>button:active{transform:scale(.88)}
 .sbox p{font-size:12px;line-height:1.4}
 .sbox p:empty{display:none}
 .sbusy{opacity:.55;pointer-events:none}
+.mkvn{display:inline-block;margin-top:8px;padding:6px 12px;border-radius:99px;border:1px solid var(--line);font-size:12px;font-weight:500;color:inherit;background:transparent}
+.mkvn:disabled{opacity:.6}
 .m-pills{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
 .m-pills .m-name{margin-top:0}
 .m-voice{display:inline-flex;align-items:center;gap:8px;padding:9px 15px 9px 12px;border-radius:99px;background:var(--surface);font-size:13px;font-weight:500;animation:rise2 .8s 1.05s cubic-bezier(.2,.9,.2,1) both;transition:transform .2s}
@@ -539,7 +541,7 @@ header .pfp,header .who{cursor:pointer}
         </div>
         <div id="ain" class="hide">
           <div class="stor"><div class="sl"><span>Masuk sebagai</span><span id="aname"></span></div><div class="sl" style="margin-top:6px"><span>Cadangan cloud</span><span id="acloud">…</span></div></div>
-          <button class="srow" id="async" type="button"><span><b>Sinkronkan sekarang</b><i>Ambil obrolan dari akunmu lalu simpan yang terbaru. Teks, memori, dan hubungan karakter ikut; voice note dan chat grup tidak.</i></span><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 14-5l2 2M20 4v5h-5M20 12a8 8 0 0 1-14 5l-2-2M4 20v-5h5"/></svg></button>
+          <button class="srow" id="async" type="button"><span><b>Sinkronkan sekarang</b><i>Ambil obrolan dari akunmu lalu simpan yang terbaru. Otomatis juga saat aplikasi dibuka dan tab kembali aktif. Teks, memori, dan hubungan karakter ikut; voice note dan chat grup tidak.</i></span><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 14-5l2 2M20 4v5h-5M20 12a8 8 0 0 1-14 5l-2-2M4 20v-5h5"/></svg></button>
           <button class="srow" id="aout2" type="button"><span><b>Keluar</b><i>Obrolan di perangkat ini tetap ada.</i></span><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
           <button class="srow danger" id="adel" type="button"><span><b>Hapus akun</b><i>Hapus akun dan cadangan cloud-nya. Obrolan di perangkat tidak ikut terhapus.</i></span><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12h10l1-12M9 7V4h6v3"/></svg></button>
         </div>
@@ -850,6 +852,33 @@ function dayLabel(t){
 }
 function ensureDay(t){ const k=dayKey(t); if(k===lastDay) return; lastDay=k; const e=document.createElement('div'); e.className='day'; e.textContent=dayLabel(t); chat.appendChild(e); }
 function showThem(id,text){ addThem(text); record(id,{r:'them',x:text}); }
+/* Pesan yang dulunya voice note tapi audionya nggak ada di perangkat ini (audio nggak ikut sinkron akun): tampil sebagai teks + tombol "Jadikan voice note".
+   Tombol membuat audio lewat /api/tts dari teks ucapan (vn) yang tersimpan, lalu menggantikan bubble teks dengan voice note biasa. */
+function addThemNoAudio(chId,e){
+  addThem(e.x,e.t);
+  const row=chat.lastElementChild, bub=row&&row.querySelector('.bub'); if(!bub) return;
+  const b=document.createElement('button'); b.type='button'; b.className='mkvn'; b.textContent='Jadikan voice note'; bub.appendChild(b);
+  b.onclick=async()=>{
+    if(b.disabled) return;
+    if(!vcode){ toast('Aktifkan voice dulu di Pengaturan'); return; }
+    b.disabled=true; b.textContent='Membuat voice note…';
+    try{
+      const ab=await (await post('/api/tts',{char:chId,text:e.vn,voice:voiceKeyOf(chId)},{'x-voice-code':vcode})).arrayBuffer();
+      const p=await decode(ab);
+      if(!row.isConnected||!ch||ch.id!==chId){ URL.revokeObjectURL(p.url); return; } /* chat sudah ditutup */
+      urls.push(p.url);
+      const k=newKey(), saved=await idb.put(k,{ab,dur:p.dur,bins:p.bins}); if(saved) p.k=k;
+      const sc=chat.scrollTop, ld=lastDay; lastDay=dayKey(e.t); /* addVN memanggil ensureDay: jangan sampai menambah pemisah hari di bawah */
+      const nr=addVN({id:e.x,jp:e.jp,lang:e.lang,vn:e.vn},[p],e.t); lastDay=ld;
+      row.replaceWith(nr); chat.scrollTop=sc;
+      if(saved) patchLog(chId,e.t,x=>{ x.ks=[k]; x.si=0; delete x.k; }); else toast('Voice note ini nggak bisa disimpan di perangkat');
+    }catch(err){
+      if(err.status===403){ vcode=''; voiceOn=false; store.set('vcode',null); store.set('von','0'); paintVoice(); toast('Kode voice tidak valid, voice dimatikan'); }
+      else toast(err.message||'Gagal membuat voice note');
+      b.disabled=false; b.textContent='Jadikan voice note';
+    }
+  };
+}
 /* tampilkan lagi obrolan tersimpan waktu karakter dibuka */
 async function restoreChat(id,tok){
   const l=loadLog(id);
@@ -862,6 +891,7 @@ async function restoreChat(id,tok){
       ks.forEach((k,j)=>{ const a=recs[i][j]; if(a&&a.ab){ const u=URL.createObjectURL(new Blob([a.ab],{type:'audio/mpeg'})); urls.push(u); takes.push({url:u,dur:a.dur,bins:a.bins,k}); } });
       if(e.r==='me') addText(e.x,e.t);
       else if(e.r==='vn'&&takes.length){ const si=Math.max(0,takes.findIndex(x=>x.k===ks[e.si||0])); addVN({id:e.x,jp:e.jp,lang:e.lang,vn:e.vn,si},takes,e.t); }
+      else if(e.r==='vn'&&e.vn) addThemNoAudio(id,e); /* audio nggak ada di perangkat ini (mis. dari sinkron akun) -> teks + tombol buat bikin voice note */
       else addThem(e.x,e.t); /* audio sudah dibuang -> tampil sebagai teks */
     });
   }catch{}
@@ -1332,9 +1362,18 @@ async function authGo(kind){
 $('alogin').onclick=()=>authGo('login'); $('areg').onclick=()=>authGo('register');
 $('apass').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); authGo('login'); } });
 
-$('async').onclick=async()=>{
-  sacct.classList.add('sbusy'); setA('Mengambil dari akun…');
+/* Sinkron: ambil dari akun -> gabungkan -> simpan. Manual (tombol) atau otomatis (auto=true): saat aplikasi dibuka dan saat tab kembali aktif.
+   Otomatis itu senyap (tanpa reload, tanpa pesan error) dan murah: cek dulu /me (cuma waktu update cloud), unduh/kirim data hanya kalau ada yang berubah. */
+const sigOf=str=>{ let h=5381; for(let i=0;i<str.length;i++) h=((h<<5)+h+str.charCodeAt(i))|0; return String(h); };
+let aBusy=false, aLast=0;
+async function syncCloud(auto){
+  if(aBusy||!atok||!aOn) return;
+  if(auto&&(document.hidden||Date.now()-aLast<20000)) return; /* maks sekali per 20 dtk, dan hanya saat tab kelihatan */
+  aBusy=true; if(!auto){ sacct.classList.add('sbusy'); setA('Mengambil dari akun…'); }
   try{
+    const me=await aApi('me'), cts=me.cloud?me.cloud.updatedAt:null;
+    const before=await collectChars(false), localSig=sigOf(JSON.stringify(before.chars)+(uname||''));
+    if(auto&&cts===store.get('cloudts')&&localSig===store.get('cloudsig')){ aLast=Date.now(); aBusy=false; return; } /* tidak ada yang berubah di mana pun */
     const pulled=await aApi('pull'); let added=0, memAdded=0, nameSet=false;
     if(pulled.data){ /* 1) gabungkan data akun ke perangkat ini (tidak menimpa) */
       const d=JSON.parse(pulled.data);
@@ -1343,15 +1382,28 @@ $('async').onclick=async()=>{
         if(!uname&&typeof d.uname==='string'&&cleanName(d.uname)){ saveName(cleanName(d.uname)); nameSet=true; }
       }
     }
-    setA('Menyimpan ke akun…');
-    const {chars,nMsg}=await collectChars(false); /* 2) simpan gabungan terbaru */
-    const r=await aApi('push',{data:{app:'neyhra-chat',version:1,exportedAt:new Date().toISOString(),chars,...(uname&&{uname})}});
-    setA('Selesai: '+added+' pesan baru diambil'+(memAdded?', '+memAdded+' memori':'')+'; '+chars.length+' karakter ('+nMsg+' pesan) tersimpan di akun.');
-    paintAcct({size:r.size,updatedAt:r.updatedAt}); refreshStorage();
-    if(nameSet||added){ toast(nameSet?'Nama diterapkan, memuat ulang…':'Obrolan diperbarui, memuat ulang…'); setTimeout(()=>location.reload(),1300); }
-  }catch(e){ setA(e.status===401?'Sesi berakhir, masuk lagi.':(e.message||'Gagal sinkron.'),true); }
-  sacct.classList.remove('sbusy');
-};
+    const {chars,nMsg}=await collectChars(false); /* 2) simpan gabungan terbaru (kalau memang beda dengan isi akun) */
+    let size=me.cloud?me.cloud.size:0, ts=cts;
+    const pulledChars=pulled.data?JSON.stringify(JSON.parse(pulled.data).chars):null;
+    if((chars.length||pulled.data)&&JSON.stringify(chars)!==pulledChars){
+      if(!auto) setA('Menyimpan ke akun…');
+      const r=await aApi('push',{data:{app:'neyhra-chat',version:1,exportedAt:new Date().toISOString(),chars,...(uname&&{uname})}});
+      size=r.size; ts=r.updatedAt;
+    }
+    store.set('cloudts',ts); store.set('cloudsig',sigOf(JSON.stringify(chars)+(uname||'')));
+    paintAcct(ts?{size,updatedAt:ts}:null); aLast=Date.now(); refreshStorage();
+    if(auto){
+      if(added&&app.classList.contains('open')) toast('Ada pesan baru dari akunmu. Buka ulang chat untuk melihatnya.');
+    }else{
+      setA('Selesai: '+added+' pesan baru diambil'+(memAdded?', '+memAdded+' memori':'')+'; '+chars.length+' karakter ('+nMsg+' pesan) tersimpan di akun.');
+      if(nameSet||added){ toast(nameSet?'Nama diterapkan, memuat ulang…':'Obrolan diperbarui, memuat ulang…'); setTimeout(()=>location.reload(),1300); }
+    }
+  }catch(e){ if(!auto) setA(e.status===401?'Sesi berakhir, masuk lagi.':(e.message||'Gagal sinkron.'),true); }
+  aBusy=false; if(!auto) sacct.classList.remove('sbusy');
+}
+$('async').onclick=()=>syncCloud(false);
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden) syncCloud(true); }); /* tab kembali aktif */
+initAcct().then(()=>syncCloud(true)); /* aplikasi dibuka */
 $('aout2').onclick=async()=>{
   try{ await aApi('logout'); }catch{}
   atok=''; store.set('authtok',null); store.set('authname',null); paintAcct(); setA('Sudah keluar.');
