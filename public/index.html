@@ -571,8 +571,8 @@ header .pfp,header .who{cursor:pointer}
     </div>
   </div>
   <div id="smodal" class="hide">
-    <div class="nbox sbox" role="dialog" aria-labelledby="stitle">
-      <div class="shead"><h2 id="stitle">Pengaturan</h2><button id="sx" type="button" aria-label="Tutup"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="nbox sbox" role="region" aria-labelledby="stitle">
+      <div class="shead"><button id="sx" type="button" aria-label="Kembali"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button><h2 id="stitle">Pengaturan</h2></div>
       <div class="sgroup"><h3>Notifikasi</h3>
         <label class="srow"><span><b>Notifikasi Chat Global</b><i>Munculkan pemberitahuan di atas layar kalau ada yang chat di Chat Global, termasuk saat kamu lagi ngobrol dengan karakter. Matikan kalau nggak mau terganggu.</i></span><input type="checkbox" id="sgcn" class="sw"></label>
       </div>
@@ -1328,7 +1328,8 @@ const fmtB=n=>n<1024?Math.round(n)+' B':n<1048576?(n/1024).toFixed(n<10240?1:0)+
 function openSettings(){ paintDev(); sauto.checked=autoNext; setStat(''); sm.classList.remove('hide'); refreshStorage(); }
 function closeSettings(){ sm.classList.add('hide'); }
 $('setbtn').onclick=openSettings; $('sx').onclick=closeSettings;
-sm.addEventListener('click',e=>{ if(e.target===sm) closeSettings(); });
+window.addEventListener('shell:tab',()=>{ if(!sm.classList.contains('hide')) closeSettings(); }); /* pindah tab lewat rail = keluar dari halaman Pengaturan */
+addEventListener('keydown',e=>{ if(e.key==='Escape'&&!sm.classList.contains('hide')&&!document.querySelector('#vmodal:not(.hide),#mmodal:not(.hide),#nmodal:not(.hide)')) closeSettings(); });
 sauto.onchange=()=>{ autoNext=sauto.checked; store.set('autonext',autoNext?'1':null); };
 
 /* Reset semua: tap dua kali (tombol berubah merah + teks konfirmasi). Hapus localStorage situs ini + semua audio di IndexedDB, lalu muat ulang. */

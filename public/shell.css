@@ -255,3 +255,25 @@
 .vcol:has(.sub.show)>.bub:first-child{border-bottom-left-radius:8px}
 .sbub .sub,.sbub .sub.show{width:auto;min-width:0;margin-top:0;padding-top:0;border-top-color:transparent;font-size:14.5px;line-height:1.5}
 @media(min-width:800px){.vcol{max-width:min(78%,980px)}}
+
+
+/* ---------- Pengaturan = halaman penuh (bukan popup) ----------
+   Tetap #smodal + kelas .hide supaya router, bonus.js, dan tombol lain yang sudah memakainya tidak perlu diubah.
+   Desktop: menutupi area di kanan rail (rail tetap kelihatan). Mobile: layar penuh dengan tombol kembali. */
+#app #smodal{display:block;padding:0;background:var(--bg);backdrop-filter:none;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;animation:spg .22s cubic-bezier(.2,.9,.3,1)}
+#app #smodal.hide{display:none}
+#app #smodal::-webkit-scrollbar{display:none}
+@keyframes spg{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+#app #smodal .sbox{max-width:680px;width:100%;margin:0 auto;border:0;border-radius:0;background:transparent;animation:none;overflow:visible;max-height:none;
+  padding:0 20px calc(40px + env(safe-area-inset-bottom,0px))}
+#app #smodal .shead{position:sticky;top:0;z-index:3;justify-content:flex-start;gap:6px;background:var(--bg);
+  padding:calc(12px + env(safe-area-inset-top,0px)) 0 12px;margin:0 -20px;padding-left:14px;padding-right:20px;border-bottom:1px solid var(--line)}
+#app #smodal .shead h2{font-size:20px}
+#app #smodal .shead button{width:40px;height:40px;margin:0;color:var(--ink);display:grid;place-items:center}
+#app #smodal .shead button:hover{background:var(--surface)}
+#app #smodal .shead button svg{width:22px;height:22px}
+@media(min-width:800px){
+  #app #smodal{left:var(--rail-c)}
+  #app.rail-x[data-tab="home"] #smodal{left:var(--rail-x)}
+  #app #smodal .sbox{padding-top:8px}
+}
