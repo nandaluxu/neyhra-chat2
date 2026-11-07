@@ -474,7 +474,7 @@ function dropTmp(m) { pending = pending.filter(x => x.id !== m.id); touch(); }
 function send(text) {
   if (!canSend() || typeof text !== 'string' || !text.trim()) return null;
   const s = getSelf();
-  const tmp = { id: 'tmp-' + uid(), senderId: s.id, senderName: s.name, text, ts: Date.now(), status: 'sending' };
+  const tmp = { id: 'tmp-' + uid(), senderId: s.aid || s.id, senderName: s.name, text, ts: Date.now(), status: 'sending' };
   pending.push(tmp); touch(); bump();
   deliver(text, tmp);
   return tmp;

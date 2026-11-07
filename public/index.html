@@ -733,6 +733,8 @@ const $ = id => document.getElementById(id);
 const chat=$('chat'), inp=$('inp'), sendB=$('send'), status=$('status');
 let current=null, ch=null, busy=false, restoring=false, ready=false, openTok=0, lastDay='', urls=[], clrT=0, vSpeed=1, autoNext=false, draftT=0;
 const cid=(()=>{try{return localStorage.cid||(localStorage.cid=crypto.randomUUID())}catch{return crypto.randomUUID()}})();
+/* Id pengirim Chat Global: kalau masuk akun = id tetap akun dari server (`gid`, sama di semua browser), kalau tamu = cid browser ini. `cid` tetap dipakai untuk presence/WebRTC (per browser). */
+const gcAid=()=>{ try{ return (typeof atok==='string'&&atok&&localStorage.getItem('gid'))||cid; }catch{ return cid; } };
 const PLAY='<svg class="f" viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z"/></svg>';
 const PAUSE='<svg class="f" viewBox="0 0 24 24"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>';
 const fmt = s => Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
@@ -1506,7 +1508,7 @@ async function initAcct(){
     const r=await (await fetch('/api/auth/me',{method:'POST',headers:{'Content-Type':'application/json',...(atok?{Authorization:'Bearer '+atok}:{})},body:'{}'})).json().catch(()=>({}));
     if(r.enabled===false){ aOn=false; paintAcct(); return; }
     aOn=true;
-    if(r.ok){ store.set('authname',r.name); if(r.uid&&!ownerOf()) store.set('dataowner',r.uid); saveWallet(r); paintAcct(r.cloud); }
+    if(r.ok){ store.set('authname',r.name); store.set('gid',r.gid||null); if(r.uid&&!ownerOf()) store.set('dataowner',r.uid); saveWallet(r); paintAcct(r.cloud); }
     else{ if(atok){ atok=''; store.set('authtok',null); store.set('authname',null); saveWallet(null); } paintAcct(); }
   }catch{ aOn=false; paintAcct(); } /* server tak terjangkau -> sembunyikan, jangan ganggu pengaturan lain */
 }
@@ -1521,10 +1523,11 @@ async function authGo(kind){
       const okGo=confirm('Perangkat ini masih menyimpan obrolan milik akun lain. Obrolan itu akan dihapus dari perangkat ini supaya tidak tercampur ke akun "'+r.name+'" (yang sudah tersinkron tetap aman di akun aslinya). Lanjut masuk?');
       if(!okGo){ try{ await post('/api/auth/logout',{},{Authorization:'Bearer '+r.token}); }catch{} setA('Batal masuk. Obrolan di perangkat ini tidak diubah.'); sacct.classList.remove('sbusy'); return; }
       setA('Membersihkan data akun lain…');
-      await wipeLocal({authtok:r.token,authname:r.name,dataowner:r.uid}); /* token akun baru ikut dipertahankan; setelah muat ulang sinkron otomatis mengambil data akunnya */
+      await wipeLocal({authtok:r.token,authname:r.name,dataowner:r.uid,gid:r.gid}); /* token akun baru ikut dipertahankan; setelah muat ulang sinkron otomatis mengambil data akunnya */
       location.reload(); return;
     }
     if(r.uid) store.set('dataowner',r.uid);
+    store.set('gid',r.gid||null);
     atok=r.token; store.set('authtok',atok); store.set('authname',r.name); if(Number.isFinite(r.coins)) saveWallet(r); $('apass').value=''; paintAcct(null);
     setA(kind==='register'?'Akun dibuat. Menyimpan obrolanmu ke akun…':'Berhasil masuk. Mengambil obrolan dari akunmu…');
     sacct.classList.remove('sbusy');

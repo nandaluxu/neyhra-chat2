@@ -19,7 +19,7 @@ const NEAR = 120;          // jarak (px) dari bawah yang dianggap "masih di bawa
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 const len = s => [...s].length; // hitung per karakter (emoji = 1), bukan per unit UTF-16
 const hue = s => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
-const selfId = () => cid;
+const isMine = id => id === cid || id === gcAid(); // pesan lama (sebelum masuk akun) memakai cid; pesan akun memakai id tetap akun, sama di semua browser
 // Foto profil pengirim: server mengisi au (username) + av (versi foto) hanya untuk pengirim yang masuk akun. Alamat dibuat di sini dari pola tetap
 // (satu domain), bukan dari URL kiriman orang lain, jadi tidak bisa dipakai memuat gambar dari situs luar.
 const avUrl = m => /^[a-z0-9_.-]{3,20}$/.test(m.au || '') && Number.isInteger(m.av) && m.av > 0 ? '/api/auth/avatar/' + encodeURIComponent(m.au) + '?v=' + m.av : '';
@@ -30,7 +30,7 @@ function addPhoto(node, m) {
 }
 const selfName = () => (typeof uname === 'string' && uname) || 'Tamu';
 const canSend = s => s.status === 'online' || s.status === 'syncing';
-A.setSelf(() => ({ id: selfId(), name: selfName() }));
+A.setSelf(() => ({ id: cid, aid: gcAid(), name: selfName() })); // id = transport (presence/WebRTC, per browser); aid = identitas penulis
 
 const I = {
   back: '<svg viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>',
@@ -177,7 +177,7 @@ function bubble(m, o) {
   return r;
 }
 function paintList(s) {
-  const nearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < NEAR, top = list.scrollTop, msgs = s.messages, me = selfId();
+  const nearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < NEAR, top = list.scrollTop, msgs = s.messages;
   const frag = document.createDocumentFragment();
   let added = 0, other = 0, mine = 0;
   if (!msgs.length) frag.append(emptyView(s));
@@ -189,8 +189,8 @@ function paintList(s) {
       const cont = !!p && dayKey(p.ts) === dk && p.senderId === m.senderId && m.ts - p.ts < GROUP;
       const more = !!n && dayKey(n.ts) === dk && n.senderId === m.senderId && n.ts - m.ts < GROUP;
       const isNew = !seen.has(m.id);
-      if (isNew) { seen.add(m.id); if (primed) { added++; m.senderId === me ? mine++ : other++; } }
-      frag.append(bubble(m, { mine: m.senderId === me, first: !cont, last: !more, fresh: primed && isNew }));
+      if (isNew) { seen.add(m.id); if (primed) { added++; isMine(m.senderId) ? mine++ : other++; } }
+      frag.append(bubble(m, { mine: isMine(m.senderId), first: !cont, last: !more, fresh: primed && isNew }));
     });
   }
   list.replaceChildren(frag);
@@ -369,8 +369,8 @@ function notifyScan(s) {
     if (s.status !== 'online') return;
     nReady = true; nMax = msgs.length ? msgs[msgs.length - 1].ts : 0; return;
   }
-  const me = selfId(), top = msgs.length ? msgs[msgs.length - 1].ts : 0, fresh = [];
-  for (const m of msgs) if (m.ts > nMax && m.senderId !== me) fresh.push(m);
+  const top = msgs.length ? msgs[msgs.length - 1].ts : 0, fresh = [];
+  for (const m of msgs) if (m.ts > nMax && !isMine(m.senderId)) fresh.push(m);
   if (top > nMax) nMax = top;
   if (!fresh.length || !notifOn || isOpen) return;
   nUnread += fresh.length; paintBadge(); showNote(fresh); sysNote(fresh);
