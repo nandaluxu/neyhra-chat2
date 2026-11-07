@@ -33,16 +33,17 @@
 .w-n{font-size:11px;font-weight:600;line-height:1;font-variant-numeric:tabular-nums;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .w-l{font-size:12.5px;color:var(--mut)}
 .r-wallet.off,.m-wallet.off{opacity:.55}
-#app.rail-x[data-tab="home"] .r-wallet{max-height:120px;opacity:1;visibility:visible;pointer-events:auto;margin:-4px 0 14px;padding:8px 12px;gap:8px;
+#app.rail-x[data-tab="home"] .r-wallet{max-height:120px;opacity:1;visibility:visible;pointer-events:auto;margin:0 0 20px;padding:10px 6px;gap:0;
           transition:max-height .24s cubic-bezier(.2,.9,.2,1),opacity .2s .06s,padding .24s,margin .24s,visibility 0s}
 #app.rail-x[data-tab="home"] .r-wallet.off{opacity:.55}
 /* rail dibuka: koin dan gems sebaris (ikon + angka; label disembunyikan supaya muat, nama ada di tooltip) */
-#app.rail-x[data-tab="home"] .r-wallet{flex-direction:row;align-items:center;justify-content:center;gap:6px}
-#app.rail-x[data-tab="home"] .r-wallet .w-cur{flex:1 1 0;flex-direction:row;justify-content:center;gap:6px}
+#app.rail-x[data-tab="home"] .r-wallet{flex-direction:row;align-items:center;justify-content:center;gap:0}
+#app.rail-x[data-tab="home"] .r-wallet .w-cur{flex:1 1 0;flex-direction:row;justify-content:center;gap:7px;padding:3px 4px}
+#app.rail-x[data-tab="home"] .r-wallet .w-cur+.w-cur{border-left:1px solid var(--line)} /* garis tipis pemisah koin | gems */
 #app.rail-x[data-tab="home"] .r-wallet .w-n{font-size:14px;flex:none}
 #app.rail-x[data-tab="home"] .r-wallet .w-l{display:none}
 /* rail dibuka: logo turun sedikit, di tengah, "Neyhra Chat" di bawahnya */
-#app.rail-x[data-tab="home"] .r-logo{flex-direction:column;align-items:center;justify-content:center;gap:8px;margin:20px 0 16px;padding:0;text-align:center}
+#app.rail-x[data-tab="home"] .r-logo{flex-direction:column;align-items:center;justify-content:center;gap:10px;margin:26px 0 20px;padding:0;text-align:center}
 #app.rail-x[data-tab="home"] .r-word{text-align:center}
 .m-wallet{display:none;align-items:center;gap:12px;padding:6px 12px;border-radius:99px;background:var(--surface)}
 .m-wallet .w-cur{flex-direction:row;gap:6px}
