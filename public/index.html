@@ -620,7 +620,7 @@ header .pfp,header .who{cursor:pointer}
       </div>
       <div class="sgroup hide" id="sacct"><h3>Akun</h3>
         <div id="aout" class="hide">
-          <p class="mhelp" style="margin:0 0 4px">Masuk untuk memindahkan obrolan ke perangkat lain. Bukan untuk keamanan tinggi: pakai password yang tidak kamu pakai di tempat lain.</p>
+          <p class="mhelp" style="margin:0 0 4px">Masuk untuk memindahkan obrolan ke perangkat lain. Obrolan langsung disinkronkan saat masuk, dan dihapus dari perangkat ini saat kamu keluar. Bukan untuk keamanan tinggi: pakai password yang tidak kamu pakai di tempat lain.</p>
           <input id="auser" class="ainp" type="text" autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="20" placeholder="Username" aria-label="Username">
           <input id="apass" class="ainp" type="password" autocomplete="current-password" maxlength="100" placeholder="Password" aria-label="Password">
           <div class="seg"><button type="button" id="alogin">Masuk</button><button type="button" id="areg">Daftar</button></div>
@@ -628,7 +628,7 @@ header .pfp,header .who{cursor:pointer}
         <div id="ain" class="hide">
           <div class="stor"><div class="sl"><span>Masuk sebagai</span><span id="aname"></span></div><div class="sl" style="margin-top:6px"><span>Cadangan cloud</span><span id="acloud">…</span></div></div>
           <button class="srow" id="async" type="button"><span><b>Sinkronkan sekarang</b><i>Ambil obrolan dari akunmu lalu simpan yang terbaru. Otomatis juga saat aplikasi dibuka dan tab kembali aktif. Teks, memori, dan hubungan karakter ikut; voice note dan chat grup tidak.</i></span><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 14-5l2 2M20 4v5h-5M20 12a8 8 0 0 1-14 5l-2-2M4 20v-5h5"/></svg></button>
-          <button class="srow" id="aout2" type="button"><span><b>Keluar</b><i>Obrolan di perangkat ini tetap ada.</i></span><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
+          <button class="srow" id="aout2" type="button"><span><b>Keluar</b><i>Obrolan disimpan ke akun dulu, lalu dihapus dari perangkat ini. Voice note dan chat grup tidak ikut tersimpan.</i></span><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
           <button class="srow danger" id="adel" type="button"><span><b>Hapus akun</b><i>Hapus akun dan cadangan cloud-nya. Obrolan di perangkat tidak ikut terhapus.</i></span><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12h10l1-12M9 7V4h6v3"/></svg></button>
         </div>
         <p id="astat" role="status"></p>
@@ -1472,6 +1472,10 @@ $('sfile').onchange=()=>{ const f=$('sfile').files[0]; if(f) importJSON(f); };
 /* ===== Akun (login sederhana, MongoDB): pindah obrolan antar perangkat. Cuma teks/memori/hubungan, tanpa audio dan grup. ===== */
 const sacct=$('sacct'), aout=$('aout'), ain=$('ain'), astat=$('astat');
 let atok=store.get('authtok')||'', aOn=false;
+/* Pemilik data di perangkat ini (`dataowner` = uid akun, bukan nama tampilan yang bisa diganti). Dicatat saat masuk, dihapus bersama data saat Keluar.
+   Tujuannya: obrolan/hubungan milik satu akun tidak pernah tergabung ke akun LAIN (mis. pinjam akun teman, sesi habis, lalu masuk ke akunmu). */
+const ownerOf=()=>store.get('dataowner');
+const hasLocalData=()=>{ try{ for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(/^(log|mem|rel|h|alias):/.test(k)||k==='groups') return true; } }catch{} return false; };
 const setA=(t,err)=>{ astat.textContent=t||''; astat.classList.toggle('err',!!err); };
 const aApi=async(path,body)=>{
   try{ return await (await post('/api/auth/'+path,body||{},atok?{Authorization:'Bearer '+atok}:undefined)).json(); }
@@ -1502,7 +1506,7 @@ async function initAcct(){
     const r=await (await fetch('/api/auth/me',{method:'POST',headers:{'Content-Type':'application/json',...(atok?{Authorization:'Bearer '+atok}:{})},body:'{}'})).json().catch(()=>({}));
     if(r.enabled===false){ aOn=false; paintAcct(); return; }
     aOn=true;
-    if(r.ok){ store.set('authname',r.name); saveWallet(r); paintAcct(r.cloud); }
+    if(r.ok){ store.set('authname',r.name); if(r.uid&&!ownerOf()) store.set('dataowner',r.uid); saveWallet(r); paintAcct(r.cloud); }
     else{ if(atok){ atok=''; store.set('authtok',null); store.set('authname',null); saveWallet(null); } paintAcct(); }
   }catch{ aOn=false; paintAcct(); } /* server tak terjangkau -> sembunyikan, jangan ganggu pengaturan lain */
 }
@@ -1512,9 +1516,20 @@ async function authGo(kind){
   sacct.classList.add('sbusy'); setA(kind==='register'?'Mendaftar…':'Masuk…');
   try{
     const r=await aApi(kind,{username,password});
+    const owner=ownerOf();
+    if(r.uid&&owner&&owner!==r.uid&&hasLocalData()){ /* data di perangkat milik akun lain: jangan digabung, bersihkan dulu */
+      const okGo=confirm('Perangkat ini masih menyimpan obrolan milik akun lain. Obrolan itu akan dihapus dari perangkat ini supaya tidak tercampur ke akun "'+r.name+'" (yang sudah tersinkron tetap aman di akun aslinya). Lanjut masuk?');
+      if(!okGo){ try{ await post('/api/auth/logout',{},{Authorization:'Bearer '+r.token}); }catch{} setA('Batal masuk. Obrolan di perangkat ini tidak diubah.'); sacct.classList.remove('sbusy'); return; }
+      setA('Membersihkan data akun lain…');
+      await wipeLocal({authtok:r.token,authname:r.name,dataowner:r.uid}); /* token akun baru ikut dipertahankan; setelah muat ulang sinkron otomatis mengambil data akunnya */
+      location.reload(); return;
+    }
+    if(r.uid) store.set('dataowner',r.uid);
     atok=r.token; store.set('authtok',atok); store.set('authname',r.name); if(Number.isFinite(r.coins)) saveWallet(r); $('apass').value=''; paintAcct(null);
-    setA(kind==='register'?'Akun dibuat. Tekan "Sinkronkan sekarang" untuk menyimpan obrolanmu.':'Berhasil masuk. Tekan "Sinkronkan sekarang" untuk mengambil obrolan dari akunmu.');
-    initAcct();
+    setA(kind==='register'?'Akun dibuat. Menyimpan obrolanmu ke akun…':'Berhasil masuk. Mengambil obrolan dari akunmu…');
+    sacct.classList.remove('sbusy');
+    await initAcct(); await syncCloud(false); /* langsung sinkron: obrolan akun masuk ke perangkat ini, obrolan perangkat ini masuk ke akun */
+    return;
   }catch(e){ setA(e.message,true); }
   sacct.classList.remove('sbusy');
 }
@@ -1525,14 +1540,15 @@ $('apass').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault
    Otomatis itu senyap (tanpa reload, tanpa pesan error) dan murah: cek dulu /me (cuma waktu update cloud), unduh/kirim data hanya kalau ada yang berubah. */
 const sigOf=str=>{ let h=5381; for(let i=0;i<str.length;i++) h=((h<<5)+h+str.charCodeAt(i))|0; return String(h); };
 let aBusy=false, aLast=0;
-async function syncCloud(auto){
-  if(aBusy||!atok||!aOn) return;
-  if(auto&&(document.hidden||Date.now()-aLast<20000)) return; /* maks sekali per 20 dtk, dan hanya saat tab kelihatan */
-  aBusy=true; if(!auto){ sacct.classList.add('sbusy'); setA('Mengambil dari akun…'); }
+async function syncCloud(auto,opts){ /* mengembalikan true kalau akun & perangkat sudah sama-sama terbaru; opts.noReload = jangan muat ulang halaman (dipakai saat keluar) */
+  if(aBusy||!atok||!aOn) return false;
+  if(auto&&(document.hidden||Date.now()-aLast<20000)) return false; /* maks sekali per 20 dtk, dan hanya saat tab kelihatan */
+  aBusy=true; let ok=false; if(!auto){ sacct.classList.add('sbusy'); setA('Mengambil dari akun…'); }
   try{
     const me=await aApi('me'), cts=me.cloud?me.cloud.updatedAt:null;
+    if(me.uid&&ownerOf()&&ownerOf()!==me.uid){ aBusy=false; if(!auto){ sacct.classList.remove('sbusy'); setA('Obrolan di perangkat ini milik akun lain, jadi tidak digabung. Keluar lalu masuk lagi untuk membersihkannya.',true); } return false; } /* jangan pernah kirim data akun lain ke akun ini */
     const before=await collectChars(false), localSig=sigOf(JSON.stringify(before.chars));
-    if(auto&&cts===store.get('cloudts')&&localSig===store.get('cloudsig')){ aLast=Date.now(); aBusy=false; return; } /* tidak ada yang berubah di mana pun */
+    if(auto&&cts===store.get('cloudts')&&localSig===store.get('cloudsig')){ aLast=Date.now(); aBusy=false; return true; } /* tidak ada yang berubah di mana pun */
     const pulled=await aApi('pull'); let added=0, memAdded=0;
     if(pulled.data){ /* 1) gabungkan data akun ke perangkat ini (tidak menimpa) */
       const d=JSON.parse(pulled.data);
@@ -1549,23 +1565,62 @@ async function syncCloud(auto){
       size=r.size; ts=r.updatedAt;
     }
     store.set('cloudts',ts); store.set('cloudsig',sigOf(JSON.stringify(chars)));
-    paintAcct(ts?{size,updatedAt:ts}:null); aLast=Date.now(); refreshStorage();
+    paintAcct(ts?{size,updatedAt:ts}:null); aLast=Date.now(); refreshStorage(); ok=true;
     if(auto){
       if(added&&app.classList.contains('open')) toast('Ada pesan baru dari akunmu. Buka ulang chat untuk melihatnya.');
     }else{
       setA('Selesai: '+added+' pesan baru diambil'+(memAdded?', '+memAdded+' memori':'')+'; '+chars.length+' karakter ('+nMsg+' pesan) tersimpan di akun.');
-      if(added){ toast('Obrolan diperbarui, memuat ulang…'); setTimeout(()=>location.reload(),1300); }
+      if(added&&!(opts&&opts.noReload)){ toast('Obrolan diperbarui, memuat ulang…'); setTimeout(()=>location.reload(),1300); }
     }
   }catch(e){ if(!auto) setA(e.status===401?'Sesi berakhir, masuk lagi.':(e.message||'Gagal sinkron.'),true); }
   aBusy=false; if(!auto) sacct.classList.remove('sbusy');
+  return ok;
 }
 $('async').onclick=()=>syncCloud(false);
 document.addEventListener('visibilitychange',()=>{ if(!document.hidden) syncCloud(true); }); /* tab kembali aktif */
 paintWallet(loadWallet()); /* tampilkan saldo terakhir dulu, diperbarui oleh initAcct */
 initAcct().then(()=>syncCloud(true)); /* aplikasi dibuka */
-$('aout2').onclick=async()=>{
+/* Tab lain di browser yang sama: kalau tab ini melihat login/logout/hapus data dari tab lain, muat ulang supaya tidak menulis balik data lama
+   (mis. tab B masih memegang obrolan akun sebelumnya setelah tab A keluar). */
+window.addEventListener('storage',e=>{ if(!wiping&&(e.key===null||e.key==='authtok')) location.reload(); });
+/* Keluar: (1) simpan dulu semua obrolan ke akun, (2) kalau berhasil baru keluar dan hapus data obrolan di perangkat ini (tema tampilan dipertahankan).
+   Kalau gagal menyimpan (offline dsb) kita TIDAK menghapus apa-apa; user bisa memilih keluar tanpa menyimpan lewat tap sekali lagi.
+   Sesi kedaluwarsa (401) sengaja tidak menghapus data lokal, supaya obrolan yang belum tersimpan tidak hilang. */
+const OUT_SUB='Obrolan disimpan ke akun dulu, lalu dihapus dari perangkat ini. Voice note dan chat grup tidak ikut tersimpan.';
+let outT=0, outForce=false, outBusy=false, wiping=false;
+const outEl=()=>$('aout2'), outB=()=>outEl().querySelector('b'), outI=()=>outEl().querySelector('i');
+function outReset(){ clearTimeout(outT); outT=0; outForce=false; const el=outEl(); el.classList.remove('arm','danger'); outB().textContent='Keluar'; outI().textContent=OUT_SUB; }
+function outArm(title,sub,ms){ const el=outEl(); el.classList.add('arm','danger'); outB().textContent=title; outI().textContent=sub; clearTimeout(outT); outT=setTimeout(outReset,ms); }
+async function flushCloud(){ /* tunggu sinkron yang sedang jalan, lalu simpan terbaru ke akun */
+  for(let i=0;i<40&&aBusy;i++) await new Promise(r=>setTimeout(r,200));
+  if(aBusy) return false;
+  return (await syncCloud(false,{noReload:true}))===true;
+}
+async function wipeLocal(extraKeep){ /* hapus semua data obrolan di perangkat ini, kecuali tema tampilan (dan kunci di extraKeep, mis. token akun yang baru masuk) */
+  wiping=true;
+  try{ if(current) current.stop(); }catch{}
+  const keep={theme:store.get('theme'),...(extraKeep||{})};
+  await idb.clear();
+  const clean=()=>{ try{ localStorage.clear(); }catch{} try{ sessionStorage.clear(); }catch{} for(const [k,v] of Object.entries(keep)) if(v!=null) store.set(k,v); };
+  clean(); window.addEventListener('pagehide',()=>{ if(wiping) clean(); }); /* jaga-jaga: handler lain yang menulis lagi saat halaman ditutup */
+}
+outEl().onclick=async()=>{
+  if(outBusy) return;
+  if(!outT){ outArm('Tap lagi untuk keluar','Obrolan di perangkat ini akan dihapus setelah disimpan ke akun.',4000); return; }
+  clearTimeout(outT); outT=0; outBusy=true; outB().textContent='Menyimpan ke akun…'; sacct.classList.add('sbusy');
+  if(!outForce){
+    const ok=await flushCloud();
+    if(!ok){
+      sacct.classList.remove('sbusy'); outBusy=false;
+      if(!atok){ outReset(); setA('Sesi berakhir. Masuk lagi dulu supaya obrolanmu tersimpan sebelum keluar.',true); return; }
+      outForce=true; outArm('Tap lagi untuk keluar tanpa menyimpan','Gagal menyimpan ke akun. Kalau lanjut, obrolan yang belum tersimpan ikut hilang.',6000);
+      setA('Gagal menyimpan ke akun, jadi kamu belum keluar. Cek koneksi lalu coba lagi.',true); return;
+    }
+  }
+  setA('Keluar dan menghapus data di perangkat ini…');
   try{ await aApi('logout'); }catch{}
-  atok=''; store.set('authtok',null); store.set('authname',null); saveWallet(null); paintAcct(); setA('Sudah keluar.');
+  atok=''; store.set('authtok',null); store.set('authname',null); saveWallet(null);
+  await wipeLocal(); location.reload();
 };
 let adelT=0;
 $('adel').onclick=async()=>{
