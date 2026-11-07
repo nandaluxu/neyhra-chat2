@@ -75,6 +75,17 @@ Tab ketiga di navbar (ikon hadiah), alamat `/bonus`. Perlu akun (MongoDB aktif d
 - **Field baru di `users`**: `bonusDay`, `bonusN`, `refCode` (index unik sparse), `invited`, `refBy`, `refAt`.
 - **Client**: `public/bonus.js` + `bonus.css`. Menyegarkan lewat kejadian `shell:tab` (dari `Shell.setTab`) dan `acct` (dari `paintAcct`).
 
+## Minigame (coin dari main game)
+
+Tab di navbar (ikon gamepad, di atas Bonus), alamat `/games`. Perlu akun (MongoDB aktif dan sudah masuk). Halaman berisi daftar game; sekarang baru **Tebak Angka** (kartu kedua "Segera hadir" sebagai tempat game berikutnya).
+
+- **Tebak Angka**: server memilih angka 1-100, pemain punya 7 tebakan dan dijawab "lebih besar/kecil". Dengan membagi dua rentang, angka selalu ketemu dalam 7 tebakan. Hadiah menurut jumlah tebakan: 1-3 = 50, 4 = 40, 5 = 30, 6 = 20, 7 = 10 coin. Maksimal **5 kemenangan berhadiah per hari** (reset 00.00 WIB, anti farming); setelah itu tetap bisa main tanpa hadiah.
+- **Atur hadiah**: objek `GUESS` di atas `lib/games.js` (`rewards` = coin per jumlah tebakan, panjang array = jumlah tebakan maksimal; `dailyWins` = batas harian). Tidak perlu mengubah kode lain.
+- **Anti curang**: angka rahasia hanya ada di server (koleksi `game_state`, TTL 24 jam) dan baru dikirim setelah pemain kalah. Penilaian tebakan, hadiah, dan `$inc` saldo semuanya di server dengan penjaga atomik (dua permintaan bersamaan tidak bisa menang dua kali), plus pembatas laju.
+- **API** (POST, token Bearer, `lib/games.js`, dipasang lewat `mountGames` di `lib/auth.js`): `/api/auth/game` (keadaan, untuk memulihkan layar), `/api/auth/game/start`, `/api/auth/game/guess` (body `{ n }`). Respons memuat `coins`/`gems` terbaru, jadi saldo di navbar ikut berubah.
+- **Field baru** di `users`: `gameDay`, `gameWins`. Koleksi baru: `game_state`.
+- **Client**: `public/games.js` + `games.css`. Menambah game baru: tambah entri di `GAMES` (`ready:true`), fungsi render layarnya, dan route aksinya di handler klik.
+
 ## URL per layar (public/router.js)
 
 Tetap satu aplikasi (tanpa muat ulang), tapi tiap layar punya alamat dan tombol back/forward browser berfungsi:
@@ -86,6 +97,7 @@ Tetap satu aplikasi (tanpa muat ulang), tapi tiap layar punya alamat dan tombol 
 | `/chat/<id>` | Obrolan Terakhir dengan chat karakter terbuka, mis. `/chat/reze` |
 | `/global` | Chat Global |
 | `/bonus` | Bonus (klaim harian, kode referal) |
+| `/games` | Minigame (Tebak Angka) |
 | `/settings` | Pengaturan |
 
 - Bisa dibuka langsung lewat tautan. `id` yang tidak dikenal kembali ke `/`. Chat grup (fitur rahasia) memakai alamat `/chat`.

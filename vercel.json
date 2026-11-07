@@ -22,6 +22,10 @@
       "destination": "/index.html"
     },
     {
+      "source": "/games",
+      "destination": "/index.html"
+    },
+    {
       "source": "/settings",
       "destination": "/index.html"
     }
