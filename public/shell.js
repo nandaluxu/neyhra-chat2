@@ -26,20 +26,21 @@ function say(t) {
 
 /* ---------- Tab ---------- */
 let mode = 'char'; // sub-tab daftar: 'char' | 'group'
-const rhome = $('rhome'), rrecent = $('rrecent'), rlogo = $('rlogo');
+const rhome = $('rhome'), rrecent = $('rrecent'), rbonus = $('rbonus'), rlogo = $('rlogo');
 
 function syncRail() {
-  const home = tab() === 'home';
-  rhome.classList.toggle('on', home); rrecent.classList.toggle('on', !home);
-  if (home) rhome.setAttribute('aria-current', 'page'); else rhome.removeAttribute('aria-current');
-  if (!home) rrecent.setAttribute('aria-current', 'page'); else rrecent.removeAttribute('aria-current');
+  const t = tab(), home = t === 'home';
+  for (const [el, k] of [[rhome, 'home'], [rrecent, 'recent'], [rbonus, 'bonus']]) {
+    el.classList.toggle('on', t === k);
+    if (t === k) el.setAttribute('aria-current', 'page'); else el.removeAttribute('aria-current');
+  }
   rlogo.setAttribute('aria-expanded', String(home && mqD.matches && app.classList.contains('rail-x')));
 }
 function setTab(t, opts) {
-  t = t === 'recent' ? 'recent' : 'home';
+  t = t === 'recent' || t === 'bonus' ? t : 'home';
   const auto = !opts || opts.auto !== false;
   app.dataset.tab = t; syncRail();
-  if (t === 'home') {
+  if (t === 'home' || t === 'bonus') { // layar tanpa chat: Beranda dan Bonus
     closeMenu();
     if (isOpen()) closeChat();
     detail(false, { keep: true });
@@ -47,6 +48,7 @@ function setTab(t, opts) {
     renderRecent();
     if (auto && mqD.matches && !isOpen()) openFirst();
   }
+  window.dispatchEvent(new CustomEvent('shell:tab', { detail: t })); // bonus.js menyegarkan datanya saat tabnya tampil
 }
 function enterChatTab() { if (tab() !== 'recent') setTab('recent', { auto: false }); }
 
@@ -361,6 +363,7 @@ rlogo.addEventListener('click', () => {
 });
 rhome.addEventListener('click', () => setTab('home'));
 rrecent.addEventListener('click', () => setTab('recent', { auto: true }));
+rbonus.addEventListener('click', () => setTab('bonus'));
 $('lpclose').addEventListener('click', togglePanel);
 $('lpopen').addEventListener('click', togglePanel);
 $('dtoggle').addEventListener('click', () => { if (detailOpen()) closeRel(); else openRel(); });

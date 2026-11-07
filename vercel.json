@@ -18,6 +18,10 @@
       "destination": "/index.html"
     },
     {
+      "source": "/bonus",
+      "destination": "/index.html"
+    },
+    {
       "source": "/settings",
       "destination": "/index.html"
     }

@@ -3,6 +3,7 @@
      /chat           Obrolan Terakhir (termasuk chat grup yang lagi terbuka)
      /chat/<id>      Obrolan Terakhir dengan chat karakter terbuka (mis. /chat/reze)
      /global         Chat Global
+     /bonus          Bonus (klaim harian, kode referal)
      /settings       Pengaturan
    Cara kerja: URL mengikuti layar yang tampil (diamati dari kelas DOM), dan tombol back/forward browser
    membuka/menutup layar lewat fungsi yang sudah ada. Tidak ada kode layar yang diubah.
@@ -19,6 +20,7 @@
   function curPath() {
     if (!setEl.classList.contains('hide')) return '/settings'
     if (gcEl.classList.contains('show')) return '/global'
+    if (appEl.dataset.tab === 'bonus') return '/bonus'
     if (appEl.dataset.tab === 'recent') {
       if (appEl.classList.contains('open') && !(window.GX && GX.cur) && typeof ch !== 'undefined' && ch) return '/chat/' + ch.id
       return '/chat'
@@ -49,6 +51,8 @@
         if (!c) return false
         Shell.setTab('recent', { auto: false })
         openChat(c, centerEl()) // sudah terbuka/ganti chat lain ditangani openChat sendiri (ganti instan)
+      } else if (path === '/bonus') {
+        Shell.setTab('bonus', { auto: false })
       } else if (path === '/chat') {
         Shell.setTab('recent', { auto: false })
         if (appEl.classList.contains('open')) closeChat() // mobile: tampil daftar, desktop: placeholder

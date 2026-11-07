@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0b0b0c" media="(prefers-color-scheme: dark)">
 <link rel="icon" type="image/svg+xml" href="/icon.svg">
@@ -451,6 +451,7 @@ header .pfp,header .who{cursor:pointer}
 <link rel="stylesheet" href="/globalchat.css">
 <link rel="stylesheet" href="/extras.css">
 <link rel="stylesheet" href="/shell.css">
+<link rel="stylesheet" href="/bonus.css">
 </head>
 <body>
 <div id="app">
@@ -467,6 +468,10 @@ header .pfp,header .who{cursor:pointer}
     <button class="r-item" id="rrecent" type="button" data-tab="recent" title="Obrolan Terakhir">
       <svg viewBox="0 0 24 24"><path d="M5 5h14a2 2 0 012 2v8a2 2 0 01-2 2h-7l-5 4v-4H5a2 2 0 01-2-2V7a2 2 0 012-2zM8 10h8M8 13h5"/></svg>
       <span class="r-label">Obrolan Terakhir</span>
+    </button>
+    <button class="r-item" id="rbonus" type="button" data-tab="bonus" title="Bonus">
+      <svg viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13M5 12v8a1 1 0 001 1h12a1 1 0 001-1v-8M7.5 8a2.5 2.5 0 010-5C10 3 12 8 12 8s2-5 4.5-5a2.5 2.5 0 010 5"/></svg>
+      <span class="r-label">Bonus</span>
     </button>
     <button class="r-item r-bottom" id="setbtn" type="button" title="Pengaturan">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.9-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.9.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.9 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.9l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.9.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.9-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.9V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>
@@ -510,6 +515,15 @@ header .pfp,header .who{cursor:pointer}
       <button type="button" id="cetohome">Ke Beranda</button>
     </div>
   </div>
+  <section id="bonus" aria-label="Bonus">
+    <div class="bn-in">
+      <div class="bn-top">
+        <div><h1>Bonus</h1><p class="bn-sub">Klaim hadiah harian dan ajak teman untuk dapat coin &amp; gems.</p></div>
+        <div class="bn-wallet" role="group" aria-label="Saldo" data-w title="Masuk untuk punya coin &amp; gems"><span class="w-cur" data-k="coins"><img src="/coin.svg" alt="" draggable="false"><b class="w-n">–</b><span class="w-l">Coin</span></span><span class="w-cur" data-k="gems"><img src="/gems.png" alt="" draggable="false"><b class="w-n">–</b><span class="w-l">Gems</span></span></div>
+      </div>
+      <div id="bnbody"></div>
+    </div>
+  </section>
   <div id="chatview">
   <header>
     <button id="back" title="Kembali"><svg viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6"/></svg></button>
@@ -1084,7 +1098,7 @@ sendB.onclick=submit;
    - dicek ulang saat fokus berpindah, rotasi, kembali dari background, karena vv.resize kadang telat/tidak terkirim */
 (()=>{
   const vv=window.visualViewport; if(!vv) return; const root=document.documentElement;
-  let raf=0, base=0, kb=false, lastW=innerWidth;
+  let raf=0, base=0, kb=false, lastW=innerWidth, lastH=-1, lastTop=-1;
   const editable=el=>!!el&&(el.tagName==='TEXTAREA'||(el.tagName==='INPUT'&&!/^(checkbox|radio|range|button|submit|file|color|image)$/i.test(el.type)));
   const nearBottom=()=>chat.scrollHeight-chat.scrollTop-chat.clientHeight<90;
   const fit=()=>{ cancelAnimationFrame(raf); raf=requestAnimationFrame(()=>{
@@ -1093,10 +1107,13 @@ sendB.onclick=submit;
     if(innerWidth!==lastW){ lastW=innerWidth; base=0; } /* rotasi/resize jendela: tinggi acuan dihitung ulang */
     if(ed){ if(h>base) base=h; } else if(!base||h>base-120) base=h; /* acuan = tinggi penuh tanpa keyboard */
     const was=kb, near=nearBottom(); kb=ed&&base-h>120;
+    const top=Math.max(0,Math.round(vv.offsetTop));
+    if(window.scrollY) window.scrollTo(0,0);
+    if(h===lastH&&top===lastTop&&kb===was) return; /* tidak ada yang berubah: jangan sentuh layout (event vv.scroll/resize datang bertubi-tubi saat keyboard bergerak, itu yang bikin tampilan patah-patah) */
+    lastH=h; lastTop=top;
     root.style.setProperty('--app-h',h+'px');
-    root.style.setProperty('--app-top',Math.max(0,Math.round(vv.offsetTop))+'px');
+    root.style.setProperty('--app-top',top+'px');
     root.classList.toggle('kb',kb);
-    if(window.scrollY||vv.offsetTop) window.scrollTo(0,0);
     if(near||(kb&&!was&&document.activeElement===inp)) chat.scrollTop=chat.scrollHeight; /* tetap di bawah kalau tadinya di bawah */
     if(kb&&!was&&ed&&document.activeElement!==inp) setTimeout(()=>{ try{ document.activeElement.scrollIntoView({block:'center'}); }catch{} },80); /* input lain (login, nama, cari) jangan ketutup */
   }); };
@@ -1456,6 +1473,7 @@ function paintWallet(w){
 const loadWallet=()=>{ try{ const w=JSON.parse(store.get('wallet')||'null'); return w&&Number.isFinite(w.coins)&&Number.isFinite(w.gems)?w:null; }catch{ return null; } };
 const saveWallet=w=>{ store.set('wallet',w?JSON.stringify({coins:w.coins,gems:w.gems}):null); paintWallet(w); };
 function paintAcct(cloud){
+  window.__acctSeen=1; window.dispatchEvent(new Event('acct')); /* bonus.js ikut menyegarkan (status akun / masuk / keluar berubah) */
   sacct.classList.toggle('hide',!aOn);
   aout.classList.toggle('hide',!!atok); ain.classList.toggle('hide',!atok);
   if(atok){ $('aname').textContent=store.get('authname')||''; if(cloud!==undefined) $('acloud').textContent=cloud?fmtB(cloud.size)+' · '+new Date(cloud.updatedAt).toLocaleString('id-ID',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'belum ada'; }
@@ -2027,6 +2045,7 @@ fetch('/api/chars').then(r=>r.json()).then(cs=>{
 <script src="/globalchat.js"></script>
 <script src="/extras.js"></script>
 <script src="/shell.js"></script>
+<script src="/bonus.js"></script>
 <script src="/router.js"></script>
 </body>
 </html>

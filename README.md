@@ -64,6 +64,17 @@ Saldo ada di dokumen `users` (MongoDB), field `coins` dan `gems`. Akun baru otom
 - **Sumber data**: `/api/auth/register` dan `/api/auth/me` mengembalikan `coins` dan `gems`. Browser cuma membaca (cache di localStorage `wallet`, dihapus saat keluar/hapus akun). **Belum ada endpoint untuk mengubah saldo**; kalau nanti ada pemakaian/hadiah, ubah di server (`$inc` pada `users`), jangan dari client.
 - **Aset**: `public/coin.svg`, `public/gems.png`.
 
+## Bonus (klaim harian + kode referal)
+
+Tab ketiga di navbar (ikon hadiah), alamat `/bonus`. Perlu akun (MongoDB aktif dan sudah masuk); kalau belum, halamannya mengajak masuk. Semua hadiah dan saldo diputuskan server, browser cuma menampilkan.
+
+- **Klaim harian**: siklus 7 hari (hari 1-6 coin, hari 7 gems). Hari berganti **pukul 00.00 WIB**. Melewatkan satu hari = hitungan mulai lagi dari hari 1; setelah hari 7 siklus mengulang. Klaim ganda (dua tab/perangkat) ditolak atomik lewat filter `bonusDay: { $ne: hariIni }`.
+- **Kode referal**: tiap akun punya kode 8 karakter (dibuat sekali saat pertama buka tab Bonus). Teman memasukkan kode itu satu kali per akun; keduanya dapat hadiah. Tidak bisa memakai kode sendiri. Pemilik kode paling banyak dapat hadiah dari 50 teman (`REF_MAX_REWARDED`), temannya tetap dapat.
+- **Atur hadiah**: konstanta `DAILY` (7 hari) dan `REF` (pemilik/pemakai kode) di atas `lib/bonus.js`. Tidak perlu mengubah kode lain.
+- **API** (POST, token Bearer, `lib/bonus.js`): `/api/auth/bonus` (keadaan), `/api/auth/claim`, `/api/auth/redeem` (body `{ code }`). Respons memuat `coins`/`gems` terbaru, jadi saldo di navbar ikut berubah.
+- **Field baru di `users`**: `bonusDay`, `bonusN`, `refCode` (index unik sparse), `invited`, `refBy`, `refAt`.
+- **Client**: `public/bonus.js` + `bonus.css`. Menyegarkan lewat kejadian `shell:tab` (dari `Shell.setTab`) dan `acct` (dari `paintAcct`).
+
 ## URL per layar (public/router.js)
 
 Tetap satu aplikasi (tanpa muat ulang), tapi tiap layar punya alamat dan tombol back/forward browser berfungsi:
@@ -74,6 +85,7 @@ Tetap satu aplikasi (tanpa muat ulang), tapi tiap layar punya alamat dan tombol 
 | `/chat` | Obrolan Terakhir (termasuk chat grup yang lagi terbuka) |
 | `/chat/<id>` | Obrolan Terakhir dengan chat karakter terbuka, mis. `/chat/reze` |
 | `/global` | Chat Global |
+| `/bonus` | Bonus (klaim harian, kode referal) |
 | `/settings` | Pengaturan |
 
 - Bisa dibuka langsung lewat tautan. `id` yang tidak dikenal kembali ke `/`. Chat grup (fitur rahasia) memakai alamat `/chat`.
@@ -168,7 +180,7 @@ Tiap karakter punya **Level hubungan 1-100** yang naik lewat **EXP** dari obrola
 
 ## Shell UI (public/shell.js + shell.css)
 
-- **Tab**: `#app[data-tab="home|recent"]`. Beranda = grid avatar semua karakter (satu-satunya tempat mulai chat baru). Obrolan Terakhir = daftar obrolan di kiri, chat di kanan, panel detail karakter (hubungan, mood, perjalanan, kotak memori) paling kanan. Chat terbuka (`#app.open`) hanya mungkin di tab `recent`.
+- **Tab**: `#app[data-tab="home|recent|bonus"]` (Bonus: lihat bagian "Bonus"). Beranda = grid avatar semua karakter (satu-satunya tempat mulai chat baru). Obrolan Terakhir = daftar obrolan di kiri, chat di kanan, panel detail karakter (hubungan, mood, perjalanan, kotak memori) paling kanan. Chat terbuka (`#app.open`) hanya mungkin di tab `recent`.
 - **Rail**: sidebar ikon (bottom bar di HP). Klik logo di Beranda untuk expand/ciutkan; di Obrolan Terakhir rail terkunci mode ikon.
 - **Daftar obrolan**: tiap item punya menu titik tiga: Sematkan, Ganti nama (hanya tampilan di perangkat ini), Hapus. Tab "Grup" muncul setelah fitur rahasia terbuka.
 - **localStorage baru**: `rail`, `lp` (panel daftar ditutup), `dp` (panel detail ditutup, hanya >= 1200px), `pins`, `alias:<id>`.

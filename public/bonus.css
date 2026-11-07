@@ -1,0 +1,83 @@
+/* ===== Tab Bonus: klaim harian, kode referal, masukkan kode =====
+   Logika di bonus.js. Hanya memakai variabel tema yang sudah ada: --bg --surface --ink --mut --line --ok --rec. */
+
+#bonus{display:none;overflow-y:auto;overscroll-behavior:contain;background:var(--bg);scrollbar-width:none;min-width:0}
+#bonus::-webkit-scrollbar{display:none}
+#app[data-tab="bonus"] #bonus{display:block}
+#app[data-tab="bonus"] :is(#menu,#lpanel,#chatview,#cempty,#dpanel){display:none}
+@media(min-width:800px){#bonus{grid-column:2;grid-row:1}}
+@media(max-width:799px){#bonus{position:absolute;inset:0;padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))}}
+
+.bn-in{max-width:760px;margin:0 auto;padding:calc(24px + env(safe-area-inset-top,0px)) 18px 40px}
+@media(min-width:800px){.bn-in{padding:44px 40px 56px}}
+.bn-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.bn-top h1{font-size:30px;font-weight:700;letter-spacing:-.03em;line-height:1.1}
+.bn-sub{margin-top:6px;font-size:14px;line-height:1.4;color:var(--mut)}
+.bn-wallet{display:flex;align-items:center;gap:12px;padding:7px 14px;border-radius:99px;background:var(--surface);flex:none;transition:opacity .2s}
+.bn-wallet .w-cur{flex-direction:row;gap:6px}
+.bn-wallet .w-cur img{width:18px;height:18px}
+.bn-wallet .w-n{font-size:13px}
+.bn-wallet .w-l{display:none}
+.bn-wallet.off{opacity:.55}
+
+.bn-card{margin-top:18px;padding:18px;border-radius:22px;background:var(--surface)}
+.bn-card h2{font-size:16px;font-weight:600;letter-spacing:-.01em}
+.bn-hint{margin-top:4px;font-size:13px;line-height:1.45;color:var(--mut)}
+
+/* klaim harian */
+.bn-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px;margin-top:14px}
+.bn-day{position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0;padding:12px 4px 10px;border-radius:16px;background:var(--bg);border:1.5px solid transparent;text-align:center}
+.bn-day .d{font-size:11.5px;font-weight:500;color:var(--mut);white-space:nowrap}
+.bn-day img{width:28px;height:28px;object-fit:contain;display:block}
+.bn-day b{font-size:13px;font-weight:600;font-variant-numeric:tabular-nums}
+.bn-day.on{border-color:var(--ink)}
+.bn-day.done{opacity:.5}
+.bn-day.done::after{content:"";position:absolute;top:5px;right:5px;width:15px;height:15px;border-radius:50%;
+  background:var(--ok) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E") center/9px no-repeat}
+.bn-day.next{border-color:var(--line);border-style:dashed}
+@media(max-width:560px){
+  .bn-days{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .bn-day:last-child{grid-column:span 2;flex-direction:row;justify-content:center;gap:10px;padding:10px}
+}
+@media(prefers-reduced-motion:no-preference){
+  .bn-day.on{animation:bnpulse 2.2s ease-in-out infinite}
+  @keyframes bnpulse{50%{box-shadow:0 0 0 4px color-mix(in srgb,var(--ink) 12%,transparent)}}
+}
+
+.bn-btn{display:block;width:100%;margin-top:14px;padding:13px 16px;border-radius:99px;background:var(--ink);color:var(--bg);font-size:14.5px;font-weight:600;
+  transition:transform .15s,opacity .2s}
+.bn-btn:active{transform:scale(.98)}
+.bn-btn:disabled{background:var(--line);color:var(--mut);cursor:default;transform:none}
+.bn-btn:focus-visible,.bn-ic:focus-visible,.bn-go:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+
+/* kode referal */
+.bn-code{display:flex;align-items:center;gap:8px;margin-top:12px}
+.bn-code code{flex:1;min-width:0;padding:12px 10px;border-radius:14px;background:var(--bg);text-align:center;user-select:all;-webkit-user-select:all;
+  font:600 20px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.16em}
+.bn-ic{flex:none;width:44px;height:44px;border-radius:50%;background:var(--bg);color:var(--ink);transition:transform .15s}
+.bn-ic:active{transform:scale(.92)}
+.bn-ic svg{width:19px;height:19px}
+.bn-stat{display:flex;align-items:baseline;gap:8px;margin-top:14px}
+.bn-stat b{font-size:28px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1}
+.bn-stat span{font-size:13.5px;color:var(--mut)}
+
+/* masukkan kode */
+.bn-row{display:flex;gap:8px;margin-top:12px}
+.bn-f{flex:1;min-width:0;border:0;outline:0;background:var(--bg);color:var(--ink);border-radius:14px;padding:12px 14px;
+  font:inherit;font-size:16px;letter-spacing:.14em;text-transform:uppercase}
+.bn-f::placeholder{letter-spacing:0;text-transform:none;color:var(--mut)}
+.bn-f:focus{box-shadow:0 0 0 2px var(--ink)}
+.bn-row .bn-btn{width:auto;margin-top:0;padding:0 22px;flex:none}
+.bn-done{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:13.5px;color:var(--ok)}
+.bn-done svg{width:18px;height:18px;flex:none;stroke-width:2.4}
+
+.bn-msg{min-height:18px;margin-top:8px;font-size:13px;line-height:1.4;color:var(--mut)}
+.bn-msg.ok{color:var(--ok)}
+.bn-msg.err{color:var(--rec)}
+
+/* belum masuk / memuat / error */
+.bn-empty{margin-top:18px;padding:30px 20px;border-radius:22px;background:var(--surface);text-align:center}
+.bn-empty h2{font-size:17px;font-weight:600}
+.bn-empty p{margin:6px auto 0;max-width:340px;font-size:13.5px;line-height:1.45;color:var(--mut)}
+.bn-go{display:inline-block;margin-top:14px;padding:11px 22px;border-radius:99px;background:var(--ink);color:var(--bg);font-size:14px;font-weight:500}
+
