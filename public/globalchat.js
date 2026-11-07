@@ -4,7 +4,7 @@
 
    Pemisahan supaya nanti gampang dihubungkan ke backend:
    - globalchat.mock.js  = satu-satunya sumber data (window.GlobalChatAdapter). Ganti file itu dengan adapter sungguhan.
-   - globalchat.js       = hanya menggambar state dan memanggil aksi adapter. Tidak tahu soal jaringan, Redis, WebRTC, atau API.
+   - globalchat.js       = hanya menggambar state dan memanggil aksi adapter. Tidak tahu soal jaringan, Redis, MongoDB, atau API.
    Komponen di sini: StatusHeader, Banner, MessageList (Bubble, EmptyView, Skeleton), Composer, InfoSheet, DevSheet. */
 (() => {
 'use strict';
@@ -31,7 +31,7 @@ function addPhoto(node, m) {
 }
 const selfName = () => (typeof uname === 'string' && uname) || 'Tamu';
 const canSend = s => s.status === 'online' || s.status === 'syncing';
-A.setSelf(() => ({ id: cid, aid: gcAid(), name: selfName() })); // id = transport (presence/WebRTC, per browser); aid = identitas penulis
+A.setSelf(() => ({ id: cid, aid: gcAid(), name: selfName() })); // id = transport (presence/rate-limit, per browser); aid = identitas penulis
 
 const I = {
   back: '<svg viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>',
@@ -78,8 +78,8 @@ app.insertAdjacentHTML('beforeend', `
     <div class="sgroup">
       <div class="gc-fact"><b>Satu ruang untuk semua</b><i>Semua pengguna bisa membaca dan mengirim pesan di sini.</i></div>
       <div class="gc-fact"><b>Teks saja</b><i>Maksimal ${MAX} karakter per pesan. Tidak ada gambar maupun file.</i></div>
-      <div class="gc-fact"><b>Riwayat ada di perangkatmu</b><i>Riwayat disimpan di perangkat ini, lalu disinkronkan dari pengguna lain saat terhubung.</i></div>
-      <div class="gc-fact"><b>Terhubung langsung ke pengguna lain</b><i>Pesan dikirim realtime antar pengguna yang terhubung; server hanya menyimpan beberapa pesan terbaru sebagai cadangan.</i></div>
+      <div class="gc-fact"><b>Riwayat tersimpan di server</b><i>Semua pesan disimpan di server dan dimuat bertahap: yang terbaru dulu, yang lama muncul saat kamu menggulir ke atas.</i></div>
+      <div class="gc-fact"><b>Pesan baru muncul otomatis</b><i>Pesan dari pengguna lain diambil otomatis setiap beberapa detik selama aplikasi terbuka.</i></div>
     </div>
   </div>
 </div>
@@ -105,6 +105,7 @@ app.insertAdjacentHTML('beforeend', `
 
 const gc = $('gc'), list = $('gc-list'), inp = $('gc-inp'), sendB = $('gc-send'), banner = $('gc-banner'),
       cnt = $('gc-count'), as = $('gc-as'), down = $('gc-down'), infoOv = $('gc-info-ov'), devOv = $('gc-dev-ov');
+let older = false, loadingOld = false; // older: lagi memuat halaman riwayat lama (bukan pesan baru)
 let isOpen = false, started = false, primed = false, unread = 0, bannerKey = '', asKey = '', listKey = '', tT = 0;
 const seen = new Set();
 
@@ -127,10 +128,10 @@ function paintBanner(s) {
   const key = s.status + '|' + (s.error || '');
   if (key !== bannerKey) {
     bannerKey = key;
-    if (s.status === 'connecting') banner.innerHTML = `<span class="gc-bi gc-spin">${I.sync}</span><div class="gc-bt"><b>Menghubungkan…</b><small>Mencari pengguna lain untuk terhubung.</small></div>`;
+    if (s.status === 'connecting') banner.innerHTML = `<span class="gc-bi gc-spin">${I.sync}</span><div class="gc-bt"><b>Menghubungkan…</b><small>Memuat pesan terbaru.</small></div>`;
     else if (s.status === 'syncing') banner.innerHTML = `<span class="gc-bi gc-spin">${I.sync}</span><div class="gc-bt"><b>Menyinkronkan riwayat</b><small id="gc-ssub"></small></div><div class="gc-bar"><i id="gc-sbar"></i></div>`;
     else {
-      banner.innerHTML = `<span class="gc-bi">${I.offline}</span><div class="gc-bt"><b></b><small>Riwayat di perangkat ini tetap bisa dibaca, tapi kamu belum bisa kirim pesan.</small></div><button class="gc-btn" type="button" data-act="reconnect">Coba lagi</button>`;
+      banner.innerHTML = `<span class="gc-bi">${I.offline}</span><div class="gc-bt"><b></b><small>Pesan yang sudah dimuat tetap bisa dibaca, tapi kamu belum bisa kirim pesan.</small></div><button class="gc-btn" type="button" data-act="reconnect">Coba lagi</button>`;
       banner.querySelector('b').textContent = s.error || 'Kamu sedang offline';
     }
   }
@@ -190,14 +191,15 @@ function paintList(s) {
       const cont = !!p && dayKey(p.ts) === dk && authorKey(p) === authorKey(m) && m.ts - p.ts < GROUP;
       const more = !!n && dayKey(n.ts) === dk && authorKey(n) === authorKey(m) && n.ts - m.ts < GROUP;
       const isNew = !seen.has(m.id);
-      if (isNew) { seen.add(m.id); if (primed) { added++; isMine(m) ? mine++ : other++; } }
-      frag.append(bubble(m, { mine: isMine(m), first: !cont, last: !more, fresh: primed && isNew }));
+      if (isNew) { seen.add(m.id); if (primed && !older) { added++; isMine(m) ? mine++ : other++; } }
+      frag.append(bubble(m, { mine: isMine(m), first: !cont, last: !more, fresh: primed && isNew && !older }));
     });
   }
   list.replaceChildren(frag);
   if (!primed || mine || (nearBottom && added)) { list.scrollTo({ top: list.scrollHeight, behavior: primed ? 'smooth' : 'auto' }); unread = 0; }
   else { list.scrollTop = top; if (other) unread += other; }
   primed = true; paintDown();
+  if (s.more && list.scrollHeight <= list.clientHeight + 60) setTimeout(pageOlder, 0); // daftar belum cukup panjang untuk digulir: ambil halaman lama
 }
 function paintDown() {
   const far = list.scrollHeight - list.scrollTop - list.clientHeight > 280;
@@ -205,7 +207,18 @@ function paintDown() {
   const n = $('gc-newn'); n.classList.toggle('hide', !unread); n.textContent = unread ? unread + ' pesan baru' : '';
   down.classList.toggle('show', far || unread > 0);
 }
-list.addEventListener('scroll', paintDown, { passive: true });
+/* Pagination riwayat: dekat batas atas -> minta halaman lama ke adapter, lalu jaga posisi gulir supaya tidak melompat. */
+async function pageOlder() {
+  if (loadingOld || !A.getState().more || list.scrollTop > 160) return;
+  loadingOld = true; older = true;
+  const h0 = list.scrollHeight, t0 = list.scrollTop;
+  try { await A.loadOlder(); }
+  finally {
+    older = false; list.scrollTop = t0 + (list.scrollHeight - h0); loadingOld = false;
+    if (A.getState().more && list.scrollHeight <= list.clientHeight + 60) setTimeout(pageOlder, 0);
+  }
+}
+list.addEventListener('scroll', () => { paintDown(); pageOlder(); }, { passive: true });
 down.onclick = () => { unread = 0; list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' }); };
 
 /* ---------- Composer ---------- */
@@ -336,7 +349,7 @@ $('sdev').addEventListener('change', () => { sRow.classList.toggle('hide', !devO
 /* ---------- Notifikasi pesan baru (jalan walau lagi chat dengan karakter / grup) ----------
    Diatur di Pengaturan (switch #sgcn, disimpan di localStorage 'gcn'; default menyala).
    Menyala -> adapter tetap sinkron di latar belakang (A.keepAlive). Pesan dianggap "baru" kalau ts-nya lebih baru dari
-   semua pesan yang sudah terlihat, jadi riwayat yang baru ditarik dari peer/Redis tidak memicu notifikasi. */
+   semua pesan yang sudah terlihat, jadi riwayat yang baru dimuat dari server tidak memicu notifikasi. */
 const NKEY = 'gcn';
 let notifOn = store.get(NKEY) !== '0', nReady = false, nMax = 0, nUnread = 0, nBatch = [], nT = 0;
 const nSw = $('sgcn');
