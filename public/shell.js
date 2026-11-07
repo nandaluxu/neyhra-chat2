@@ -401,3 +401,55 @@ function applyCw(t) {
 window.Shell = { setTab, tab, enterChatTab, renderRecent, touch, syncTabs, afterOpen, afterClose, togglePanel, detail, detailOpen, docked, refreshDetail, renamed, esc, isDesk: () => mqD.matches };
 syncTabs(); renderRecent();
 })();
+
+/* ---------- Menu titik tiga di header chat (HP) ----------
+   Tombol aslinya (#find, #dtoggle, #vmore, #gmore, #exp, #clr) disembunyikan lewat CSS di HP, tapi tetap ada dan dipicu dari sini
+   lewat .click(), jadi semua perilaku (chat karakter maupun grup) sama persis. Item hanya muncul kalau tombol aslinya sedang aktif. */
+(() => {
+  const hb = document.getElementById('hmore'), hm = document.getElementById('hmenu');
+  if (!hb || !hm) return;
+  const ITEMS = [
+    { id: 'find', label: 'Cari di obrolan', d: 'M16 16l4.5 4.5M11 4.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13z' },
+    { id: 'dtoggle', label: 'Profil & hubungan', d: 'M12 11v5M12 8h.01M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z' },
+    { id: 'vmore', label: 'Pilih suara', d: 'M4 9v6h4l5 4V5L8 9zM16.5 8.5a5 5 0 0 1 0 7' },
+    { id: 'gmore', label: 'Panel grup', d: 'M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM3 19c0-3 2.7-5 6-5s6 2 6 5M16 5.5a3 3 0 0 1 0 5.5M18 14c2 .6 3 2.3 3 5' },
+    { id: 'exp', label: 'Ekspor obrolan', d: 'M12 4v11M7 10l5 5 5-5M5 19h14' },
+    { id: 'clr', label: 'Hapus obrolan', d: 'M4 7h16M10 11v6M14 11v6M6 7l1 12h10l1-12M9 7V4h6v3', danger: true }
+  ];
+  let armT = 0;
+  const isOpen = () => !hm.classList.contains('hide');
+  function close(refocus) {
+    clearTimeout(armT); armT = 0;
+    hm.classList.add('hide'); hb.setAttribute('aria-expanded', 'false');
+    if (refocus) hb.focus({ preventScroll: true });
+  }
+  function open() {
+    hm.textContent = '';
+    ITEMS.forEach(it => {
+      const target = document.getElementById(it.id);
+      if (!target || target.classList.contains('hide')) return;
+      const b = document.createElement('button'); b.type = 'button'; b.setAttribute('role', 'menuitem'); if (it.danger) b.className = 'danger';
+      b.innerHTML = '<svg viewBox="0 0 24 24"><path d="' + it.d + '"/></svg><span></span>'; b.lastChild.textContent = it.label;
+      b.addEventListener('click', e => {
+        e.stopPropagation();
+        if (it.id === 'clr') { // hapus obrolan: konfirmasi tap dua kali, dilakukan di dalam menu supaya menu tetap terbuka di antara dua tap
+          if (!armT) { b.lastChild.textContent = 'Tap lagi untuk hapus'; armT = setTimeout(() => { armT = 0; b.lastChild.textContent = it.label; }, 2500); return; }
+          close(); target.click(); target.click(); return; // klik pertama mengaktifkan konfirmasi bawaan, klik kedua menjalankannya
+        }
+        close(); setTimeout(() => target.click(), 0);
+      });
+      hm.append(b);
+    });
+    if (!hm.children.length) return;
+    hm.classList.remove('hide'); hm.style.visibility = 'hidden'; hb.setAttribute('aria-expanded', 'true');
+    const r = hb.getBoundingClientRect(), w = hm.offsetWidth || 224, h = hm.offsetHeight;
+    const left = Math.max(8, Math.min(innerWidth - w - 8, r.right - w)); let top = r.bottom + 6;
+    if (top + h > innerHeight - 8) top = Math.max(8, innerHeight - h - 8);
+    hm.style.left = left + 'px'; hm.style.top = top + 'px'; hm.style.visibility = '';
+    const first = hm.querySelector('button'); if (first) first.focus({ preventScroll: true });
+  }
+  hb.addEventListener('click', e => { e.stopPropagation(); if (isOpen()) close(true); else open(); });
+  document.addEventListener('click', e => { if (isOpen() && !hm.contains(e.target)) close(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && isOpen()) { e.stopImmediatePropagation(); e.preventDefault(); close(true); } }, true);
+  window.addEventListener('resize', () => { if (isOpen()) close(); });
+})();

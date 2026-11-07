@@ -85,14 +85,19 @@
 /* tombol header baru: #lpopen hanya desktop saat panel daftar ditutup */
 #lpopen{display:none}
 
+/* tombol titik tiga di header chat: hanya HP. Cari/Profil/Suara/Panel grup/Ekspor/Hapus dikumpulkan di sini */
+#hmore{display:none;color:var(--mut)}
+#hmore svg{fill:currentColor;stroke:none}
+#hmenu{width:224px}
+
 /* ---------- Menu titik tiga ---------- */
-#lpmenu{position:fixed;z-index:20;width:190px;background:var(--bg);border:1px solid var(--line);border-radius:16px;padding:6px;
+#lpmenu,#hmenu{position:fixed;z-index:20;width:190px;background:var(--bg);border:1px solid var(--line);border-radius:16px;padding:6px;
         box-shadow:0 12px 32px rgba(0,0,0,.16);animation:nin .25s cubic-bezier(.2,.9,.3,1.2)}
-#lpmenu button{display:flex;align-items:center;gap:10px;width:100%;height:42px;padding:0 12px;border-radius:11px;font-size:14px;font-weight:500;text-align:left;justify-content:flex-start}
-#lpmenu button svg{width:18px;height:18px;flex:none}
-#lpmenu button.danger{color:var(--rec)}
-@media(hover:hover){#lpmenu button:hover{background:var(--surface)}}
-#lpmenu button:focus-visible{background:var(--surface);outline:2px solid var(--ink);outline-offset:-2px}
+#lpmenu button,#hmenu button{display:flex;align-items:center;gap:10px;width:100%;height:42px;padding:0 12px;border-radius:11px;font-size:14px;font-weight:500;text-align:left;justify-content:flex-start}
+#lpmenu button svg,#hmenu button svg{width:18px;height:18px;flex:none}
+#lpmenu button.danger,#hmenu button.danger{color:var(--rec)}
+@media(hover:hover){#lpmenu button:hover,#hmenu button:hover{background:var(--surface)}}
+#lpmenu button:focus-visible,#hmenu button:focus-visible{background:var(--surface);outline:2px solid var(--ink);outline-offset:-2px}
 #rninp{width:100%;margin-top:14px;border:0;outline:0;background:var(--surface);color:var(--ink);border-radius:14px;padding:13px 15px;font:inherit;font-size:16px}
 #rninp:focus{box-shadow:0 0 0 2px var(--ink)}
 #rnsave{background:var(--ink);color:var(--bg)}
@@ -184,6 +189,8 @@
   #dpanel{position:absolute;inset:0;z-index:6;transform:translateX(100%);transition:transform .3s cubic-bezier(.2,.9,.2,1),visibility 0s .3s;visibility:hidden;border-left:0}
   #app.dp-on #dpanel{transform:none;visibility:visible;transition-delay:0s}
   #lpclose,#lpopen{display:none}
+  header>#find,header>#exp,header>#clr,header>#vmore,header>#gmore,header>#dtoggle{display:none!important}
+  #hmore{display:grid}
   #ltoast{bottom:calc(76px + env(safe-area-inset-bottom,0px))}
 }
 
