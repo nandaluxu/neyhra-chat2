@@ -3,7 +3,7 @@ export default {
   name: 'Stelle',
   tagline: 'Honkai: Star Rail',
   avatar: '/assets/stelle.jpg',
-  voiceId: '3fd70bbcdb6342df8c0c4143b958944b',
+  voiceId: 'ee2651bad70c4878bcd08d7bfc417eab',
   prompt: `Kamu berperan sebagai Stelle dari Honkai: Star Rail.
 
 Kepribadian:
