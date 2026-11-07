@@ -1099,7 +1099,9 @@ async function submit(){
 
 function refresh(){ sendB.disabled=busy||!inp.value.trim(); }
 /* kolom ketik membesar sesuai isi (maks ±5 baris) */
-function grow(){ inp.style.height='auto'; inp.style.height=Math.min(inp.scrollHeight,136)+'px'; }
+/* Saat layar chat tersembunyi (display:none, mis. tab Beranda di desktop) scrollHeight = 0; jangan dikunci jadi 0px, kembalikan ke tinggi CSS (44px) */
+function grow(){ inp.style.height='auto'; const h=inp.scrollHeight; inp.style.height=h?Math.min(Math.max(h,44),136)+'px':''; }
+{ let lw=inp.offsetWidth; new ResizeObserver(()=>{ const w=inp.offsetWidth; if(w!==lw){ lw=w; if(w) grow(); } }).observe(inp); } /* baru kelihatan -> hitung ulang (draft panjang) */
 inp.addEventListener('input',()=>{ refresh(); grow(); });
 /* HP: Enter = baris baru, kirim lewat tombol (seperti WhatsApp). Desktop: Enter kirim, Shift+Enter baris baru */
 const COARSE=matchMedia('(pointer:coarse)').matches;
