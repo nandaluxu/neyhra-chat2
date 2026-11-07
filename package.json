@@ -4,7 +4,9 @@
   "type": "module",
   "scripts": {
     "start": "node --env-file=.env dev.js",
-    "db:test": "node --env-file=.env scripts/db-test.js"
+    "db:test": "node --env-file=.env scripts/db-test.js",
+    "r2:test": "node --env-file=.env scripts/r2-test.js",
+    "r2:migrate": "node --env-file=.env scripts/migrate-avatars-r2.js"
   },
   "engines": {
     "node": ">=20.6"

@@ -64,6 +64,36 @@ Saldo ada di dokumen `users` (MongoDB), field `coins` dan `gems`. Akun baru otom
 - **Sumber data**: `/api/auth/register` dan `/api/auth/me` mengembalikan `coins` dan `gems`. Browser cuma membaca (cache di localStorage `wallet`, dihapus saat keluar/hapus akun). **Belum ada endpoint untuk mengubah saldo**; kalau nanti ada pemakaian/hadiah, ubah di server (`$inc` pada `users`), jangan dari client.
 - **Aset**: `public/coin.svg`, `public/gems.png`.
 
+## Foto profil di Cloudflare R2
+
+Foto profil (Profil → Edit profil → ganti foto) disimpan di **Cloudflare R2**, dan **alamat fotonya** disimpan di MongoDB (`users.avatarUrl`, plus `users.avKey` = nama objek di bucket). Browser mengecilkan foto jadi 256x256 JPEG (maks 100 KB), server memeriksanya (harus JPEG sungguhan), mengunggahnya ke R2 dengan nama acak (`pfp/<acak>.jpg`), lalu menyimpan alamatnya. Ganti atau hapus foto otomatis menghapus objek lama; hapus akun menghapus fotonya juga. Kode: `lib/r2.js` (klien R2 tanpa library tambahan, tanda tangan AWS SigV4), `lib/profile.js`.
+
+Kalau env R2 belum diisi, foto tetap disimpan di MongoDB seperti sebelumnya (koleksi `avatars`), jadi lokal tanpa R2 tetap jalan. Foto lama yang masih di MongoDB tetap tampil; pindahkan ke R2 dengan `npm run r2:migrate` (tambah `-- --dry` untuk hitung dulu).
+
+### Pasang (sekali saja)
+
+1. **Buat bucket**: dashboard Cloudflare → **R2 Object Storage** → **Create bucket** (mis. `neyhra-pfp`, lokasi Automatic). R2 bisa meminta metode pembayaran untuk mengaktifkan layanan; paket gratisnya (10 GB simpanan) lebih dari cukup untuk foto 100 KB.
+2. **Buka akses baca publik**: masuk ke bucket → **Settings** → **Public access**.
+   - Cepat untuk mencoba: **Public Development URL** → Enable → salin alamat `https://pub-xxxxxxxx.r2.dev`. (Cloudflare membatasi r2.dev dan tidak menyarankannya untuk produksi.)
+   - Untuk produksi: **Custom Domains** → Connect Domain (mis. `pfp.domainmu.com`, domainnya harus di Cloudflare). Foto ikut di-cache CDN.
+3. **Buat API token**: halaman R2 utama → **API** / **Manage API Tokens** → **Create API token** → izin **Object Read & Write** → batasi ke bucket tadi → Create. Salin **Access Key ID** dan **Secret Access Key** (Secret hanya muncul sekali). **Account ID** ada di halaman R2 yang sama (juga di alamat S3 API `https://<ACCOUNT_ID>.r2.cloudflarestorage.com`).
+4. **Isi env** (di `.env` lokal, dan di Vercel: Project → Settings → Environment Variables lalu **Redeploy**):
+
+```
+R2_ACCOUNT_ID=isi_account_id
+R2_ACCESS_KEY_ID=isi_access_key_id
+R2_SECRET_ACCESS_KEY=isi_secret_access_key
+R2_BUCKET=neyhra-pfp
+R2_PUBLIC_URL=https://pub-xxxxxxxx.r2.dev
+# opsional, hanya kalau bucketmu berjurisdiksi EU: R2_ENDPOINT=https://<ACCOUNT_ID>.eu.r2.cloudflarestorage.com
+```
+
+   `R2_PUBLIC_URL` tanpa garis miring di akhir (kalau ada, dibuang otomatis). Jangan pernah commit `.env` atau menaruh Secret di kode.
+5. **Tes**: `npm run r2:test` → harus mencetak `unggah: ok`, `baca publik: ok`, `hapus: ok`. Kalau gagal, pesannya menunjuk penyebabnya (token/izin salah, bucket salah, atau akses publik belum dinyalakan).
+6. (Opsional) `npm run r2:migrate -- --dry` lalu `npm run r2:migrate` untuk memindahkan foto lama dari MongoDB ke R2.
+
+Respons profil kini memuat `avatar` (alamat foto lengkap atau `''`); client memakainya langsung. Endpoint lama `GET /api/auth/avatar/:username` tetap ada untuk foto yang masih di MongoDB, dan mengalihkan (302) ke R2 kalau fotonya sudah di sana.
+
 ## Bonus (klaim harian + kode referal)
 
 Tab ketiga di navbar (ikon hadiah), alamat `/bonus`. Perlu akun (MongoDB aktif dan sudah masuk); kalau belum, halamannya mengajak masuk. Semua hadiah dan saldo diputuskan server, browser cuma menampilkan.
