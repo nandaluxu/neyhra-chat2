@@ -203,3 +203,14 @@
 .rng::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:var(--ink);border:3px solid var(--bg);box-shadow:0 0 0 1px var(--line)}
 .rng:focus-visible{outline:2px solid var(--ink);outline-offset:2px;border-radius:8px}
 .cwend{font-size:11.5px;margin-top:2px}
+
+/* ---------- Voice note: bubble pemutar dan bubble subtitle dipisah ----------
+   .vcol = kolom berisi bubble voice note (atas) + bubble subtitle (bawah, muncul saat diputar/dibuka).
+   Bubble subtitle boleh jauh lebih lebar dari bubble voice note, jadi teks panjang tidak memanjang ke bawah. */
+.vcol{display:flex;flex-direction:column;align-items:flex-start;gap:4px;min-width:0;max-width:min(88%,980px)}
+.row .vcol>.bub{max-width:100%}
+.vcol .sbub{display:none}
+.vcol:has(.sub.show) .sbub{display:block;animation:bub .3s cubic-bezier(.2,.9,.3,1.15);padding:8px 13px 9px;border-top-left-radius:8px}
+.vcol:has(.sub.show)>.bub:first-child{border-bottom-left-radius:8px}
+.sbub .sub,.sbub .sub.show{width:auto;min-width:0;margin-top:0;padding-top:0;border-top-color:transparent;font-size:14.5px;line-height:1.5}
+@media(min-width:800px){.vcol{max-width:min(78%,980px)}}
