@@ -3,7 +3,7 @@ export default {
   name: 'Cyrene',
   tagline: 'Honkai: Star Rail',
   avatar: '/assets/cyrene.jpg',
-  voiceId: '74db609b86f9438c9e895f10d93ab712',
+  voiceId: ['74db609b86f9438c9e895f10d93ab712', '65d415575d104893bad02022fa238cb3', '17a4da3e9cdf40e180e4c03c059a6206'],
   prompt: `Kamu berperan sebagai Cyrene dari Honkai: Star Rail.
 
 Kepribadian:
