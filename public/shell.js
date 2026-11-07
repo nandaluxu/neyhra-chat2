@@ -141,12 +141,14 @@ function buildItem(en) {
   const r2 = document.createElement('span'); r2.className = 'lp-row';
   const pv = document.createElement('span'); pv.className = 'lp-prev';
   if (en.prev.mic) pv.insertAdjacentHTML('beforeend', MIC);
-  pv.append(document.createTextNode(en.prev.text));
-  r2.append(pv); if (en.pinned) r2.insertAdjacentHTML('beforeend', PIN);
-  bd.append(r1, r2);
+  const tx = document.createElement('span'); tx.className = 'lp-txt'; tx.textContent = en.prev.text; // teks sendiri supaya ellipsis ("sejeni...") bekerja
+  pv.append(tx);
   const more = document.createElement('button'); more.type = 'button'; more.className = 'lp-more';
   more.setAttribute('aria-haspopup', 'menu'); more.setAttribute('aria-expanded', 'false'); more.setAttribute('aria-label', 'Menu obrolan'); more.insertAdjacentHTML('beforeend', DOTS);
-  el.append(av, bd, more);
+  r2.append(pv); if (en.pinned) r2.insertAdjacentHTML('beforeend', PIN);
+  r2.append(more); // titik tiga ada di SEMUA item, di ujung baris pratinjau (bukan kotak terpisah)
+  bd.append(r1, r2);
+  el.append(av, bd);
   const go = () => openEntry(en, av);
   el.addEventListener('click', e => { if (e.target.closest('.lp-more')) return; go(); });
   el.addEventListener('keydown', e => { if (e.target !== el) return; if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
