@@ -391,7 +391,7 @@ function typingRow(id) {
   row.className = 'row them grow typ'; row.style.setProperty('--h', hue(id));
   row.innerHTML = '<div class="bub"><div class="gname"></div><div class="typing-b"><i></i><i></i><i></i></div></div>';
   row.prepend(img(c, 'gav')); row.querySelector('.gname').textContent = c.name;
-  chat.append(row); scroll(); setStatus(c.name + ' sedang mengetik…', true);
+  chat.append(row); scroll(); setStatus((String(c.name || '').replace(/\([^)]*\)/g, ' ').trim().split(/\s+/)[0] || c.name) + ' sedang mengetik…', true);
   return row;
 }
 function recRow(row, id) {
