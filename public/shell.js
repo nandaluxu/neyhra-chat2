@@ -380,6 +380,24 @@ mqW.addEventListener('change', () => {
   else if (tab() === 'recent' && isOpen() && ch && !(window.GX && GX.cur) && store.get('dp') !== '0') { app.classList.add('dp-on'); paintRel(); renderCharMem(ch.id); }
 });
 
+/* ---------- Lebar area chat (slider di Pengaturan > Tampilan, disimpan di `cw`) ----------
+   0 = luas (penuh), 0.5 = sempit seperti dulu (720px), 1 = paling sempit (360px). Dipakai lewat variabel CSS --cw. */
+const CW_MIN = 360, CW_MID = 720, CW_MAX = 1600;
+const cwVal = () => { const v = parseFloat(store.get('cw')); return isFinite(v) ? Math.min(1, Math.max(0, v)) : 0; };
+const cwPx = t => Math.round(t <= .5 ? CW_MAX + (CW_MID - CW_MAX) * (t / .5) : CW_MID + (CW_MIN - CW_MID) * ((t - .5) / .5));
+function applyCw(t) {
+  document.documentElement.style.setProperty('--cw', cwPx(t) + 'px');
+  const lab = t < .15 ? 'Luas' : t < .4 ? 'Agak luas' : t < .6 ? 'Sedang' : t < .85 ? 'Agak sempit' : 'Sempit';
+  const sl = $('scw'), v = $('cwv');
+  if (v) v.textContent = lab + ' · ' + t.toFixed(2);
+  if (sl && +sl.value !== t) sl.value = t;
+}
+{
+  const sl = $('scw');
+  applyCw(cwVal());
+  if (sl) sl.addEventListener('input', () => { const t = Math.round(parseFloat(sl.value) * 100) / 100; store.set('cw', t ? String(t) : null); applyCw(t); });
+}
+
 window.Shell = { setTab, tab, enterChatTab, renderRecent, touch, syncTabs, afterOpen, afterClose, togglePanel, detail, detailOpen, docked, refreshDetail, renamed, esc, isDesk: () => mqD.matches };
 syncTabs(); renderRecent();
 })();
