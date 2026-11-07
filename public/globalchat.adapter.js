@@ -47,7 +47,8 @@ const okShape = m => m && typeof m === 'object' &&
 
 async function api(path, body) {
   try {
-    const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const tok = path === '/api/gc/send' && typeof atok === 'string' && atok; // token akun: server memakai nama + foto profil sebagai identitas pengirim
+    const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(tok ? { Authorization: 'Bearer ' + tok } : {}) }, body: JSON.stringify(body) });
     let j = null; try { j = await r.json(); } catch {}
     return { ok: r.ok, status: r.status, json: j };
   } catch { return { ok: false, status: 0, json: null }; }

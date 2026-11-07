@@ -497,7 +497,6 @@ header .pfp,header .who{cursor:pointer}
       <h1 id="mtitle" aria-label="neyhra chat">neyhra chat</h1>
       <p class="m-sub">Pilih siapa yang mau diajak ngobrol.</p>
       <div class="m-pills">
-        <button class="m-name" id="namebtn" type="button"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c1-4 4-6 8-6s7 2 8 6"/></svg><span id="nlabel">Isi namamu</span></button>
         <button class="m-set" id="gcbtn" type="button"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3z"/></svg><span>Chat global</span><i class="gc-dot" data-s="idle"></i></button>
       </div>
     </div>
@@ -728,14 +727,6 @@ header .pfp,header .who{cursor:pointer}
     </div>
   </div>
   <div id="mtoast" role="status" aria-live="polite"></div>
-  <div id="nmodal" class="hide">
-    <div class="nbox" role="dialog" aria-labelledby="ntitle">
-      <h2 id="ntitle">Siapa namamu?</h2>
-      <p>Biar obrolannya lebih personal. Namamu cuma disimpan di perangkat ini.</p>
-      <input id="ninp" maxlength="24" placeholder="Nama kamu" autocomplete="off" enterkeyhint="done">
-      <div class="nact"><button id="nclear" type="button" class="hide">Hapus</button><button id="ncancel" type="button">Batal</button><button id="nsave" type="button">Simpan</button></div>
-    </div>
-  </div>
 </div>
 <script>
 const $ = id => document.getElementById(id);
@@ -1211,10 +1202,13 @@ $('vdone').onclick=closeVoice;
 vm.addEventListener('click',e=>{ if(e.target===vm) closeVoice(); });
 paintVoice();
 
-/* ===== Nama user (tanpa login, cuma disimpan di localStorage) ===== */
+/* ===== Nama user = nama profil akun (diubah di tab Profil). Belum masuk = tanpa nama (sapaan umum, 'Tamu' di Chat Global). ===== */
 const cleanName=v=>v.replace(/[<>\[\]{}`\u0000-\u001f]/g,'').replace(/\s+/g,' ').trim().slice(0,24);
-let uname=(()=>{try{return cleanName(localStorage.getItem('uname')||'')}catch{return ''}})();
-const saveName=n=>{uname=n;try{n?localStorage.setItem('uname',n):localStorage.removeItem('uname')}catch{}};
+let uname=(()=>{try{ localStorage.removeItem('uname'); /* nama lama yang diketik di Beranda sudah tidak dipakai */ return localStorage.getItem('authtok')?cleanName(localStorage.getItem('authname')||''):''; }catch{return ''}})();
+function syncUname(){ /* dipanggil saat status akun / nama profil berubah */
+  const n=atok?cleanName(store.get('authname')||''):'';
+  if(n!==uname){ uname=n; renderHero(); }
+}
 const period=()=>{const h=new Date().getHours();return h>=4&&h<11?'pagi':h>=11&&h<15?'siang':h>=15&&h<18?'sore':'malam'};
 
 /* Judul menu: belum ada nama -> "neyhra chat"; sudah ada -> sapaan sesuai jam */
@@ -1245,24 +1239,9 @@ function renderHero(){
     units.forEach((u,j)=>{ const sp=document.createElement('span'); sp.style.setProperty('--i',i++); sp.textContent=u; row.append(sp); if(uname&&j<units.length-1) row.append(' '); });
     t.append(row);
   });
-  $('nlabel').textContent=uname?uname+' · ganti':'Isi namamu';
 }
 renderHero();
 
-const nm=$('nmodal'), ninp=$('ninp');
-function openName(){ ninp.value=uname; $('nclear').classList.toggle('hide',!uname); nm.classList.remove('hide'); setTimeout(()=>{ninp.focus();ninp.select()},60); }
-const closeName=()=>nm.classList.add('hide');
-function submitName(){
-  const n=cleanName(ninp.value);
-  if(!n){ ninp.classList.remove('shake'); void ninp.offsetWidth; ninp.classList.add('shake'); return; }
-  saveName(n); closeName(); renderHero();
-}
-$('namebtn').onclick=openName;
-$('nsave').onclick=submitName;
-$('ncancel').onclick=closeName;
-$('nclear').onclick=()=>{ saveName(''); closeName(); renderHero(); };
-ninp.addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();submitName()} });
-nm.addEventListener('click',e=>{ if(e.target===nm) closeName(); });
 const circle=r=>`circle(${r}px at ${ox}px ${oy}px)`;
 /* ===== Pemilih suara (tombol titik tiga di header chat) ===== */
 const pm=$('pmodal');
@@ -1321,7 +1300,7 @@ function closeChat(){
   const an=view.animate({clipPath:[circle(reach()),circle(0)]},{duration:DUR,easing:'cubic-bezier(.7,0,.2,1)',fill:'forwards'});
   an.onfinish=()=>{app.classList.remove('open'); an.cancel(); if(window.Shell) Shell.afterClose()};
 }
-document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ if(window.GX&&GX.esc()) return; if(!pm.classList.contains('hide')) closePicker(); else if(window.Shell&&Shell.detailOpen()&&!Shell.docked()) closeRel(); else if(!memModal.classList.contains('hide')) closeMem(); else if(!sm.classList.contains('hide')) closeSettings(); else if(!vm.classList.contains('hide')) closeVoice(); else if(!nm.classList.contains('hide')) closeName(); else if(window.Shell&&Shell.esc()) return; else if(app.classList.contains('open')&&!isDesk()) closeChat(); } });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ if(window.GX&&GX.esc()) return; if(!pm.classList.contains('hide')) closePicker(); else if(window.Shell&&Shell.detailOpen()&&!Shell.docked()) closeRel(); else if(!memModal.classList.contains('hide')) closeMem(); else if(!sm.classList.contains('hide')) closeSettings(); else if(!vm.classList.contains('hide')) closeVoice(); else if(window.Shell&&Shell.esc()) return; else if(app.classList.contains('open')&&!isDesk()) closeChat(); } });
 $('back').addEventListener('click',closeChat);
 const savePlaying=()=>{ if(current&&current.save) current.save(); };
 window.addEventListener('pagehide',savePlaying);
@@ -1367,7 +1346,7 @@ function openSettings(){ paintDev(); sauto.checked=autoNext; setStat(''); sm.cla
 function closeSettings(){ sm.classList.add('hide'); }
 $('setbtn').onclick=openSettings; $('sx').onclick=closeSettings;
 window.addEventListener('shell:tab',()=>{ if(!sm.classList.contains('hide')) closeSettings(); }); /* pindah tab lewat rail = keluar dari halaman Pengaturan */
-addEventListener('keydown',e=>{ if(e.key==='Escape'&&!sm.classList.contains('hide')&&!document.querySelector('#vmodal:not(.hide),#mmodal:not(.hide),#nmodal:not(.hide)')) closeSettings(); });
+addEventListener('keydown',e=>{ if(e.key==='Escape'&&!sm.classList.contains('hide')&&!document.querySelector('#vmodal:not(.hide),#mmodal:not(.hide)')) closeSettings(); });
 sauto.onchange=()=>{ autoNext=sauto.checked; store.set('autonext',autoNext?'1':null); };
 
 /* Reset semua: tap dua kali (tombol berubah merah + teks konfirmasi). Hapus localStorage situs ini + semua audio di IndexedDB, lalu muat ulang. */
@@ -1512,6 +1491,7 @@ function paintWallet(w){
 const loadWallet=()=>{ try{ const w=JSON.parse(store.get('wallet')||'null'); return w&&Number.isFinite(w.coins)&&Number.isFinite(w.gems)?w:null; }catch{ return null; } };
 const saveWallet=w=>{ store.set('wallet',w?JSON.stringify({coins:w.coins,gems:w.gems}):null); paintWallet(w); };
 function paintAcct(cloud){
+  syncUname();
   window.__acctSeen=1; window.dispatchEvent(new Event('acct')); /* bonus.js ikut menyegarkan (status akun / masuk / keluar berubah) */
   sacct.classList.toggle('hide',!aOn);
   aout.classList.toggle('hide',!!atok); ain.classList.toggle('hide',!atok);
@@ -1551,14 +1531,13 @@ async function syncCloud(auto){
   aBusy=true; if(!auto){ sacct.classList.add('sbusy'); setA('Mengambil dari akun…'); }
   try{
     const me=await aApi('me'), cts=me.cloud?me.cloud.updatedAt:null;
-    const before=await collectChars(false), localSig=sigOf(JSON.stringify(before.chars)+(uname||''));
+    const before=await collectChars(false), localSig=sigOf(JSON.stringify(before.chars));
     if(auto&&cts===store.get('cloudts')&&localSig===store.get('cloudsig')){ aLast=Date.now(); aBusy=false; return; } /* tidak ada yang berubah di mana pun */
-    const pulled=await aApi('pull'); let added=0, memAdded=0, nameSet=false;
+    const pulled=await aApi('pull'); let added=0, memAdded=0;
     if(pulled.data){ /* 1) gabungkan data akun ke perangkat ini (tidak menimpa) */
       const d=JSON.parse(pulled.data);
       if(d&&d.app==='neyhra-chat'&&Array.isArray(d.chars)){
         ({added,memAdded}=await applyImport(d));
-        if(!uname&&typeof d.uname==='string'&&cleanName(d.uname)){ saveName(cleanName(d.uname)); nameSet=true; }
       }
     }
     const {chars,nMsg}=await collectChars(false); /* 2) simpan gabungan terbaru (kalau memang beda dengan isi akun) */
@@ -1566,16 +1545,16 @@ async function syncCloud(auto){
     const pulledChars=pulled.data?JSON.stringify(JSON.parse(pulled.data).chars):null;
     if((chars.length||pulled.data)&&JSON.stringify(chars)!==pulledChars){
       if(!auto) setA('Menyimpan ke akun…');
-      const r=await aApi('push',{data:{app:'neyhra-chat',version:1,exportedAt:new Date().toISOString(),chars,...(uname&&{uname})}});
+      const r=await aApi('push',{data:{app:'neyhra-chat',version:1,exportedAt:new Date().toISOString(),chars}});
       size=r.size; ts=r.updatedAt;
     }
-    store.set('cloudts',ts); store.set('cloudsig',sigOf(JSON.stringify(chars)+(uname||'')));
+    store.set('cloudts',ts); store.set('cloudsig',sigOf(JSON.stringify(chars)));
     paintAcct(ts?{size,updatedAt:ts}:null); aLast=Date.now(); refreshStorage();
     if(auto){
       if(added&&app.classList.contains('open')) toast('Ada pesan baru dari akunmu. Buka ulang chat untuk melihatnya.');
     }else{
       setA('Selesai: '+added+' pesan baru diambil'+(memAdded?', '+memAdded+' memori':'')+'; '+chars.length+' karakter ('+nMsg+' pesan) tersimpan di akun.');
-      if(nameSet||added){ toast(nameSet?'Nama diterapkan, memuat ulang…':'Obrolan diperbarui, memuat ulang…'); setTimeout(()=>location.reload(),1300); }
+      if(added){ toast('Obrolan diperbarui, memuat ulang…'); setTimeout(()=>location.reload(),1300); }
     }
   }catch(e){ if(!auto) setA(e.status===401?'Sesi berakhir, masuk lagi.':(e.message||'Gagal sinkron.'),true); }
   aBusy=false; if(!auto) sacct.classList.remove('sbusy');

@@ -25,6 +25,9 @@ let ready = false, failed = '', busy = false, lastTok = '', lastAt = 0;
 const fr = { q: '', items: null, err: '', seq: 0 }; // tab Teman
 let frT = 0;
 
+/* nama profil dipakai juga di Beranda (sapaan), chat dengan karakter, dan Chat Global */
+function shareName() { if (me && me.name && atok) { store.set('authname', me.name); if (typeof syncUname === 'function') syncUname(); } }
+
 /* ---------- Util tampilan ---------- */
 function avatar(name, username, src, cls) { // src = alamat foto lengkap (dari server, kolom `avatar`) atau '' untuk huruf awal nama
   const a = h('span', 'pf-av' + (cls ? ' ' + cls : ''), (String(name || username || '?').trim()[0] || '?').toUpperCase());
@@ -230,7 +233,7 @@ function syncRows(u) {
 async function fetchMe() {
   try {
     const r = await aApi('profile');
-    if (r && r.ok) { me = r.profile; if (!viewing) view = me; failed = ''; syncRail(); return true; }
+    if (r && r.ok) { me = r.profile; if (!viewing) view = me; failed = ''; shareName(); syncRail(); return true; }
     failed = (r && r.error) || 'Gagal memuat profil.';
   } catch (e) { failed = e && e.status === 401 ? '' : (e && e.message) || 'Tidak bisa terhubung ke server.'; }
   return false;
@@ -364,7 +367,7 @@ async function saveEdit() {
   try {
     const r = await aApi('profile/edit', payload);
     if (!r || !r.ok) throw new Error((r && r.error) || 'Gagal menyimpan.');
-    me = r.profile; view = me; syncRail(); closeModal(); render(); toast('Profil disimpan');
+    me = r.profile; view = me; shareName(); syncRail(); closeModal(); render(); toast('Profil disimpan');
   } catch (e) { msg.className = 'pf-msg err'; msg.textContent = (e && e.message) || 'Gagal menyimpan, coba lagi.'; save.disabled = false; }
 }
 

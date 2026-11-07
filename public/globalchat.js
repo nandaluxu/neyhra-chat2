@@ -1,6 +1,6 @@
 /* ===== Chat Global: UI saja =====
    Dimuat setelah script utama dan group.js, jadi variabel/fungsi global di index.html (app, store, cid, uname, now, dayKey,
-   dayLabel, devOn, openName, closeSettings, COARSE) langsung bisa dipakai.
+   dayLabel, devOn, closeSettings, COARSE) langsung bisa dipakai.
 
    Pemisahan supaya nanti gampang dihubungkan ke backend:
    - globalchat.mock.js  = satu-satunya sumber data (window.GlobalChatAdapter). Ganti file itu dengan adapter sungguhan.
@@ -20,6 +20,14 @@ const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls)
 const len = s => [...s].length; // hitung per karakter (emoji = 1), bukan per unit UTF-16
 const hue = s => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
 const selfId = () => cid;
+// Foto profil pengirim: server mengisi au (username) + av (versi foto) hanya untuk pengirim yang masuk akun. Alamat dibuat di sini dari pola tetap
+// (satu domain), bukan dari URL kiriman orang lain, jadi tidak bisa dipakai memuat gambar dari situs luar.
+const avUrl = m => /^[a-z0-9_.-]{3,20}$/.test(m.au || '') && Number.isInteger(m.av) && m.av > 0 ? '/api/auth/avatar/' + encodeURIComponent(m.au) + '?v=' + m.av : '';
+function addPhoto(node, m) {
+  const u = avUrl(m); if (!u) return;
+  const im = new Image(); im.alt = ''; im.decoding = 'async'; im.draggable = false; im.referrerPolicy = 'no-referrer';
+  im.onerror = () => im.remove(); im.src = u; node.append(im);
+}
 const selfName = () => (typeof uname === 'string' && uname) || 'Tamu';
 const canSend = s => s.status === 'online' || s.status === 'syncing';
 A.setSelf(() => ({ id: selfId(), name: selfName() }));
@@ -160,7 +168,7 @@ function meta(m, mine) {
 function bubble(m, o) {
   const r = el('div', 'gc-msg ' + (o.mine ? 'me' : 'them') + (o.first ? ' first' : '') + (o.last ? ' last' : '') + (o.fresh ? ' new' : '') + (m.status === 'sending' ? ' sending' : '') + (m.status === 'failed' ? ' failed' : ''));
   r.dataset.id = m.id;
-  if (!o.mine) { r.style.setProperty('--h', hue(m.senderId)); const av = el('span', o.last ? 'gc-av' : 'gc-av sp', o.last ? [...m.senderName][0] || '?' : ''); av.setAttribute('aria-hidden', 'true'); r.append(av); }
+  if (!o.mine) { r.style.setProperty('--h', hue(m.senderId)); const av = el('span', o.last ? 'gc-av' : 'gc-av sp', o.last ? [...m.senderName][0] || '?' : ''); av.setAttribute('aria-hidden', 'true'); if (o.last) addPhoto(av, m); r.append(av); }
   const b = el('div', 'gc-b');
   if (!o.mine && o.first) b.append(el('div', 'gc-n', m.senderName));
   b.append(el('div', 'gc-t', m.text), meta(m, o.mine));
@@ -204,7 +212,10 @@ function paintAs(force) {
   const s = A.getState(), can = canSend(s), name = selfName(), key = can + '|' + s.status + '|' + name;
   if (!force && key === asKey) return; asKey = key;
   as.textContent = ''; as.className = 'gc-as' + (s.status === 'offline' ? ' off' : '');
-  if (can) { const b = el('button', null, 'ubah'); b.type = 'button'; b.id = 'gc-rename'; as.append('Kirim sebagai ', el('b', null, name), ' · ', b); }
+  if (can) {
+    as.append('Kirim sebagai ', el('b', null, name));
+    if (!(typeof uname === 'string' && uname)) { const b = el('button', null, 'masuk'); b.type = 'button'; b.id = 'gc-login'; as.append(' · ', b, ' untuk pakai nama & fotomu'); } // nama + foto = dari Profil
+  }
   else as.textContent = s.status === 'connecting' ? 'Menghubungkan · belum bisa kirim' : 'Offline · pesan belum bisa dikirim';
 }
 function paintComposer(s) {
@@ -230,8 +241,8 @@ function submit() {
   if (!text || !canSend(s) || len(text) > MAX) { shake(inp); return; }
   A.send(text); inp.value = ''; grow(); paintComposer();
 }
-as.addEventListener('click', e => { if (e.target.closest('#gc-rename')) openName(); });
-new MutationObserver(() => paintAs(true)).observe($('nmodal'), { attributes: true, attributeFilter: ['class'] }); // nama baru tersimpan -> label ikut berubah
+as.addEventListener('click', e => { if (e.target.closest('#gc-login')) { close(); $('setbtn').click(); } });
+window.addEventListener('acct', () => paintAs(true)); // masuk/keluar atau nama profil berubah -> label ikut berubah
 
 /* ---------- Aksi dari bubble / banner / tampilan kosong (delegasi klik) ---------- */
 const armed = new WeakMap();
@@ -273,7 +284,7 @@ document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
   if (!devOv.classList.contains('hide')) { closeOv(devOv); e.stopPropagation(); }
   else if (!infoOv.classList.contains('hide')) { closeOv(infoOv); e.stopPropagation(); }
-  else if (isOpen && !document.querySelector('#nmodal:not(.hide)')) close();
+  else if (isOpen) close();
 }, true); // capture: jalan sebelum handler Esc milik menu utama
 
 /* ---------- InfoSheet + DevSheet ---------- */
@@ -339,7 +350,7 @@ function hideNote() { clearTimeout(nT); note.classList.remove('show'); nBatch = 
 function showNote(fresh) {
   nBatch = nBatch.concat(fresh).slice(-20);
   const last = nBatch[nBatch.length - 1], names = [...new Set(nBatch.map(m => m.senderName))];
-  const av = note.querySelector('.gcn-av'); av.style.setProperty('--h', hue(last.senderId)); av.textContent = [...last.senderName][0] || '?';
+  const av = note.querySelector('.gcn-av'); av.style.setProperty('--h', hue(last.senderId)); av.textContent = [...last.senderName][0] || '?'; addPhoto(av, last);
   note.querySelector('b').textContent = names.length === 1 ? names[0] + (nBatch.length > 1 ? ' · ' + nBatch.length + ' pesan' : '') : names[0] + ' +' + (names.length - 1) + ' lainnya · ' + nBatch.length + ' pesan';
   note.querySelector('.gcn-t span').textContent = last.text.replace(/\s+/g, ' ').slice(0, 90);
   note.classList.add('show'); clearTimeout(nT); nT = setTimeout(hideNote, 5500);
@@ -368,7 +379,7 @@ A.subscribe(notifyScan);
 
 function openFromNote() {
   hideNote();
-  ['nmodal', 'vmodal', 'smodal', 'pmodal', 'mmodal'].forEach(id => { const m = $(id); if (m) m.classList.add('hide'); }); // modal z-index 10 menutupi Chat Global
+  ['vmodal', 'smodal', 'pmodal', 'mmodal'].forEach(id => { const m = $(id); if (m) m.classList.add('hide'); }); // modal z-index 10 menutupi Chat Global
   open();
 }
 note.addEventListener('click', e => { if (e.target.closest('.gcn-x')) hideNote(); else openFromNote(); });

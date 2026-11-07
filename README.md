@@ -167,9 +167,15 @@ Satu ruang obrolan untuk semua pengguna: teks saja, maks 256 karakter. Tombol **
 - **Realtime**: pesan baru didorong langsung ke peer yang terhubung (relay terbatas, maks 3 lompatan di dalam mesh, maks 3 koneksi per pengguna). Di luar mesh, pesan sampai lewat polling adaptif: 3 dtk saat ramai, melambat ke 10 dtk saat sepi (bisa diatur lewat env `GC_POLL_BASE`/`GC_POLL_BURST`, dikirim ke client saat sync).
 - **Keamanan**: server yang membuat id pesan (UUID), timestamp, dan menstempel nama; teks divalidasi (1–256 karakter, karakter kontrol dibuang); rate-limit per clientId (6 pesan/12 dtk, signaling 60/12 dtk, heartbeat 90/15 dtk). Setiap pesan **ditandatangani kunci ECDSA P-256** yang dibuat sekali dan disimpan di Redis — browser memverifikasi tanda tangan pesan yang diterima dari peer, jadi peer jahat tidak bisa memalsukan/mengubah pesan. Signaling juga divalidasi: `from` harus tercatat hidup di presence dan ukurannya dibatasi.
 
+### Nama & foto di Chat Global
+Nama dan foto di mana pun (sapaan Beranda, nama yang dikirim ke karakter, Chat Global) **diambil dari Profil** (tab Profil → Edit). Tidak ada lagi tombol "Isi namamu" di Beranda. Belum masuk akun: sapaan umum di Beranda dan pengirim "Tamu" di Chat Global.
+- `POST /api/gc/send` menerima token Bearer (opsional). Token sah: `senderName` = nama profil, dan pesan diberi `au` (username) + `av` (versi foto) kalau akun punya foto. Tanpa token: pengirim "Tamu"/nama dari body seperti dulu.
+- Browser membuat alamat foto sendiri dari pola tetap `/api/auth/avatar/<au>?v=<av>` (satu domain), jadi `au`/`av` palsu tidak bisa dipakai memuat gambar dari situs lain. `au`/`av` tidak ikut tanda tangan pesan (hanya hiasan tampilan).
+- Pesan lama (tanpa `au`/`av`) tetap tampil dengan huruf awal.
+
 ### Notifikasi Chat Global
 
-- Menu utama sekarang cuma berisi **nama, Pengaturan, dan Chat global**. Voice note dan Memori pindah ke **Pengaturan → Fitur**.
+- Menu utama sekarang cuma berisi **Pengaturan dan Chat global**. Voice note dan Memori pindah ke **Pengaturan → Fitur**.
 - **Pengaturan → Notifikasi → "Notifikasi Chat Global"** (switch, default nyala, disimpan di localStorage `gcn`). Kalau nyala, ada pesan baru dari orang lain di Chat Global akan memunculkan banner di atas layar di mana pun kamu berada (menu, chat dengan karakter, chat grup). Tap banner untuk langsung membuka Chat Global; hilang sendiri setelah ~5 detik. Beberapa pesan beruntun digabung ("Budi · 3 pesan"). Tombol Chat global di menu juga dapat badge jumlah pesan yang belum dibaca.
 - Saat tab disembunyikan dan izin notifikasi browser sudah diberikan (diminta sekali saat switch dinyalakan), muncul juga notifikasi sistem.
 - Cara kerja: `GlobalChatAdapter.keepAlive(true)` membuat adapter tidak tidur walau ruang Chat Global ditutup, jadi polling tetap jalan (tiap 3-10 dtk, 30 dtk kalau tab tersembunyi). Konsekuensinya setiap pengguna dengan notifikasi nyala ikut memakai kuota Redis; kalau terasa berat, ubah default di `globalchat.js` (`store.get(NKEY) !== '0'` menjadi `=== '1'`). Pesan dianggap baru kalau `ts`-nya lebih baru dari semua pesan yang sudah terlihat, jadi riwayat yang baru disinkronkan tidak memicu notifikasi.
