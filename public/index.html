@@ -1057,6 +1057,30 @@ function dots(){
 }
 const setStatus=(t,typing)=>{ status.textContent=t; status.classList.toggle('typing',!!typing); };
 
+/* Voice note balasan karakter. Mode roleplay: server mengirim r.parts (satu ucapan = satu voice note, maks 3); selain itu satu voice note.
+   Dipakai chat biasa dan Skenario Skrip. `t` = bubble "merekam suara" yang sudah tampil. Kalau suara gagal, bagian yang belum jadi tampil sebagai teks. */
+async function speakReply(chId,r,lang,t){
+  const parts=(r.parts&&r.parts.length>1)?r.parts:[{id:r.id,jp:r.jpText,vn:r.vn}];
+  let i=0;
+  try{
+    for(;i<parts.length;i++){
+      const p=parts[i];
+      if(i>0) t=typingBubble();
+      const ab=await (await post('/api/tts',{char:chId,text:p.vn,voice:voiceKeyOf(chId)},{'x-voice-code':vcode})).arrayBuffer();
+      const pre=await decode(ab); t.remove();
+      const tNow=Date.now(), k=newKey(); urls.push(pre.url);
+      addVN({id:p.id,jp:p.jp,lang,vn:p.vn},[pre],tNow);
+      const saved=await idb.put(k,{ab,dur:pre.dur,bins:pre.bins}); /* audio disimpan lokal supaya voice note bisa diputar lagi nanti */
+      if(saved) pre.k=k;
+      record(chId,{t:tNow,r:'vn',x:p.id,jp:p.jp,lang,vn:p.vn,...(saved?{ks:[k],si:0}:{})});
+    }
+  }catch(e){
+    t.remove(); for(let j=i;j<parts.length;j++) showThem(chId,parts[j].id); /* suara gagal -> teksnya tetap tampil */
+    if(e.status===403){ vcode=''; voiceOn=false; store.set('vcode',null); store.set('von','0'); paintVoice(); toast('Kode voice tidak valid, voice dimatikan'); }
+    else toast(e.message);
+  }
+}
+
 async function submit(){
   const text=inp.value.trim();
   if(window.GX&&GX.cur) return GX.submit(); /* layar grup: mesin giliran ada di group.js */
@@ -1076,20 +1100,7 @@ async function submit(){
     if(!useVoice){ t.remove(); showThem(chId,r.id); }
     else{
       t.remove(); t=typingBubble(); setStatus('merekam suara',true); /* fase 2: masuk Fish Audio -> indikator voice */
-      try{
-        /* vn = teks ucapan lengkap dengan tag ekspresi ([laughing], [sad], dll), dikirim apa adanya ke TTS */
-        const ab=await (await post('/api/tts',{char:ch.id,text:r.vn,voice:voiceKeyOf(ch.id)},{'x-voice-code':vcode})).arrayBuffer();
-        const pre=await decode(ab); t.remove();
-        const tNow=Date.now(), k=newKey(); urls.push(pre.url);
-        addVN({id:r.id,jp:r.jpText,lang,vn:r.vn},[pre],tNow);
-        const saved=await idb.put(k,{ab,dur:pre.dur,bins:pre.bins}); /* audio disimpan lokal supaya voice note bisa diputar lagi nanti */
-        if(saved) pre.k=k;
-        record(chId,{t:tNow,r:'vn',x:r.id,jp:r.jpText,lang,vn:r.vn,...(saved?{ks:[k],si:0}:{})});
-      }catch(e){
-        t.remove(); showThem(chId,r.id); /* suara gagal -> teksnya tetap tampil */
-        if(e.status===403){ vcode=''; voiceOn=false; store.set('vcode',null); store.set('von','0'); paintVoice(); toast('Kode voice tidak valid, voice dimatikan'); }
-        else toast(e.message);
-      }
+      await speakReply(chId,r,lang,t);
     }
   }catch(e){ t.remove(); toast(e.message); if(window.SCN&&SCN.onErr) SCN.onErr(e); }
   setStatus('online',false); busy=false; refresh();

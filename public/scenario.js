@@ -404,19 +404,7 @@
     if (!useVoice) showThem(chId, r.id)
     else {
       const t = typingBubble(); setStatus('merekam suara', true)
-      try {
-        const ab = await (await post('/api/tts', { char: chId, text: r.vn, voice: voiceKeyOf(chId) }, { 'x-voice-code': vcode })).arrayBuffer()
-        const pre = await decode(ab); t.remove()
-        const tNow = Date.now(), k = newKey(); urls.push(pre.url)
-        addVN({ id: r.id, jp: r.jpText, lang, vn: r.vn }, [pre], tNow)
-        const saved = await idb.put(k, { ab, dur: pre.dur, bins: pre.bins })
-        if (saved) pre.k = k
-        record(chId, { t: tNow, r: 'vn', x: r.id, jp: r.jpText, lang, vn: r.vn, ...(saved ? { ks: [k], si: 0 } : {}) })
-      } catch (e) {
-        t.remove(); showThem(chId, r.id)
-        if (e.status === 403) { vcode = ''; voiceOn = false; store.set('vcode', null); store.set('von', '0'); paintVoice(); toast('Kode voice tidak valid, voice dimatikan') }
-        else toast(e.message)
-      }
+      await speakReply(chId, r, lang, t)
     }
     setStatus('online', false)
     if (relNote) toast(relNote)
