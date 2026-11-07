@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Neyhra Chat">
+  <title>Neyhra Chat</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#6366F1"/>
+      <stop offset="1" stop-color="#A855F7"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background tile -->
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+
+  <!-- Chat bubble -->
+  <path d="M168 136H344A72 72 0 0 1 416 208V304A72 72 0 0 1 344 376H96V208A72 72 0 0 1 168 136Z" fill="#FFFFFF"/>
+
+  <!-- N monogram -->
+  <path d="M202 312V200L310 312V200" fill="none" stroke="#6A5CF6" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- AI sparkle -->
+  <path d="M410 72Q410 112 450 112Q410 112 410 152Q410 112 370 112Q410 112 410 72Z" fill="#FFFFFF"/>
+</svg>
