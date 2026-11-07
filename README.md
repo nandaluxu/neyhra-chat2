@@ -170,6 +170,31 @@ Tombol tempat sampah per bubble dan "Hapus semua pesan" (panel dev, keduanya tap
 - **Kunci tanda tangan ikut hilang kalau Redis di-flush** — pesan lama yang tersimpan di peer akan gagal verifikasi dan dibuang.
 - Butuh Redis (sama seperti indikator online). Di Vercel tanpa env Redis, semua endpoint `/api/gc/*` menjawab `enabled:false` dan UI menampilkan status offline dengan alasan; riwayat lokal tetap bisa dibaca.
 
+## Skenario Skrip (mode roleplay: dua AI)
+
+Mode roleplay yang sudah ada (switch di Pengaturan) dikembangkan jadi *interactive storytelling* dengan **dua AI** plus fitur skenario buatan sendiri. Semuanya menempel di chat 1-lawan-1 yang sekarang; tidak ada halaman/mode baru.
+
+- **Scenario Director (AI 1)**: sutradara. Mengatur arah cerita, event, konflik, lokasi, suasana, karakter yang terlibat, dan pacing. Tidak menulis dialog karakter. Balasannya selalu satu objek JSON (`lokasi`, `suasana`, `event`, `tujuan`, `karakter`, `instruksi`, `panggil_lagi`) yang divalidasi dan di-clamp server. Dipanggil hemat: saat skenario dimulai, lalu tiap `panggil_lagi` pesan (3-8, ia atur sendiri), atau saat user melakukan aksi besar (narasi `*...*` panjang / pesan ≥400 karakter).
+- **Character Actor (AI 2)**: karakter biasa (`lib/sessions.js`), plus blok **ARAHAN SUTRADARA** tiap pesan. Sesi provider-nya terpisah dari chat biasa (kunci `clientId:charId:scn`), jadi percakapan skenario tidak mencampoi obrolan normal. Responsnya bentuknya sama persis dengan `/api/chat` biasa: voice note, subtitle, hubungan, memori, dan riwayat tetap jalan.
+- **Sesi dilanjutkan setelah reload**: auth + conversation id Director dan Actor disimpan di dokumen `rp_state` (MongoDB), lalu di-seed balik ke sesi in-memory saat instance serverless baru. Kalau sesi anon sudah kedaluwarsa, otomatis mulai baru dengan riwayat dari browser (pola yang sama seperti chat biasa).
+
+### Panel & tombol
+
+- Tombol clapperboard di footer chat (kiri tombol kirim), hanya muncul di chat 1-lawan-1. Panelnya: judul **Skenario Skrip**, deskripsi, daftar skrip, kuota `Skrip tersisa: N`, dan tombol **+ Skrip Baru**.
+- Editor: **Tema Skrip** (placeholder "Masukkan judul atau tema...", maks 100 karakter) dan **Isi Skrip** (placeholder "Buat cerita baru dengan anda dan karakter anda...", maks 1000 karakter, ada penghitung). **AI Hasilkan** membuat pembukaan cerita dari tema (konteks: karakter terpilih + kepribadiannya + nama user; hasil maks 900 karakter, bisa diedit). **Jalankan Skrip** menjalankan apa yang sedang tertulis (tidak harus disimpan dulu); **Simpan** menyimpan ke MongoDB.
+- Skrip tersimpan tampil sebagai **card landscape**: judul, cuplikan, avatar karakter di kanan dengan gradien transparan, dan tiga aksi (Edit, Hapus dua-tap, Jalankan).
+- Setelah dijalankan: kartu "Skenario aktif" di area percakapan (judul, karakter, status) dengan pilihan **AI Mulai Duluan** / **Saya Mulai Duluan**, plus tombol **End Script**. Saat berjalan ada bar tipis "Skenario aktif: ..." + End Script di atas kolom ketik (elemen tetap, bukan overlay, jadi tidak menutupi chat). Mengetik saat fase memilih otomatis dianggap "Saya Mulai Duluan".
+
+### Kuota & penyimpanan
+
+- **Maksimal 3 skrip per akun** (dihitung yang tersimpan; menghapus mengembalikan slot; skrip belum disimpan tidak pakai kuota). Kuota dijaga server lewat index unik `{userId, slot}` di koleksi `scripts`: klaim slot 0-2 atomik, jadi dua permintaan bersamaan tidak bisa lolos batas. Validasi juga di backend: tema 1-100 karakter, isi 1-1000, `charId` harus ada di `char/`.
+- Koleksi `rp_state` (satu skenario aktif per user, index unik `userId`, TTL 7 hari): id user, judul, isi, karakter, fase (`choosing`/`running`), sesi Director/Actor, dan state cerita terakhir dari sutradara. Menjalankan skenario baru mengakhiri skenario lama otomatis (skrip tersimpan tidak ikut terhapus).
+- Semua endpoint butuh akun (token Bearer) dan hanya menyentuh data milik sendiri.
+
+### API (semua POST, `lib/scenario.js`, token Bearer)
+
+`/api/scenario/list | save | delete | generate | start | state | begin | end`. Chat berjalan lewat `/api/chat` biasa dengan field tambahan `scenario: <id state>`; tanpa field itu semuanya seperti dulu (client lama tetap kompatibel).
+
 ## Tema, pencarian, ringkasan (public/extras.js + extras.css)
 
 - **Tema & aksen** (Pengaturan → Tampilan): mode Ikuti sistem / Terang / Gelap, dan switch "Warna aksen per karakter". Warna khas tiap karakter dihitung di browser dari rata-rata rona foto avatarnya (di-cache di localStorage `ac:<id>`), lalu dipakai untuk gelembung pesanmu, tombol kirim, dan gelombang voice note di chat karakter itu. Foto abu-abu = tanpa aksen. Chat grup tidak memakai aksen.
