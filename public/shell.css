@@ -36,9 +36,14 @@
 #app.rail-x[data-tab="home"] .r-wallet{max-height:120px;opacity:1;visibility:visible;pointer-events:auto;margin:-4px 0 14px;padding:8px 12px;gap:8px;
           transition:max-height .24s cubic-bezier(.2,.9,.2,1),opacity .2s .06s,padding .24s,margin .24s,visibility 0s}
 #app.rail-x[data-tab="home"] .r-wallet.off{opacity:.55}
-#app.rail-x[data-tab="home"] .w-cur{flex-direction:row;gap:10px}
-#app.rail-x[data-tab="home"] .w-n{font-size:14px;flex:1}
-#app.rail-x[data-tab="home"] .w-l{order:3}
+/* rail dibuka: koin dan gems sebaris (ikon + angka; label disembunyikan supaya muat, nama ada di tooltip) */
+#app.rail-x[data-tab="home"] .r-wallet{flex-direction:row;align-items:center;justify-content:center;gap:6px}
+#app.rail-x[data-tab="home"] .r-wallet .w-cur{flex:1 1 0;flex-direction:row;justify-content:center;gap:6px}
+#app.rail-x[data-tab="home"] .r-wallet .w-n{font-size:14px;flex:none}
+#app.rail-x[data-tab="home"] .r-wallet .w-l{display:none}
+/* rail dibuka: logo turun sedikit, di tengah, "Neyhra Chat" di bawahnya */
+#app.rail-x[data-tab="home"] .r-logo{flex-direction:column;align-items:center;justify-content:center;gap:8px;margin:20px 0 16px;padding:0;text-align:center}
+#app.rail-x[data-tab="home"] .r-word{text-align:center}
 .m-wallet{display:none;align-items:center;gap:12px;padding:6px 12px;border-radius:99px;background:var(--surface)}
 .m-wallet .w-cur{flex-direction:row;gap:6px}
 .m-wallet .w-cur img{width:18px;height:18px}
