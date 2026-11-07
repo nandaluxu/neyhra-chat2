@@ -457,6 +457,7 @@ header .pfp,header .who{cursor:pointer}
       <span class="m-logo"><img src="/icon.svg" alt="" draggable="false"></span>
       <span class="r-label r-word">Neyhra Chat</span>
     </button>
+    <div class="r-wallet" role="group" aria-label="Saldo" data-w title="Masuk untuk punya coin &amp; gems"><span class="w-cur" data-k="coins"><img src="/coin.svg" alt="" draggable="false"><b class="w-n">–</b><span class="r-label w-l">Coin</span></span><span class="w-cur" data-k="gems"><img src="/gems.png" alt="" draggable="false"><b class="w-n">–</b><span class="r-label w-l">Gems</span></span></div>
     <button class="r-item on" id="rhome" type="button" data-tab="home" aria-current="page" title="Beranda">
       <svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7M6 9.5V20h12V9.5M10 20v-6h4v6"/></svg>
       <span class="r-label">Beranda</span>
@@ -472,7 +473,7 @@ header .pfp,header .who{cursor:pointer}
   </nav>
   <section id="menu">
     <div class="orb o1"></div><div class="orb o2"></div>
-    <div class="m-top"><div class="m-brand"><div class="m-logo"><img src="/icon.svg" alt="" draggable="false"></div><span class="m-word">neyhra chat</span></div><span class="m-online hide" id="online" role="status" aria-live="off"><span><span id="onum">0</span> online</span></span></div>
+    <div class="m-top"><div class="m-brand"><div class="m-logo"><img src="/icon.svg" alt="" draggable="false"></div><span class="m-word">neyhra chat</span></div><div class="m-wallet" role="group" aria-label="Saldo" data-w title="Masuk untuk punya coin &amp; gems"><span class="w-cur" data-k="coins"><img src="/coin.svg" alt="" draggable="false"><b class="w-n">–</b><span class="r-label w-l">Coin</span></span><span class="w-cur" data-k="gems"><img src="/gems.png" alt="" draggable="false"><b class="w-n">–</b><span class="r-label w-l">Gems</span></span></div><span class="m-online hide" id="online" role="status" aria-live="off"><span><span id="onum">0</span> online</span></span></div>
     <div class="m-hero">
       <h1 id="mtitle" aria-label="neyhra chat">neyhra chat</h1>
       <p class="m-sub">Pilih siapa yang mau diajak ngobrol.</p>
@@ -1419,8 +1420,21 @@ let atok=store.get('authtok')||'', aOn=false;
 const setA=(t,err)=>{ astat.textContent=t||''; astat.classList.toggle('err',!!err); };
 const aApi=async(path,body)=>{
   try{ return await (await post('/api/auth/'+path,body||{},atok?{Authorization:'Bearer '+atok}:undefined)).json(); }
-  catch(e){ if(e.status===401&&atok&&path!=='login'&&path!=='delete'){ atok=''; store.set('authtok',null); store.set('authname',null); paintAcct(); } throw e; }
+  catch(e){ if(e.status===401&&atok&&path!=='login'&&path!=='delete'){ atok=''; store.set('authtok',null); store.set('authname',null); saveWallet(null); paintAcct(); } throw e; }
 };
+/* Saldo coin & gems (disimpan di MongoDB, hanya dibaca di sini). Cache di localStorage `wallet` supaya angka langsung tampil saat dibuka. */
+const nfW=new Intl.NumberFormat('id-ID'), nfC=new Intl.NumberFormat('id-ID',{notation:'compact',maximumFractionDigits:1});
+const fmtW=n=>n>=10000?nfC.format(n):nfW.format(n);
+function paintWallet(w){
+  const ok=!!(atok&&w&&Number.isFinite(w.coins)&&Number.isFinite(w.gems));
+  document.querySelectorAll('[data-w]').forEach(box=>{
+    box.classList.toggle('off',!ok);
+    box.title=ok?'Coin '+nfW.format(w.coins)+' · Gems '+nfW.format(w.gems):'Masuk untuk punya coin & gems';
+    box.querySelectorAll('.w-cur').forEach(el=>{ el.querySelector('.w-n').textContent=ok?fmtW(w[el.dataset.k]):'–'; });
+  });
+}
+const loadWallet=()=>{ try{ const w=JSON.parse(store.get('wallet')||'null'); return w&&Number.isFinite(w.coins)&&Number.isFinite(w.gems)?w:null; }catch{ return null; } };
+const saveWallet=w=>{ store.set('wallet',w?JSON.stringify({coins:w.coins,gems:w.gems}):null); paintWallet(w); };
 function paintAcct(cloud){
   sacct.classList.toggle('hide',!aOn);
   aout.classList.toggle('hide',!!atok); ain.classList.toggle('hide',!atok);
@@ -1431,8 +1445,8 @@ async function initAcct(){
     const r=await (await fetch('/api/auth/me',{method:'POST',headers:{'Content-Type':'application/json',...(atok?{Authorization:'Bearer '+atok}:{})},body:'{}'})).json().catch(()=>({}));
     if(r.enabled===false){ aOn=false; paintAcct(); return; }
     aOn=true;
-    if(r.ok){ store.set('authname',r.name); paintAcct(r.cloud); }
-    else{ if(atok){ atok=''; store.set('authtok',null); store.set('authname',null); } paintAcct(); }
+    if(r.ok){ store.set('authname',r.name); saveWallet(r); paintAcct(r.cloud); }
+    else{ if(atok){ atok=''; store.set('authtok',null); store.set('authname',null); saveWallet(null); } paintAcct(); }
   }catch{ aOn=false; paintAcct(); } /* server tak terjangkau -> sembunyikan, jangan ganggu pengaturan lain */
 }
 async function authGo(kind){
@@ -1441,7 +1455,7 @@ async function authGo(kind){
   sacct.classList.add('sbusy'); setA(kind==='register'?'Mendaftar…':'Masuk…');
   try{
     const r=await aApi(kind,{username,password});
-    atok=r.token; store.set('authtok',atok); store.set('authname',r.name); $('apass').value=''; paintAcct(null);
+    atok=r.token; store.set('authtok',atok); store.set('authname',r.name); if(Number.isFinite(r.coins)) saveWallet(r); $('apass').value=''; paintAcct(null);
     setA(kind==='register'?'Akun dibuat. Tekan "Sinkronkan sekarang" untuk menyimpan obrolanmu.':'Berhasil masuk. Tekan "Sinkronkan sekarang" untuk mengambil obrolan dari akunmu.');
     initAcct();
   }catch(e){ setA(e.message,true); }
@@ -1491,10 +1505,11 @@ async function syncCloud(auto){
 }
 $('async').onclick=()=>syncCloud(false);
 document.addEventListener('visibilitychange',()=>{ if(!document.hidden) syncCloud(true); }); /* tab kembali aktif */
+paintWallet(loadWallet()); /* tampilkan saldo terakhir dulu, diperbarui oleh initAcct */
 initAcct().then(()=>syncCloud(true)); /* aplikasi dibuka */
 $('aout2').onclick=async()=>{
   try{ await aApi('logout'); }catch{}
-  atok=''; store.set('authtok',null); store.set('authname',null); paintAcct(); setA('Sudah keluar.');
+  atok=''; store.set('authtok',null); store.set('authname',null); saveWallet(null); paintAcct(); setA('Sudah keluar.');
 };
 let adelT=0;
 $('adel').onclick=async()=>{
@@ -1502,7 +1517,7 @@ $('adel').onclick=async()=>{
   if(!adelT){ b.classList.add('arm'); lab.textContent='Tap lagi untuk hapus akun'; adelT=setTimeout(()=>{ adelT=0; b.classList.remove('arm'); lab.textContent='Hapus akun'; },3500); return; }
   clearTimeout(adelT); adelT=0; b.classList.remove('arm'); lab.textContent='Hapus akun';
   const pw=prompt('Masukkan passwordmu untuk menghapus akun ini:'); if(!pw) return;
-  try{ await aApi('delete',{password:pw}); atok=''; store.set('authtok',null); store.set('authname',null); paintAcct(); setA('Akun dan cadangan cloud dihapus.'); }
+  try{ await aApi('delete',{password:pw}); atok=''; store.set('authtok',null); store.set('authname',null); saveWallet(null); paintAcct(); setA('Akun dan cadangan cloud dihapus.'); }
   catch(e){ setA(e.message,true); }
 };
 { const _os=openSettings; openSettings=function(){ _os(); setA(''); initAcct(); }; $('setbtn').onclick=openSettings; } /* cek status akun tiap Pengaturan dibuka */

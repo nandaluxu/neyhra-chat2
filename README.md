@@ -56,6 +56,14 @@ Login sederhana, tujuannya memindahkan obrolan antar perangkat, **bukan** keaman
 - **API** (semua POST, `lib/auth.js`): `/api/auth/register|login|me|logout|pull|push|delete`. Token lewat header `Authorization: Bearer ...`.
 - **Koleksi**: `users` (username unik), `auth_sessions` (TTL), `userdata` (satu dokumen per user), `auth_rl` (TTL). Index dibuat otomatis saat request pertama.
 
+## Coin & Gems (saldo akun)
+
+Saldo ada di dokumen `users` (MongoDB), field `coins` dan `gems`. Akun baru otomatis dapat **150 coin dan 10 gems** (konstanta `START_COINS` / `START_GEMS` di `lib/auth.js`). Akun lama yang belum punya field itu diisi saldo awal sekali saat `/api/auth/me` pertama kali dipanggil (tidak menimpa saldo yang sudah ada).
+
+- **Tampilan**: di navbar, tepat di bawah logo/nama "Neyhra Chat" (mode ikon: ikon di atas angka; expand: ikon + angka + "Coin"/"Gems"). Di mobile tampil di bar atas Beranda. Belum masuk akun: angka `–` (redup). Angka ≥ 10.000 ditulis ringkas (mis. `12,5 rb`).
+- **Sumber data**: `/api/auth/register` dan `/api/auth/me` mengembalikan `coins` dan `gems`. Browser cuma membaca (cache di localStorage `wallet`, dihapus saat keluar/hapus akun). **Belum ada endpoint untuk mengubah saldo**; kalau nanti ada pemakaian/hadiah, ubah di server (`$inc` pada `users`), jangan dari client.
+- **Aset**: `public/coin.svg`, `public/gems.png`.
+
 ## URL per layar (public/router.js)
 
 Tetap satu aplikasi (tanpa muat ulang), tapi tiap layar punya alamat dan tombol back/forward browser berfungsi:

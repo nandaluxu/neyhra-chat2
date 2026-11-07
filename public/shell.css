@@ -22,6 +22,28 @@
 @media(hover:hover){.r-item:hover{background:var(--surface);color:var(--ink)}}
 .r-item:focus-visible,.r-logo:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 
+/* ---------- Saldo coin & gems (di bawah logo rail; mobile: di atas Beranda) ---------- */
+.r-wallet{display:flex;flex-direction:column;gap:6px;margin:-4px 0 14px;padding:8px 0;border-radius:14px;background:var(--surface);transition:opacity .2s}
+.w-cur{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:0}
+.w-cur img{width:20px;height:20px;flex:none;object-fit:contain;display:block}
+.w-n{font-size:11px;font-weight:600;line-height:1;font-variant-numeric:tabular-nums;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.w-l{font-size:12.5px;color:var(--mut)}
+.r-wallet.off,.m-wallet.off{opacity:.55}
+#app.rail-x[data-tab="home"] .r-wallet{padding:8px 12px;gap:8px}
+#app.rail-x[data-tab="home"] .w-cur{flex-direction:row;gap:10px}
+#app.rail-x[data-tab="home"] .w-n{font-size:14px;flex:1}
+#app.rail-x[data-tab="home"] .w-l{order:3}
+.m-wallet{display:none;align-items:center;gap:12px;padding:6px 12px;border-radius:99px;background:var(--surface)}
+.m-wallet .w-cur{flex-direction:row;gap:6px}
+.m-wallet .w-cur img{width:18px;height:18px}
+.m-wallet .w-n{font-size:12.5px}
+.m-wallet .w-l{display:none}
+@media(max-width:799px){
+  .r-wallet{display:none}
+  #menu .m-top{gap:8px}
+  .m-wallet{display:inline-flex}
+}
+
 /* ---------- Beranda: grid avatar ---------- */
 .b-head{display:flex;align-items:baseline;gap:8px;margin:20px 0 4px;position:relative}
 .b-head h2{font-size:18px;font-weight:600;letter-spacing:-.02em}
