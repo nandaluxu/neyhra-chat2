@@ -1,0 +1,117 @@
+/* ===== Skenario Skrip (modul roleplay: dual AI + skrip custom) =====
+   Logika di public/scenario.js. Hanya memakai variabel tema yang sudah ada:
+   --bg --surface --ink --mut --line --ok --rec. Desain mengikuti pola modal .nbox
+   dan tombol pill aplikasi, card landscape dengan gradien transparan di avatar. */
+
+/* Tombol clapperboard di footer chat (kanan bawah, sebelum tombol kirim) */
+#scnbtn{width:44px;height:44px;border-radius:50%;flex:none;color:var(--mut);transition:background .15s}
+@media(hover:hover){#scnbtn:hover{background:var(--surface)}}
+#scnbtn:active{background:var(--surface)}
+#scnbtn:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+#scnbtn.on{color:var(--ink)} /* ada skenario aktif di chat ini */
+
+/* Bar tipis skenario aktif: baris tetap di atas footer (bukan overlay), tidak menutupi chat */
+#scnbar{display:none;align-items:center;gap:8px;padding:7px 12px;border-top:1px solid var(--line);background:var(--surface);flex:none}
+#scnbar.show{display:flex;animation:scnin .22s ease-out}
+@keyframes scnin{from{opacity:0;transform:translateY(6px)}}
+#scnbar svg{width:16px;height:16px;flex:none;color:var(--mut)}
+#scnbar-t{flex:1;min-width:0;font-size:12.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#scnend{flex:none;padding:5px 12px;border-radius:99px;background:var(--bg);border:1px solid var(--line);font-size:12px;font-weight:600;color:var(--rec);transition:transform .15s}
+#scnend:active{transform:scale(.95)}
+#scnend:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+
+/* Panel Skenario Skrip (pola #nmodal/.nbox) */
+#scnmodal{position:absolute;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(0,0,0,.45);backdrop-filter:blur(3px)}
+.scn-box{width:100%;max-width:400px;max-height:calc(100% - 20px);display:flex;flex-direction:column;background:var(--bg);border:1px solid var(--line);border-radius:22px;padding:20px;animation:scnbox .25s cubic-bezier(.2,.9,.3,1.2)}
+@keyframes scnbox{from{opacity:0;transform:scale(.92) translateY(8px)}}
+@media(max-width:519px){
+  #scnmodal{align-items:flex-end;padding:12px 12px calc(12px + env(safe-area-inset-bottom,0px))}
+  .scn-box{max-width:none;border-radius:26px 26px 0 0;max-height:88%}
+}
+.scn-head{display:flex;align-items:center;gap:6px}
+.scn-head h2{font-size:18px;font-weight:600;letter-spacing:-.02em;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.scn-head button{width:34px;height:34px;border-radius:50%;flex:none;color:var(--mut);transition:background .15s}
+.scn-head button:hover{background:var(--surface)}
+.scn-head button:active{background:var(--surface)}
+.scn-head button svg{width:18px;height:18px}
+.scn-desc{margin-top:2px;font-size:13px;line-height:1.45;color:var(--mut)}
+
+/* daftar skrip */
+.scn-scroll{overflow-y:auto;overscroll-behavior:contain;margin:0 -6px;padding:0 6px;scrollbar-width:none;min-height:0}
+.scn-scroll::-webkit-scrollbar{display:none}
+.scn-lstat{padding:22px 16px;border-radius:18px;background:var(--surface);text-align:center;margin-top:14px}
+.scn-lstat h3{font-size:14.5px;font-weight:600}
+.scn-lstat p{margin-top:4px;font-size:12.5px;line-height:1.5;color:var(--mut)}
+.scn-lstat .scn-retry{margin-top:10px;padding:8px 18px;border-radius:99px;background:var(--bg);border:1px solid var(--line);font-size:13px;font-weight:600}
+
+/* card landscape: teks kiri, avatar kanan dengan gradien transparan supaya menyatu; tombol di baris bawah sendiri */
+.scn-card{display:flex;flex-direction:column;margin-top:10px;border-radius:18px;background:var(--surface);overflow:hidden;transition:transform .15s}
+.scn-card:active{transform:scale(.985)}
+.scn-ctop{position:relative;display:flex;align-items:stretch;flex:1;min-height:0}
+.scn-cinfo{flex:1;min-width:0;padding:13px 96px 11px 14px;display:flex;flex-direction:column;gap:3px;text-align:left}
+.scn-ct{font-size:14.5px;font-weight:600;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.scn-cx{font-size:12.5px;line-height:1.45;color:var(--mut);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.scn-cd{margin-top:auto;font-size:11px;color:var(--mut)}
+.scn-cav{position:absolute;top:0;right:0;bottom:0;width:92px;flex:none}
+.scn-cav img{width:100%;height:100%;object-fit:cover;object-position:top center;display:block}
+.scn-cav::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,var(--surface) 4%,color-mix(in srgb,var(--surface) 45%,transparent) 38%,transparent 78%)}
+.scn-cacts{display:flex;gap:6px;padding:0 14px 12px}
+.scn-cacts button{padding:7px 13px;border-radius:99px;background:var(--bg);border:1px solid var(--line);font-size:12.5px;font-weight:600;transition:transform .15s}
+.scn-cacts button:active{transform:scale(.95)}
+.scn-cacts button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.scn-cacts .scn-go{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.scn-cacts .scn-del.arm{background:var(--rec);color:#fff;border-color:var(--rec)}
+
+/* baris bawah panel: kuota kiri, tombol tambah kanan */
+.scn-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:14px;flex:none}
+.scn-quota{font-size:12.5px;color:var(--mut)}
+.scn-quota b{color:var(--ink);font-weight:600}
+.scn-add{display:flex;align-items:center;gap:6px;padding:10px 16px;border-radius:99px;background:var(--ink);color:var(--bg);font-size:13.5px;font-weight:600;transition:transform .15s,opacity .2s}
+.scn-add:active{transform:scale(.97)}
+.scn-add:disabled{background:var(--line);color:var(--mut);cursor:default;transform:none}
+.scn-add svg{width:15px;height:15px}
+.scn-add:focus-visible,.scn-gen:focus-visible,.scn-main:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+
+/* editor skrip */
+.scn-lab{display:block;margin-top:14px;font-size:12px;color:var(--mut)}
+.scn-tin,.scn-ta{display:block;width:100%;margin-top:6px;border:0;outline:0;background:var(--surface);color:var(--ink);border-radius:12px;padding:11px 13px;font:inherit;font-size:15px}
+.scn-tin:focus,.scn-ta:focus{box-shadow:0 0 0 2px var(--ink)}
+.scn-tin::placeholder,.scn-ta::placeholder{color:var(--mut)}
+.scn-ta{font-size:14.5px;line-height:1.5;min-height:150px;max-height:32vh;resize:none;overscroll-behavior:contain}
+.scn-crow{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px}
+.scn-count{font-size:12px;color:var(--mut);font-variant-numeric:tabular-nums;flex:none}
+.scn-count.max{color:var(--rec);font-weight:600}
+.scn-gen{display:flex;align-items:center;gap:6px;padding:9px 15px;border-radius:99px;border:1px solid var(--line);background:var(--bg);font-size:13px;font-weight:600;transition:transform .15s,opacity .2s}
+.scn-gen:active{transform:scale(.97)}
+.scn-gen:disabled{opacity:.55;cursor:default;transform:none}
+.scn-gen svg{width:15px;height:15px}
+.scn-gen.busy svg{animation:scnspin 1s linear infinite}
+@keyframes scnspin{to{transform:rotate(360deg)}}
+.scn-acts{display:flex;gap:8px;margin-top:16px}
+.scn-acts button{flex:1;padding:12px 8px;border-radius:99px;font-size:14px;font-weight:600;transition:transform .15s,opacity .2s}
+.scn-acts button:active{transform:scale(.98)}
+.scn-acts button:disabled{opacity:.55;cursor:default;transform:none}
+.scn-run{background:var(--ink);color:var(--bg)}
+.scn-save{background:var(--surface)}
+.scn-msg{min-height:17px;margin-top:9px;font-size:12.5px;line-height:1.4;color:var(--mut)}
+.scn-msg.err{color:var(--rec)}
+.scn-msg.ok{color:var(--ok)}
+
+/* Panel besar "skenario aktif" di area percakapan */
+.scn-start{align-self:center;width:100%;max-width:340px;margin:10px 0 4px;padding:20px 18px 16px;border-radius:22px;background:var(--surface);border:1px solid var(--line);text-align:center;animation:scnbox .3s cubic-bezier(.2,.9,.3,1.2)}
+.scn-start .scn-sttop{display:flex;align-items:center;justify-content:center;gap:7px;color:var(--mut);font-size:11.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+.scn-start .scn-sttop svg{width:16px;height:16px}
+.scn-start h3{margin-top:10px;font-size:17.5px;font-weight:700;letter-spacing:-.02em;line-height:1.25}
+.scn-stchar{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:10px}
+.scn-stchar img{width:26px;height:26px;border-radius:50%;object-fit:cover;background:var(--bg)}
+.scn-stchar span{font-size:13px;color:var(--mut)}
+.scn-ststat{margin-top:12px;font-size:13px;line-height:1.5;color:var(--mut)}
+.scn-stacts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}
+.scn-stacts button{padding:12px 8px;border-radius:14px;font-size:13.5px;font-weight:600;background:var(--bg);border:1.5px solid var(--line);transition:transform .15s,border-color .15s}
+.scn-stacts button:active{transform:scale(.97)}
+.scn-stacts button:disabled{opacity:.55;cursor:default;transform:none}
+.scn-stacts .scn-ai{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.scn-stend{margin-top:10px;padding:9px 18px;border-radius:99px;font-size:12.5px;font-weight:600;color:var(--rec);border:1px solid var(--line);background:var(--bg);transition:transform .15s}
+.scn-stend:active{transform:scale(.96)}
+.scn-stend:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.scn-think{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:14px;font-size:13px;color:var(--mut)}

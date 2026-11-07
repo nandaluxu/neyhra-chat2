@@ -452,7 +452,7 @@ header .pfp,header .who{cursor:pointer}
 <link rel="stylesheet" href="/extras.css">
 <link rel="stylesheet" href="/shell.css">
 <link rel="stylesheet" href="/bonus.css">
-<link rel="stylesheet" href="/games.css">
+<link rel="stylesheet" href="/scenario.css">
 </head>
 <body>
 <div id="app">
@@ -555,6 +555,7 @@ header .pfp,header .who{cursor:pointer}
   <main id="chat"></main>
   <footer>
     <textarea id="inp" rows="1" placeholder="Ketik pesan" enterkeyhint="enter" autocapitalize="sentences"></textarea>
+    <button id="scnbtn" type="button" class="hide" title="Skenario Skrip" aria-label="Skenario Skrip"><svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="10.5" rx="1.6"/><path d="M4.8 10L4 6.3a1.6 1.6 0 011.2-1.9l12.3-2.9a1.6 1.6 0 011.9 1.2l.8 3.6"/><path d="M8.6 8.9L7.4 5.4M12.7 8l-1.2-3.5M16.8 7l-1.2-3.5"/></svg></button>
     <button id="send" title="Kirim" disabled><svg viewBox="0 0 24 24"><path d="M4 12h16M14 6l6 6-6 6"/></svg></button>
     <button id="down" type="button" title="Ke pesan terbaru" aria-label="Ke pesan terbaru"><svg viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></svg></button>
     <div id="toast"></div>
@@ -1009,7 +1010,7 @@ function img(c, cls){ const i=new Image(); i.className=cls||''; i.alt=c.name; i.
 
 async function post(url, body, headers){
   const r = await fetch(url,{method:'POST',headers:{'Content-Type':'application/json',...headers},body:JSON.stringify(body)});
-  if(!r.ok){ const j=await r.json().catch(()=>({})); const e=new Error(j.error||'Gagal terhubung'); e.status=r.status; throw e; }
+  if(!r.ok){ const j=await r.json().catch(()=>({})); const e=new Error(j.error||'Gagal terhubung'); e.status=r.status; e.scn=!!j.scn; throw e; }
   return r;
 }
 
@@ -1068,7 +1069,7 @@ async function submit(){
   let t=thinkBubble(ch.name); /* fase 1: ChatGPT lagi mikir */
   try{
     const hist=loadHist(ch.id);
-    const r=await (await post('/api/chat',{clientId:cid,char:ch.id,message:text,userName:uname,history:hist,voice:{on:useVoice,lang},memory:memUse(chId).list,rel:relPayload(chId),...engPayload(),...(rpOn()?{rp:true}:{})})).json();
+    const r=await (await post('/api/chat',{clientId:cid,char:ch.id,message:text,userName:uname,history:hist,voice:{on:useVoice,lang},memory:memUse(chId).list,rel:relPayload(chId),...engPayload(),...(rpOn()?{rp:true}:{}),...(window.SCN?SCN.body(chId):{})},window.SCN?SCN.headers():{})).json();
     saveHist(chId,[...loadHist(chId),['user',text],['char',r.id]]); okReply=true;
     relNote=relApply(chId,r.dExp!=null?r.dExp:(Math.round(Number(r.dRel))||0)*3,r.dMood); /* hubungan & mood: angka dari balasan AI (sudah di-clamp server) */ /* baca ulang h: karena peringkasan di latar bisa saja baru membuang bagian lamanya */
     if(!useVoice){ t.remove(); showThem(chId,r.id); }
@@ -1089,7 +1090,7 @@ async function submit(){
         else toast(e.message);
       }
     }
-  }catch(e){ t.remove(); toast(e.message); }
+  }catch(e){ t.remove(); toast(e.message); if(window.SCN&&SCN.onErr) SCN.onErr(e); }
   setStatus('online',false); busy=false; refresh();
   if(relNote) toast(relNote);
   if(okReply) maybeMemorize(chId);
@@ -2062,6 +2063,7 @@ fetch('/api/chars').then(r=>r.json()).then(cs=>{
 <script src="/shell.js"></script>
 <script src="/bonus.js"></script>
 <script src="/games.js"></script>
+<script src="/scenario.js"></script>
 <script src="/router.js"></script>
 </body>
 </html>
