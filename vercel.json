@@ -4,6 +4,22 @@
     {
       "source": "/api/(.*)",
       "destination": "/api"
+    },
+    {
+      "source": "/chat",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/chat/:id",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/global",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/settings",
+      "destination": "/index.html"
     }
   ],
   "functions": {

@@ -54,6 +54,24 @@ Login sederhana, tujuannya memindahkan obrolan antar perangkat, **bukan** keaman
 - **API** (semua POST, `lib/auth.js`): `/api/auth/register|login|me|logout|pull|push|delete`. Token lewat header `Authorization: Bearer ...`.
 - **Koleksi**: `users` (username unik), `auth_sessions` (TTL), `userdata` (satu dokumen per user), `auth_rl` (TTL). Index dibuat otomatis saat request pertama.
 
+## URL per layar (public/router.js)
+
+Tetap satu aplikasi (tanpa muat ulang), tapi tiap layar punya alamat dan tombol back/forward browser berfungsi:
+
+| Alamat | Layar |
+| --- | --- |
+| `/` | menu utama |
+| `/chat` | panel "Semua karakter" |
+| `/chat/<id>` | chat dengan karakter, mis. `/chat/reze` |
+| `/global` | Chat Global |
+| `/settings` | Pengaturan |
+
+- Bisa dibuka langsung lewat tautan. `id` yang tidak dikenal kembali ke `/`. Chat grup (fitur rahasia) tidak punya alamat, URL-nya tetap `/`.
+- `router.js` hanya mengamati layar yang tampil lalu memperbarui URL, dan membuka/menutup layar lewat fungsi yang sudah ada. Kode layar tidak diubah.
+- Server harus menjawab alamat di atas dengan `index.html`: `rewrites` di `vercel.json` (Vercel) dan `app.get(...)` di `lib/app.js` (lokal).
+- File CSS/JS di `index.html` ditulis dengan path absolut (`/group.js`, bukan `group.js`) supaya tetap termuat di alamat bersarang seperti `/chat/reze`. Tambah file baru? Tulis dengan `/` di depan juga.
+- Tambah alamat baru: tambahkan di `curPath()` dan `apply()` di `router.js`, lalu satu aturan di `vercel.json` dan `lib/app.js`.
+
 ## Deploy ke Vercel
 
 1. Push folder ini ke GitHub, import di Vercel (framework: Other).
