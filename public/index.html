@@ -735,6 +735,17 @@ let current=null, ch=null, busy=false, restoring=false, ready=false, openTok=0, 
 const cid=(()=>{try{return localStorage.cid||(localStorage.cid=crypto.randomUUID())}catch{return crypto.randomUUID()}})();
 /* Id pengirim Chat Global: kalau masuk akun = id tetap akun dari server (`gid`, sama di semua browser), kalau tamu = cid browser ini. `cid` tetap dipakai untuk presence/WebRTC (per browser). */
 const gcAid=()=>{ try{ return (typeof atok==='string'&&atok&&localStorage.getItem('gid'))||cid; }catch{ return cid; } };
+/* Apakah pesan Chat Global ini milik saya? Ya kalau: dikirim dari browser ini (cid), memakai id tetap akun (gid), dikirim dari browser lain milik akun yang sama
+   (daftar cid yang ditautkan server di /api/auth/me), atau (pesan lama) stempel username server `au` sama dengan username saya. Tamu: hanya cid. */
+let _gcm={raw:null,set:new Set()};
+const gcIsMine=m=>{ try{
+  if(!m) return false; if(m.senderId===cid) return true;
+  if(!(typeof atok==='string'&&atok)) return false;
+  if(m.senderId===localStorage.getItem('gid')) return true;
+  const u=localStorage.getItem('gu'); if(u&&m.au===u) return true;
+  const raw=localStorage.getItem('gcids')||'[]'; if(raw!==_gcm.raw){ let l=[]; try{ l=JSON.parse(raw); }catch{} _gcm={raw,set:new Set(Array.isArray(l)?l:[])}; }
+  return _gcm.set.has(m.senderId);
+}catch{ return false; } };
 const PLAY='<svg class="f" viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z"/></svg>';
 const PAUSE='<svg class="f" viewBox="0 0 24 24"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>';
 const fmt = s => Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
@@ -1505,11 +1516,11 @@ function paintAcct(cloud){
 }
 async function initAcct(){
   try{
-    const r=await (await fetch('/api/auth/me',{method:'POST',headers:{'Content-Type':'application/json',...(atok?{Authorization:'Bearer '+atok}:{})},body:'{}'})).json().catch(()=>({}));
+    const r=await (await fetch('/api/auth/me',{method:'POST',headers:{'Content-Type':'application/json',...(atok?{Authorization:'Bearer '+atok}:{})},body:JSON.stringify({clientId:cid})})).json().catch(()=>({}));
     if(r.enabled===false){ aOn=false; paintAcct(); return; }
     aOn=true;
-    if(r.ok){ store.set('authname',r.name); store.set('gid',r.gid||null); if(r.uid&&!ownerOf()) store.set('dataowner',r.uid); saveWallet(r); paintAcct(r.cloud); }
-    else{ if(atok){ atok=''; store.set('authtok',null); store.set('authname',null); saveWallet(null); } paintAcct(); }
+    if(r.ok){ store.set('authname',r.name); store.set('gid',r.gid||null); store.set('gu',r.username||null); store.set('gcids',Array.isArray(r.cids)?JSON.stringify(r.cids):null); if(r.uid&&!ownerOf()) store.set('dataowner',r.uid); saveWallet(r); paintAcct(r.cloud); }
+    else{ if(atok){ atok=''; store.set('authtok',null); store.set('authname',null); store.set('gid',null); store.set('gu',null); store.set('gcids',null); saveWallet(null); } paintAcct(); }
   }catch{ aOn=false; paintAcct(); } /* server tak terjangkau -> sembunyikan, jangan ganggu pengaturan lain */
 }
 async function authGo(kind){

@@ -19,7 +19,8 @@ const NEAR = 120;          // jarak (px) dari bawah yang dianggap "masih di bawa
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 const len = s => [...s].length; // hitung per karakter (emoji = 1), bukan per unit UTF-16
 const hue = s => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
-const isMine = id => id === cid || id === gcAid(); // pesan lama (sebelum masuk akun) memakai cid; pesan akun memakai id tetap akun, sama di semua browser
+const isMine = m => gcIsMine(m); // lihat gcIsMine di index.html: cid browser ini, id tetap akun, cid browser lain milik akun, atau username server (pesan lama)
+const authorKey = m => isMine(m) ? 'me' : m.senderId; // pesan beruntun dari orang yang sama dikelompokkan walau id pengirimnya beda (cid lama vs id akun)
 // Foto profil pengirim: server mengisi au (username) + av (versi foto) hanya untuk pengirim yang masuk akun. Alamat dibuat di sini dari pola tetap
 // (satu domain), bukan dari URL kiriman orang lain, jadi tidak bisa dipakai memuat gambar dari situs luar.
 const avUrl = m => /^[a-z0-9_.-]{3,20}$/.test(m.au || '') && Number.isInteger(m.av) && m.av > 0 ? '/api/auth/avatar/' + encodeURIComponent(m.au) + '?v=' + m.av : '';
@@ -186,11 +187,11 @@ function paintList(s) {
     msgs.forEach((m, i) => {
       const p = msgs[i - 1], n = msgs[i + 1], dk = dayKey(m.ts);
       if (dk !== lastDay) { lastDay = dk; frag.append(el('div', 'day', dayLabel(m.ts))); }
-      const cont = !!p && dayKey(p.ts) === dk && p.senderId === m.senderId && m.ts - p.ts < GROUP;
-      const more = !!n && dayKey(n.ts) === dk && n.senderId === m.senderId && n.ts - m.ts < GROUP;
+      const cont = !!p && dayKey(p.ts) === dk && authorKey(p) === authorKey(m) && m.ts - p.ts < GROUP;
+      const more = !!n && dayKey(n.ts) === dk && authorKey(n) === authorKey(m) && n.ts - m.ts < GROUP;
       const isNew = !seen.has(m.id);
-      if (isNew) { seen.add(m.id); if (primed) { added++; isMine(m.senderId) ? mine++ : other++; } }
-      frag.append(bubble(m, { mine: isMine(m.senderId), first: !cont, last: !more, fresh: primed && isNew }));
+      if (isNew) { seen.add(m.id); if (primed) { added++; isMine(m) ? mine++ : other++; } }
+      frag.append(bubble(m, { mine: isMine(m), first: !cont, last: !more, fresh: primed && isNew }));
     });
   }
   list.replaceChildren(frag);
@@ -242,7 +243,7 @@ function submit() {
   A.send(text); inp.value = ''; grow(); paintComposer();
 }
 as.addEventListener('click', e => { if (e.target.closest('#gc-login')) { close(); $('setbtn').click(); } });
-window.addEventListener('acct', () => paintAs(true)); // masuk/keluar atau nama profil berubah -> label ikut berubah
+window.addEventListener('acct', () => { paintAs(true); if (isOpen) render(A.getState(), true); }); // masuk/keluar atau nama profil berubah -> label dan posisi bubble (kanan = saya) ikut berubah
 
 /* ---------- Aksi dari bubble / banner / tampilan kosong (delegasi klik) ---------- */
 const armed = new WeakMap();
@@ -370,7 +371,7 @@ function notifyScan(s) {
     nReady = true; nMax = msgs.length ? msgs[msgs.length - 1].ts : 0; return;
   }
   const top = msgs.length ? msgs[msgs.length - 1].ts : 0, fresh = [];
-  for (const m of msgs) if (m.ts > nMax && !isMine(m.senderId)) fresh.push(m);
+  for (const m of msgs) if (m.ts > nMax && !isMine(m)) fresh.push(m);
   if (top > nMax) nMax = top;
   if (!fresh.length || !notifOn || isOpen) return;
   nUnread += fresh.length; paintBadge(); showNote(fresh); sysNote(fresh);
