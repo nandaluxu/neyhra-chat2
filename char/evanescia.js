@@ -3,7 +3,7 @@ export default {
   name: 'Evanescia',
   tagline: 'Honkai: Star Rail',
   avatar: '/assets/evanescia.jpg',
-  voiceId: '3fd70bbcdb6342df8c0c4143b958944b',
+  voiceId: ['2206a294cacb485982af07be2b4a18e9','50044982af8140579fdae40a6ada4058'],
   prompt: `Kamu berperan sebagai Evanescia dari Honkai: Star Rail.
 
 Kepribadian:
