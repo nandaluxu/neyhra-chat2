@@ -16,6 +16,8 @@
 html,body{height:100%;overflow:hidden;overscroll-behavior:none;-webkit-text-size-adjust:100%;touch-action:manipulation;background:var(--surface);font-family:Inter,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased}
 #app{max-width:460px;height:100%;margin:0 auto;display:flex;flex-direction:column;background:var(--bg);position:relative}
 @supports(height:100dvh){#app{height:var(--app-h,100dvh)}} /* --app-h diisi JS = area yang benar-benar kelihatan (di atas keyboard) */
+#app{top:var(--app-top,0px)} /* --app-top = offset visual viewport (iOS menggeser halaman saat keyboard muncul) */
+html.kb footer{padding-bottom:10px} /* keyboard terbuka: area aman home-indicator tertutup keyboard, jangan sisakan celah */
 @media(min-width:520px){#app{border-left:1px solid var(--line);border-right:1px solid var(--line)}}
 button{background:none;border:0;color:inherit;cursor:pointer;display:grid;place-items:center;font:inherit}
 svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
@@ -1076,16 +1078,34 @@ inp.addEventListener('keydown',e=>{ if(e.key==='Enter'&&!e.shiftKey&&!COARSE){e.
 sendB.addEventListener('pointerdown',e=>e.preventDefault()); /* tap kirim tidak menutup keyboard */
 sendB.onclick=submit;
 
-/* Keyboard HP: tinggi app = area yang benar-benar kelihatan, jadi kolom ketik tidak ketutup keyboard */
+/* Keyboard HP: tinggi app = area yang benar-benar kelihatan (di atas keyboard), jadi kolom ketik tidak ketutup dan tidak ada celah.
+   - --app-h / --app-top mengikuti visual viewport (iOS menggeser halaman, Android mengecilkan visual viewport)
+   - html.kb aktif saat keyboard terbuka (footer tidak menyisakan padding home-indicator)
+   - dicek ulang saat fokus berpindah, rotasi, kembali dari background, karena vv.resize kadang telat/tidak terkirim */
 (()=>{
-  const vv=window.visualViewport; if(!vv) return; let raf=0;
+  const vv=window.visualViewport; if(!vv) return; const root=document.documentElement;
+  let raf=0, base=0, kb=false, lastW=innerWidth;
+  const editable=el=>!!el&&(el.tagName==='TEXTAREA'||(el.tagName==='INPUT'&&!/^(checkbox|radio|range|button|submit|file|color|image)$/i.test(el.type)));
+  const nearBottom=()=>chat.scrollHeight-chat.scrollTop-chat.clientHeight<90;
   const fit=()=>{ cancelAnimationFrame(raf); raf=requestAnimationFrame(()=>{
     if(vv.scale>1.02) return; /* lagi di-zoom cubit: jangan ikut mengecil */
-    document.documentElement.style.setProperty('--app-h',vv.height+'px');
+    const h=Math.round(vv.height), ed=editable(document.activeElement);
+    if(innerWidth!==lastW){ lastW=innerWidth; base=0; } /* rotasi/resize jendela: tinggi acuan dihitung ulang */
+    if(ed){ if(h>base) base=h; } else if(!base||h>base-120) base=h; /* acuan = tinggi penuh tanpa keyboard */
+    const was=kb, near=nearBottom(); kb=ed&&base-h>120;
+    root.style.setProperty('--app-h',h+'px');
+    root.style.setProperty('--app-top',Math.max(0,Math.round(vv.offsetTop))+'px');
+    root.classList.toggle('kb',kb);
     if(window.scrollY||vv.offsetTop) window.scrollTo(0,0);
-    if(document.activeElement===inp) chat.scrollTop=chat.scrollHeight;
+    if(near||(kb&&!was&&document.activeElement===inp)) chat.scrollTop=chat.scrollHeight; /* tetap di bawah kalau tadinya di bawah */
+    if(kb&&!was&&ed&&document.activeElement!==inp) setTimeout(()=>{ try{ document.activeElement.scrollIntoView({block:'center'}); }catch{} },80); /* input lain (login, nama, cari) jangan ketutup */
   }); };
-  vv.addEventListener('resize',fit); vv.addEventListener('scroll',fit); fit();
+  const later=()=>{ fit(); setTimeout(fit,120); setTimeout(fit,400); };
+  vv.addEventListener('resize',fit); vv.addEventListener('scroll',fit);
+  addEventListener('resize',fit); addEventListener('orientationchange',()=>{ base=0; later(); });
+  addEventListener('focusin',later); addEventListener('focusout',later);
+  addEventListener('pageshow',later); document.addEventListener('visibilitychange',()=>{ if(!document.hidden) later(); });
+  fit();
 })();
 
 /* Menu utama: daftar karakter dari /api/chars, masuk/keluar chat dengan reveal lingkaran */
