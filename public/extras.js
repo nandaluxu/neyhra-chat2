@@ -74,7 +74,7 @@ new MutationObserver(() => { // keluar chat -> aksen dibuang setelah animasi tut
   else if (!ch) { accFor = null; clearAccent(); }
 }).observe(app, { attributes: true, attributeFilter: ['class'] });
 
-/* ================= 2. Cari isi semua obrolan (panel "Semua karakter") ================= */
+/* ================= 2. Cari isi semua obrolan (Beranda) ================= */
 const xs = h('div'); xs.id = 'xs'; xs.className = 'hide'; $('alllist').prepend(xs);
 q.placeholder = 'Cari nama, judul, atau isi obrolan';
 const MAXHIT = 30;
@@ -127,7 +127,6 @@ q.addEventListener('keydown', e => { // Enter tanpa karakter yang cocok -> buka 
   if (e.key !== 'Enter' || rows.some(r => !r.el.classList.contains('hide'))) return;
   const b = xs.querySelector('.x-hit'); if (b) { q.blur(); b.click(); }
 });
-$('allback').addEventListener('click', () => { xs.classList.add('hide'); xs.textContent = ''; });
 
 /* ================= 3. Ringkasan harian ================= */
 const STOP = new Set(('yang dan di ke dari ini itu aku kamu kau dia ada apa kok sih deh dong nih tuh aja saja juga udah sudah belum lagi bisa mau gak nggak ga tidak bukan atau tapi tetapi karena kalau kalo jadi untuk buat dengan sama pada dalam akan lebih sangat banget lah kan ya yaa iya oke halo hai hei terus lalu habis abis mulai masih cuma hanya dulu nanti tadi kemarin besok hari gimana bagaimana kenapa kapan siapa dimana mana kita kami mereka saya gue gw lo lu nya dah tau tahu pun pernah harus perlu boleh coba kayak seperti gitu gini begitu begini the and you bgt ajaa kok kek tuh yaudah ya').split(' '));

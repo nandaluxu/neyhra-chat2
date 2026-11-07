@@ -111,7 +111,6 @@ footer:has(#send:not(.hide)) #recbar{right:106px}
 @keyframes rise{from{opacity:0;transform:translateY(105%) rotate(5deg);filter:blur(6px)}}
 .m-sub{margin-top:16px;font-size:14.5px;line-height:1.4;color:var(--mut);animation:rise2 .8s .85s cubic-bezier(.2,.9,.2,1) both}
 @keyframes rise2{from{opacity:0;transform:translateY(18px)}}
-.m-list{position:relative;animation:rise2 .8s 1s cubic-bezier(.2,.9,.2,1) both}
 .m-card{width:100%;display:flex;align-items:center;gap:14px;padding:14px 14px 14px 14px;border-radius:24px;background:var(--surface);text-align:left;transition:transform .3s cubic-bezier(.2,.9,.3,1.3)}
 .m-card:active{transform:scale(.97)}
 .m-card:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
@@ -133,22 +132,12 @@ footer:has(#send:not(.hide)) #recbar{right:106px}
 .m-all:active{transform:scale(.97)}
 .m-all:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
 .m-all svg{width:16px;height:16px}
-#all{position:absolute;inset:0;z-index:1;background:var(--bg);visibility:hidden;transform:translateY(100%);transition:transform .45s cubic-bezier(.2,.9,.2,1),visibility 0s .45s;padding-top:calc(10px + env(safe-area-inset-top,0px))}
-#all.show{visibility:visible;transform:none;transition-delay:0s}
-.all-in{width:100%;max-width:480px;margin:0 auto;height:100%;display:flex;flex-direction:column;padding:0 22px}
-.all-top{display:flex;align-items:center;gap:6px;padding-bottom:12px;margin-left:-10px}
-.all-top button{width:38px;height:38px;border-radius:50%;transition:background .15s}
-@media(hover:hover){.all-top button:hover{background:var(--surface)}}
-.all-top button:active{background:var(--surface)}
-.all-top h2{font-size:18px;font-weight:600;letter-spacing:-.02em;flex:1}
 #allcount{font-size:12.5px;color:var(--mut)}
 .srch{display:flex;align-items:center;gap:10px;flex:none;height:44px;padding:0 16px;border-radius:22px;background:var(--surface);color:var(--mut)}
 .srch:focus-within{box-shadow:0 0 0 2px var(--ink)}
 .srch input{flex:1;min-width:0;border:0;outline:0;background:none;color:var(--ink);font:inherit;font-size:16px}
 .srch input::placeholder{color:var(--mut)}
 .srch input::-webkit-search-cancel-button{filter:grayscale(1);opacity:.6;cursor:pointer}
-.all-list{flex:1;overflow-y:auto;margin-top:14px;padding:4px 0 calc(24px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:10px;scrollbar-width:none}
-.all-list::-webkit-scrollbar{display:none}
 .all-empty{text-align:center;color:var(--mut);font-size:14px;margin-top:30px}
 
 /* ===== Sapaan & nama user ===== */
@@ -159,7 +148,7 @@ footer:has(#send:not(.hide)) #recbar{right:106px}
 .m-name:active{transform:scale(.96)}
 .m-name svg{width:15px;height:15px}
 .m-name:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
-#nmodal,#vmodal,#smodal,#pmodal,#mmodal,#rmodal{position:absolute;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(0,0,0,.45);backdrop-filter:blur(3px)}
+#nmodal,#vmodal,#smodal,#pmodal,#mmodal,#rnmodal,#dlmodal{position:absolute;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(0,0,0,.45);backdrop-filter:blur(3px)}
 .nbox{width:100%;max-width:340px;background:var(--bg);border:1px solid var(--line);border-radius:22px;padding:20px;animation:nin .25s cubic-bezier(.2,.9,.3,1.2)}
 @keyframes nin{from{opacity:0;transform:scale(.92) translateY(8px)}}
 .nbox h2{font-size:18px;font-weight:600;letter-spacing:-.02em}
@@ -232,7 +221,7 @@ header>button:active,.mwrap>button:active{transform:scale(.88)}
 /* ===== Layout desktop ===== */
 @media(min-width:800px){
   #app{max-width:none;border-left:0;border-right:0}
-  #chatview{--g:max(24px,calc((100% - 780px)/2))}
+  #chatview{--g:max(24px,calc((100% - 720px)/2))}
   header{padding-left:calc(var(--g) - 8px);padding-right:calc(var(--g) - 8px)}
   #chat{padding:24px var(--g)}
   footer{padding-left:calc(var(--g) - 8px);padding-right:calc(var(--g) - 8px)}
@@ -241,7 +230,6 @@ header>button:active,.mwrap>button:active{transform:scale(.88)}
   #menu{padding:40px 56px}
   .m-word{display:block}
   .m-hero{margin:auto auto 0;width:100%;max-width:480px}
-  .m-list{margin:30px auto auto;width:100%;max-width:480px}
   #mtitle{font-size:88px}
   #mtitle.greet{font-size:36px}
   .m-sub{font-size:16px}
@@ -250,7 +238,6 @@ header>button:active,.mwrap>button:active{transform:scale(.88)}
 @keyframes barin{from{transform:scaleY(.25)}}
 .wave i{animation:barin .4s calc(var(--k,0)*8ms) cubic-bezier(.2,.9,.3,1.2) both}
 
-.m-list{display:flex;flex-direction:column;gap:10px}
 #send:disabled{opacity:.35;cursor:default}
 
 /* ===== Mobile ===== */
@@ -271,7 +258,7 @@ header>button:active,.mwrap>button:active{transform:scale(.88)}
   .pfp{width:40px;height:40px}
   .name{font-size:16px}
   /* kotak nama jadi bottom sheet, gampang dijangkau jempol */
-  #nmodal,#vmodal,#smodal,#mmodal,#rmodal{align-items:flex-end;padding:12px 12px calc(12px + env(safe-area-inset-bottom,0px))}
+  #nmodal,#vmodal,#smodal,#mmodal,#rnmodal,#dlmodal{align-items:flex-end;padding:12px 12px calc(12px + env(safe-area-inset-bottom,0px))}
   .nbox{max-width:none;border-radius:26px;padding:22px 20px 20px}
   .nact button{padding:12px 20px}
 }
@@ -373,7 +360,6 @@ header>button:active,.mwrap>button:active{transform:scale(.88)}
   .m-card{padding:10px 12px;border-radius:22px}
   .m-av{width:46px;height:46px}
   .m-go{width:34px;height:34px}
-  .m-list{gap:8px}
   .m-logo{width:36px;height:36px;border-radius:12px}
 }
 /* ===== Memori ===== */
@@ -441,9 +427,28 @@ header .pfp,header .who{cursor:pointer}
 <link rel="stylesheet" href="/group.css">
 <link rel="stylesheet" href="/globalchat.css">
 <link rel="stylesheet" href="/extras.css">
+<link rel="stylesheet" href="/shell.css">
 </head>
 <body>
 <div id="app">
+  <nav id="rail" aria-label="Navigasi utama">
+    <button class="r-logo" id="rlogo" type="button" aria-expanded="false" title="Neyhra Chat">
+      <span class="m-logo"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg></span>
+      <span class="r-label r-word">Neyhra Chat</span>
+    </button>
+    <button class="r-item on" id="rhome" type="button" data-tab="home" aria-current="page" title="Beranda">
+      <svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7M6 9.5V20h12V9.5M10 20v-6h4v6"/></svg>
+      <span class="r-label">Beranda</span>
+    </button>
+    <button class="r-item" id="rrecent" type="button" data-tab="recent" title="Obrolan Terakhir">
+      <svg viewBox="0 0 24 24"><path d="M5 5h14a2 2 0 012 2v8a2 2 0 01-2 2h-7l-5 4v-4H5a2 2 0 01-2-2V7a2 2 0 012-2zM8 10h8M8 13h5"/></svg>
+      <span class="r-label">Obrolan Terakhir</span>
+    </button>
+    <button class="r-item r-bottom" id="setbtn" type="button" title="Pengaturan">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.9-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.9.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.9 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.9l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.9.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.9-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.9V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>
+      <span class="r-label">Pengaturan</span>
+    </button>
+  </nav>
   <section id="menu">
     <div class="orb o1"></div><div class="orb o2"></div>
     <div class="m-top"><div class="m-brand"><div class="m-logo"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg></div><span class="m-word">neyhra chat</span></div><span class="m-online hide" id="online" role="status" aria-live="off"><span><span id="onum">0</span> online</span></span></div>
@@ -452,32 +457,46 @@ header .pfp,header .who{cursor:pointer}
       <p class="m-sub">Pilih siapa yang mau diajak ngobrol.</p>
       <div class="m-pills">
         <button class="m-name" id="namebtn" type="button"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c1-4 4-6 8-6s7 2 8 6"/></svg><span id="nlabel">Isi namamu</span></button>
-        <button class="m-set" id="setbtn" type="button"><svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg><span>Pengaturan</span></button>
         <button class="m-set" id="gcbtn" type="button"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3z"/></svg><span>Chat global</span><i class="gc-dot" data-s="idle"></i></button>
       </div>
     </div>
-    <div class="m-list" id="list"></div>
+    <label class="srch"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg><input id="q" type="search" placeholder="Cari nama atau judul" autocomplete="off" enterkeyhint="search"></label>
+    <div class="b-head"><h2>Semua karakter</h2><span id="allcount"></span></div>
+    <div class="bgrid" id="alllist"></div>
+    <p class="all-empty hide" id="allempty">Nggak ada karakter yang cocok.</p>
   </section>
-  <section id="all" aria-label="Semua karakter">
-    <div class="all-in">
-      <div class="all-top">
-        <button id="allback" type="button" title="Kembali"><svg viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6"/></svg></button>
-        <h2>Semua karakter</h2><span id="allcount"></span>
-      </div>
-      <label class="srch"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg><input id="q" type="search" placeholder="Cari nama atau judul" autocomplete="off" enterkeyhint="search"></label>
-      <div class="all-list" id="alllist"></div>
-      <p class="all-empty hide" id="allempty">Nggak ada karakter yang cocok.</p>
+  <aside id="lpanel" aria-label="Obrolan terakhir">
+    <div class="lp-top">
+      <h2>Obrolan Terakhir</h2>
+      <button id="lpclose" type="button" title="Tutup panel" aria-label="Tutup panel obrolan"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
     </div>
-  </section>
+    <div class="seg lp-tabs hide" id="lptabs">
+      <button type="button" data-v="char" class="sel">Karakter</button>
+      <button type="button" data-v="group">Grup</button>
+    </div>
+    <div id="lpnew" class="hide"></div>
+    <div id="lplist" role="list"></div>
+    <div class="lp-empty hide" id="lpempty"><p></p><button type="button" id="lpempty-home">Ke Beranda</button></div>
+  </aside>
+  <div id="cempty">
+    <div class="ce-in">
+      <svg viewBox="0 0 24 24"><path d="M5 5h14a2 2 0 012 2v8a2 2 0 01-2 2h-7l-5 4v-4H5a2 2 0 01-2-2V7a2 2 0 012-2z"/></svg>
+      <h3>Pilih obrolan</h3>
+      <p>Pilih dari daftar di kiri, atau mulai ngobrol dengan karakter baru dari Beranda.</p>
+      <button type="button" id="cetohome">Ke Beranda</button>
+    </div>
+  </div>
   <div id="chatview">
   <header>
     <button id="back" title="Kembali"><svg viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6"/></svg></button>
+    <button id="lpopen" type="button" title="Buka daftar obrolan" aria-label="Buka daftar obrolan"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></svg></button>
     <img class="pfp" id="hpfp" alt="">
     <div class="who"><div class="name" id="hname"></div><div class="status" id="status">online</div></div>
     <button id="find" type="button" title="Cari di obrolan" aria-label="Cari di obrolan"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg></button>
     <button id="exp" type="button" title="Ekspor obrolan" aria-label="Ekspor obrolan"><svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 19h14"/></svg></button>
     <button id="clr" type="button" title="Hapus obrolan" aria-label="Hapus obrolan"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12h10l1-12M9 7V4h6v3"/></svg></button>
     <button id="vmore" type="button" class="hide" title="Pilih suara" aria-label="Pilih suara karakter" aria-haspopup="dialog"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="12" cy="19" r="1.9"/></svg></button>
+    <button id="dtoggle" type="button" title="Detail karakter" aria-label="Detail karakter"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg></button>
   </header>
   <div id="sbar"><input id="sq" type="search" placeholder="Cari di obrolan" autocomplete="off" enterkeyhint="search" aria-label="Cari di obrolan"><span id="scnt"></span><button id="sprev" type="button" aria-label="Hasil sebelumnya" disabled><svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button><button id="snext" type="button" aria-label="Hasil berikutnya" disabled><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button><button id="sclose" type="button" aria-label="Tutup pencarian"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
   <main id="chat"></main>
@@ -588,9 +607,9 @@ header .pfp,header .who{cursor:pointer}
       <div id="mlist"></div>
     </div>
   </div>
-  <div id="rmodal" class="hide">
-    <div class="nbox sbox" role="dialog" aria-labelledby="rtitle">
-      <div class="shead"><h2 id="rtitle">Profil</h2><button id="rx" type="button" aria-label="Tutup"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <aside id="dpanel" aria-label="Detail karakter">
+    <div class="shead dp-head"><h2>Detail karakter</h2><button id="rx" type="button" aria-label="Tutup"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="dp-scroll">
       <div class="rprof"><img id="rpfp" alt=""><div><b id="rname"></b><small id="rtag"></small></div></div>
       <div class="rsec">
         <h3>Hubungan</h3>
@@ -609,7 +628,34 @@ header .pfp,header .who{cursor:pointer}
         <h3>Perjalanan</h3>
         <ol class="rsteps" id="rsteps"></ol>
       </div>
+      <div class="rsec" id="dmem">
+        <h3>Kotak memori <span id="dmcount"></span></h3>
+        <p class="rdesc" id="dmhelp">Hal-hal yang diingat karakter ini dari obrolan kalian.</p>
+        <div id="dmlist"></div>
+        <div class="mact" id="dmdev"></div>
+      </div>
       <div class="sgroup"><button class="srow danger" id="rreset" type="button"><span><b>Reset hubungan</b><i>Mulai dari awal lagi, seperti baru kenal. Obrolan dan memori tidak dihapus.</i></span><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 3-6.2M4 4v4h4"/></svg></button></div>
+    </div>
+  </aside>
+  <div id="dscrim"></div>
+  <div id="lpmenu" class="hide" role="menu">
+    <button type="button" role="menuitem" data-a="pin"><svg viewBox="0 0 24 24"><path d="M12 17v5M9 3h6l-1 6 3 3v2H7v-2l3-3z"/></svg><span>Sematkan</span></button>
+    <button type="button" role="menuitem" data-a="rename"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4"/></svg><span>Ganti nama</span></button>
+    <button type="button" role="menuitem" data-a="del" class="danger"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12h10l1-12M9 7V4h6v3"/></svg><span>Hapus</span></button>
+  </div>
+  <div id="rnmodal" class="hide">
+    <div class="nbox" role="dialog" aria-labelledby="rntitle">
+      <h2 id="rntitle">Ganti nama obrolan</h2>
+      <p id="rnsub">Nama ini hanya tampil di perangkat ini. Karakternya tidak berubah.</p>
+      <input id="rninp" maxlength="24" placeholder="Nama obrolan" autocomplete="off" enterkeyhint="done">
+      <div class="nact"><button id="rnreset" type="button" class="hide">Nama asli</button><button id="rncancel" type="button">Batal</button><button id="rnsave" type="button">Simpan</button></div>
+    </div>
+  </div>
+  <div id="dlmodal" class="hide">
+    <div class="nbox" role="dialog" aria-labelledby="dltitle">
+      <h2 id="dltitle">Hapus obrolan?</h2>
+      <p id="dlsub"></p>
+      <div class="nact"><button id="dlcancel" type="button">Batal</button><button id="dlok" type="button" style="background:var(--rec);color:#fff">Hapus</button></div>
     </div>
   </div>
   <div id="mtoast" role="status" aria-live="polite"></div>
@@ -842,6 +888,7 @@ function trimLog(l){
 function record(id,e){
   const l=loadLog(id); e.t=e.t||Date.now(); l.push(e); trimLog(l);
   store.set('log:'+id,JSON.stringify(l));
+  if(window.Shell) Shell.touch();
 }
 const newKey=()=>'v'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 function patchLog(id,t,fn){ const l=loadLog(id), e=l.find(x=>x.t===t); if(!e) return; fn(e); store.set('log:'+id,JSON.stringify(l)); }
@@ -1014,8 +1061,9 @@ sendB.onclick=submit;
 })();
 
 /* Menu utama: daftar karakter dari /api/chars, masuk/keluar chat dengan reveal lingkaran */
-const app=$('app'), menu=$('menu'), view=$('chatview'), list=$('list');
+const app=$('app'), menu=$('menu'), view=$('chatview');
 const DUR=matchMedia('(prefers-reduced-motion:reduce)').matches?1:700;
+const isDesk=()=>matchMedia('(min-width:800px)').matches;
 let ox=0, oy=0, moving=false;
 
 /* ===== Panel voice (dibuka dari Pengaturan) ===== */
@@ -1131,33 +1179,46 @@ pm.addEventListener('click',e=>{ if(e.target===pm) closePicker(); });
 const reach=()=>{const w=app.clientWidth,h=app.clientHeight;return Math.hypot(Math.max(ox,w-ox),Math.max(oy,h-oy))};
 
 function openChat(c,avEl){
-  if(moving||app.classList.contains('open')) return;
-  moving=true; setTimeout(()=>moving=false,DUR);
+  if(moving) return;
+  const was=app.classList.contains('open');
+  if(was && ch && !(window.GX&&GX.cur) && ch.id===c.id) return; /* sudah terbuka */
+  if(window.Shell) Shell.enterChatTab(); /* pastikan data-tab="recent" */
+  const inline=isDesk(); /* desktop: tanpa animasi lingkaran */
+  if(was){ /* GANTI instan (daftar -> chat lain) */
+    closeSearch(); closePicker();
+    if(window.GX&&GX.cur) GX.onClose(); /* simpan draft grup, hentikan rantai */
+    else if(ch) store.set('draft:'+ch.id,inp.value.trim()?inp.value:null);
+  } else if(!inline){ moving=true; setTimeout(()=>moving=false,DUR); }
   if(window.GX) GX.reset(); /* keluar dari mode grup (tombol titik tiga grup, placeholder, dll) */
   ch=c; closeSearch(); if(current) current.stop(); openSub=null; urls.forEach(u=>URL.revokeObjectURL(u)); urls=[]; clearTimeout(clrT); clrT=0;
   chat.innerHTML=''; lastDay=''; ready=false; const tok=++openTok; setStatus('online',false);
   clearTimeout(draftT); inp.value=store.get('draft:'+c.id)||''; grow(); refresh(); /* draft pesan karakter ini */
   $('vmore').classList.toggle('hide',charVoices(c.id).length<2);
-  $('hname').textContent=c.name; $('hpfp').replaceWith(Object.assign(img(c,'pfp'),{id:'hpfp'}));
-  const a=app.getBoundingClientRect(), r=avEl.getBoundingClientRect();
-  ox=r.left+r.width/2-a.left; oy=r.top+r.height/2-a.top;
-  touchRecent(c.id); setTimeout(renderList,DUR); /* urutan menu diperbarui saat chat sudah menutupi layar */
+  $('hname').textContent=dispName(c); $('hpfp').replaceWith(Object.assign(img(c,'pfp'),{id:'hpfp'}));
+  if(!was && !inline){
+    const a=app.getBoundingClientRect(), r=avEl&&avEl.getBoundingClientRect?avEl.getBoundingClientRect():null;
+    if(r){ ox=r.left+r.width/2-a.left; oy=r.top+r.height/2-a.top; } else { ox=a.width/2; oy=a.height/2; }
+  }
+  touchRecent(c.id); setTimeout(renderList,was||inline?0:DUR); /* urutan daftar diperbarui saat chat sudah menutupi layar */
   app.classList.add('open'); menu.classList.add('away'); restoreChat(c.id,tok);
-  view.animate({clipPath:[circle(0),circle(reach())]},{duration:DUR,easing:'cubic-bezier(.7,0,.2,1)'});
-  setTimeout(()=>{ if(app.classList.contains('open')) inp.focus({preventScroll:true}) },DUR);
+  if(!was && !inline) view.animate({clipPath:[circle(0),circle(reach())]},{duration:DUR,easing:'cubic-bezier(.7,0,.2,1)'});
+  else if(!was) view.animate({opacity:[0,1]},{duration:180,easing:'ease-out'});
+  if(window.Shell) Shell.afterOpen(c); /* set .dp-on default, sinkron daftar, tombol #dtoggle */
+  setTimeout(()=>{ if(app.classList.contains('open')) inp.focus({preventScroll:true}) },was||inline?60:DUR);
 }
 function closeChat(){
   if(moving||!app.classList.contains('open')) return;
-  moving=true; setTimeout(()=>moving=false,DUR);
-  closeSearch(); closePicker(); closeRel(); clearTimeout(draftT);
+  closeSearch(); closePicker(); closeRel(true); clearTimeout(draftT);
   if(window.GX&&GX.cur) GX.onClose(); /* grup: hentikan rantai, simpan draft grup */
   else if(ch) store.set('draft:'+ch.id,inp.value.trim()?inp.value:null);
   if(current) current.stop();
   menu.classList.remove('away');
+  if(isDesk()){ app.classList.remove('open'); if(window.Shell) Shell.afterClose(); return; } /* desktop: langsung */
+  moving=true; setTimeout(()=>moving=false,DUR);
   const an=view.animate({clipPath:[circle(reach()),circle(0)]},{duration:DUR,easing:'cubic-bezier(.7,0,.2,1)',fill:'forwards'});
-  an.onfinish=()=>{app.classList.remove('open'); an.cancel()};
+  an.onfinish=()=>{app.classList.remove('open'); an.cancel(); if(window.Shell) Shell.afterClose()};
 }
-document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ if(window.GX&&GX.esc()) return; if(!pm.classList.contains('hide')) closePicker(); else if(!rm.classList.contains('hide')) closeRel(); else if(!memModal.classList.contains('hide')) closeMem(); else if(!sm.classList.contains('hide')) closeSettings(); else if(!vm.classList.contains('hide')) closeVoice(); else if(!nm.classList.contains('hide')) closeName(); else if(app.classList.contains('open')) closeChat(); else if(all.classList.contains('show')) closeAll(); } });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ if(window.GX&&GX.esc()) return; if(!pm.classList.contains('hide')) closePicker(); else if(window.Shell&&Shell.detailOpen()&&!Shell.docked()) closeRel(); else if(!memModal.classList.contains('hide')) closeMem(); else if(!sm.classList.contains('hide')) closeSettings(); else if(!vm.classList.contains('hide')) closeVoice(); else if(!nm.classList.contains('hide')) closeName(); else if(window.Shell&&Shell.esc()) return; else if(app.classList.contains('open')&&!isDesk()) closeChat(); } });
 $('back').addEventListener('click',closeChat);
 const savePlaying=()=>{ if(current&&current.save) current.save(); };
 window.addEventListener('pagehide',savePlaying);
@@ -1516,17 +1577,19 @@ $('exp').onclick=async()=>{
   }catch{ toast('Gagal ekspor obrolan'); }
   exporting=false;
 };
+function wipeChat(id){
+  if(current&&ch&&ch.id===id) current.stop(); openSub=null;
+  loadLog(id).forEach(e=>keysOf(e).forEach(k=>idb.del(k)));
+  memEpoch[id]=(memEpoch[id]||0)+1; /* peringkasan yang masih jalan -> hasilnya dibuang */
+  store.set('log:'+id,null); store.set('h:'+id,null); store.set('pos:'+id,null); store.set('draft:'+id,null); /* riwayat konteks AI ikut dihapus = mulai obrolan baru */
+  if(ch&&ch.id===id){ urls.forEach(u=>URL.revokeObjectURL(u)); urls=[]; chat.innerHTML=''; lastDay=''; ensureDay(Date.now()); }
+}
 $('clr').onclick=()=>{
   if(window.GX&&GX.cur) return GX.clear();
   if(!ch||busy||!ready) return;
   if(!clrT){ toast('Tap lagi untuk hapus obrolan ini'); clrT=setTimeout(()=>clrT=0,2500); return; }
   clearTimeout(clrT); clrT=0;
-  if(current) current.stop(); openSub=null;
-  loadLog(ch.id).forEach(e=>keysOf(e).forEach(k=>idb.del(k)));
-  memEpoch[ch.id]=(memEpoch[ch.id]||0)+1; /* peringkasan yang masih jalan -> hasilnya dibuang */
-  store.set('log:'+ch.id,null); store.set('h:'+ch.id,null); store.set('pos:'+ch.id,null); /* riwayat konteks AI ikut dihapus = mulai obrolan baru */
-  urls.forEach(u=>URL.revokeObjectURL(u)); urls=[];
-  chat.innerHTML=''; lastDay=''; ensureDay(Date.now()); toast('Obrolan dihapus');
+  wipeChat(ch.id); toast('Obrolan dihapus'); if(window.Shell) Shell.renderRecent();
 };
 
 
@@ -1535,7 +1598,7 @@ $('clr').onclick=()=>{
 const MEM_TRIGGER=16, MEM_KEEP=4, MEM_MAX_USE=1500, MEM_RETRY=60000;
 const memBusy={}, memEpoch={}, memTry={};
 const loadMem=id=>{try{const m=JSON.parse(store.get('mem:'+id)||'[]');return Array.isArray(m)?m.filter(e=>e&&typeof e.id==='string'&&typeof e.title==='string'&&typeof e.body==='string'):[]}catch{return []}};
-const saveMem=(id,m)=>{ const v=m.length?JSON.stringify(m):null; store.set('mem:'+id,v); return store.get('mem:'+id)===v; }; /* store.set menelan error, jadi cek dengan baca ulang */
+const saveMem=(id,m)=>{ const v=m.length?JSON.stringify(m):null; store.set('mem:'+id,v); const ok=store.get('mem:'+id)===v; if(window.Shell) Shell.refreshDetail(); return ok; }; /* store.set menelan error, jadi cek dengan baca ulang */
 const cleanMemEntry=e=>{ /* file impor itu data tak tepercaya */
   if(!e||typeof e!=='object'||!isKey(e.id)||typeof e.title!=='string'||typeof e.body!=='string') return null;
   const tidy=(t,n)=>t.replace(/[\u0000-\u001f<>]/g,' ').replace(/\s+/g,' ').trim().slice(0,n), title=tidy(e.title,40), body=tidy(e.body,500);
@@ -1548,6 +1611,7 @@ function memUse(id){
   return {list,used};
 }
 const charOf=id=>allChars.find(x=>x.id===id);
+const dispName=c=>(c&&store.get('alias:'+c.id))||(c&&c.name)||''; /* nama tampilan buatan user (cuma di perangkat ini) */
 
 /* ===== Hubungan & mood per karakter, disimpan di perangkat (rel:<id>) =====
    Server stateless: state ikut dikirim tiap pesan. AI mengusulkan perubahan lewat <rel>/<mood> di balasannya (dRel/dMood);
@@ -1572,7 +1636,7 @@ function relLoad(id){
   }
   return st;
 }
-const relSave=(id,st)=>store.set(relKey(id),JSON.stringify(st));
+const relSave=(id,st)=>{ store.set(relKey(id),JSON.stringify(st)); if(window.Shell) Shell.refreshDetail(); };
 const relPayload=id=>{ const st=relLoad(id); return {rel:st.r,mood:st.m,shift:st.p}; };
 /* terapkan perubahan dari satu balasan. Mengembalikan teks notifikasi kalau tahap berubah, selain itu ''. */
 function relApply(id,dRel,dMood){
@@ -1591,11 +1655,11 @@ function relApply(id,dRel,dMood){
 }
 
 /* panel profil: tap foto/nama di header chat */
-const rm=$('rmodal'); let rrT=0;
+let rrT=0;
 function paintRel(){
   if(!ch) return;
   const st=relLoad(ch.id), c=charOf(ch.id)||ch, S=REL&&REL.stages, M=REL&&REL.moods;
-  $('rname').textContent=c.name; $('rtag').textContent=c.tagline||'';
+  $('rname').textContent=dispName(c); $('rtag').textContent=c.tagline||'';
   $('rpfp').replaceWith(Object.assign(img(c,''),{id:'rpfp'}));
   const si=S?idxOf(S,st.r):0, mi=M?idxOf(M,st.m):0, max=REL?REL.max:100, cap=(REL&&REL.dailyCap)||15;
   $('rstage').textContent=S?S[si].name:'Hubungan'; $('rrel').textContent=st.r+' / '+max;
@@ -1613,11 +1677,10 @@ function paintRel(){
     li.append(d); ol.append(li);
   });
 }
-function openRel(){ if(!ch||(window.GX&&GX.cur)) return; paintRel(); rm.classList.remove('hide'); }
-function closeRel(){ rm.classList.add('hide'); if(rrT){ clearTimeout(rrT); rrT=0; $('rreset').classList.remove('arm'); $('rreset').querySelector('b').textContent='Reset hubungan'; } }
+function openRel(){ if(!ch||(window.GX&&GX.cur)) return; paintRel(); renderCharMem(ch.id); if(window.Shell) Shell.detail(true); }
+function closeRel(keep){ if(window.Shell) Shell.detail(false,{keep:keep===true}); if(rrT){ clearTimeout(rrT); rrT=0; $('rreset').classList.remove('arm'); $('rreset').querySelector('b').textContent='Reset hubungan'; } }
 document.querySelector('header').addEventListener('click',e=>{ if(e.target.closest('#hpfp,.who')) openRel(); });
-$('rx').onclick=closeRel;
-rm.addEventListener('click',e=>{ if(e.target===rm) closeRel(); });
+$('rx').onclick=()=>closeRel();
 $('rreset').onclick=()=>{
   const b=$('rreset'), lab=b.querySelector('b');
   if(!rrT){ b.classList.add('arm'); lab.textContent='Tap lagi untuk reset hubungan'; rrT=setTimeout(()=>{ rrT=0; b.classList.remove('arm'); lab.textContent='Reset hubungan'; },3000); return; }
@@ -1723,6 +1786,29 @@ function renderMem(){
   }
   mmHL='';
 }
+/* Kotak memori di panel detail karakter: lihat + hapus (tidak ada edit). Teks dari model -> textContent. */
+function renderCharMem(id){
+  const box=$('dmlist'); box.textContent='';
+  const mem=loadMem(id), c=charOf(id), nm=c?shortName(c):id, used=memUse(id).used, yr=new Date().getFullYear();
+  $('dmcount').textContent=mem.length?('· '+mem.length):'';
+  $('dmdev').textContent='';
+  if(!mem.length){ const p=document.createElement('p'); p.className='mempty'; p.textContent='Belum ada memori. '+nm+' akan menyimpannya sendiri setelah kalian ngobrol cukup lama.'; box.append(p); return; }
+  for(const e of mem.slice().reverse()){ /* terbaru di atas */
+    const el=document.createElement('div'); el.className='ment'+(used.has(e.id)?'':' dim'); el.dataset.m=e.id;
+    const d=new Date(e.ts||0), when=e.ts?d.toLocaleDateString('id-ID',{day:'numeric',month:'short',year:d.getFullYear()===yr?undefined:'numeric'}):'';
+    const h4=document.createElement('h4'); h4.textContent=e.title;
+    const dt=document.createElement('span'); dt.className='mdate'; dt.textContent=[when,used.has(e.id)?'':'belum dipakai'].filter(Boolean).join(' · ');
+    const bd=document.createElement('p'); bd.className='mbody'; const pre=document.createElement('b'); pre.textContent=nm+' mengingat:'; bd.append(pre,' '+e.body);
+    const act=document.createElement('div'); act.className='mact'; const del=document.createElement('button'); del.type='button'; del.className='mdel'; act.append(del);
+    memArm(del,'Hapus',()=>{ saveMem(id,loadMem(id).filter(x=>x.id!==e.id)); }); /* saveMem memanggil Shell.refreshDetail -> render ulang */
+    el.append(h4,dt,bd,act); box.append(el);
+  }
+  if(mem.length>1){ const act=document.createElement('div'); act.className='mact'; const b=document.createElement('button'); b.type='button'; b.className='mdel'; act.append(b);
+    memArm(b,'Hapus semua memori '+nm,()=>saveMem(id,[])); box.append(act); }
+  if(devOn()){ const b=document.createElement('button'); b.type='button'; b.className='mdel'; b.textContent='Ringkas sekarang';
+    b.onclick=async()=>{ b.disabled=true; b.textContent='Meringkas…'; const r=await memorize(id,0,true); if(r&&r.err){ b.disabled=false; b.textContent='Ringkas sekarang'; toast(r.err); } };
+    $('dmdev').append(b); }
+}
 function openMem(id,memId){
   renderDev();
   mmFilter=''; mmHL=memId||'';
@@ -1813,53 +1899,33 @@ function renderDev(){
 $('membtn').onclick=()=>{ closeSettings(); openMem(); }; $('mmx').onclick=closeMem;
 memModal.addEventListener('click',e=>{ if(e.target===memModal) closeMem(); });
 
-/* Daftar karakter: menu awal cuma 3 pertama, sisanya lewat panel "Lihat semua" + pencarian */
-const SHOW=3, all=$('all'), q=$('q');
+/* Beranda: grid semua karakter + pencarian. Daftar "Obrolan Terakhir" digambar shell.js (Shell.renderRecent). */
+const q=$('q');
 function card(c){
-  const b=document.createElement('button'); b.className='m-card';
-  b.innerHTML='<span class="m-av"><i class="m-dot"></i></span><span class="m-info"><b></b><small></small></span><span class="m-go"><svg viewBox="0 0 24 24"><path d="M4 12h16M14 6l6 6-6 6"/></svg></span>';
-  const av=b.querySelector('.m-av'); av.prepend(img(c));
-  b.querySelector('b').textContent=c.name; b.querySelector('small').textContent=(c.tagline?c.tagline+' · ':'')+'chat & voice';
-  b.onclick=()=>openChat(c,av);
+  const b=document.createElement('button'); b.type='button'; b.className='b-tile';
+  const av=document.createElement('span'); av.className='b-av';
+  const im=img(c); im.loading='lazy'; im.decoding='async'; av.append(im, document.createElement('i'));
+  const n=document.createElement('span'); n.className='b-name'; n.textContent=shortName(c); b.title=c.name;
+  b.append(av,n); b.onclick=()=>openChat(c,av); /* openChat sendiri memindahkan tab ke 'recent' */
   return b;
 }
-let rows=[]; /* [{c, el}] kartu di panel, dibuat sekali lalu cuma disembunyikan/ditampilkan saat mencari */
+let rows=[]; /* [{c, el}] tile di Beranda, dibuat sekali lalu cuma disembunyikan/ditampilkan saat mencari */
 function filterAll(){
   const k=q.value.trim().toLowerCase(); let n=0;
   rows.forEach(({c,el})=>{ const ok=!k||(c.name+' '+(c.tagline||'')).toLowerCase().includes(k); el.classList.toggle('hide',!ok); if(ok) n++; });
   $('allempty').classList.toggle('hide',n>0);
 }
-function openAll(){ all.classList.add('show'); if(matchMedia('(hover:hover)').matches) setTimeout(()=>q.focus({preventScroll:true}),300); }
-function closeAll(){ all.classList.remove('show'); q.blur(); q.value=''; filterAll(); $('alllist').scrollTop=0; }
-$('allback').onclick=closeAll;
 q.addEventListener('input',filterAll);
 q.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); const f=rows.find(r=>!r.el.classList.contains('hide')); if(f){ q.blur(); f.el.click(); } } });
 
-/* menu awal: karakter yang terakhir dibuka dulu (max 3), kekurangannya diisi urutan bawaan */
-let allBtn=null;
-function renderList(){
-  const by=new Map(allChars.map(c=>[c.id,c])), gx=window.GX&&GX.enabled(), top=[];
-  for(const r of recent){ if(top.length>=SHOW) break; const e=gx&&GX.entry(r)||by.get(r); if(e) top.push(e); } /* grup (fitur rahasia) ikut daftar "terakhir dibuka" */
-  for(const c of allChars){ if(top.length>=SHOW) break; if(!top.includes(c)) top.push(c); }
-  list.innerHTML=''; top.forEach(e=>list.append(e.isGroup?GX.card(e):card(e)));
-  if(gx) list.append(GX.newBtn());
-  if(allBtn) list.append(allBtn);
-}
+function renderList(){ if(window.Shell) Shell.renderRecent(); } /* semua pemanggil lama (termasuk group.js) otomatis memperbarui daftar baru */
 fetch('/api/chars').then(r=>r.json()).then(cs=>{
   allChars=cs;
-  if(cs.length>SHOW){
-    const b=document.createElement('button'); b.className='m-all'; b.type='button';
-    b.innerHTML='<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg><span></span>';
-    b.querySelector('span').textContent='Lihat semua karakter ('+cs.length+')';
-    b.onclick=openAll; allBtn=b;
-  }
+  rows=cs.map(c=>({c,el:card(c)})); $('alllist').append(...rows.map(r=>r.el));
+  $('allcount').textContent=cs.length+' karakter';
   renderList();
-  if(cs.length>SHOW){
-    rows=cs.map(c=>({c,el:card(c)})); $('alllist').append(...rows.map(r=>r.el));
-    $('allcount').textContent=cs.length+' karakter';
-  }
-  if(window.GX) GX.paintAll(); /* kartu grup di panel "Semua karakter" */
-}).catch(()=>{ list.textContent='Gagal memuat karakter'; });
+  if(window.GX) GX.paintAll();
+}).catch(()=>{ $('alllist').textContent='Gagal memuat karakter'; });
 
 /* ===== Indikator online: heartbeat ke /api/online tiap 60 dtk selama tab kelihatan. Kalau server belum mendukung (enabled:false), pill tetap tersembunyi. ===== */
 (()=>{
@@ -1883,6 +1949,7 @@ fetch('/api/chars').then(r=>r.json()).then(cs=>{
 <script src="/globalchat.adapter.js"></script>
 <script src="/globalchat.js"></script>
 <script src="/extras.js"></script>
+<script src="/shell.js"></script>
 <script src="/router.js"></script>
 </body>
 </html>

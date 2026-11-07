@@ -100,11 +100,12 @@ function notify(title, sub) {
    Mengembalikan true kalau pesan itu kode rahasia; pemanggil (submit di index.html) lalu membuang pesannya: tidak jadi bubble, tidak dicatat. */
 GX.trySecret = text => {
   if (!ch || ch.id !== 'reze' || hash(norm(text)) !== SECRET) return false;
-  if (enabled()) notify('Fitur grup sudah terbuka', 'Buka menu utama, lalu tap "Buat grup".');
+  if (enabled()) notify('Fitur grup sudah terbuka', 'Buka Obrolan Terakhir → tab Grup → "Buat grup".');
   else {
     store.set('gx', '1');
-    notify('Fitur rahasia terbuka', 'Chat grup aktif. Buka menu utama dan tap "Buat grup".');
+    notify('Fitur rahasia terbuka', 'Chat grup aktif. Buka Obrolan Terakhir → tab Grup → "Buat grup".');
     renderList(); paintAll();
+    if (window.Shell) Shell.syncTabs();
   }
   return true;
 };
@@ -141,19 +142,28 @@ GX.newBtn = () => {
   }
   return newBtnEl;
 };
-/* panel "Semua karakter": grup tampil paling atas dan ikut kena pencarian */
-function paintAll() {
-  const box = $('alllist'); if (!box) return;
-  rows = rows.filter(r => { if (r.g) { r.el.remove(); return false; } return true; });
-  if (!enabled() || !groups.length) { if (rows.length) filterAll(); return; }
-  const rank = g => { const i = recent.indexOf('g:' + g.id); return i < 0 ? 99 : i; };
-  const items = groups.slice().sort((a, b) => rank(a) - rank(b) || b.createdAt - a.createdAt)
-    .map(g => ({ c: { name: g.name, tagline: 'Grup' }, el: GX.card({ group: g }), g: true }));
-  rows = [...items, ...rows];
-  box.prepend(...items.map(r => r.el));
-  filterAll();
-}
+/* Grup tidak lagi tampil di Beranda (hanya di tab Grup pada Obrolan Terakhir). Dibiarkan ada karena index.html masih memanggilnya. */
+function paintAll() {}
 GX.paintAll = paintAll;
+
+/* ---------- API untuk shell.js (daftar Obrolan Terakhir) ---------- */
+GX.groups = () => groups.slice();
+GX.avatar = g => stack(g, 'lp-gav'); // kolase avatar (46px lewat shell.css)
+GX.preview = g => {
+  const l = loadMsgs(g.id); let m = null;
+  for (let i = l.length - 1; i >= 0; i--) { if (l[i].from !== 'system') { m = l[i]; break; } }
+  if (!m) { m = l[l.length - 1]; if (!m) return { text: '', t: 0 }; }
+  const who = m.from === 'user' ? 'Kamu: ' : m.from === 'system' ? '' : firstName(cOrP(m.from)) + ': ';
+  const txt = (keysOf(m).length ? 'Voice note' : String(m.text == null ? '' : m.text).replace(/\*/g, '').replace(/\s+/g, ' ').trim()).slice(0, 120);
+  return { text: who + txt, t: m.ts || 0 };
+};
+GX.openGroup = (g, el) => { if (window.Shell) Shell.enterChatTab(); open(g, el); };
+GX.rename = (id, name) => {
+  const g = groups.find(x => x.id === id); if (!g) return false;
+  const n = cleanLine(name).slice(0, 40); if (!n) return false;
+  g.name = n; saveGroups(); if (GX.cur === g) paintHeader(); renderList(); return true;
+};
+GX.remove = id => { const g = groups.find(x => x.id === id); if (g) removeGroup(g); };
 
 /* ---------- Modal buat grup / atur anggota ---------- */
 app.insertAdjacentHTML('beforeend', `
@@ -280,8 +290,16 @@ const paintHeader = () => {
 };
 
 function open(g, avEl) {
-  if (moving || app.classList.contains('open')) return;
-  moving = true; setTimeout(() => moving = false, DUR);
+  if (moving) return;
+  const was = app.classList.contains('open');
+  if (was && GX.cur === g) return; // sudah terbuka
+  if (window.Shell) Shell.enterChatTab();
+  const inline = isDesk(); // desktop: tanpa animasi lingkaran
+  if (was) { // GANTI instan (daftar -> grup lain / dari chat karakter)
+    closeSearch(); closePicker();
+    if (GX.cur) GX.onClose(); // simpan draft grup, hentikan rantai
+    else if (ch) store.set('draft:' + ch.id, inp.value.trim() ? inp.value : null);
+  } else if (!inline) { moving = true; setTimeout(() => moving = false, DUR); }
   ch = null; GX.cur = g; state = { g, msgs: [], ctl: null, running: false, pending: [], tail: null };
   closeSearch(); if (current) current.stop(); openSub = null; urls.forEach(u => URL.revokeObjectURL(u)); urls = []; clearTimeout(clrT); clrT = 0;
   chat.innerHTML = ''; lastDay = ''; ready = false; const tok = ++openTok;
@@ -289,12 +307,16 @@ function open(g, avEl) {
   inp.placeholder = 'Pesan ke grup (@ untuk mention)';
   $('vmore').classList.add('hide'); gmore.classList.remove('hide');
   paintHeader();
-  const a = app.getBoundingClientRect(), r = avEl.getBoundingClientRect();
-  ox = r.left + r.width / 2 - a.left; oy = r.top + r.height / 2 - a.top;
-  touchRecent('g:' + g.id); setTimeout(renderList, DUR);
+  if (!was && !inline) {
+    const a = app.getBoundingClientRect(), r = avEl && avEl.getBoundingClientRect ? avEl.getBoundingClientRect() : null;
+    if (r) { ox = r.left + r.width / 2 - a.left; oy = r.top + r.height / 2 - a.top; } else { ox = a.width / 2; oy = a.height / 2; }
+  }
+  touchRecent('g:' + g.id); setTimeout(renderList, was || inline ? 0 : DUR);
   app.classList.add('open'); menu.classList.add('away'); restore(g, tok);
-  view.animate({ clipPath: [circle(0), circle(reach())] }, { duration: DUR, easing: 'cubic-bezier(.7,0,.2,1)' });
-  setTimeout(() => { if (app.classList.contains('open') && GX.cur === g) inp.focus({ preventScroll: true }); }, DUR);
+  if (!was && !inline) view.animate({ clipPath: [circle(0), circle(reach())] }, { duration: DUR, easing: 'cubic-bezier(.7,0,.2,1)' });
+  else if (!was) view.animate({ opacity: [0, 1] }, { duration: 180, easing: 'ease-out' });
+  if (window.Shell) Shell.afterOpen(null); // sembunyikan #dtoggle, tutup panel detail, sinkron daftar
+  setTimeout(() => { if (app.classList.contains('open') && GX.cur === g) inp.focus({ preventScroll: true }); }, was || inline ? 60 : DUR);
 }
 
 async function restore(g, tok) {
@@ -670,15 +692,18 @@ function clearMsgs() {
   chat.innerHTML = ''; lastDay = ''; ensureDay(Date.now()); emptyHint();
 }
 twoTap($('gpclr'), () => { closePanel(); clearMsgs(); toast('Obrolan grup dihapus'); });
-twoTap($('gpdel'), () => {
-  const g = GX.cur; if (!g) return;
-  gp.classList.add('hide'); abortChain(); delAudio(state.msgs);
-  inp.value = ''; clearTimeout(gdraft); // supaya draft grup yang dihapus tidak tersimpan lagi lewat GX.onClose
-  store.set(msgKey(g.id), null); store.set('draft:g:' + g.id, null);
+/* hapus grup: dipakai tombol "Hapus grup" di panel dan GX.remove (menu titik tiga di daftar) */
+function removeGroup(g) {
+  const cur = GX.cur === g, msgs = cur && state ? state.msgs : loadMsgs(g.id);
+  if (cur) { gp.classList.add('hide'); abortChain(); inp.value = ''; clearTimeout(gdraft); } // supaya draft grup yang dihapus tidak tersimpan lagi lewat GX.onClose
+  delAudio(msgs);
+  store.set(msgKey(g.id), null); store.set('draft:g:' + g.id, null); store.set('pos:g:' + g.id, null);
   groups = groups.filter(x => x !== g); saveGroups();
   recent = recent.filter(x => x !== 'g:' + g.id); store.set('recent', JSON.stringify(recent));
-  closeChat(); renderList(); paintAll();
-});
+  if (cur) closeChat();
+  renderList(); paintAll();
+}
+twoTap($('gpdel'), () => { const g = GX.cur; if (g) removeGroup(g); });
 
 /* header: hapus obrolan (2x tap) */
 GX.clear = () => {

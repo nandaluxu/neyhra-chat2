@@ -62,13 +62,13 @@ Tetap satu aplikasi (tanpa muat ulang), tapi tiap layar punya alamat dan tombol 
 
 | Alamat | Layar |
 | --- | --- |
-| `/` | menu utama |
-| `/chat` | panel "Semua karakter" |
-| `/chat/<id>` | chat dengan karakter, mis. `/chat/reze` |
+| `/` | Beranda |
+| `/chat` | Obrolan Terakhir (termasuk chat grup yang lagi terbuka) |
+| `/chat/<id>` | Obrolan Terakhir dengan chat karakter terbuka, mis. `/chat/reze` |
 | `/global` | Chat Global |
 | `/settings` | Pengaturan |
 
-- Bisa dibuka langsung lewat tautan. `id` yang tidak dikenal kembali ke `/`. Chat grup (fitur rahasia) tidak punya alamat, URL-nya tetap `/`.
+- Bisa dibuka langsung lewat tautan. `id` yang tidak dikenal kembali ke `/`. Chat grup (fitur rahasia) memakai alamat `/chat`.
 - `router.js` hanya mengamati layar yang tampil lalu memperbarui URL, dan membuka/menutup layar lewat fungsi yang sudah ada. Kode layar tidak diubah.
 - Server harus menjawab alamat di atas dengan `index.html`: `rewrites` di `vercel.json` (Vercel) dan `app.get(...)` di `lib/app.js` (lokal).
 - File CSS/JS di `index.html` ditulis dengan path absolut (`/group.js`, bukan `group.js`) supaya tetap termuat di alamat bersarang seperti `/chat/reze`. Tambah file baru? Tulis dengan `/` di depan juga.
@@ -84,9 +84,9 @@ Server stateless: riwayat chat, nama, dan pengaturan disimpan di localStorage br
 
 ## Chat grup (fitur rahasia)
 
-Grup 2-5 karakter yang saling membalas. Desain lengkap ada di `design.md`.
+Grup 2-5 karakter yang saling membalas. Desain shell ada di `design.md`.
 
-- **Membuka**: kirim pesan rahasia ke Reze (kodenya hash di `public/group.js`, konstanta `SECRET`). Pesan itu dicegat di browser: tidak dikirim ke ChatGPT maupun Fish Audio, tidak jadi bubble, tidak dicatat. Yang muncul cuma notifikasi di atas layar. Setelah itu menu utama punya tombol "Buat grup".
+- **Membuka**: kirim pesan rahasia ke Reze (kodenya hash di `public/group.js`, konstanta `SECRET`). Pesan itu dicegat di browser: tidak dikirim ke ChatGPT maupun Fish Audio, tidak jadi bubble, tidak dicatat. Yang muncul cuma notifikasi di atas layar. Setelah itu muncul tab "Grup" di Obrolan Terakhir dengan tombol "Buat grup".
 - **Mengganti kode**: buka console, jalankan `GX.hash('kode baru')`, tempel angkanya ke `SECRET`. Ini pagar UI, bukan keamanan.
 - **Alur**: browser mengatur rantai giliran (satu request = satu karakter bicara). Server stateless: `POST /api/chat` dengan field tambahan `group` (`members`, `muted`, `scene`, `replyTo`, `depth`) dan riwayat `[pengirim, teks]`. Respons ditambah `next` (id anggota atau `null`). Tanpa field `group`, chat 1-lawan-1 sama persis seperti dulu.
 - **Rem**: konstanta di `CFG` (`public/group.js`): `MAX_CHAIN`, `MAX_PER_CHAR`, `ACCEPT`, `AUTO_CHAIN`. Server memvalidasi anggota ke `char/`, `next` hanya diterima kalau anggota yang tidak dibisukan.
@@ -138,7 +138,7 @@ Tombol tempat sampah per bubble dan "Hapus semua pesan" (panel dev, keduanya tap
 ## Tema, pencarian, ringkasan (public/extras.js + extras.css)
 
 - **Tema & aksen** (Pengaturan → Tampilan): mode Ikuti sistem / Terang / Gelap, dan switch "Warna aksen per karakter". Warna khas tiap karakter dihitung di browser dari rata-rata rona foto avatarnya (di-cache di localStorage `ac:<id>`), lalu dipakai untuk gelembung pesanmu, tombol kirim, dan gelombang voice note di chat karakter itu. Foto abu-abu = tanpa aksen. Chat grup tidak memakai aksen.
-- **Cari isi semua obrolan**: ketik minimal 2 huruf di kotak cari panel "Lihat semua karakter"; hasil dari pesan di semua karakter muncul di atas daftar (terbaru dulu, maks 30). Tap hasil untuk membuka chat dan melompat ke pesannya. Hanya chat 1-lawan-1 (chat grup belum ikut), dan terbatas pada 150 pesan terakhir per karakter (`LOGMAX`).
+- **Cari isi semua obrolan**: ketik minimal 2 huruf di kotak cari Beranda; hasil dari pesan di semua karakter muncul di atas daftar (terbaru dulu, maks 30). Tap hasil untuk membuka chat dan melompat ke pesannya. Hanya chat 1-lawan-1 (chat grup belum ikut), dan terbatas pada 150 pesan terakhir per karakter (`LOGMAX`).
 - **Ringkasan harian** (Pengaturan → Fitur): Hari ini / Kemarin / 7 hari terakhir: jumlah pesan, balasan, voice note, karakter teratas, kata yang sering dipakai, jam paling ramai, dan streak. "Bagikan sebagai gambar" membuat PNG 1080x1350 lewat canvas (Web Share bila ada, kalau tidak diunduh). Semua dihitung di perangkat dari `log:<id>`.
 
 ## Hubungan & mood (chat 1-lawan-1)
@@ -153,6 +153,14 @@ Karakter tidak langsung suka: tiap karakter mulai dari **Asing** dan hubungannya
 - **Belum**: chat grup tidak memakai sistem ini (field `rel` hanya dikirim di chat 1-lawan-1).
 - **Debug**: set env `DEBUG_RAW=1` untuk mencetak balasan mentah model di log server (berguna kalau format balasan aneh).
 - **Format balasan**: semua paragraf harus di dalam satu `<id>...</id>`. Parser (`idText` di `lib/sessions.js`) juga menggabungkan kalau model membuat `<id>` per paragraf atau menulis sisanya di luar tag, dan jeda paragraf dipertahankan sampai ke bubble chat.
+
+## Shell UI (public/shell.js + shell.css)
+
+- **Tab**: `#app[data-tab="home|recent"]`. Beranda = grid avatar semua karakter (satu-satunya tempat mulai chat baru). Obrolan Terakhir = daftar obrolan di kiri, chat di kanan, panel detail karakter (hubungan, mood, perjalanan, kotak memori) paling kanan. Chat terbuka (`#app.open`) hanya mungkin di tab `recent`.
+- **Rail**: sidebar ikon (bottom bar di HP). Klik logo di Beranda untuk expand/ciutkan; di Obrolan Terakhir rail terkunci mode ikon.
+- **Daftar obrolan**: tiap item punya menu titik tiga: Sematkan, Ganti nama (hanya tampilan di perangkat ini), Hapus. Tab "Grup" muncul setelah fitur rahasia terbuka.
+- **localStorage baru**: `rail`, `lp` (panel daftar ditutup), `dp` (panel detail ditutup, hanya >= 1200px), `pins`, `alias:<id>`.
+- **Aturan**: script utama (`index.html`) tidak boleh memanggil `Shell` di top-level karena `shell.js` dimuat sesudahnya. Pakai `window.Shell&&...` atau panggil dari event handler.
 
 ## Lainnya
 

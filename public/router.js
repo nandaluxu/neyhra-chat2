@@ -1,7 +1,7 @@
 /* Router URL: tiap layar punya alamat sendiri, tetap satu aplikasi (tanpa muat ulang halaman).
-     /               menu utama
-     /chat           panel "Semua karakter"
-     /chat/<id>      chat dengan karakter (mis. /chat/reze)
+     /               Beranda
+     /chat           Obrolan Terakhir (termasuk chat grup yang lagi terbuka)
+     /chat/<id>      Obrolan Terakhir dengan chat karakter terbuka (mis. /chat/reze)
      /global         Chat Global
      /settings       Pengaturan
    Cara kerja: URL mengikuti layar yang tampil (diamati dari kelas DOM), dan tombol back/forward browser
@@ -9,7 +9,7 @@
    Server harus menjawab semua alamat di atas dengan index.html (vercel.json `rewrites` + lib/app.js untuk lokal). */
 (() => {
   const $ = id => document.getElementById(id);
-  const appEl = $('app'), allEl = $('all'), setEl = $('smodal'), gcEl = $('gc');
+  const appEl = $('app'), setEl = $('smodal'), gcEl = $('gc');
   const ID_RE = /^[\w-]{1,64}$/
   let applying = 0, idx = 0, paths = [location.pathname] // paths[i] = alamat pada entri riwayat ke-i (hanya yang kita buat)
 
@@ -19,11 +19,10 @@
   function curPath() {
     if (!setEl.classList.contains('hide')) return '/settings'
     if (gcEl.classList.contains('show')) return '/global'
-    if (appEl.classList.contains('open')) {
-      if (window.GX && GX.cur) return '/group'
-      return typeof ch !== 'undefined' && ch ? '/chat/' + ch.id : '/chat'
+    if (appEl.dataset.tab === 'recent') {
+      if (appEl.classList.contains('open') && !(window.GX && GX.cur) && typeof ch !== 'undefined' && ch) return '/chat/' + ch.id
+      return '/chat'
     }
-    if (allEl.classList.contains('show')) return '/chat'
     return '/'
   }
 
@@ -48,12 +47,13 @@
         for (let i = 0; i < 50 && !chars().length; i++) await wait(100) // tunggu daftar karakter dimuat
         const c = chars().find(x => x.id === m[1])
         if (!c) return false
-        if (appEl.classList.contains('open') && typeof ch !== 'undefined' && ch && ch.id !== c.id) { $('back').click(); await wait(DUR + 150) }
-        if (!appEl.classList.contains('open')) openChat(c, centerEl())
+        Shell.setTab('recent', { auto: false })
+        openChat(c, centerEl()) // sudah terbuka/ganti chat lain ditangani openChat sendiri (ganti instan)
+      } else if (path === '/chat') {
+        Shell.setTab('recent', { auto: false })
+        if (appEl.classList.contains('open')) closeChat() // mobile: tampil daftar, desktop: placeholder
       } else {
-        if (appEl.classList.contains('open')) $('back').click()
-        if (path === '/chat') { if (!allEl.classList.contains('show')) openAll() }
-        else if (allEl.classList.contains('show')) closeAll()
+        Shell.setTab('home', { auto: false }) // sekaligus menutup chat kalau terbuka
       }
       return true
     } finally { setTimeout(() => { applying-- ; sync() }, DUR + 250) } // animasi chat butuh DUR ms; setelah itu rapikan URL kalau layar akhirnya beda
@@ -63,8 +63,8 @@
   function sync() {
     if (applying) return
     const p = curPath(), here = norm(location.pathname)
-    if (p === here || (p === '/group' && here === '/')) return
-    const target = p === '/group' ? '/' : p
+    if (p === here) return
+    const target = p
     if (idx > 0 && paths[idx - 1] === target) { history.back(); return } // balik ke layar sebelumnya = mundur satu langkah, bukan menumpuk riwayat
     if (idx === 0 && here !== '/' && target === '/') { history.replaceState({ i: 0 }, '', target); paths[0] = target; return } // masuk lewat tautan langsung
     idx++; paths.length = idx; paths[idx] = target
@@ -78,7 +78,7 @@
   })
 
   const mo = new MutationObserver(() => { Promise.resolve().then(sync) })
-  for (const [el, a] of [[appEl, 'class'], [allEl, 'class'], [setEl, 'class'], [gcEl, 'class']]) mo.observe(el, { attributes: true, attributeFilter: [a] })
+  for (const [el, a] of [[appEl, 'class'], [appEl, 'data-tab'], [setEl, 'class'], [gcEl, 'class']]) mo.observe(el, { attributes: true, attributeFilter: [a] })
 
   // saat dimuat: alamat awal -> layar yang sesuai
   const start = norm(location.pathname)
