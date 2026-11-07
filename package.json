@@ -3,13 +3,15 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "start": "node --env-file=.env dev.js"
+    "start": "node --env-file=.env dev.js",
+    "db:test": "node --env-file=.env scripts/db-test.js"
   },
   "engines": {
     "node": ">=20.6"
   },
   "dependencies": {
     "axios": "^1.7.0",
-    "express": "^4.19.2"
+    "express": "^4.19.2",
+    "mongodb": "^6.10.0"
   }
 }

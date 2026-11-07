@@ -33,6 +33,27 @@ Pill "N online" di menu utama. Browser kirim heartbeat ke `/api/online` tiap 60 
 - **Lokal**: jalan otomatis (hitung di memori).
 - **Vercel**: serverless tidak punya memori bersama, jadi butuh Redis. Di dashboard Vercel: *Storage -> Marketplace -> Upstash Redis* (ada paket gratis), connect ke project, lalu redeploy. Env `UPSTASH_REDIS_REST_URL/TOKEN` (atau `KV_REST_API_URL/TOKEN`) terisi sendiri. Tanpa itu, indikatornya otomatis tidak ditampilkan dan sisanya tetap jalan normal.
 
+## MongoDB (fitur baru)
+
+Dipakai untuk fitur yang butuh data permanen (login sederhana, persona buatan user, dst). **Redis tidak diubah**: indikator online dan Chat Global tetap di Redis.
+
+- **Env**: `MONGODB_URI` (wajib untuk mengaktifkan), `MONGODB_DB` (opsional). Atlas gratis (M0) cukup. Di Atlas: Network Access -> izinkan `0.0.0.0/0` supaya Vercel bisa masuk.
+- **Kode**: `lib/mongo.js` -> `col('nama')`, `getDb()`, `ensureIndexes()`, `mongoEnabled()`. Klien di-cache di `globalThis` (aman untuk serverless) dengan pool kecil dan timeout 5 dtk.
+- **Cek koneksi**: `GET /api/db/health` -> `{enabled, ok, ms}` (hanya ping, tidak menulis).
+- **Uji tulis/hapus**: `npm run db:test` (insert, update, delete, lalu 200x tulis+hapus).
+- Tanpa `MONGODB_URI`, fitur yang butuh Mongo harus menjawab "tidak aktif" (cek `mongoEnabled()`), sisanya jalan normal.
+
+## Login & sinkron antar perangkat (butuh MongoDB)
+
+Login sederhana, tujuannya memindahkan obrolan antar perangkat, **bukan** keamanan tinggi. Tanpa `MONGODB_URI`, bagian "Akun" di Pengaturan tidak muncul dan sisanya jalan normal.
+
+- **UI**: Pengaturan -> Akun. Daftar/Masuk dengan username (3-20 karakter) + password (min 6). Setelah masuk, tombol **Sinkronkan sekarang**: ambil data akun, gabungkan ke perangkat ini (tidak menimpa), lalu simpan hasil gabungan ke akun. Ada juga Keluar dan Hapus akun (akun + cadangan cloud, butuh password).
+- **Yang ikut disinkron**: teks obrolan 1-lawan-1, riwayat konteks, memori, hubungan karakter, dan nama. **Tidak ikut**: voice note (audio) dan chat grup. Pesan voice note tampil sebagai teks di perangkat lain. Pakai Ekspor/Impor JSON kalau butuh audio.
+- **Batas**: data akun maks ±3,5 MB (batas body Vercel ±4,5 MB). Ini fitur "pindah data", bukan sinkron realtime: pesan yang dihapus di satu perangkat bisa muncul lagi saat sinkron dari perangkat lain, dan hubungan/riwayat konteks hanya diisi kalau di perangkat itu belum ada.
+- **Keamanan**: password di-hash scrypt + salt acak; token sesi acak 256-bit (di DB hanya hash-nya, kedaluwarsa 60 hari, disimpan di localStorage `authtok`); pembatas laju per IP dan per username (disimpan di Mongo). Tidak ada reset password: lupa password = buat akun baru.
+- **API** (semua POST, `lib/auth.js`): `/api/auth/register|login|me|logout|pull|push|delete`. Token lewat header `Authorization: Bearer ...`.
+- **Koleksi**: `users` (username unik), `auth_sessions` (TTL), `userdata` (satu dokumen per user), `auth_rl` (TTL). Index dibuat otomatis saat request pertama.
+
 ## Deploy ke Vercel
 
 1. Push folder ini ke GitHub, import di Vercel (framework: Other).
