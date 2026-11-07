@@ -247,7 +247,8 @@
     setMsg('')
     try {
       const r = await scnApi('generate', { theme, charId, userName: uname })
-      $('scn-content').value = r.content.slice(0, 1000)
+      /* hasil AI sudah divalidasi backend: tepat satu paragraf, maks 900 karakter — tidak dipotong di sini */
+      $('scn-content').value = r.content
       updateCount()
       setMsg('Hasil AI sudah masuk ke Isi Skrip. Bebas kamu edit sebelum disimpan atau dijalankan.', 'ok')
     } catch (e) { setMsg(e.message, 'err') }
