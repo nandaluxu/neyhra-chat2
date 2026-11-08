@@ -31,6 +31,11 @@ header>button:active,.mwrap>button:active{background:var(--surface)}
 .mwrap{position:relative;flex:none}
 .pfp{width:38px;height:38px;border-radius:50%;object-fit:cover;background:var(--surface);flex:none;margin:0 10px 0 2px}
 .who{flex:1;min-width:0;line-height:1.2}
+.who{position:relative}
+.relgain{position:absolute;right:2px;top:50%;margin-top:-11px;padding:2px 9px;border-radius:99px;background:var(--surface);font-size:11.5px;font-weight:600;color:var(--ok);opacity:0;pointer-events:none;white-space:nowrap}
+.relgain.neg{color:var(--rec)}
+.relgain.go{animation:relgain 1.8s ease-out}
+@keyframes relgain{0%{opacity:0;transform:translateY(6px)}15%{opacity:1;transform:none}75%{opacity:1}100%{opacity:0;transform:translateY(-4px)}}
 .name{font-weight:600;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .status{font-size:12px;color:var(--mut);margin-top:1px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .status::before{content:"";display:inline-block;vertical-align:middle;margin:-1px 5px 0 0;width:6px;height:6px;border-radius:50%;background:var(--ok)}
@@ -614,7 +619,7 @@ header .pfp,header .who{cursor:pointer}
     <button id="back" title="Kembali"><svg viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6"/></svg></button>
     <button id="lpopen" type="button" title="Buka daftar obrolan" aria-label="Buka daftar obrolan"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></svg></button>
     <img class="pfp" id="hpfp" alt="">
-    <div class="who"><div class="name" id="hname"></div><div class="status" id="status">online</div></div>
+    <div class="who"><div class="name" id="hname"></div><div class="status" id="status">online</div><span class="relgain" id="relgain" aria-hidden="true"></span></div>
     <button id="find" type="button" title="Cari di obrolan" aria-label="Cari di obrolan"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg></button>
     <button id="exp" type="button" title="Ekspor obrolan" aria-label="Ekspor obrolan"><svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 19h14"/></svg></button>
     <button id="clr" type="button" title="Hapus obrolan" aria-label="Hapus obrolan"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12h10l1-12M9 7V4h6v3"/></svg></button>
@@ -2096,7 +2101,18 @@ function relLoad(id){
   }
   return st;
 }
-const relSave=(id,st)=>{ store.set(relKey(id),JSON.stringify(st)); if(window.Shell) Shell.refreshDetail(); };
+let relWarnAt=0;
+const relSave=(id,st)=>{
+  const k=relKey(id), v=JSON.stringify(st); store.set(k,v);
+  if(store.get(k)!==v&&Date.now()-relWarnAt>60000){ relWarnAt=Date.now(); toast('Penyimpanan perangkat penuh, hubungan tidak tersimpan. Hapus obrolan lama atau cek Pengaturan → Penyimpanan.'); } /* store.set menelan error (kuota localStorage), jadi cek dengan baca ulang */
+  if(window.Shell) Shell.refreshDetail();
+};
+/* label kecil "+N EXP" di header chat tiap kali hubungan berubah, supaya kenaikannya terlihat tanpa membuka panel profil */
+function flashGain(id,d){
+  if(!d||!ch||ch.id!==id||(window.GX&&GX.cur)) return;
+  const el=$('relgain'); if(!el) return;
+  el.textContent=(d>0?'+':'')+d+' EXP'; el.classList.toggle('neg',d<0); el.classList.remove('go'); void el.offsetWidth; el.classList.add('go');
+}
 const relPayload=id=>{ const st=relLoad(id); return {rel:st.r,mood:st.m,shift:st.p}; };
 /* terapkan hasil satu balasan (dExp = EXP yang didapat/hilang). Mengembalikan teks notifikasi kalau level/tahap berubah, selain itu ''. */
 function relApply(id,dExp,dMood,free){ /* free=true: EXP hadiah dari Toko, tidak kena batas harian obrolan */
@@ -2113,7 +2129,7 @@ function relApply(id,dExp,dMood,free){ /* free=true: EXP hadiah dari Toko, tidak
     if(b>a){ st.p='up'; note='Hubunganmu dengan '+shortName(c)+' naik: '+REL.stages[b].name+' (Lv '+lb+')'; }
     else if(b<a){ st.p='down'; note='Hubunganmu dengan '+shortName(c)+' turun: '+REL.stages[b].name+' (Lv '+lb+')'; }
   }
-  relSave(id,st); return note;
+  relSave(id,st); flashGain(id,d); return note;
 }
 
 /* panel profil: tap foto/nama di header chat */
