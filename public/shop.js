@@ -127,7 +127,7 @@ pmenu.addEventListener('click', e => {
   closePlus();
   if (b.dataset.a === 'inv') openInv();
   else if (b.dataset.a === 'scn') scn.click();
-  else if (b.dataset.a === 'scene' && window.SCENE) SCENE.manual(); /* langsung memproses adegan, TANPA overlay (public/scene.js) */
+  else if (b.dataset.a === 'scene' && window.SCENE) SCENE.manual(); /* pasang lampiran Scene Capture di kotak ketik (public/scene.js): ketik prompt sendiri atau kosongkan -> otomatis dari adegan */
 });
 document.addEventListener('pointerdown', e => { if (!pmenu.classList.contains('hide') && !e.target.closest('#plusmenu,#plusbtn')) closePlus(); }, true);
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !pmenu.classList.contains('hide')) { e.stopPropagation(); closePlus(); plus.focus({ preventScroll: true }); } }, true);

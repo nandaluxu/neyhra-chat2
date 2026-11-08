@@ -2,6 +2,13 @@
    Ikut gaya bubble chat: .bub untuk lingkaran luar, .ts untuk waktu, .typing-b dipakai ulang
    untuk indikator "menggambar adegan". */
 
+/* ---------- Lampiran "Scene Capture" di atas kotak ketik (diisi scene.js, pola #attbar hadiah di shop.css) ---------- */
+#scnbar{padding:10px 10px 0;background:var(--bg);border-top:1px solid var(--line);animation:attin .22s cubic-bezier(.2,.9,.3,1.2)}
+#scnbar+footer{border-top:0;padding-top:8px} /* footer tidak bergaris ganda (aturan #attbar di shop.css tidak lagi berlaku saat bar ini ada di antaranya) */
+#scnbar .att-ic svg{width:38px;height:38px;box-sizing:border-box;padding:4px;border-radius:12px;background:var(--bg);border:2px solid var(--surface);margin-left:-8px;color:var(--mut)}
+@media(min-width:800px){#scnbar{padding-left:calc(var(--g) - 8px);padding-right:calc(var(--g) - 8px)}}
+@media(prefers-reduced-motion:reduce){#scnbar{animation:none}}
+
 /* bubble gambar: nempel di sisi karakter (row them), lebar mengikuti foto chat */
 .scene-b{padding:6px 6px 4px;max-width:min(78vw,300px)}
 .scene-b img{display:block;width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:14px;background:var(--surface);cursor:zoom-in;animation:in .25s ease-out}
