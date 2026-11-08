@@ -4,8 +4,10 @@
    Bagian:
      1. Tab Toko (#shop): beli bunga/coklat/eskrim dengan coin, beberapa jenis & jumlah sekaligus.
      2. Menu "+" di kolom ketik (#plusbtn): Inventory dan Skenario Skrip.
-     3. Inventory (#invmodal): pilih jenis + jumlah, "Berikan" -> EXP hubungan naik, ada bubble roleplay + balasan AI.
-   Memakai global index.html: atok, aOn, aApi, saveWallet, loadWallet, paintWallet, ch, ready, busy, submit, relApply, shortName, toast, GX, store. */
+     3. Inventory (#invmodal): pilih jenis + jumlah, "Lampirkan ke chat" -> hadiah jadi lampiran di kotak ketik (#attbar);
+        saat kirim: EXP hubungan naik, ada bubble roleplay (+ ketikan user) dan balasan AI.
+   Memakai global index.html: atok, aOn, aApi, saveWallet, loadWallet, paintWallet, ch, ready, busy, selOn, inp, sendB, grow, refresh, draftT, submit, relApply, shortName, toast, GX, store.
+   Mengekspor window.SHOP { has(), send(teks) } yang dipakai submit() dan refresh() di index.html. */
 (() => {
 'use strict';
 const $ = id => document.getElementById(id);
@@ -122,7 +124,7 @@ const invOpen = () => !inv.classList.contains('hide');
 function openInv() {
   if (!ch || (window.GX && GX.cur)) return;
   for (const k in gsel) delete gsel[k];
-  $('invsub').textContent = 'Berikan hadiah ke ' + shortName(ch) + ' untuk menaikkan hubungan.';
+  $('invsub').textContent = 'Pilih hadiah untuk ' + shortName(ch) + '. Hadiah muncul di kotak ketik dan terkirim bersama pesanmu.';
   inv.classList.remove('hide'); renderInv();
   if (atok) load(true);
 }
@@ -148,7 +150,7 @@ function renderInv() {
   const cnt = Object.values(gsel).reduce((s, n) => s + (n | 0), 0), exp = sumOf(gsel, 'exp');
   foot.classList.remove('hide');
   $('invsum').textContent = cnt ? cnt + ' barang · +' + nf.format(exp) + ' EXP' : 'Pilih barang yang mau diberikan';
-  const go = $('invgo'); go.disabled = !cnt || giving; go.textContent = giving ? 'Memberikan…' : 'Berikan ke ' + shortName(ch);
+  const go = $('invgo'); go.disabled = !cnt || giving; go.textContent = 'Lampirkan ke chat';
   if (focus) { const [a, id] = focus.split('|'); const el = ibody.querySelector('[data-act="' + a + '"][data-id="' + id + '"]'); if (el && !el.disabled) el.focus({ preventScroll: true }); }
 }
 ibody.addEventListener('click', e => {
@@ -159,30 +161,70 @@ ibody.addEventListener('click', e => {
   else if (a === 'retry') load(true);
   else if (a === 'shop') { closeInv(); Shell.setTab('shop'); }
 });
-$('invgo').onclick = give;
+$('invgo').onclick = attach;
 
-/* Memberikan hadiah: server mengurangi barang (atomik) dan menghitung EXP; di sini EXP/mood ditambahkan ke hubungan,
-   lalu bubble roleplay masuk ke chat dan AI menjawab (lewat submit() di index.html dengan field `gift`). */
-async function give() {
+/* Hadiah = LAMPIRAN di kotak ketik (seperti file yang dilampirkan di chat): "Lampirkan ke chat" cuma menyiapkan hadiahnya, belum dikirim
+   dan barang belum berkurang. Saat tombol kirim ditekan (atau Enter), hadiah dan ketikan user (boleh kosong) terkirim sekaligus:
+   server mengurangi barang (atomik) dan menghitung EXP; di sini EXP/mood ditambahkan ke hubungan, bubble roleplay masuk ke chat
+   dan AI menjawab keduanya (lewat submit() di index.html dengan field `gift`). Lampiran hanya berlaku untuk chat tempat ia dibuat. */
+let att = null; // { char, items:{id:n}, parts:[{id,name,n}], what, exp }
+const attbar = document.createElement('div');
+attbar.id = 'attbar'; attbar.className = 'hide'; attbar.setAttribute('aria-live', 'polite');
+document.querySelector('#chatview footer').before(attbar);
+
+const hasAtt = () => !!(att && ch && ch.id === att.char && !(window.GX && GX.cur));
+function renderAtt() {
+  if (att && !hasAtt()) att = null; // pindah chat / masuk grup / keluar akun: lampiran dibuang (barang belum berkurang)
+  attbar.textContent = '';
+  attbar.classList.toggle('hide', !att);
+  if (!att) { if (typeof refresh === 'function') refresh(); return; }
+  const chip = document.createElement('div'); chip.className = 'att-chip';
+  const ics = document.createElement('span'); ics.className = 'att-ic';
+  att.parts.slice(0, 3).forEach(p => { const im = new Image(); im.src = icon(p.id); im.alt = ''; im.draggable = false; ics.append(im); });
+  const tx = document.createElement('span'); tx.className = 'att-tx';
+  const t1 = document.createElement('b'), t2 = document.createElement('small');
+  t1.textContent = att.parts.map(p => p.n + ' ' + p.name.toLowerCase()).join(', '); t2.textContent = 'Hadiah · +' + nf.format(att.exp) + ' EXP'; chip.title = 'Hadiah ini terkirim bersama pesanmu';
+  tx.append(t1, t2);
+  const x = document.createElement('button'); x.type = 'button'; x.className = 'att-x'; x.title = 'Lepas hadiah'; x.setAttribute('aria-label', 'Lepas hadiah dari kotak ketik');
+  x.innerHTML = '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>'; // ikon statis
+  x.addEventListener('pointerdown', e => e.preventDefault()); // tap tidak menutup keyboard
+  x.addEventListener('click', () => { att = null; renderAtt(); inp.focus({ preventScroll: true }); });
+  chip.append(ics, tx, x); attbar.append(chip);
+  if (typeof refresh === 'function') refresh();
+}
+new MutationObserver(renderAtt).observe($('hname'), { childList: true, characterData: true, subtree: true });
+window.addEventListener('acct', () => { if (!atok) { att = null; renderAtt(); } });
+
+function attach() { // tombol di Inventory: siapkan hadiah di kotak ketik, belum dikirim
   if (giving || !S || !ch || (window.GX && GX.cur)) return;
-  if (busy || !ready) { toast('Tunggu balasan selesai dulu ya'); return; }
   const items = pairs(gsel); if (!Object.keys(items).length) return;
-  const chId = ch.id, name = shortName(ch), what = sentence(gsel);
-  giving = true; renderInv();
-  let r;
-  try { r = await aApi('shop/gift', { char: chId, items }); }
-  catch (e) { giving = false; toast(e.message || 'Gagal memberikan hadiah'); load(true); return; }
-  giving = false;
-  if (!r || !r.ok) { renderInv(); return; }
-  S = r; lastAt = Date.now(); saveWallet(r);
+  const parts = itemsOf().filter(i => items[i.id]).map(i => ({ id: i.id, name: i.name, n: items[i.id] }));
+  att = { char: ch.id, items, parts, what: sentence(gsel), exp: sumOf(gsel, 'exp') };
   for (const k in gsel) delete gsel[k];
-  closeInv(); render();
+  closeInv(); renderAtt();
+  inp.focus({ preventScroll: true });
+}
+
+async function send(userText) { // dipanggil submit() saat ada lampiran
+  if (giving || !S || !hasAtt()) return;
+  if (busy || !ready || selOn) { toast('Tunggu balasan selesai dulu ya'); return; }
+  const a = att, chId = a.char, name = shortName(ch), say = String(userText || '').trim();
+  giving = true; sendB.disabled = true;
+  let r;
+  try { r = await aApi('shop/gift', { char: chId, items: a.items }); }
+  catch (e) { giving = false; refresh(); toast(e.message || 'Gagal memberikan hadiah'); load(true); return; } // lampiran tetap ada, bisa dicoba lagi
+  giving = false;
+  if (!r || !r.ok) { refresh(); return; }
+  S = r; lastAt = Date.now(); saveWallet(r);
+  att = null; renderAtt();
   const note = relApply(chId, r.exp, r.mood, true); /* EXP hadiah tidak kena batas harian obrolan: sudah dibayar pakai coin */
   const expTxt = '+' + nf.format(r.exp) + ' EXP';
   if (!ch || ch.id !== chId || (window.GX && GX.cur)) { toast('Hadiah terkirim ke ' + name + ' · ' + expTxt + (note ? ' · ' + note : '')); return; } /* chat sudah pindah: EXP tetap masuk ke karakter yang benar */
-  toast('Kamu memberikan ' + what + ' ke ' + name + ' · ' + expTxt);
-  submit({ gift: true, items, text: '🎁 *memberikan ' + what + '*', hist: '*memberikan ' + what + ' kepadamu*', note });
+  inp.value = ''; grow(); refresh(); clearTimeout(draftT); store.set('draft:' + chId, null); // ketikan ikut terkirim, kotak ketik dikosongkan
+  toast('Kamu memberikan ' + a.what + ' ke ' + name + ' · ' + expTxt);
+  submit({ gift: true, items: a.items, say, text: '🎁 *memberikan ' + a.what + '*' + (say ? '\n' + say : ''), hist: '*memberikan ' + a.what + ' kepadamu*' + (say ? ' sambil bilang: ' + say : ''), note });
 }
+window.SHOP = { has: hasAtt, send };
 
 /* ---------- Kapan menyegarkan ---------- */
 window.addEventListener('shell:tab', e => { if (e.detail === 'shop') load(); });

@@ -112,12 +112,12 @@ Tab ketiga di navbar (ikon hadiah), alamat `/bonus`. Perlu akun (MongoDB aktif d
 Tab **Toko** di navbar (alamat `/shop`). Perlu akun. Barang: Bunga 75, Coklat 120, Eskrim 125 coin. Ikon di `public/shop/*.svg`.
 
 - **Beli**: pilih beberapa jenis + jumlah sekaligus, satu tombol "Beli". Coin berkurang dan barang masuk Inventory dalam satu operasi atomik di server (tidak bisa minus / dobel belanja).
-- **Memberi hadiah**: di layar chat 1-lawan-1 ada tombol **+** di kanan kolom ketik. Isinya **Inventory** dan **Skenario Skrip**. Di Inventory pilih jenis + jumlah (boleh campur), tekan "Berikan". Barang berkurang, EXP + mood hubungan naik (tidak kena batas harian obrolan, karena dibayar coin), bubble roleplay `🎁 *memberikan 2 bunga dan 1 coklat*` muncul di chat, lalu karakter menjawab.
+- **Memberi hadiah**: di layar chat 1-lawan-1 ada tombol **+** di kanan kolom ketik. Isinya **Inventory** dan **Skenario Skrip**. Di Inventory pilih jenis + jumlah (boleh campur), tekan "Lampirkan ke chat". Hadiah **belum terkirim**: muncul sebagai kartu lampiran tepat di atas kolom ketik (ada tombol X untuk melepas), dan barang belum berkurang. Ketik pesan kalau mau (boleh kosong), lalu tekan kirim atau Enter: barang berkurang, EXP + mood hubungan naik (tidak kena batas harian obrolan, karena dibayar coin), bubble roleplay `🎁 *memberikan 2 bunga dan 1 coklat*` + ketikanmu di baris bawahnya muncul di chat, lalu karakter menjawab hadiah dan ucapanmu sekaligus. Lampiran hanya berlaku di chat tempat ia dibuat: pindah chat atau masuk grup membuangnya (barang tidak hilang).
 - **Atur barang/harga/EXP**: tabel `ITEMS` di atas `lib/shop.js` (price, exp, mood). Tidak perlu mengubah kode lain, kecuali menambah ikon `public/shop/<id>.svg`.
 - **API** (POST, Bearer, `lib/shop.js`): `/api/auth/shop`, `/api/auth/shop/buy` (`{ items }`), `/api/auth/shop/gift` (`{ char, items }` -> `{ exp, mood }`).
-- **AI**: `/api/chat` menerima field `gift: { items }`; bentuknya dicek ulang server (`giftLine`) lalu pesan ke AI diganti kalimat kejadian. Angka `<rel>/<mood>` dari AI diabaikan di giliran hadiah (EXP sudah dihitung server).
+- **AI**: `/api/chat` menerima field `gift: { items, text? }` (`text` = ketikan user yang menyertai hadiah, dibersihkan dan maks 500 karakter, ditempel ke kalimat kejadian); bentuknya dicek ulang server (`giftLine`) lalu pesan ke AI diganti kalimat kejadian. Angka `<rel>/<mood>` dari AI diabaikan di giliran hadiah (EXP sudah dihitung server).
 - **Field baru di `users`**: `inv` `{ <idBarang>: jumlah }`.
-- **Client**: `public/shop.js` + `shop.css`; `submit({ gift:true, ... })` di `index.html`; `relApply(..., free)`.
+- **Client**: `public/shop.js` + `shop.css`; `submit({ gift:true, say, ... })` di `index.html`; `relApply(..., free)`. Lampiran: `#attbar` (dibuat `shop.js`, di atas footer chat) dan `window.SHOP { has(), send(teks) }` yang dipanggil `submit()` dan `refresh()`.
 
 ## Minigame (coin dari main game)
 

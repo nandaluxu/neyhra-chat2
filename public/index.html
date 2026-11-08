@@ -1190,6 +1190,7 @@ async function submit(opt){
   const gf=opt&&opt.gift?opt:null; /* kiriman hadiah dari shop.js: teks bubble sudah jadi, input chat tidak disentuh */
   const text=gf?gf.text:inp.value.trim();
   if(!gf&&window.GX&&GX.cur) return GX.submit(); /* layar grup: mesin giliran ada di group.js */
+  if(!gf&&window.SHOP&&SHOP.has()) return SHOP.send(inp.value.trim()); /* ada hadiah di kotak ketik: kirim hadiah + ketikan user sekaligus (shop.js) */
   /* pesan rahasia ke Reze: dicegat di sini, TIDAK dikirim ke server (tanpa ChatGPT, tanpa Fish Audio) dan pesannya dibuang: tidak jadi bubble, tidak dicatat */
   if(!gf&&text&&ch&&ch.id==='reze'&&tryDev(text)){ inp.value=''; grow(); refresh(); clearTimeout(draftT); store.set('draft:'+ch.id,null); return; } /* kode mode dev: dicegat di browser, tidak dikirim dan tidak dicatat */
   if(!gf&&text&&ch&&window.GX&&GX.trySecret(text)){ inp.value=''; grow(); refresh(); clearTimeout(draftT); store.set('draft:'+ch.id,null); return; }
@@ -1200,7 +1201,7 @@ async function submit(opt){
   let t=thinkBubble(ch.name); /* fase 1: ChatGPT lagi mikir */
   try{
     const hist=loadHist(ch.id);
-    const r=await (await post('/api/chat',{clientId:cid,char:ch.id,message:text,userName:uname,history:hist,voice:{on:useVoice,lang},memory:memUse(chId).list,rel:relPayload(chId),...engPayload(),...(rpOn()?{rp:true}:{}),...(gf?{gift:{items:gf.items}}:{}),...(window.SCN?SCN.body(chId):{})},window.SCN?SCN.headers():{})).json();
+    const r=await (await post('/api/chat',{clientId:cid,char:ch.id,message:text,userName:uname,history:hist,voice:{on:useVoice,lang},memory:memUse(chId).list,rel:relPayload(chId),...engPayload(),...(rpOn()?{rp:true}:{}),...(gf?{gift:{items:gf.items,...(gf.say?{text:gf.say}:{})}}:{}),...(window.SCN?SCN.body(chId):{})},window.SCN?SCN.headers():{})).json();
     saveHist(chId,[...loadHist(chId),['user',gf?gf.hist:text],['char',r.id]]); okReply=true;
     relNote=gf?(gf.note||''):relApply(chId,r.dExp!=null?r.dExp:(Math.round(Number(r.dRel))||0)*3,r.dMood); /* hadiah: EXP/mood sudah dihitung server (shop.js), angka penilaian AI diabaikan supaya tidak dobel */ /* hubungan & mood: angka dari balasan AI (sudah di-clamp server) */ /* baca ulang h: karena peringkasan di latar bisa saja baru membuang bagian lamanya */
     if(!useVoice){ t.remove(); showThem(chId,r.id); }
@@ -1215,7 +1216,7 @@ async function submit(opt){
   placeGoon();
 }
 
-function refresh(){ sendB.disabled=busy||!inp.value.trim(); }
+function refresh(){ sendB.disabled=busy||(!inp.value.trim()&&!(window.SHOP&&SHOP.has())); } /* ada lampiran hadiah (shop.js) = boleh kirim walau teks kosong */
 /* kolom ketik membesar sesuai isi (maks ±5 baris) */
 /* Saat layar chat tersembunyi (display:none, mis. tab Beranda di desktop) scrollHeight = 0; jangan dikunci jadi 0px, kembalikan ke tinggi CSS (44px) */
 function grow(){ inp.style.height='auto'; const h=inp.scrollHeight; inp.style.height=h?Math.min(Math.max(h,44),136)+'px':''; }
