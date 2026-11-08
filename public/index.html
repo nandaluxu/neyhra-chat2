@@ -1469,19 +1469,33 @@ function openCtx(x,y,row){
   m.style.left=Math.min(Math.max(8,x),innerWidth-r.width-8)+'px';
   m.style.top=Math.min(Math.max(8,y),innerHeight-r.height-8)+'px';
 }
+/* Mode seleksi menambah padding kiri #chat (ruang untuk lingkaran centang), jadi gelembung jadi lebih sempit, teks membungkus ulang, dan total tinggi
+   berubah. Tanpa penyesuaian, scrollTop tetap sama sementara isinya bergeser, dan layar terlihat "melambung" (biasanya ke atas, karena posisi
+   awal ada di bawah). Jadi: catat posisi satu baris acuan di layar sebelum perubahan, lalu geser scrollTop supaya baris itu tetap di tempat yang sama. */
+function topVisibleRow(){ const top=chat.getBoundingClientRect().top; for(const r of chat.querySelectorAll('.row')) if(r.getBoundingClientRect().bottom>top+1) return r; return null; }
+function keepScroll(change,anchor){
+  const a=anchor&&anchor.isConnected?anchor:topVisibleRow(), y0=a?a.getBoundingClientRect().top:0;
+  change();
+  if(a&&a.isConnected){ const d=a.getBoundingClientRect().top-y0; if(d) chat.scrollTop+=d; }
+}
 function enterSel(row){
   if(selOn||window.GX&&GX.cur||!ch) return;
-  selOn=true; $('chatview').classList.add('selmode'); selbar.classList.remove('hide');
-  hideGoon(); resetDelArm();
-  if(row&&row.dataset.t) row.classList.add('sel');
-  updSel();
+  keepScroll(()=>{
+    selOn=true; $('chatview').classList.add('selmode'); selbar.classList.remove('hide');
+    hideGoon(); resetDelArm();
+    if(row&&row.dataset.t) row.classList.add('sel');
+    updSel();
+  },row);
 }
 function exitSel(){
   if(!selOn) return;
-  selOn=false; $('chatview').classList.remove('selmode'); selbar.classList.add('hide');
-  chat.querySelectorAll('.row.sel').forEach(r=>r.classList.remove('sel'));
-  resetDelArm();
-  placeGoon();
+  const first=chat.querySelector('.row.sel'), vis=first&&first.getBoundingClientRect().bottom>chat.getBoundingClientRect().top&&first.getBoundingClientRect().top<chat.getBoundingClientRect().bottom?first:null; /* acuan: pesan terpilih yang kelihatan, kalau tidak baris paling atas yang kelihatan */
+  keepScroll(()=>{
+    selOn=false; $('chatview').classList.remove('selmode'); selbar.classList.add('hide');
+    chat.querySelectorAll('.row.sel').forEach(r=>r.classList.remove('sel'));
+    resetDelArm();
+    placeGoon();
+  },vis);
 }
 ctxOv.addEventListener('click',e=>{
   if(e.target===ctxOv){ closeCtx(); return; }
