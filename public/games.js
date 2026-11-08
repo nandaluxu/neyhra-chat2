@@ -405,13 +405,13 @@ async function csay(revealAt = 0) {
   if (wait > 0) await chSleep(wait); // komentar menggambarkan posisi SETELAH langkah AI: jangan mendahului bidaknya
   if (tok !== chSayTok) { chSaying = false; return; }
   chSaying = false;
-  if (cs && cs.game) { cs.game.say = r.say; chSayPaint(); if (audio && screen === 'chess') chPlay(audio); }
+  if (cs && cs.game) { cs.game.say = r.say; chSayPaint(); if (audio && screen === 'chess') chVoicePlay(audio); }
 }
 
 /* ---------- Catur: suara lawan ----------
    Memakai pengaturan suara chat apa adanya: switch Voice + kode voice (von/vcode), bahasa (voiceLang), suara karakter (voiceKeyOf), kecepatan (vSpeed),
    dan endpoint /api/tts yang sama. Kalau voice mati atau kode belum benar, tidak ada suara. Suara gagal tidak mengganggu permainan.
-   Audionya DISIAPKAN dulu (chTTS) lalu diputar (chPlay) SEKALIGUS dengan teks komentarnya — teks dan suara selalu muncul bareng. */
+   Audionya DISIAPKAN dulu (chTTS) lalu diputar (chVoicePlay — JANGAN dinamai chPlay: itu nama fungsi animasi bidak di bawah, tabrakan nama bikin suara tidak pernah jalan) SEKALIGUS dengan teks komentarnya — teks dan suara selalu muncul bareng. */
 let chAudio = null, chAudioUrl = '';
 const chVoiceOn = () => typeof voiceOn !== 'undefined' && voiceOn && typeof vcode !== 'undefined' && !!vcode;
 function chVoiceStop() { try { if (chAudio) { chAudio.pause(); chAudio.onended = null; } if (chAudioUrl) URL.revokeObjectURL(chAudioUrl); } catch {} chAudio = null; chAudioUrl = ''; }
@@ -426,7 +426,7 @@ async function chTTS(charId, vn, tok) {
     return null;
   }
 }
-function chPlay(blob) {
+function chVoicePlay(blob) { // nama UNIK: chPlay dipakai fungsi animasi bidak (deklarasi fungsi terakhir menimpa yang pertama — bug voice tidak pernah muncul)
   try {
     chVoiceStop();
     chAudioUrl = URL.createObjectURL(blob);
