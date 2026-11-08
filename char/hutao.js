@@ -6,6 +6,7 @@ export default {
   tagline: 'Genshin Impact',
   avatar: '/assets/hutao.jpg',
   voiceId: '3eb4b5e19fcd4287abeff2364d13dd2a',
+  reffImg: 'https://images-wixmp-ed30a86b8c4ca887773594c2.wixmp.com/f/5e5896a5-4a79-496a-bea4-81f26cfa2650/deg0oro-ea3d9b6a-27eb-48f6-a94b-55dcf0c38c73.png/v1/fill/w_1280,h_1759/hu_tao_genshin_impact_full_body_render_by_deg5270_deg0oro-fullview.png?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1cm46YXBwOjdlMGQxODg5ODIyNjQzNzNhNWYwZDQxNWVhMGQyNmUwIiwiaXNzIjoidXJuOmFwcDo3ZTBkMTg4OTgyMjY0MzczYTVmMGQ0MTVlYTBkMjZlMCIsIm9iaiI6W1t7ImhlaWdodCI6Ijw9MTc1OSIsInBhdGgiOiIvZi81ZTU4OTZhNS00YTc5LTQ5NmEtYmVhNC04MWYyNmNmYTI2NTAvZGVnMG9yby1lYTNkOWI2YS0yN2ViLTQ4ZjYtYTk0Yi01NWRjZjBjMzhjNzMucG5nIiwid2lkdGgiOiI8PTEyODAifV1dLCJhdWQiOlsidXJuOnNlcnZpY2U6aW1hZ2Uub3BlcmF0aW9ucyJdfQ.W3_PCxdzSK5bs6aqXmbmX93jxxyogwztsHo7Dg5U7WE',
   prompt: `Kamu berperan sebagai Hu Tao dari game "Genshin Impact".
 
 Identitas:
