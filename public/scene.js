@@ -1,4 +1,7 @@
 /* ===== Scene Capture: AI mengilustrasikan adegan percakapan =====
+   - FITUR RAHASIA (pola chat grup): seluruh fitur ini baru terbuka setelah kode rahasia dikirim ke Reze
+     (dicegat tryMedia di index.html, hash MEDIA_SECRET -> store 'mediau'). Ilustrasi lama di log tetap
+     tampil walau fitur belum terbuka (render tidak dicek).
    - Manual (menu "+" -> "Scene Capture"): TIDAK memakai overlay dan TIDAK langsung memproses — memasang
      LAMPIRAN di kotak ketik (pola hadiah di shop.js: chip + tombol X). User boleh mengetik prompt sendiri
      di kotak ketik; saat tombol kirim ditekan (submit() di index.html -> SCENE.send), ketikan itu jadi
@@ -7,6 +10,7 @@
    - Otomatis: setelah balasan AI tampil (dipanggil submit() di index.html), AI penilai di server yang
      memutuskan apakah adegannya layak divisualisasikan. Maks SATU kali per giliran, plus jeda minimum
      10 menit antar ilustrasi per karakter supaya adegan yang mirip tidak digambar berulang.
+     Default MATI: hanya jalan kalau switch "Scene otomatis" di Pengaturan dinyalakan (store 'scnauto').
    - Hanya karakter dengan gambar referensi (ch.scene, dari field refImg char/<id>.js via /api/chars)
      yang memakai fitur ini; refImg sendiri tidak pernah sampai ke browser (lihat lib/scene.js).
    Memakai global index.html: ch, chat, app, uname, store, post, toast, scroll, now, ensureDay,
@@ -20,7 +24,7 @@
   let armed = null                // { char, ph } -> Scene Capture terpasang sebagai lampiran di kotak ketik
 
   const inChat = id => !!(ch && ch.id === id && app.classList.contains('open') && !(window.GX && GX.cur))
-  const can = () => !!(ch && ch.scene && inChat(ch.id))
+  const can = () => !!(ch && ch.scene && inChat(ch.id) && store.get('mediau') === '1') /* fitur rahasia: harus terbuka dulu lewat kode ke Reze (tryMedia di index.html) */
 
   /* lampiran valid selama masih di chat karakter yang sama (pola hasAtt di shop.js) */
   const has = () => !!(armed && ch && ch.scene && ch.id === armed.char && !(window.GX && GX.cur))
@@ -164,7 +168,7 @@
   async function auto(id, replyText) {
     try {
       if (pending || !ch || ch.id !== id || !ch.scene) return
-      if (!(typeof rpOn === 'function' && rpOn())) return /* otomatis hanya saat Mode roleplay aktif */
+      if (store.get('scnauto') !== '1') return /* Scene otomatis default MATI: dinyalakan lewat switch "Scene otomatis" di Pengaturan (index.html, #smedia) */
       if (!inChat(id)) return
       const l = lastScene(id)
       if (l && Date.now() - (l.t || 0) < COOLDOWN) return /* jangan menggambar adegan yang nyaris sama berulang-ulang */

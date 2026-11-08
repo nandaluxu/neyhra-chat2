@@ -108,11 +108,13 @@ syncPlus();
 function paintPlusItems() { /* dipanggil tiap menu dibuka dan saat chat berpindah karakter
   Yang menyesuaikan adalah item di dalamnya: Skenario Skrip hanya saat Mode roleplay aktif (lihat public/scenario.js),
   Scene Capture hanya untuk karakter yang punya gambar referensi (ch.scene), Kirim Gambar hanya untuk
-  karakter yang bisa melihat gambar (ch.vision, field `vision: true` di char/<id>.js -> public/vision.js). */
+  karakter yang bisa melihat gambar (ch.vision, field `vision: true` di char/<id>.js -> public/vision.js).
+  Scene Capture & Kirim Gambar juga fitur rahasia: cuma muncul setelah kode ke Reze (mediau, tryMedia di index.html). */
   const rp = typeof rpOn === 'function' ? rpOn() : true;
+  const media = store.get('mediau') === '1'; /* fitur gambar terbuka lewat kode rahasia ke Reze (index.html, tryMedia) */
   if (scnItem) scnItem.classList.toggle('hide', !rp);
-  if (sceneItem) sceneItem.classList.toggle('hide', !(ch && ch.scene && !(window.GX && GX.cur)));
-  if (imgItem) imgItem.classList.toggle('hide', !(ch && ch.vision && !(window.GX && GX.cur)));
+  if (sceneItem) sceneItem.classList.toggle('hide', !(media && ch && ch.scene && !(window.GX && GX.cur)));
+  if (imgItem) imgItem.classList.toggle('hide', !(media && ch && ch.vision && !(window.GX && GX.cur)));
 }
 new MutationObserver(paintPlusItems).observe($('hname'), { childList: true, characterData: true, subtree: true });
 function openPlus() {

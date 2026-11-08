@@ -691,6 +691,9 @@ header .pfp,header .who{cursor:pointer}
         <button class="srow" id="sumbtn" type="button"><span><b>Ringkasan harian</b><i>Rekap obrolanmu hari ini, kemarin, atau 7 hari terakhir. Bisa dibagikan sebagai gambar.</i></span><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
         <button class="srow" id="membtn" type="button"><span><b>Memori</b><i>Ringkasan obrolan lama yang diingat tiap karakter. Bisa dilihat dan dihapus.</i></span><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
       </div>
+      <div class="sgroup hide" id="smediag"><h3>Gambar</h3>
+        <label class="srow"><span><b>Scene otomatis</b><i>Setelah karakter membalas, AI menilai apakah adegannya layak divisualisasikan, lalu mengilustrasikannya sendiri (maks satu per giliran, jeda 10 menit per karakter). Mau ilustrasi sesekali saja? Pakai Scene Capture di menu +. Default mati.</i></span><input type="checkbox" id="smedia" class="sw"></label>
+      </div>
       <div class="sgroup"><h3>Pemutaran</h3>
         <label class="srow"><span><b>Putar otomatis berikutnya</b><i>Setelah satu voice note selesai, lanjut ke voice note di bawahnya.</i></span><input type="checkbox" id="sauto" class="sw"></label>
       </div>
@@ -1202,7 +1205,7 @@ async function submit(opt){
   const vf=!gf&&window.VISION?VISION.take():null; /* ada lampiran gambar (vision.js): diambil SETELAH intercept lain supaya tidak bertumpuk; caption boleh kosong (gambar saja) */
   const text=gf?gf.text:(vf?vf.text:inp.value.trim());
   /* pesan rahasia ke Reze: dicegat di sini, TIDAK dikirim ke server (tanpa ChatGPT, tanpa Fish Audio) dan pesannya dibuang: tidak jadi bubble, tidak dicatat */
-  if(!gf&&text&&ch&&ch.id==='reze'&&tryDev(text)){ inp.value=''; grow(); refresh(); clearTimeout(draftT); store.set('draft:'+ch.id,null); return; } /* kode mode dev: dicegat di browser, tidak dikirim dan tidak dicatat */
+  if(!gf&&text&&ch&&ch.id==='reze'&&(tryDev(text)||tryMedia(text))){ inp.value=''; grow(); refresh(); clearTimeout(draftT); store.set('draft:'+ch.id,null); return; } /* kode rahasia (mode dev / fitur gambar): dicegat di browser, tidak dikirim dan tidak dicatat */
   if(!gf&&text&&ch&&window.GX&&GX.trySecret(text)){ inp.value=''; grow(); refresh(); clearTimeout(draftT); store.set('draft:'+ch.id,null); return; }
   if(busy||(!text&&!gf&&!vf)||!ch||!ready||selOn){ inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake'); if(vf)VISION.untake(vf); return; }
   busy=true; hideGoon(); if(!gf){ inp.value=''; grow(); } refresh();
@@ -1638,7 +1641,7 @@ const sm=$('smodal'), sauto=$('sauto'), sstat=$('sstat');
 let allChars=[];
 const setStat=t=>{ sstat.textContent=t; };
 const fmtB=n=>n<1024?Math.round(n)+' B':n<1048576?(n/1024).toFixed(n<10240?1:0)+' KB':n<1073741824?(n/1048576).toFixed(n<10485760?1:0)+' MB':(n/1073741824).toFixed(2)+' GB';
-function openSettings(){ paintDev(); sauto.checked=autoNext; setStat(''); sm.classList.remove('hide'); refreshStorage(); }
+function openSettings(){ paintDev(); paintMedia(); sauto.checked=autoNext; setStat(''); sm.classList.remove('hide'); refreshStorage(); }
 function closeSettings(){ sm.classList.add('hide'); }
 $('setbtn').onclick=openSettings; $('sx').onclick=closeSettings;
 window.addEventListener('shell:tab',()=>{ if(!sm.classList.contains('hide')) closeSettings(); }); /* pindah tab lewat rail = keluar dari halaman Pengaturan */
@@ -2332,7 +2335,9 @@ function openMem(id,memId){
 function closeMem(){ memModal.classList.add('hide'); }
 /* ===== Mode dev: kode rahasia ke Reze membuka switch di Pengaturan; kalau aktif, menu Memori punya tombol "Ringkas sekarang" ===== */
 const DEV_SECRET=3608493969801461; /* hash dari kodenya (GX.hash, huruf besar/kecil dan spasi diabaikan). Cuma pagar UI, bukan keamanan. */
+const MEDIA_SECRET=2451744368724302; /* hash kode fitur gambar (GX.hash; besar/kecil dan spasi diabaikan): membuka Scene Capture + Kirim Gambar. Pagar UI, bukan keamanan. */
 const devOn=()=>store.get('devu')==='1'&&store.get('dev')==='1';
+const mediaOn=()=>store.get('mediau')==='1'; /* fitur gambar (Scene Capture + Kirim Gambar, menu +) terbuka lewat kode rahasia ke Reze; Scene otomatis punya switch sendiri: scnauto */
 /* Mesin AI uji (Mode dev): ChatGPT tetap utama. Lorka hanya terpakai kalau Mode dev aktif DAN dipilih di sini. */
 const engName=()=>devOn()&&store.get('eng')==='lorka'?'lorka':'chatgpt';
 const engPayload=()=>engName()==='lorka'?{engine:{name:'lorka',model:(store.get('lmodel')||'').trim()||undefined}}:{};
@@ -2384,6 +2389,17 @@ function tryDev(text){
   const was=store.get('devu')==='1'; store.set('devu','1'); if(!was) store.set('dev','1');
   paintDev(); toast(was?'Mode dev sudah terbuka, atur di Pengaturan':'Mode dev terbuka dan aktif'); return true;
 }
+/* ===== Fitur gambar (Scene Capture + Kirim Gambar): kode rahasia ke Reze, pola tryDev =====
+   Membuka item "Scene Capture" & "Kirim Gambar" di menu + (shop.js, paintPlusItems) untuk karakter yang memenuhi syarat
+   (ch.scene / ch.vision), plus grup "Gambar" di Pengaturan berisi switch "Scene otomatis" (default mati, scene.js). */
+function paintMedia(){ $('smediag').classList.toggle('hide',store.get('mediau')!=='1'); $('smedia').checked=store.get('scnauto')==='1'; }
+function tryMedia(text){
+  if(!window.GX||!GX.hash||GX.hash(text.trim().toLowerCase().replace(/\s+/g,''))!==MEDIA_SECRET) return false;
+  const was=mediaOn(); store.set('mediau','1');
+  paintMedia(); toast(was?'Fitur gambar sudah terbuka. Scene otomatis diatur di Pengaturan':'Fitur rahasia terbuka: Scene Capture & Kirim Gambar di menu +');
+  return true;
+}
+$('smedia').onchange=()=>{ store.set('scnauto',$('smedia').checked?'1':null); };
 $('srp').checked=rpOn(); $('srp').onchange=()=>{ store.set('rp',$('srp').checked?'1':null); };
 $('sdev').onchange=()=>{ store.set('dev',$('sdev').checked?'1':null); renderDev(); paintEng(); };
 function renderDev(){

@@ -263,7 +263,8 @@ Mode roleplay yang sudah ada (switch di Pengaturan) dikembangkan jadi *interacti
 
 ## Scene Capture (ilustrasi adegan, `lib/scene.js` + `public/scene.js`)
 
-- **Dua mode**: *manual* (menu "+" -> "Scene Capture") memasang LAMPIRAN di kotak ketik (pola hadiah): user boleh mengetik prompt sendiri, kosong = disusun otomatis dari adegan; *otomatis* (hanya saat Mode roleplay aktif) AI penilai menilai setelah balasan tampil, maks 1 per giliran + jeda 10 menit per karakter supaya adegan mirip tidak digambar ulang.
+- **Fitur rahasia** (pola chat grup): item menu "+" baru muncul setelah kode rahasia dikirim ke Reze — dicegat `tryMedia` di `public/index.html`, hash `MEDIA_SECRET`, disimpan di localStorage `mediau`. Mengganti kode: `GX.hash('kode baru')` di console -> tempel angkanya ke `MEDIA_SECRET`. Pagar UI, bukan keamanan. Ilustrasi lama di log tetap tampil walau fitur belum terbuka.
+- **Dua mode**: *manual* (menu "+" -> "Scene Capture") memasang LAMPIRAN di kotak ketik (pola hadiah): user boleh mengetik prompt sendiri, kosong = disusun otomatis dari adegan; *otomatis* (switch "Scene otomatis" di Pengaturan -> grup "Gambar", **default mati**) AI penilai menilai setelah balasan tampil, maks 1 per giliran + jeda 10 menit per karakter supaya adegan mirip tidak digambar ulang.
 - **Provider image-to-image berantai**: `deepchat` (Flux Schnell via `lib/deepchat.js`, UTAMA) lalu `nano` (CADANGAN, dipakai kalau deepchat gagal). Atur lewat env `SCENE_PROVIDER='deepchat,nano'` (isi `nano` untuk perilaku lama), matikan lewat `SCENE_ENABLED='0'`.
 - **Prompt optimizer**: sebelum digambar, prompt (punya user maupun AI penilai) diperluas lewat `optimizePrompt` DeepChat (context `image`) jadi prompt gambar komprehensif. Gagal -> prompt asli dipakai. Matikan lewat `SCENE_OPTIMIZE='0'`.
 - **refImg**: field di `char/<id>.js` (URL gambar referensi karakter) dipakai sebagai input image-to-image supaya wajah/rambut/gaya tetap sama. URL-nya tidak pernah dikirim ke browser; `/api/chars` hanya memberi flag `scene: true`.
@@ -271,7 +272,7 @@ Mode roleplay yang sudah ada (switch di Pengaturan) dikembangkan jadi *interacti
 
 ## Vision: karakter bisa melihat gambar (`lib/vision.js` + `public/vision.js`)
 
-- **Khusus karakter dengan field `vision: true`** di `char/<id>.js` (contoh: `char/hutao.js`). `/api/chars` memberi flag `vision: true` -> menu "+" menampilkan "Kirim Gambar" hanya untuk karakter itu.
+- **Khusus karakter dengan field `vision: true`** di `char/<id>.js` (contoh: `char/hutao.js`). `/api/chars` memberi flag `vision: true` -> menu "+" menampilkan "Kirim Gambar" hanya untuk karakter itu, dan cuma setelah fitur gambar terbuka (kode rahasia ke Reze yang sama dengan Scene Capture, `tryMedia` di `public/index.html`).
 - **Alur dua langkah**: (1) gambar (dikecilkan di browser: maks 896px untuk kirim, thumbnail 320px untuk log) dikirim ke `POST /api/vision` -> DeepChat (gpt-4o-mini multimodal) mendeskripsikan isinya secara faktual dalam bahasa Indonesia; (2) client memanggil `/api/chat` biasa dengan field `vision: <deskripsi>` -> deskripsi ditempel ke pesan user (pola kalimat kejadian hadiah) sehingga balasan karakter, voice note, hubungan, memori, dan skenario tetap jalan seperti biasa.
 - Gambar + caption (boleh kosong) tampil sebagai bubble gambar di sisi user; riwayat AI (`h:<id>`) memuat `[mengirim gambar: <deskripsi>] <caption>` supaya giliran berikutnya tetap ingat isinya. Gagal membaca gambar -> pesan batal, lampiran + ketikan dikembalikan.
 - Gambar tidak disimpan di server. Pembatas laju 20 gambar/jam per clientId (Mongo; tanpa Mongo fitur tetap jalan). Body parser 8 MB khusus `/api/vision` (dipasang sebelum parser global 50 KB, pola `lib/auth.js`).

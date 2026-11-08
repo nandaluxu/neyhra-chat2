@@ -1,4 +1,7 @@
 /* ===== Vision: kirim gambar ke karakter yang bisa melihatnya =====
+   - FITUR RAHASIA (pola chat grup): menu ini cuma muncul setelah kode rahasia dikirim ke Reze (dicegat
+     tryMedia di index.html, hash MEDIA_SECRET -> store 'mediau') — kode yang sama dengan Scene Capture.
+     Pesan gambar lama di log tetap tampil walau fitur belum terbuka (render tidak dicek).
    - Menu "+" -> "Kirim Gambar" (hanya karakter dengan ch.vision, dari field `vision: true` di char/<id>.js
      lewat /api/chars). Gambar dikecilkan di browser: versi kirim (maks 896px, untuk /api/vision) dan
      thumbnail (maks 360px, disimpan di log + tampil di chat) supaya localStorage tidak bengkak.
@@ -19,7 +22,7 @@
   let armed = null // { char, name, full, thumb, ph } -> gambar terpasang sebagai lampiran di kotak ketik
 
   const inChat = id => !!(ch && ch.id === id && app.classList.contains('open') && !(window.GX && GX.cur))
-  const can = () => !!(ch && ch.vision && inChat(ch.id))
+  const can = () => !!(ch && ch.vision && inChat(ch.id) && store.get('mediau') === '1') /* fitur rahasia: terbuka lewat kode ke Reze (tryMedia di index.html), kode yang sama dengan Scene Capture */
   const has = () => !!(armed && ch && ch.vision && ch.id === armed.char && !(window.GX && GX.cur))
 
   /* ---------- Kecilkan gambar di browser (canvas) ---------- */
