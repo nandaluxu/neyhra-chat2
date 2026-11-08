@@ -1,4 +1,6 @@
-/* ===== Tab Profil: foto, nama, bio, mengikuti/pengikut, tab Ringkasan / Karakter / Teman =====
+/* ===== Tab Profil: foto, nama, bio, mengikuti/pengikut, tab Ringkasan / Karakter / Teman.
+   Profil sendiri memakai data lokal. Profil orang lain juga punya tab Ringkasan & Karakter dari snapshot statistik
+   yang diterbitkan perangkat pemiliknya (pushStats di index.html); pemiliknya bisa menyembunyikannya di Pengaturan. =====
    Dimuat setelah shell.js (setelah bonus.js dan games.js), sebelum router.js. Data profil dan relasi ikuti ada di server (lib/profile.js);
    statistik obrolan dihitung di browser dari data lokal (hanya untuk profil sendiri).
    Memakai global index.html: atok, aOn, aApi, store, allChars, loadLog, relLoad, lvOf, expAt, REL, idxOf, img, dispName, openChat, toast.
@@ -111,10 +113,19 @@ function render() {
 
   if (!own) {
     const note = h('p', 'pf-note', 'Mengundang ' + nf.format(p.invited || 0) + ' teman ke Neyhra Chat.' + (p.followsMe ? ' Dia mengikutimu.' : ''));
-    body.append(note); return;
+    body.append(note);
+    if (p.hideStats) body.append(h('p', 'pf-note', 'Ringkasan dan karakter obrolannya disembunyikan pemiliknya.'));
+    else renderTabs([['sum', 'Ringkasan'], ['chars', 'Karakter']]); // seperti profil sendiri, tanpa tab Teman
+    return;
   }
+  renderTabs([['sum', 'Ringkasan'], ['chars', 'Karakter'], ['friends', 'Teman']]);
+}
+
+/* kerangka tab + panel; list = [key, label]. Profil orang tidak punya tab Teman, jadi tabKey yang tidak ada di list kembali ke tab pertama */
+function renderTabs(list) {
+  if (!list.some(([k]) => k === tabKey)) tabKey = list[0][0];
   const tabs = h('div', 'pf-tabs'); tabs.setAttribute('role', 'tablist');
-  for (const [k, label] of [['sum', 'Ringkasan'], ['chars', 'Karakter'], ['friends', 'Teman']]) {
+  for (const [k, label] of list) {
     const t = btn('pf-tab', label, 'tab'); t.dataset.k = k; t.id = 'pftab-' + k; t.setAttribute('role', 'tab'); t.setAttribute('aria-selected', String(tabKey === k)); t.tabIndex = tabKey === k ? 0 : -1; tabs.append(t);
   }
   const panel = h('div', 'pf-panel'); panel.id = 'pfpanel'; panel.setAttribute('role', 'tabpanel'); panel.setAttribute('aria-labelledby', 'pftab-' + tabKey);
@@ -124,36 +135,53 @@ function render() {
 function paintPanel() {
   const panel = $('pfpanel'); if (!panel) return;
   panel.textContent = '';
-  if (tabKey === 'chars') panelChars(panel); else if (tabKey === 'friends') panelFriends(panel); else panelSum(panel);
+  const own = !!(view && view.isMe);
+  if (tabKey === 'chars') panelChars(panel, own); else if (own && tabKey === 'friends') panelFriends(panel); else panelSum(panel, own);
+}
+
+/* ---------- Statistik profil orang lain (dari server; diterbitkan perangkat pemiliknya lewat profile/stats) ---------- */
+function otherStats() {
+  const st = (view && view.stats) || {}, rows = [];
+  for (const x of Array.isArray(st.chars) ? st.chars : []) {
+    const c = allChars.find(k => k.id === x.id);
+    if (c) rows.push({ c, lv: x.lv || 1, exp: x.e || 0, total: x.m || 0 });
+  }
+  rows.sort((a, b) => b.total - a.total);
+  const best = rows.reduce((b, r) => (!b || r.lv > b.lv ? r : b), null);
+  const days = Array.isArray(st.days) && st.days.length === 7 ? st.days.map(Number) : [0, 0, 0, 0, 0, 0, 0];
+  return { sent: st.sent || 0, chars: rows.length, rows, best, days, today: Date.now() };
 }
 
 /* ---------- Tab Ringkasan ---------- */
-function panelSum(panel) {
-  const s = localStats();
+function panelSum(panel, own) {
+  const s = own ? localStats() : otherStats();
   const sec1 = h('div', 'pf-sec'), tiles = h('div', 'pf-tiles');
   const tile = (v, label) => { const t = h('div', 'pf-tile'); t.append(h('b', null, v), h('span', null, label)); return t; };
   tiles.append(
     tile(nf.format(s.sent), 'Pesan terkirim'),
     tile(nf.format(s.chars), 'Karakter diajak ngobrol'),
     tile(s.best ? 'Lv ' + s.best.lv : '–', s.best ? 'Hubungan tertinggi · ' + (s.best.c.name || '') : 'Hubungan tertinggi'),
-    tile(nf.format(view.invited || 0), 'Teman yang kamu undang')
+    tile(nf.format(view.invited || 0), own ? 'Teman yang kamu undang' : 'Teman yang diundangnya')
   );
   sec1.append(tiles);
-  const sec2 = h('div', 'pf-sec'); sec2.append(h('h3', null, 'Pesanmu 7 hari terakhir'));
+  const sec2 = h('div', 'pf-sec'); sec2.append(h('h3', null, own ? 'Pesanmu 7 hari terakhir' : 'Pesannya 7 hari terakhir'));
   const max = Math.max(1, ...s.days), chart = h('div', 'pf-chart'), nm = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
   chart.setAttribute('role', 'img'); chart.setAttribute('aria-label', 'Grafik pesan 7 hari terakhir: ' + s.days.join(', '));
   s.days.forEach((n, i) => {
     const col = h('div', 'pf-col'), bar = h('i', n ? '' : 'z'); bar.style.height = n ? Math.max(8, Math.round(n / max * 78)) + 'px' : '4px'; bar.title = n + ' pesan';
     col.append(bar, h('small', null, nm[new Date(s.today - (6 - i) * 864e5).getDay()])); chart.append(col);
   });
-  sec2.append(chart, h('p', 'pf-note', 'Dihitung dari obrolan yang tersimpan di perangkat ini (maks 150 pesan terakhir per karakter).'));
+  sec2.append(chart, own
+    ? h('p', 'pf-note', 'Dihitung dari obrolan yang tersimpan di perangkat ini (maks 150 pesan terakhir per karakter).')
+    : h('p', 'pf-note', view.statsAt ? 'Terakhir diperbarui ' + new Date(view.statsAt).toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) + ' dari perangkat pemiliknya.' : 'Diterbitkan dari perangkat pemilik profil ini.'));
   panel.append(sec1, sec2);
 }
 
 /* ---------- Tab Karakter ---------- */
-function panelChars(panel) {
-  const rows = localStats().rows.slice(0, 10);
+function panelChars(panel, own) {
+  const rows = (own ? localStats() : otherStats()).rows.slice(0, 10);
   if (!rows.length) {
+    if (!own) { panel.append(h('div', 'pf-empty', 'Belum ada obrolan dengan karakter.')); return; }
     const e = h('div', 'pf-empty', 'Belum ada obrolan. Mulai ngobrol dengan karakter dari Beranda, nanti karakter favoritmu muncul di sini.');
     e.append(document.createElement('br'), btn('pf-btn', 'Ke Beranda', 'home')); panel.append(e); return;
   }
@@ -231,10 +259,15 @@ function syncRows(u) {
 }
 
 /* ---------- Server ---------- */
+// pengaturan hide statistik: samakan kotak centang di Pengaturan (index.html) dan cache lokal yang dipakai pushStats di sana
+function syncHide(v) {
+  const cb = document.getElementById('shide'); if (cb && !cb.disabled) cb.checked = !!v;
+  store.set('phide', v ? '1' : '0');
+}
 async function fetchMe() {
   try {
     const r = await aApi('profile');
-    if (r && r.ok) { me = r.profile; if (!viewing) view = me; failed = ''; shareName(); syncRail(); return true; }
+    if (r && r.ok) { me = r.profile; if (!viewing) view = me; failed = ''; shareName(); syncRail(); syncHide(me.hideStats); return true; }
     failed = (r && r.error) || 'Gagal memuat profil.';
   } catch (e) { failed = e && e.status === 401 ? '' : (e && e.message) || 'Tidak bisa terhubung ke server.'; }
   return false;

@@ -694,6 +694,7 @@ header .pfp,header .who{cursor:pointer}
         </div>
         <div id="ain" class="hide">
           <div class="stor"><div class="sl"><span>Masuk sebagai</span><span id="aname"></span></div><div class="sl" style="margin-top:6px"><span>Cadangan cloud</span><span id="acloud">…</span></div></div>
+          <label class="srow"><span><b>Sembunyikan statistik profil</b><i>Tab Ringkasan &amp; Karakter di profilmu tidak dilihat orang lain. Profilmu sendiri tetap lengkap. Default: terlihat.</i></span><input type="checkbox" id="shide" class="sw"></label>
           <button class="srow" id="async" type="button"><span><b>Sinkronkan sekarang</b><i>Ambil obrolan dari akunmu lalu simpan yang terbaru. Otomatis juga saat aplikasi dibuka dan tab kembali aktif. Teks, memori, dan hubungan karakter ikut; voice note dan chat grup tidak.</i></span><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 14-5l2 2M20 4v5h-5M20 12a8 8 0 0 1-14 5l-2-2M4 20v-5h5"/></svg></button>
           <button class="srow" id="aout2" type="button"><span><b>Keluar</b><i>Obrolan disimpan ke akun dulu, lalu dihapus dari perangkat ini. Voice note dan chat grup tidak ikut tersimpan.</i></span><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
           <button class="srow danger" id="adel" type="button"><span><b>Hapus akun</b><i>Hapus akun dan cadangan cloud-nya. Obrolan di perangkat tidak ikut terhapus.</i></span><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12h10l1-12M9 7V4h6v3"/></svg></button>
@@ -1811,7 +1812,7 @@ async function syncCloud(auto,opts){ /* mengembalikan true kalau akun & perangka
     const me=await aApi('me'), cts=me.cloud?me.cloud.updatedAt:null;
     if(me.uid&&ownerOf()&&ownerOf()!==me.uid){ aBusy=false; if(!auto){ sacct.classList.remove('sbusy'); setA('Obrolan di perangkat ini milik akun lain, jadi tidak digabung. Keluar lalu masuk lagi untuk membersihkannya.',true); } return false; } /* jangan pernah kirim data akun lain ke akun ini */
     const before=await collectChars(false), localSig=sigOf(JSON.stringify(before.chars));
-    if(auto&&cts===store.get('cloudts')&&localSig===store.get('cloudsig')){ aLast=Date.now(); aBusy=false; return true; } /* tidak ada yang berubah di mana pun */
+    if(auto&&cts===store.get('cloudts')&&localSig===store.get('cloudsig')){ try{ await pushStats(); }catch{} aLast=Date.now(); aBusy=false; return true; } /* tidak ada yang berubah di mana pun (statistik profil punya tanda perubahan sendiri) */
     const pulled=await aApi('pull'); let added=0, memAdded=0;
     if(pulled.data){ /* 1) gabungkan data akun ke perangkat ini (tidak menimpa) */
       const d=JSON.parse(pulled.data);
@@ -1829,6 +1830,7 @@ async function syncCloud(auto,opts){ /* mengembalikan true kalau akun & perangka
       size=r.size; ts=r.updatedAt;
     }
     store.set('cloudts',ts); store.set('cloudsig',sigOf(JSON.stringify(chars)));
+    try{ await pushStats(); }catch{} /* statistik profil ikut diperbarui; kegagalannya tidak menggagalkan sinkron */
     paintAcct(ts?{size,updatedAt:ts}:null); aLast=Date.now(); refreshStorage(); ok=true;
     if(auto){
       if(added&&app.classList.contains('open')) toast('Ada pesan baru dari akunmu. Buka ulang chat untuk melihatnya.');
@@ -1841,6 +1843,40 @@ async function syncCloud(auto,opts){ /* mengembalikan true kalau akun & perangka
   return ok;
 }
 $('async').onclick=()=>syncCloud(false);
+/* ===== Statistik profil publik: tab Ringkasan & Karakter di profilmu bisa dilihat orang lain (dipakai public/profile.js).
+   Snapshot kecil (total pesan, 7 hari terakhir, 20 karakter teratas) dikirim ke akun bersama sinkron, hanya kalau berubah
+   (punya tanda perubahan sendiri, tidak ikut awasan cloud). Bisa disembunyikan di Pengaturan Akun di atas;
+   selama disembunyikan, server tidak pernah mengirim statistik itu ke siapa pun. ===== */
+function statsSnap(){
+  const sod=d=>{const x=new Date(d);x.setHours(0,0,0,0);return x.getTime()},today=sod(Date.now());
+  const days=new Array(7).fill(0),rows=[];
+  for(const c of allChars){
+    const l=loadLog(c.id),st=relLoad(c.id);
+    if(!l.length&&!st.r) continue;
+    for(const e of l){ if(e.r!=='me') continue; const d=Math.round((today-sod(e.t||0))/864e5); if(e.t&&d>=0&&d<7) days[6-d]++; }
+    rows.push({id:c.id,lv:lvOf(st.r),e:st.r,m:l.length});
+  }
+  rows.sort((a,b)=>b.m-a.m);
+  return {sent:sentTotal(),days,chars:rows.slice(0,20)};
+}
+async function pushStats(){
+  if(!atok||!aOn||store.get('phide')==='1') return;
+  const s=statsSnap(),sig=sigOf(JSON.stringify(s));
+  if(sig===store.get('pstatsig')) return;
+  await aApi('profile/stats',s);
+  store.set('pstatsig',sig);
+}
+$('shide').addEventListener('change',async e=>{
+  const on=e.target.checked; e.target.disabled=true;
+  try{
+    const r=await aApi('profile/edit',{hideStats:on});
+    if(!r||!r.ok) throw new Error((r&&r.error)||'Gagal menyimpan.');
+    store.set('phide',on?'1':'0'); store.set('pstatsig',''); /* tampil lagi = kirim ulang statistik terbaru */
+    if(!on){ try{ await pushStats(); }catch{} }
+    toast(on?'Statistik profil disembunyikan dari orang lain':'Statistik profil sekarang bisa dilihat orang lain');
+  }catch(err){ toast(err.message||'Gagal, coba lagi.'); e.target.checked=!on; }
+  e.target.disabled=false;
+});
 document.addEventListener('visibilitychange',()=>{ if(!document.hidden) syncCloud(true); }); /* tab kembali aktif */
 paintWallet(loadWallet()); /* tampilkan saldo terakhir dulu, diperbarui oleh initAcct */
 initAcct().then(()=>syncCloud(true)); /* aplikasi dibuka */
