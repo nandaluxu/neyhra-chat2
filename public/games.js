@@ -31,6 +31,7 @@ let st = null;            // keadaan terakhir dari server { cfg, daily, game, co
 let screen = 'hub';       // 'hub' | id game
 let ready = false;        // status akun (aktif/tidak) sudah diketahui
 let failed = '';          // pesan kalau gagal memuat
+let intro = true;         // true = tampilkan layar pembuka game dulu (aturan + tombol Mulai/Lanjutkan), bukan langsung soalnya
 let busy = false, lastTok = '', lastAt = 0;
 let msg = ['', ''];       // pesan di bawah input [teks, kelas 'ok'|'err']
 
@@ -50,12 +51,28 @@ function hub() {
   ).join('') + '</div>';
 }
 
+// Layar pembuka tiap game: ikon, aturan singkat, fakta, status (kalau ada permainan yang belum selesai), lalu tombol. Soal baru terlihat setelah tombol ditekan.
+function introHtml(o) {
+  return '<div class="gm-intro"><span class="ic">' + o.icon + '</span><h2>' + esc(o.title) + '</h2><p class="gm-hint">' + esc(o.lead) + '</p>' +
+    '<div class="gm-facts">' + o.facts.map(f => '<span><b>' + esc(f[0]) + '</b>' + esc(f[1]) + '</span>').join('') + '</div>' +
+    '<ol class="gm-how">' + o.steps.map(t => '<li>' + esc(t) + '</li>').join('') + '</ol>' +
+    (o.status ? '<p class="gm-resume">' + esc(o.status) + '</p>' : '') +
+    '<button class="gm-btn full" type="button" data-act="' + o.act + '">' + esc(o.btn) + '</button>' +
+    '<p class="gm-msg' + (msg[1] ? ' ' + msg[1] : '') + '" role="status">' + esc(msg[0]) + '</p></div>';
+}
+
 function guessScreen() {
   const g = st.game, d = st.daily, rw = st.cfg.rewards, total = rw.length, capped = d.wins >= d.cap;
   const last = g && g.hist.length ? g.hist[g.hist.length - 1] : null;
   const hist = g ? g.hist.map(h => '<span' + (h.r === 'win' ? ' class="win"' : '') + '>' + h.n + (h.r === 'up' ? ' ↑' : h.r === 'down' ? ' ↓' : ' ✓') + '</span>').join('') : '';
   let main;
-  if (g && g.active) {
+  if (intro) {
+    const live = g && g.active;
+    main = introHtml({ icon: SVG.guess, title: 'Tebak Angka', lead: 'Aku memilih satu angka rahasia dari ' + st.cfg.min + ' sampai ' + st.cfg.max + '. Tebak sebelum kesempatanmu habis.',
+      facts: [[String(total), 'kali tebakan'], [st.cfg.min + '-' + st.cfg.max, 'rentang angka'], ['+' + nf.format(rw[0]), 'coin maksimal']],
+      steps: ['Ketik satu angka lalu tekan Tebak.', 'Panah ↑ artinya angkanya lebih besar, ↓ lebih kecil.', 'Makin sedikit tebakan, makin banyak coin.'],
+      status: live ? 'Ada permainan yang belum selesai (tebakan ke-' + (g.tries + 1) + ' dari ' + total + ').' : '', act: live ? 'play' : 'start', btn: live ? 'Lanjutkan' : (g ? 'Main lagi' : 'Mulai') });
+  } else if (g && g.active) {
     const left = total - g.tries;
     main =
       '<h2>Tebak angkanya</h2><p class="gm-hint">Angkanya ada di antara dua angka ini. Panah ↑ berarti angkanya lebih besar dari tebakanmu, ↓ lebih kecil.</p>' +
@@ -98,7 +115,13 @@ function picScreen() {
   const hist = g && g.hist.length ? '<div class="gm-hist">' + g.hist.map((h, i) => '<span' + (g.won && i === g.hist.length - 1 ? ' class="win"' : '') + '>' + esc(h.t) + (g.won && i === g.hist.length - 1 ? ' ✓' : ' ✗') + '</span>').join('') + '</div>' : '';
   const img = g ? '<div class="gm-picbox"><img class="gm-pic" src="' + esc(g.img) + '" alt="Gambar teka-teki" referrerpolicy="no-referrer" decoding="async"><p class="gm-picerr hide">Gambar gagal dimuat. Kamu bisa melewati soal ini.</p></div>' : '';
   let main;
-  if (g && g.active) {
+  if (intro) {
+    const live = g && g.active;
+    main = introHtml({ icon: SVG.pic, title: 'Tebak Gambar', lead: 'Lihat gambar teka-teki, lalu tebak kata atau ungkapan yang dimaksud.',
+      facts: [[String(c.tries), 'kali kesempatan'], [nf.format(ps.total), 'soal'], ['+' + c.base, 'coin maksimal']],
+      steps: ['Gambar baru muncul setelah kamu menekan tombol di bawah.', 'Jumlah huruf jawaban ditampilkan sebagai kotak kosong.', 'Buntu? Buka petunjuk (hadiah jadi setengah) atau lewati soalnya.'],
+      status: live ? 'Ada soal yang belum selesai (' + g.tries + ' dari ' + c.tries + ' kesempatan terpakai).' : '', act: live ? 'play' : 'pstart', btn: live ? 'Lanjutkan' : (g ? 'Soal berikutnya' : 'Mulai') });
+  } else if (g && g.active) {
     const left = c.tries - g.tries;
     main = '<h2>Tebak gambarnya</h2><p class="gm-hint">Apa kata atau ungkapan yang dimaksud gambar ini?</p>' + img + slots +
       '<div class="gm-dots" aria-hidden="true">' + Array.from({ length: c.tries }, (_, i) => '<i' + (i < g.tries ? ' class="used"' : '') + '></i>').join('') + '</div>' +
@@ -132,8 +155,9 @@ function render() {
   if (!atok) { body.innerHTML = empty('Masuk dulu ya', 'Coin hasil main tersimpan di akunmu, jadi kamu perlu masuk atau daftar dulu.', '<button class="gm-btn" type="button" data-act="login">Masuk / Daftar</button>'); return; }
   if (!st) { body.innerHTML = failed ? empty('Gagal memuat', failed, '<button class="gm-btn" type="button" data-act="retry">Coba lagi</button>') : empty('Memuat…'); return; }
   body.innerHTML = screen === 'guess' ? guessScreen() : screen === 'pic' ? picScreen() : hub();
-  if (screen === 'pic' && ps && ps.game && ps.game.active && active() && $('gmpin') && !msg[1]) $('gmpin').focus({ preventScroll: true });
-  if (screen === 'guess' && st.game && st.game.active && active()) { const i = $('gmin'); if (i && !msg[1]) i.focus({ preventScroll: true }); }
+  if (!intro && screen === 'pic' && ps && ps.game && ps.game.active && active() && $('gmpin') && !msg[1]) $('gmpin').focus({ preventScroll: true });
+  if (intro) { /* layar pembuka: jangan fokus ke input (keyboard HP jangan langsung muncul) */ }
+  else if (screen === 'guess' && st.game && st.game.active && active()) { const i = $('gmin'); if (i && !msg[1]) i.focus({ preventScroll: true }); }
   else if (screen === 'guess' && $('gmin') && active()) $('gmin').focus({ preventScroll: true });
 }
 
@@ -225,11 +249,12 @@ async function pguess() {
 body.addEventListener('click', e => {
   const b = e.target.closest('[data-act]'); if (!b || b.disabled) return;
   const a = b.dataset.act;
-  if (a === 'open') { screen = b.dataset.g; msg = ['', '']; render(); if (screen === 'pic' && (!ps || picFail)) fetchPic().then(render); }
-  else if (a === 'hub') { screen = 'hub'; msg = ['', '']; render(); }
-  else if (a === 'start') start();
+  if (a === 'open') { screen = b.dataset.g; intro = true; msg = ['', '']; render(); if (screen === 'pic' && (!ps || picFail)) fetchPic().then(render); }
+  else if (a === 'hub') { screen = 'hub'; intro = true; msg = ['', '']; render(); }
+  else if (a === 'play') { intro = false; msg = ['', '']; render(); }
+  else if (a === 'start') { intro = false; start(); }
   else if (a === 'guess') guess();
-  else if (a === 'pstart') pic('pic/start', {}, 'Gagal memuat soal, coba lagi.');
+  else if (a === 'pstart') { intro = false; pic('pic/start', {}, 'Gagal memuat soal, coba lagi.'); }
   else if (a === 'pskip') pic('pic/start', { skip: true }, 'Gagal melewati soal, coba lagi.');
   else if (a === 'phint') pic('pic/hint', {}, 'Gagal membuka petunjuk, coba lagi.');
   else if (a === 'pguess') pguess();
@@ -242,7 +267,7 @@ body.addEventListener('error', e => { // gambar soal gagal dimuat (error tidak m
 }, true);
 
 /* ---------- Kapan menyegarkan ---------- */
-window.addEventListener('shell:tab', e => { if (e.detail === 'games') load(); });
+window.addEventListener('shell:tab', e => { if (e.detail === 'games') { screen = 'hub'; intro = true; load(); } }); // tiap masuk tab Minigame mulai dari daftar game
 window.addEventListener('acct', () => { ready = true; if (active()) load(true); });
 document.addEventListener('visibilitychange', () => { if (!document.hidden && active()) load(); });
 new MutationObserver(() => { if (active() && $('smodal').classList.contains('hide')) load(true); }) // pulang dari Pengaturan (mungkin baru masuk/keluar akun)
