@@ -131,6 +131,8 @@
 .ch-cp b{font-size:11.5px;font-weight:600}
 .ch-cp.ai{justify-content:flex-end}
 .ch-turn{font-weight:600;font-size:12.5px;color:var(--mut);text-align:center;white-space:nowrap}
+.ch-turn.is-think{color:var(--txt)} /* lawan sedang mikir: sedikit lebih menonjol + titiknya berdenyut halus */
+@media(prefers-reduced-motion:no-preference){.ch-turn.is-think{animation:chthink 1.6s infinite ease-in-out}@keyframes chthink{50%{opacity:.55}}}
 
 .ch-bwrap{display:flex;gap:5px;margin-top:12px}
 .ch-ranks{display:flex;flex-direction:column;flex:none;width:14px}

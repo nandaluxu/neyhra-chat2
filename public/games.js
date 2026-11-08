@@ -189,7 +189,7 @@ function chessScreen() {
       '<div class="gm-intro"><span class="ic">' + SVG.chess + '</span><h2>Catur</h2>' +
       '<p class="gm-hint">Kamu main putih (bawah), lawanmu main hitam. ' + (cc.length ? 'Pilih lawan: AI biasa, atau karakter yang akan mengomentari permainanmu. ' : '') + 'Kotak yang boleh dituju langsung ditandai server, jadi tidak perlu hafal aturannya.</p>' +
       '<div class="gm-facts"><span><b>3</b>tingkat kesulitan</span><span><b>' + nf.format(lv[1].prize) + '-' + nf.format(lv[3].prize) + '</b>coin per menang</span><span><b>40%</b>hadiah kalau seri</span></div>' +
-      '<ol class="gm-how">' + (cc.length ? '<li>Pilih lawan (AI biasa atau karakter). Langkah tetap dihitung engine, karakter hanya berkomentar.</li>' : '') + '<li>Pilih tingkat kesulitan untuk mulai.</li><li>Ketuk bidakmu, lalu ketuk kotak tujuan (ditandai titik).</li><li>AI membalas otomatis. Skakmat AI-nya untuk menang!</li></ol>' +
+      '<ol class="gm-how">' + (cc.length ? '<li>Pilih lawan (AI biasa atau karakter). Langkah tetap dihitung engine, karakter hanya berkomentar.</li>' : '') + '<li>Pilih tingkat kesulitan untuk mulai.</li><li>Ketuk bidakmu, lalu ketuk kotak tujuan (ditandai titik).</li><li>Lawan membalas setelah mikir sebentar (kadang dia mengoceh, kalau kamu main lawan karakter). Skakmat lawanmu untuk menang!</li></ol>' +
       (live ? '<p class="gm-resume">Ada permainan ' + esc(chLvName(g.level)) + ' yang belum selesai.</p><div class="gm-row"><button class="gm-btn" type="button" data-act="play">Lanjutkan</button><button class="gm-ghost" type="button" data-act="chnew">Main baru</button></div>' : '') +
       oppPick + '<div class="ch-lvls' + (live ? ' ch-lvls-dim' : '') + '">' + lvls + '</div>' + msgEl + '</div></div>' +
       '<div class="gm-info"><h3>Cara main</h3><p class="gm-cap">Aturan standar lengkap: rokade, en passant, promosi pion, skak, pat, aturan 50 langkah, dan pengulangan posisi. Menang dapat coin sesuai tingkat (seri 40%, paling sedikit ' + nf.format(5) + '), maksimal ' + d.cap + ' kemenangan berhadiah per hari (sekarang ' + d.wins + '/' + d.cap + '). Tidak ada undo: pikirkan dulu!</p></div>';
@@ -197,6 +197,7 @@ function chessScreen() {
 
   // papan
   const yourTurn = g.active && g.turn === 'w';
+  const thinking = g.active && !yourTurn; // papan tengah (cmove): lawan sedang mikir — turn 'b' dari server cuma terjadi selama jeda ini
   let board = '<div class="ch-bwrap"><div class="ch-ranks" aria-hidden="true">' + [8, 7, 6, 5, 4, 3, 2, 1].map(n => '<span>' + n + '</span>').join('') + '</div><div class="ch-mid"><div class="ch-board">';
   for (let i = 0; i < 64; i++) {
     const p = g.board[i], cls = ['ch-sq', ((i >> 3) + (i & 7)) % 2 ? 'ch-d' : 'ch-l']; // semua kelas diawali ch-: kelas polos seperti .dot sudah dipakai global di index.html (titik status berkedip) dan merusak papan
@@ -216,7 +217,7 @@ function chessScreen() {
   const matW = g.capsW.reduce((s, p) => s + CH_VAL[p.toLowerCase()], 0), matB = g.capsB.reduce((s, p) => s + CH_VAL[p.toLowerCase()], 0);
   const diff = matW - matB;
   const caps = '<div class="ch-caps"><span class="ch-cp"><i>' + capStr(g.capsW) + '</i>' + (diff > 0 ? '<b>+' + diff + '</b>' : '') + '</span>' +
-    '<span class="ch-turn">' + (g.active ? (yourTurn ? 'Giliranmu' : (g.opp && oppOf(g.opp) ? oppOf(g.opp).name : 'AI')) : 'Selesai') + (g.check >= 0 ? ' · skak!' : '') + '</span>' +
+    '<span class="ch-turn' + (thinking ? ' is-think' : '') + '">' + (g.active ? (yourTurn ? 'Giliranmu' : ((g.opp && oppOf(g.opp) ? oppOf(g.opp).name : 'AI') + ' mikir…')) : 'Selesai') + (g.check >= 0 ? ' · skak!' : '') + '</span>' +
     '<span class="ch-cp ai"><i>' + capStr(g.capsB) + '</i>' + (diff < 0 ? '<b>+' + (-diff) + '</b>' : '') + '</span></div>';
 
   // daftar langkah (berpasangan: putih hitam)
@@ -370,8 +371,9 @@ async function cstart(lv) {
 }
 /* ---------- Catur: lawan karakter ----------
    Karakter yang di char/<id>.js punya `chess: true` muncul di pilihan "Lawan" (daftar karakter dari /api/chars, kolom `chess`). Langkahnya tetap dari
-   engine di server; karakternya hanya sesekali berkomentar. Komentar diminta lewat /api/auth/chess/say setelah tiap langkah (server yang memutuskan
-   bicara atau tidak, jadi kebanyakan panggilan selesai cepat). */
+   engine di server; karakternya hanya sesekali berkomentar (server yang memutuskan bicara atau tidak, jadi kebanyakan panggilan selesai cepat).
+   Komentar diminta lewat /api/auth/chess/say BEGITU langkah diterima — paralel dengan jeda "mikir" AI (lihat cmove) — jadi biasanya sudah siap
+   sekitar saat bidak AI meluncur, dan teks + suaranya selalu muncul bersamaan. */
 let chOpp = (() => { try { return localStorage.getItem('chessOpp') || ''; } catch { return ''; } })();
 let chSaying = false, chSayTok = 0;
 const chUnlocked = () => { try { return localStorage.getItem('chessu') === '1'; } catch { return false; } }; // kode rahasia ke Reze (tryChess di index.html); pagar UI, bukan keamanan
@@ -387,65 +389,98 @@ function chSayInner() {
   return av + '<div class="ch-sb idle"><b>' + esc(oc.name) + '</b><p>Lawanmu kali ini.</p></div>';
 }
 const chSayPaint = () => { const el = $('chsay'); if (el) el.innerHTML = chSayInner(); };  // hanya kotak ocehan yang digambar ulang, supaya animasi bidak tidak terputus
-async function csay() {
+async function csay(revealAt = 0) {
   const g = cs && cs.game; if (!g || !g.opp) return;
   const tok = ++chSayTok, t = setTimeout(() => { if (tok === chSayTok) { chSaying = true; chSayPaint(); } }, 800); // titik mengetik baru muncul kalau server memang sedang membuat komentar
-  chVoiceStop();
   // suara ikut pengaturan bawaan chat (switch Voice, bahasa JP/ID, suara karakter, kecepatan); kalau voice mati, server tidak membuat teks suara
   const vo = chVoiceOn() ? { on: true, lang: typeof voiceLang !== 'undefined' && voiceLang === 'id' ? 'id' : 'jp' } : { on: false };
-  let vn = '';
-  try {
-    const r = await aApi('chess/say', { voice: vo });
-    if (tok === chSayTok && r && r.ok && typeof r.say === 'string' && cs && cs.game) { cs.game.say = r.say; if (vo.on && typeof r.vn === 'string') vn = r.vn; }
-  } catch {}
+  let r = null;
+  try { r = await aApi('chess/say', { voice: vo }); } catch {}
   clearTimeout(t);
-  if (tok === chSayTok) { chSaying = false; chSayPaint(); if (vn && screen === 'chess') chSpeak(cs.game.opp, vn, tok); } // teks tampil dulu, suaranya menyusul
+  if (tok !== chSayTok) { chSaying = false; return; } // pemain sudah melangkah lagi (main cepat): ocehan ini basi, dibuang supaya tidak menumpuk
+  if (!(r && r.ok && typeof r.say === 'string' && r.say)) { chSaying = false; chSayPaint(); return; }
+  // audionya disiapkan SEKARANG (masih tumpang tindih dengan sisa jeda mikir): teks dan suara muncul BERSAMAAN, walaupun mikirnya lama
+  const audio = vo.on && typeof r.vn === 'string' && r.vn ? await chTTS(g.opp, r.vn, tok) : null;
+  const wait = revealAt - Date.now();
+  if (wait > 0) await chSleep(wait); // komentar menggambarkan posisi SETELAH langkah AI: jangan mendahului bidaknya
+  if (tok !== chSayTok) { chSaying = false; return; }
+  chSaying = false;
+  if (cs && cs.game) { cs.game.say = r.say; chSayPaint(); if (audio && screen === 'chess') chPlay(audio); }
 }
 
 /* ---------- Catur: suara lawan ----------
    Memakai pengaturan suara chat apa adanya: switch Voice + kode voice (von/vcode), bahasa (voiceLang), suara karakter (voiceKeyOf), kecepatan (vSpeed),
-   dan endpoint /api/tts yang sama. Kalau voice mati atau kode belum benar, tidak ada suara. Suara gagal tidak mengganggu permainan. */
+   dan endpoint /api/tts yang sama. Kalau voice mati atau kode belum benar, tidak ada suara. Suara gagal tidak mengganggu permainan.
+   Audionya DISIAPKAN dulu (chTTS) lalu diputar (chPlay) SEKALIGUS dengan teks komentarnya — teks dan suara selalu muncul bareng. */
 let chAudio = null, chAudioUrl = '';
 const chVoiceOn = () => typeof voiceOn !== 'undefined' && voiceOn && typeof vcode !== 'undefined' && !!vcode;
 function chVoiceStop() { try { if (chAudio) { chAudio.pause(); chAudio.onended = null; } if (chAudioUrl) URL.revokeObjectURL(chAudioUrl); } catch {} chAudio = null; chAudioUrl = ''; }
-async function chSpeak(charId, vn, tok) {
-  if (!charId || !vn || !chVoiceOn() || typeof post !== 'function') return;
+async function chTTS(charId, vn, tok) {
+  if (!charId || !vn || !chVoiceOn() || typeof post !== 'function') return null;
   try {
     const ab = await (await post('/api/tts', { char: charId, text: vn, voice: typeof voiceKeyOf === 'function' ? voiceKeyOf(charId) : undefined }, { 'x-voice-code': vcode })).arrayBuffer();
-    if (tok !== chSayTok || screen !== 'chess') return; // sudah ada ocehan lebih baru / pindah layar: jangan putar yang basi
+    if (tok !== chSayTok) return null; // sudah ada ocehan lebih baru: jangan pakai yang basi
+    return new Blob([ab], { type: 'audio/mpeg' });
+  } catch (e) {
+    if (e && e.status === 403) { try { vcode = ''; store.set('vcode', null); setVoice(false); toast('Kode voice tidak valid, voice dimatikan'); } catch {} } // sama seperti chat
+    return null;
+  }
+}
+function chPlay(blob) {
+  try {
     chVoiceStop();
-    chAudioUrl = URL.createObjectURL(new Blob([ab], { type: 'audio/mpeg' }));
+    chAudioUrl = URL.createObjectURL(blob);
     const a = chAudio = new Audio(chAudioUrl);
     a.playbackRate = typeof vSpeed === 'number' && vSpeed > 0 ? vSpeed : 1;
     a.onended = () => { if (chAudio === a) chVoiceStop(); };
-    await a.play();
-  } catch (e) {
-    if (e && e.status === 403) { try { vcode = ''; store.set('vcode', null); setVoice(false); toast('Kode voice tidak valid, voice dimatikan'); } catch {} } // sama seperti chat
-  }
+    a.play().catch(() => {});
+  } catch { chVoiceStop(); }
 }
 
-/* ---------- Catur: animasi ----------
+/* ---------- Catur: animasi + lawan "mikir" ----------
    Papan digambar ulang total (innerHTML) tiap perubahan, jadi gerak bidak dibuat dengan teknik FLIP: setelah papan baru tampil, bidak di kotak tujuan
-   "dimundurkan" ke kotak asal lalu digeser kembali ke tempatnya. Respons server memuat langkahmu DAN balasan AI sekaligus, jadi urutannya diatur
-   di sini: langkahmu dulu, jeda singkat, baru langkah AI. Bidak yang tertangkap dipertahankan sebagai "bayangan" sampai bidak penangkapnya tiba. */
-const CH_T = { you: 240, aiDelay: 480, ai: 300, fade: 220 };
+   "dimundurkan" ke kotak asal lalu digeser kembali ke tempatnya. Respons server memuat langkahmu DAN balasan AI sekaligus, tapi keduanya tidak
+   ditampilkan berbarengan: lawan dibuat "mikir" dulu sebentar (chThink — lamanya acak dan ikut tingkat kesulitan, kadang dia mikir lebih lama),
+   jadi ada waktu untuk membuat ocehan (csay berjalan paralel) dan permainannya terasa hidup, bukan mesin yang menjawab kilat.
+   Urutan di cmove: papan tengah (chMidBoard = posisi setelah langkahmu saja, giliran lawan) → jeda mikir → papan final + bidak AI meluncur.
+   Bidak yang tertangkap dipertahankan sebagai "bayangan" sampai bidak penangkapnya tiba. */
+const CH_T = { you: 240, ai: 300, fade: 220 };
 let chPlan = null, chLock = 0;
 const chReduce = () => window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
-function chPlanFor(old, from, to, promo) { // old = papan sebelum melangkah, cs.game = papan sesudahnya
-  const g = cs.game, steps = [], ghosts = [];
-  const mine = promo || old[from];
-  steps.push({ f: from, t: to, delay: 0, dur: CH_T.you });
-  if (old[to] !== '.') ghosts.push({ sq: to, p: old[to], delay: CH_T.you * 0.45 });             // bidak AI yang kamu tangkap memudar
-  if (old[from] === 'K' && Math.abs(to - from) === 2) steps.push(to > from ? { f: from + 3, t: from + 1, delay: 0, dur: CH_T.you } : { f: from - 4, t: from - 1, delay: 0, dur: CH_T.you }); // rokade: bentengnya ikut
-  if (cs.aiNote && g.last) {                                                                      // AI membalas (aiNote hanya ada kalau AI melangkah)
-    const { f, t } = g.last, ai = g.board[t];
-    const before = t === to ? mine : old[t];                                                      // isi kotak tujuan AI sebelum AI melangkah
-    steps.push({ f, t, delay: CH_T.aiDelay, dur: CH_T.ai });
-    if (before && before !== '.') ghosts.push({ sq: t, p: before, delay: CH_T.aiDelay + CH_T.ai * 0.6 }); // bidakmu yang ditangkap AI bertahan sampai AI tiba
-    if (ai === 'k' && Math.abs(t - f) === 2) steps.push(t > f ? { f: f + 3, t: f + 1, delay: CH_T.aiDelay, dur: CH_T.ai } : { f: f - 4, t: f - 1, delay: CH_T.aiDelay, dur: CH_T.ai });
+const chSleep = ms => new Promise(r => setTimeout(r, ms));
+// jeda "mikir" lawan (ms). lv 1-3 = tingkat permainan, 0 = AI biasa tanpa lawan karakter (lebih gesit). Acak supaya tiap giliran beda kecepatan.
+const chThink = lv => {
+  const r = Math.random();
+  let t = !lv ? 500 + r * 900 : lv === 1 ? 700 + r * 1300 : lv === 2 ? 1000 + r * 1900 : 1400 + r * 2600;
+  if (lv && Math.random() < 0.15) t *= 1.6; // kadang dia benar-benar mikir keras
+  return Math.round(t);
+};
+// papan setelah langkah PEMAIN saja (untuk ditampilkan selama lawan mikir): pindah bidak, rokade, en passant, promosi. Hanya untuk tampilan —
+// kebenaran langkah tetap divalidasi server, dan papan final selalu yang dikirim server.
+function chMidBoard(old, from, to, promo) {
+  const b = old.split('');
+  const p = promo || b[from];
+  b[to] = p; b[from] = '.';
+  if (p === 'P' && old[to] === '.' && (to & 7) !== (from & 7)) b[to + 8] = '.' // en passant: pion hitam yang ditangkap ada satu baris di atas kotak tujuan
+  if (p === 'K' && Math.abs(to - from) === 2) { // rokade: bentengnya ikut pindah
+    if (to > from) { b[from + 1] = b[from + 3]; b[from + 3] = '.' } else { b[from - 1] = b[from - 4]; b[from - 4] = '.' }
   }
-  const total = Math.max(...steps.map(x => x.delay + x.dur)) + 40;
-  return { steps, ghosts, total };
+  return b.join('');
+}
+function chUserPlan(old, from, to, promo) { // animasi langkah pemain: old = papan sebelum, cs.game = papan setelah langkah pemain
+  const steps = [{ f: from, t: to, delay: 0, dur: CH_T.you }], ghosts = [];
+  if (old[to] !== '.') ghosts.push({ sq: to, p: old[to], delay: CH_T.you * 0.45 });             // bidak AI yang kamu tangkap memudar
+  if (old[from] === 'K' && Math.abs(to - from) === 2) steps.push(to > from ? { f: from + 3, t: from + 1, delay: 0, dur: CH_T.you } : { f: from - 4, t: from - 1, delay: 0, dur: CH_T.you }); // rokade
+  return { steps, ghosts, total: CH_T.you + 40 };
+}
+function chAiPlan(old, g) { // animasi balasan AI: old = papan tengah (setelah langkah pemain), g = cs.game final dari server
+  const steps = [], ghosts = [];
+  const { f, t } = g.last, ai = g.board[t];
+  const before = old[t];                                                                          // isi kotak tujuan AI sebelum AI melangkah
+  steps.push({ f, t, delay: 60, dur: CH_T.ai });
+  if (before && before !== '.') ghosts.push({ sq: t, p: before, delay: 60 + CH_T.ai * 0.6 });      // bidakmu yang ditangkap AI bertahan sampai AI tiba
+  if (ai === 'k' && Math.abs(t - f) === 2) steps.push(t > f ? { f: f + 3, t: f + 1, delay: 60, dur: CH_T.ai } : { f: f - 4, t: f - 1, delay: 60, dur: CH_T.ai });
+  return { steps, ghosts, total: CH_T.ai + 140 };
 }
 function chPlay(plan) {
   const sq = i => body.querySelector('.ch-sq[data-i="' + i + '"]');
@@ -469,24 +504,43 @@ function chPlay(plan) {
 }
 async function cmove(from, to, promo) {
   if (busy || !cs || !cs.game || !cs.game.active) return;
-  busy = true; chSel = -1; chPromo = null; let moved = false;
-  const oldBoard = String(cs.game.board);
+  busy = true; chSel = -1; chPromo = null;
+  chSayTok++; chSaying = false; // pemain main cepat: ocehan yang belum sempat muncul dibuang, tidak menumpuk jadi spam
+  const pre = cs.game, oldBoard = String(pre.board);
   if (navigator.vibrate) try { navigator.vibrate(10) } catch {}
+  let moved = false, painted = false;
   try {
     const okr = await callC('chess/move', { from, to, ...(promo ? { promo } : {}) });
     if (okr) {
-      const g = cs.game;
       moved = true;
-      if (!chReduce()) chPlan = chPlanFor(oldBoard, from, to, promo);
-      if (g.result) msg = g.result.won === 'w' ? ['Menang! ' + (CH_END[g.result.reason] || '')] : g.result.won === 'd' ? ['Seri.'] : ['Kalah. ' + (CH_END[g.result.reason] || '')];
-      else msg = ['AI: ' + (cs.aiNote || sq2name(from) + ' ok') + (g.check >= 0 ? ' · kamu diskak!' : ''), ''];
+      const fin = cs.game, aiNote = cs.aiNote || '';
+      // 1) tahan dulu balasan AI: papan hanya menampilkan langkahmu, lawan "mikir" (jeda acak, ada waktu untuk membuat ocehan)
+      const think = chThink(fin.opp ? fin.level : 0);
+      const vic = oldBoard[to] !== '.' ? oldBoard[to] : (oldBoard[from] === 'P' && (to & 7) !== (from & 7) ? 'p' : ''); // bidak yang kamu tangkap (pion en passant tidak ada di kotak tujuan)
+      const mid = { ...pre, board: chMidBoard(oldBoard, from, to, promo), turn: 'b', moves: null, check: -1, last: { f: from, t: to }, ...(vic ? { capsW: [...pre.capsW, vic] } : {}) };
+      cs.game = mid;
+      msg = ['', ''];
+      if (!chReduce()) chPlan = chUserPlan(oldBoard, from, to, promo);
+      painted = true; render();
+      const revealAt = Date.now() + think + (chReduce() ? 60 : CH_T.ai + 80); // saat bidak AI mendarat
+      chLock = Math.max(chLock, revealAt); // papan terkunci sampai bidak AI mendarat
+      csay(revealAt); // ocehan dibuat SEKARANG, paralel dengan jeda mikir; muncul setelah AI melangkah
+      await chSleep(think + 30);
+      // 2) saatnya: bidak AI meluncur (kalau keadaan sudah diganti fetch lain, keadaan server memang sudah final — tidak perlu apa-apa)
+      if (cs.game === mid) {
+        cs.game = fin;
+        if (fin.result) msg = fin.result.won === 'w' ? ['Menang! ' + (CH_END[fin.result.reason] || '')] : fin.result.won === 'd' ? ['Seri.'] : ['Kalah. ' + (CH_END[fin.result.reason] || '')];
+        else msg = ['AI: ' + (aiNote || sq2name(from) + ' ok') + (fin.check >= 0 ? ' · kamu diskak!' : ''), ''];
+        if (!chReduce() && aiNote) chPlan = chAiPlan(mid.board, fin);
+        render();
+      }
     }
   } catch (e) {
     msg = [e.message || 'Gagal mengirim langkah, coba lagi.', 'err'];
     if (e.status === 409) await fetchChess(); // permainan berubah dari perangkat lain
   }
-  busy = false; render();
-  if (moved) csay(); // ocehan lawan menyusul setelah animasi langkah (server memutuskan bicara atau tidak)
+  busy = false;
+  if (!painted) render(); // jangan gambar ulang setelah animasi AI jalan: innerHTML baru akan mematikan FLIP-nya
 }
 async function cresign() {
   if (busy || !cs || !cs.game || !cs.game.active) return;
