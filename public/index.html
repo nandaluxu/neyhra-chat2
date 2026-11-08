@@ -1205,7 +1205,7 @@ async function submit(opt){
   const vf=!gf&&window.VISION?VISION.take():null; /* ada lampiran gambar (vision.js): diambil SETELAH intercept lain supaya tidak bertumpuk; caption boleh kosong (gambar saja) */
   const text=gf?gf.text:(vf?vf.text:inp.value.trim());
   /* pesan rahasia ke Reze: dicegat di sini, TIDAK dikirim ke server (tanpa ChatGPT, tanpa Fish Audio) dan pesannya dibuang: tidak jadi bubble, tidak dicatat */
-  if(!gf&&text&&ch&&ch.id==='reze'&&(tryDev(text)||tryMedia(text))){ inp.value=''; grow(); refresh(); clearTimeout(draftT); store.set('draft:'+ch.id,null); return; } /* kode rahasia (mode dev / fitur gambar): dicegat di browser, tidak dikirim dan tidak dicatat */
+  if(!gf&&text&&ch&&ch.id==='reze'&&(tryDev(text)||tryMedia(text)||tryChess(text))){ inp.value=''; grow(); refresh(); clearTimeout(draftT); store.set('draft:'+ch.id,null); return; } /* kode rahasia (mode dev / fitur gambar): dicegat di browser, tidak dikirim dan tidak dicatat */
   if(!gf&&text&&ch&&window.GX&&GX.trySecret(text)){ inp.value=''; grow(); refresh(); clearTimeout(draftT); store.set('draft:'+ch.id,null); return; }
   if(busy||(!text&&!gf&&!vf)||!ch||!ready||selOn){ inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake'); if(vf)VISION.untake(vf); return; }
   busy=true; hideGoon(); if(!gf){ inp.value=''; grow(); } refresh();
@@ -2337,6 +2337,7 @@ function closeMem(){ memModal.classList.add('hide'); }
 const DEV_SECRET=3608493969801461; /* hash dari kodenya (GX.hash, huruf besar/kecil dan spasi diabaikan). Cuma pagar UI, bukan keamanan. */
 const MEDIA_SECRET=2451744368724302; /* hash kode fitur gambar (GX.hash; besar/kecil dan spasi diabaikan): membuka Scene Capture + Kirim Gambar. Pagar UI, bukan keamanan. */
 const devOn=()=>store.get('devu')==='1'&&store.get('dev')==='1';
+const CHESS_SECRET=3024233390946423; /* hash kode lawan karakter di Catur (GX.hash; besar/kecil dan spasi diabaikan). Pagar UI, bukan keamanan. */
 const mediaOn=()=>store.get('mediau')==='1'; /* fitur gambar (Scene Capture + Kirim Gambar, menu +) terbuka lewat kode rahasia ke Reze; Scene otomatis punya switch sendiri: scnauto */
 /* Mesin AI uji (Mode dev): ChatGPT tetap utama. Lorka hanya terpakai kalau Mode dev aktif DAN dipilih di sini. */
 const engName=()=>devOn()&&store.get('eng')==='lorka'?'lorka':'chatgpt';
@@ -2397,6 +2398,13 @@ function tryMedia(text){
   if(!window.GX||!GX.hash||GX.hash(text.trim().toLowerCase().replace(/\s+/g,''))!==MEDIA_SECRET) return false;
   const was=mediaOn(); store.set('mediau','1');
   paintMedia(); toast(was?'Fitur gambar sudah terbuka. Scene otomatis diatur di Pengaturan':'Fitur rahasia terbuka: Scene Capture & Kirim Gambar di menu +');
+  return true;
+}
+/* ===== Lawan karakter di Catur: kode rahasia ke Reze, pola tryMedia. Membuka pilihan "Lawan" di layar pembuka Catur (public/games.js, kunci `chessu`). ===== */
+function tryChess(text){
+  if(!window.GX||!GX.hash||GX.hash(text.trim().toLowerCase().replace(/\s+/g,''))!==CHESS_SECRET) return false;
+  const was=store.get('chessu')==='1'; store.set('chessu','1');
+  toast(was?'Lawan karakter di Catur sudah terbuka':'Fitur rahasia terbuka: lawan karakter di Catur (Minigame)');
   return true;
 }
 $('smedia').onchange=()=>{ store.set('scnauto',$('smedia').checked?'1':null); };

@@ -24,7 +24,7 @@ const SVG = {
 const GAMES = [
   { id: 'guess', ready: true, icon: SVG.guess, title: 'Tebak Angka', desc: 'Tebak angka rahasia 1-100 dalam 7 kali tebakan. Makin cepat, makin banyak coin.' },
   { id: 'pic', ready: true, icon: SVG.pic, title: 'Tebak Gambar', desc: 'Tebak kata atau ungkapan dari gambar teka-teki. Makin sedikit salah, makin banyak coin.' },
-  { id: 'chess', ready: true, icon: SVG.chess, title: 'Catur', desc: 'Lawan AI atau karakter favoritmu, yang sesekali mengoceh di sela langkah. Tingkat mudah, sedang, sulit. Aturan lengkap: rokade, en passant, promosi.' },
+  { id: 'chess', ready: true, icon: SVG.chess, title: 'Catur', desc: 'Lawan AI catur: mudah, sedang, atau sulit. Aturan lengkap: rokade, en passant, promosi.' },
   { id: 'soon', ready: false, icon: SVG.soon, title: 'Segera hadir', desc: 'Minigame lain lagi disiapkan.' }
 ];
 
@@ -250,6 +250,7 @@ function chessScreen() {
 const sq2name = i => 'abcdefgh'[i & 7] + (8 - (i >> 3));
 
 function render() {
+  if (screen !== 'chess') chVoiceStop();
   if (!ready && !aOn) { body.innerHTML = empty('Memuat…'); return; }
   if (!aOn) { body.innerHTML = empty('Minigame belum tersedia', 'Fitur akun belum aktif di server ini, jadi coin hasil main belum bisa disimpan.'); return; }
   if (!atok) { body.innerHTML = empty('Masuk dulu ya', 'Coin hasil main tersimpan di akunmu, jadi kamu perlu masuk atau daftar dulu.', '<button class="gm-btn" type="button" data-act="login">Masuk / Daftar</button>'); return; }
@@ -373,25 +374,54 @@ async function cstart(lv) {
    bicara atau tidak, jadi kebanyakan panggilan selesai cepat). */
 let chOpp = (() => { try { return localStorage.getItem('chessOpp') || ''; } catch { return ''; } })();
 let chSaying = false, chSayTok = 0;
-const chChars = () => (typeof allChars !== 'undefined' && Array.isArray(allChars) ? allChars : []).filter(c => c.chess);
+const chUnlocked = () => { try { return localStorage.getItem('chessu') === '1'; } catch { return false; } }; // kode rahasia ke Reze (tryChess di index.html); pagar UI, bukan keamanan
+const chChars = () => !chUnlocked() ? [] : (typeof allChars !== 'undefined' && Array.isArray(allChars) ? allChars : []).filter(c => c.chess);
 const oppOf = id => (typeof allChars !== 'undefined' && Array.isArray(allChars) ? allChars : []).find(c => c.id === id) || null;
+let chAnimKey = ''; // bubble hanya beranimasi saat isinya BARU. Papan digambar ulang tiap ketukan (pilih bidak), tanpa ini bubble ikut "melompat" tiap kali.
 function chSayInner() {
   const g = cs && cs.game, oc = g && g.opp ? oppOf(g.opp) : null; if (!oc) return '';
   const av = '<img class="ch-sa" src="' + esc(oc.avatar || '') + '" alt="" referrerpolicy="no-referrer">';
-  if (chSaying) return av + '<div class="ch-sb typing" aria-label="' + esc(oc.name) + ' sedang mengetik"><i></i><i></i><i></i></div>';
-  if (g.say) return av + '<div class="ch-sb"><b>' + esc(oc.name) + '</b><p>' + esc(g.say) + '</p></div>';
+  const still = k => { const s = k === chAnimKey; chAnimKey = k; return s ? ' still' : ''; };
+  if (chSaying) return av + '<div class="ch-sb typing' + still('T' + chSayTok) + '" aria-label="' + esc(oc.name) + ' sedang mengetik"><i></i><i></i><i></i></div>';
+  if (g.say) return av + '<div class="ch-sb' + still('S' + g.say) + '"><b>' + esc(oc.name) + '</b><p>' + esc(g.say) + '</p></div>';
   return av + '<div class="ch-sb idle"><b>' + esc(oc.name) + '</b><p>Lawanmu kali ini.</p></div>';
 }
 const chSayPaint = () => { const el = $('chsay'); if (el) el.innerHTML = chSayInner(); };  // hanya kotak ocehan yang digambar ulang, supaya animasi bidak tidak terputus
 async function csay() {
   const g = cs && cs.game; if (!g || !g.opp) return;
   const tok = ++chSayTok, t = setTimeout(() => { if (tok === chSayTok) { chSaying = true; chSayPaint(); } }, 800); // titik mengetik baru muncul kalau server memang sedang membuat komentar
+  chVoiceStop();
+  // suara ikut pengaturan bawaan chat (switch Voice, bahasa JP/ID, suara karakter, kecepatan); kalau voice mati, server tidak membuat teks suara
+  const vo = chVoiceOn() ? { on: true, lang: typeof voiceLang !== 'undefined' && voiceLang === 'id' ? 'id' : 'jp' } : { on: false };
+  let vn = '';
   try {
-    const r = await aApi('chess/say', {});
-    if (tok === chSayTok && r && r.ok && typeof r.say === 'string' && cs && cs.game) cs.game.say = r.say;
+    const r = await aApi('chess/say', { voice: vo });
+    if (tok === chSayTok && r && r.ok && typeof r.say === 'string' && cs && cs.game) { cs.game.say = r.say; if (vo.on && typeof r.vn === 'string') vn = r.vn; }
   } catch {}
   clearTimeout(t);
-  if (tok === chSayTok) { chSaying = false; chSayPaint(); }
+  if (tok === chSayTok) { chSaying = false; chSayPaint(); if (vn && screen === 'chess') chSpeak(cs.game.opp, vn, tok); } // teks tampil dulu, suaranya menyusul
+}
+
+/* ---------- Catur: suara lawan ----------
+   Memakai pengaturan suara chat apa adanya: switch Voice + kode voice (von/vcode), bahasa (voiceLang), suara karakter (voiceKeyOf), kecepatan (vSpeed),
+   dan endpoint /api/tts yang sama. Kalau voice mati atau kode belum benar, tidak ada suara. Suara gagal tidak mengganggu permainan. */
+let chAudio = null, chAudioUrl = '';
+const chVoiceOn = () => typeof voiceOn !== 'undefined' && voiceOn && typeof vcode !== 'undefined' && !!vcode;
+function chVoiceStop() { try { if (chAudio) { chAudio.pause(); chAudio.onended = null; } if (chAudioUrl) URL.revokeObjectURL(chAudioUrl); } catch {} chAudio = null; chAudioUrl = ''; }
+async function chSpeak(charId, vn, tok) {
+  if (!charId || !vn || !chVoiceOn() || typeof post !== 'function') return;
+  try {
+    const ab = await (await post('/api/tts', { char: charId, text: vn, voice: typeof voiceKeyOf === 'function' ? voiceKeyOf(charId) : undefined }, { 'x-voice-code': vcode })).arrayBuffer();
+    if (tok !== chSayTok || screen !== 'chess') return; // sudah ada ocehan lebih baru / pindah layar: jangan putar yang basi
+    chVoiceStop();
+    chAudioUrl = URL.createObjectURL(new Blob([ab], { type: 'audio/mpeg' }));
+    const a = chAudio = new Audio(chAudioUrl);
+    a.playbackRate = typeof vSpeed === 'number' && vSpeed > 0 ? vSpeed : 1;
+    a.onended = () => { if (chAudio === a) chVoiceStop(); };
+    await a.play();
+  } catch (e) {
+    if (e && e.status === 403) { try { vcode = ''; store.set('vcode', null); setVoice(false); toast('Kode voice tidak valid, voice dimatikan'); } catch {} } // sama seperti chat
+  }
 }
 
 /* ---------- Catur: animasi ----------
