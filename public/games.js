@@ -24,7 +24,7 @@ const SVG = {
 const GAMES = [
   { id: 'guess', ready: true, icon: SVG.guess, title: 'Tebak Angka', desc: 'Tebak angka rahasia 1-100 dalam 7 kali tebakan. Makin cepat, makin banyak coin.' },
   { id: 'pic', ready: true, icon: SVG.pic, title: 'Tebak Gambar', desc: 'Tebak kata atau ungkapan dari gambar teka-teki. Makin sedikit salah, makin banyak coin.' },
-  { id: 'chess', ready: true, icon: SVG.chess, title: 'Catur', desc: 'Lawan AI catur: mudah, sedang, atau sulit. Aturan lengkap: rokade, en passant, promosi.' },
+  { id: 'chess', ready: true, icon: SVG.chess, title: 'Catur', desc: 'Lawan AI atau karakter favoritmu, yang sesekali mengoceh di sela langkah. Tingkat mudah, sedang, sulit. Aturan lengkap: rokade, en passant, promosi.' },
   { id: 'soon', ready: false, icon: SVG.soon, title: 'Segera hadir', desc: 'Minigame lain lagi disiapkan.' }
 ];
 
@@ -175,17 +175,23 @@ function chessScreen() {
   // layar pembuka: aturan + pilihan tingkat (+ lanjutkan kalau ada permainan berjalan)
   if (intro || !g) {
     const live = g && g.active;
+    const cc = chChars();
+    if (chOpp && !cc.some(c => c.id === chOpp)) chOpp = '';   // karakter pilihan tersimpan sudah tidak punya chess: true
+    const oppPick = cc.length ? '<div class="ch-opp"><span class="ch-opp-t">Lawan (pilih dulu sebelum mulai)</span><div class="ch-opp-l" role="radiogroup" aria-label="Pilih lawan">' +
+      '<button type="button" class="ch-oc' + (chOpp ? '' : ' on') + '" role="radio" aria-checked="' + (!chOpp) + '" data-act="copp" data-id=""><span class="ch-oa ai">AI</span><b>Biasa</b></button>' +
+      cc.map(c => '<button type="button" class="ch-oc' + (chOpp === c.id ? ' on' : '') + '" role="radio" aria-checked="' + (chOpp === c.id) + '" data-act="copp" data-id="' + esc(c.id) + '"><span class="ch-oa"><img src="' + esc(c.avatar || '') + '" alt="" referrerpolicy="no-referrer"></span><b>' + esc(c.name) + '</b></button>').join('') +
+      '</div></div>' : '';
     const lvls = Object.entries(lv).map(([k, v]) =>
       '<button class="ch-lvl" type="button" data-act="cstart" data-lv="' + k + '"><span><b>' + esc(v.name) + '</b>' +
       '<small>' + (k === '1' ? 'AI sering ngawur, cocok buat pemanasan.' : k === '2' ? 'AI jago sedikit, mikir 2 langkah.' : 'AI jago, mikir 3 langkah. Berani?') + '</small></span><em>+' + nf.format(v.prize) + ' coin</em></button>'
     ).join('');
     return back + '<div class="gm-panel">' +
       '<div class="gm-intro"><span class="ic">' + SVG.chess + '</span><h2>Catur</h2>' +
-      '<p class="gm-hint">Kamu main putih (bawah), AI main hitam. Kotak yang boleh dituju langsung ditandai server, jadi tidak perlu hafal aturannya.</p>' +
+      '<p class="gm-hint">Kamu main putih (bawah), lawanmu main hitam. ' + (cc.length ? 'Pilih lawan: AI biasa, atau karakter yang akan mengomentari permainanmu. ' : '') + 'Kotak yang boleh dituju langsung ditandai server, jadi tidak perlu hafal aturannya.</p>' +
       '<div class="gm-facts"><span><b>3</b>tingkat kesulitan</span><span><b>' + nf.format(lv[1].prize) + '-' + nf.format(lv[3].prize) + '</b>coin per menang</span><span><b>40%</b>hadiah kalau seri</span></div>' +
-      '<ol class="gm-how"><li>Pilih tingkat kesulitan untuk mulai.</li><li>Ketuk bidakmu, lalu ketuk kotak tujuan (ditandai titik).</li><li>AI membalas otomatis. Skakmat AI-nya untuk menang!</li></ol>' +
+      '<ol class="gm-how">' + (cc.length ? '<li>Pilih lawan (AI biasa atau karakter). Langkah tetap dihitung engine, karakter hanya berkomentar.</li>' : '') + '<li>Pilih tingkat kesulitan untuk mulai.</li><li>Ketuk bidakmu, lalu ketuk kotak tujuan (ditandai titik).</li><li>AI membalas otomatis. Skakmat AI-nya untuk menang!</li></ol>' +
       (live ? '<p class="gm-resume">Ada permainan ' + esc(chLvName(g.level)) + ' yang belum selesai.</p><div class="gm-row"><button class="gm-btn" type="button" data-act="play">Lanjutkan</button><button class="gm-ghost" type="button" data-act="chnew">Main baru</button></div>' : '') +
-      '<div class="ch-lvls' + (live ? ' ch-lvls-dim' : '') + '">' + lvls + '</div>' + msgEl + '</div></div>' +
+      oppPick + '<div class="ch-lvls' + (live ? ' ch-lvls-dim' : '') + '">' + lvls + '</div>' + msgEl + '</div></div>' +
       '<div class="gm-info"><h3>Cara main</h3><p class="gm-cap">Aturan standar lengkap: rokade, en passant, promosi pion, skak, pat, aturan 50 langkah, dan pengulangan posisi. Menang dapat coin sesuai tingkat (seri 40%, paling sedikit ' + nf.format(5) + '), maksimal ' + d.cap + ' kemenangan berhadiah per hari (sekarang ' + d.wins + '/' + d.cap + '). Tidak ada undo: pikirkan dulu!</p></div>';
   }
 
@@ -210,7 +216,7 @@ function chessScreen() {
   const matW = g.capsW.reduce((s, p) => s + CH_VAL[p.toLowerCase()], 0), matB = g.capsB.reduce((s, p) => s + CH_VAL[p.toLowerCase()], 0);
   const diff = matW - matB;
   const caps = '<div class="ch-caps"><span class="ch-cp"><i>' + capStr(g.capsW) + '</i>' + (diff > 0 ? '<b>+' + diff + '</b>' : '') + '</span>' +
-    '<span class="ch-turn">' + (g.active ? (yourTurn ? 'Giliranmu' : 'AI') : 'Selesai') + (g.check >= 0 ? ' · skak!' : '') + '</span>' +
+    '<span class="ch-turn">' + (g.active ? (yourTurn ? 'Giliranmu' : (g.opp && oppOf(g.opp) ? oppOf(g.opp).name : 'AI')) : 'Selesai') + (g.check >= 0 ? ' · skak!' : '') + '</span>' +
     '<span class="ch-cp ai"><i>' + capStr(g.capsB) + '</i>' + (diff < 0 ? '<b>+' + (-diff) + '</b>' : '') + '</span></div>';
 
   // daftar langkah (berpasangan: putih hitam)
@@ -235,7 +241,7 @@ function chessScreen() {
 
   return back + '<div class="gm-panel">' +
     '<h2>Catur <small class="ch-lv">' + esc(chLvName(g.level)) + '</small></h2>' +
-    caps + board + promo + msgEl +
+    caps + (g.opp && oppOf(g.opp) ? '<div class="ch-say" id="chsay" aria-live="polite">' + chSayInner() + '</div>' : '') + board + promo + msgEl +
     (g.active ? '<div class="ch-acts"><button class="gm-ghost" type="button" data-act="cresign"' + (chArm ? ' data-arm="1"' : '') + '>' + (chArm ? 'Tap lagi: menyerah' : 'Menyerah') + '</button></div>' : '') +
     result + '</div>' +
     '<div class="gm-info"><h3>Langkah (' + g.hist.length + ')</h3>' + (pairs.length ? '<div class="ch-hist">' + pairs.join('') + '</div>' : '<p class="gm-cap">Belum ada langkah.</p>') +
@@ -353,13 +359,41 @@ async function pguess() {
 
 /* ---------- Catur: aksi ---------- */
 async function cstart(lv) {
-  if (busy) return; busy = true; msg = ['', ''];
+  if (busy) return; busy = true; msg = ['', '']; let started = false;
   body.querySelectorAll('.ch-lvl,.gm-btn,.gm-ghost').forEach(b => { b.disabled = true; });
   try {
-    if (await callC('chess/start', { level: Number(lv) })) { intro = false; chSel = -1; chPromo = null; msg = ['', 'Kamu putih. Mulai dengan melangkah pion dua kotak (e2-e4 misalnya).']; }
+    if (await callC('chess/start', { level: Number(lv), ...(chOpp && chChars().some(c => c.id === chOpp) ? { opp: chOpp } : {}) })) { started = true; intro = false; chSel = -1; chPromo = null; msg = ['', 'Kamu putih. Mulai dengan melangkah pion dua kotak (e2-e4 misalnya).']; }
   } catch (e) { msg = [e.message || 'Gagal memulai, coba lagi.', 'err']; }
-  busy = false; render();
+  chSayTok++; chSaying = false; busy = false; render();
+  if (started) csay(); // sapaan pembuka dari lawan (kalau dia mau)
 }
+/* ---------- Catur: lawan karakter ----------
+   Karakter yang di char/<id>.js punya `chess: true` muncul di pilihan "Lawan" (daftar karakter dari /api/chars, kolom `chess`). Langkahnya tetap dari
+   engine di server; karakternya hanya sesekali berkomentar. Komentar diminta lewat /api/auth/chess/say setelah tiap langkah (server yang memutuskan
+   bicara atau tidak, jadi kebanyakan panggilan selesai cepat). */
+let chOpp = (() => { try { return localStorage.getItem('chessOpp') || ''; } catch { return ''; } })();
+let chSaying = false, chSayTok = 0;
+const chChars = () => (typeof allChars !== 'undefined' && Array.isArray(allChars) ? allChars : []).filter(c => c.chess);
+const oppOf = id => (typeof allChars !== 'undefined' && Array.isArray(allChars) ? allChars : []).find(c => c.id === id) || null;
+function chSayInner() {
+  const g = cs && cs.game, oc = g && g.opp ? oppOf(g.opp) : null; if (!oc) return '';
+  const av = '<img class="ch-sa" src="' + esc(oc.avatar || '') + '" alt="" referrerpolicy="no-referrer">';
+  if (chSaying) return av + '<div class="ch-sb typing" aria-label="' + esc(oc.name) + ' sedang mengetik"><i></i><i></i><i></i></div>';
+  if (g.say) return av + '<div class="ch-sb"><b>' + esc(oc.name) + '</b><p>' + esc(g.say) + '</p></div>';
+  return av + '<div class="ch-sb idle"><b>' + esc(oc.name) + '</b><p>Lawanmu kali ini.</p></div>';
+}
+const chSayPaint = () => { const el = $('chsay'); if (el) el.innerHTML = chSayInner(); };  // hanya kotak ocehan yang digambar ulang, supaya animasi bidak tidak terputus
+async function csay() {
+  const g = cs && cs.game; if (!g || !g.opp) return;
+  const tok = ++chSayTok, t = setTimeout(() => { if (tok === chSayTok) { chSaying = true; chSayPaint(); } }, 800); // titik mengetik baru muncul kalau server memang sedang membuat komentar
+  try {
+    const r = await aApi('chess/say', {});
+    if (tok === chSayTok && r && r.ok && typeof r.say === 'string' && cs && cs.game) cs.game.say = r.say;
+  } catch {}
+  clearTimeout(t);
+  if (tok === chSayTok) { chSaying = false; chSayPaint(); }
+}
+
 /* ---------- Catur: animasi ----------
    Papan digambar ulang total (innerHTML) tiap perubahan, jadi gerak bidak dibuat dengan teknik FLIP: setelah papan baru tampil, bidak di kotak tujuan
    "dimundurkan" ke kotak asal lalu digeser kembali ke tempatnya. Respons server memuat langkahmu DAN balasan AI sekaligus, jadi urutannya diatur
@@ -405,13 +439,14 @@ function chPlay(plan) {
 }
 async function cmove(from, to, promo) {
   if (busy || !cs || !cs.game || !cs.game.active) return;
-  busy = true; chSel = -1; chPromo = null;
+  busy = true; chSel = -1; chPromo = null; let moved = false;
   const oldBoard = String(cs.game.board);
   if (navigator.vibrate) try { navigator.vibrate(10) } catch {}
   try {
     const okr = await callC('chess/move', { from, to, ...(promo ? { promo } : {}) });
     if (okr) {
       const g = cs.game;
+      moved = true;
       if (!chReduce()) chPlan = chPlanFor(oldBoard, from, to, promo);
       if (g.result) msg = g.result.won === 'w' ? ['Menang! ' + (CH_END[g.result.reason] || '')] : g.result.won === 'd' ? ['Seri.'] : ['Kalah. ' + (CH_END[g.result.reason] || '')];
       else msg = ['AI: ' + (cs.aiNote || sq2name(from) + ' ok') + (g.check >= 0 ? ' · kamu diskak!' : ''), ''];
@@ -421,13 +456,16 @@ async function cmove(from, to, promo) {
     if (e.status === 409) await fetchChess(); // permainan berubah dari perangkat lain
   }
   busy = false; render();
+  if (moved) csay(); // ocehan lawan menyusul setelah animasi langkah (server memutuskan bicara atau tidak)
 }
 async function cresign() {
   if (busy || !cs || !cs.game || !cs.game.active) return;
   busy = true;
-  try { await callC('chess/resign'); msg = ['Kamu menyerah. Coba lagi dengan tingkat yang lebih ringan?', '']; }
+  let done = false;
+  try { await callC('chess/resign'); done = true; msg = ['Kamu menyerah. Coba lagi dengan tingkat yang lebih ringan?', '']; }
   catch (e) { msg = [e.message || 'Gagal menyerah, coba lagi.', 'err']; }
   busy = false; render();
+  if (done) csay();
 }
 /* ketuk kotak papan: pilih bidak / pilih tujuan / batal pilih */
 function csq(i) {
@@ -459,6 +497,7 @@ body.addEventListener('click', e => {
   else if (a === 'phint') pic('pic/hint', {}, 'Gagal membuka petunjuk, coba lagi.');
   else if (a === 'pguess') pguess();
   else if (a === 'chnew') { intro = true; msg = ['', '']; chSel = -1; chPromo = null; render(); } // kembali ke pilihan tingkat
+  else if (a === 'copp') { chOpp = b.dataset.id || ''; try { localStorage.setItem('chessOpp', chOpp); } catch {} render(); }
   else if (a === 'cstart') cstart(b.dataset.lv);
   else if (a === 'csq') csq(b.dataset.i);
   else if (a === 'cpromo') { if (chPromo) cmove(chPromo.from, chPromo.to, b.dataset.p); }

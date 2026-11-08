@@ -186,3 +186,27 @@
 @media(prefers-reduced-motion:reduce){.ch-sq.ch-dot::before,.ch-sq.ch-cap::before,.ch-sq.ch-sel .ch-p,.ch-sq.ch-chk{animation:none}}
 .ch-board.ch-anim .ch-sq.ch-last{background-image:none}   /* sorotan langkah terakhir & skak baru muncul setelah bidaknya tiba */
 .ch-board.ch-anim .ch-sq.ch-chk{background-image:none;animation:none}
+
+/* Catur: pilihan lawan karakter + kotak ocehan */
+.ch-opp{margin-top:14px;width:100%}
+.ch-opp-t{display:block;margin-bottom:8px;font-size:12.5px;font-weight:600;color:var(--mut)}
+.ch-opp-l{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 8px;scrollbar-width:thin}
+.ch-oc{flex:none;display:flex;flex-direction:column;align-items:center;gap:6px;width:74px;padding:10px 6px 8px;border-radius:16px;background:var(--bg);border:2px solid transparent;transition:border-color .15s,transform .15s}
+.ch-oc:active{transform:scale(.96)}
+.ch-oc.on{border-color:var(--ink)}
+.ch-oc b{max-width:100%;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ch-oa{width:44px;height:44px;border-radius:50%;overflow:hidden;background:var(--surface);display:grid;place-items:center;font-size:13px;font-weight:700;color:var(--mut)}
+.ch-oa img{width:100%;height:100%;object-fit:cover;display:block}
+.ch-oc:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.ch-say{display:flex;align-items:flex-start;gap:10px;margin-top:12px;min-height:44px}
+.ch-sa{flex:none;width:36px;height:36px;border-radius:50%;object-fit:cover;background:var(--bg)}
+.ch-sb{position:relative;min-width:0;padding:9px 13px;border-radius:4px 16px 16px 16px;background:var(--bg);font-size:13.5px;line-height:1.4;animation:chsay .3s cubic-bezier(.2,.9,.3,1.2) both}
+.ch-sb b{display:block;margin-bottom:2px;font-size:11.5px;font-weight:600;color:var(--mut)}
+.ch-sb p{margin:0;overflow-wrap:anywhere;white-space:pre-wrap}
+.ch-sb.idle{opacity:.6;animation:none}
+.ch-sb.typing{display:flex;align-items:center;gap:4px;padding:14px 16px}
+.ch-sb.typing i{width:6px;height:6px;border-radius:50%;background:var(--mut);animation:chdot 1s infinite ease-in-out}
+.ch-sb.typing i:nth-child(2){animation-delay:.15s}.ch-sb.typing i:nth-child(3){animation-delay:.3s}
+@keyframes chsay{from{opacity:0;transform:translateY(6px) scale(.96)}}
+@keyframes chdot{0%,60%,100%{opacity:.35;transform:none}30%{opacity:1;transform:translateY(-3px)}}
+@media(prefers-reduced-motion:reduce){.ch-sb,.ch-sb.typing i{animation:none}}
