@@ -320,3 +320,28 @@
 @keyframes b-in{from{opacity:0;transform:translateY(14px) scale(.97)}to{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){.b-tile{animation:none}.b-av img{transition:none}}
 @media(max-width:799px){.bgrid{gap:10px}.b-name{font-size:15px;left:12px;right:12px}.b-tag{left:12px;right:12px}}
+
+/* ---------- Beranda: UX tambahan (Lanjut ngobrol, skeleton, pencarian lengket, hasil kosong) ---------- */
+.b-cont{margin-bottom:4px}
+.b-strip{display:flex;gap:10px;overflow-x:auto;margin:0 -22px;padding:8px 22px 6px;scrollbar-width:none;scroll-snap-type:x proximity;scroll-padding:0 22px;-webkit-overflow-scrolling:touch}
+.b-strip::-webkit-scrollbar{display:none}
+@media(min-width:800px){.b-strip{margin:0 -56px;padding:8px 56px 6px;scroll-padding:0 56px}}
+.b-cc{flex:none;scroll-snap-align:start;display:grid;grid-template-columns:48px minmax(0,1fr);grid-template-rows:auto auto;column-gap:10px;align-items:center;
+      width:210px;padding:10px 14px 10px 10px;border-radius:20px;background:var(--surface);text-align:left;transition:transform .2s,background .2s}
+.b-cc:active{transform:scale(.97)}
+@media(hover:hover){.b-cc:hover{transform:translateY(-2px)}}
+.b-cc:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.b-cav{grid-row:1/3;width:48px;height:48px}
+.b-cav img{width:100%;height:100%;border-radius:50%;object-fit:cover;background:var(--line);display:block}
+.b-cc b{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;align-self:end;justify-self:start;max-width:100%}
+.b-cc small{font-size:12px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;align-self:start;justify-self:start;max-width:100%;margin-top:2px}
+.b-tile.sk{animation:b-sk 1.3s ease-in-out infinite;box-shadow:none;pointer-events:none}
+.b-tile.sk::after{display:none}
+@keyframes b-sk{0%,100%{opacity:.55}50%{opacity:1}}
+.srch{position:sticky;top:0;z-index:4;box-shadow:0 0 0 8px var(--bg)} /* tetap kelihatan saat daftar di-scroll; halo bg menutupi kartu di belakangnya */
+.srch:focus-within{box-shadow:0 0 0 8px var(--bg),0 0 0 2px var(--ink)}
+.all-empty{display:flex;flex-direction:column;align-items:center;gap:12px;padding:30px 0}
+.all-empty p{color:var(--mut);font-size:14px}
+.all-empty button{padding:10px 18px;border-radius:99px;background:var(--surface);font-size:13.5px;font-weight:600}
+.all-empty.hide{display:none}
+@media(prefers-reduced-motion:reduce){.b-tile.sk{animation:none}}

@@ -506,9 +506,10 @@ header .pfp,header .who{cursor:pointer}
       </div>
     </div>
     <label class="srch"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg><input id="q" type="search" placeholder="Cari nama atau judul" autocomplete="off" enterkeyhint="search"></label>
+    <section class="b-cont hide" id="bcont" aria-label="Lanjut ngobrol"><div class="b-head"><h2>Lanjut ngobrol</h2></div><div class="b-strip" id="bstrip"></div></section>
     <div class="b-head"><h2>Semua karakter</h2><span id="allcount"></span></div>
-    <div class="bgrid" id="alllist"></div>
-    <p class="all-empty hide" id="allempty">Nggak ada karakter yang cocok.</p>
+    <div class="bgrid" id="alllist" aria-busy="true"><span class="b-tile sk" aria-hidden="true"></span><span class="b-tile sk" aria-hidden="true"></span><span class="b-tile sk" aria-hidden="true"></span><span class="b-tile sk" aria-hidden="true"></span><span class="b-tile sk" aria-hidden="true"></span><span class="b-tile sk" aria-hidden="true"></span></div>
+    <div class="all-empty hide" id="allempty"><p>Nggak ada karakter yang cocok.</p><button type="button" id="qclear">Hapus pencarian</button></div>
   </section>
   <aside id="lpanel" aria-label="Obrolan terakhir">
     <div class="lp-top">
@@ -2124,18 +2125,36 @@ function filterAll(){
   const k=q.value.trim().toLowerCase(); let n=0;
   rows.forEach(({c,el})=>{ const ok=!k||(c.name+' '+(c.tagline||'')).toLowerCase().includes(k); el.classList.toggle('hide',!ok); if(ok) n++; });
   $('allempty').classList.toggle('hide',n>0);
+  renderCont(); /* strip "Lanjut ngobrol" disembunyikan selama mencari */
 }
+/* "Lanjut ngobrol": jalan pintas ke obrolan terakhir langsung dari Beranda (maks 8, terbaru dulu) */
+function renderCont(){
+  const box=$('bcont'), st=$('bstrip'); if(!box||!allChars.length) return;
+  const items=allChars.map(c=>{ const l=loadLog(c.id), e=l[l.length-1]; return e?{c,e}:null; }).filter(Boolean).sort((a,b)=>(b.e.t||0)-(a.e.t||0)).slice(0,8);
+  box.classList.toggle('hide',!items.length||!!q.value.trim());
+  st.textContent='';
+  for(const {c,e} of items){
+    const b=document.createElement('button'); b.type='button'; b.className='b-cc';
+    const av=document.createElement('span'); av.className='b-cav'; const im=img(c); im.loading='lazy'; av.append(im);
+    const n=document.createElement('b'); n.textContent=shortName(c);
+    const p=document.createElement('small'); p.textContent=(e.ks||e.k)?'🎙 Voice note':((e.r==='me'?'Kamu: ':'')+String(e.x||'').replace(/\*/g,'').replace(/\s+/g,' ').trim());
+    b.title=dispName(c); b.append(av,n,p); b.onclick=()=>openChat(c,av); st.append(b);
+  }
+}
+$('qclear').addEventListener('click',()=>{ q.value=''; filterAll(); q.focus(); });
 q.addEventListener('input',filterAll);
 q.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); const f=rows.find(r=>!r.el.classList.contains('hide')); if(f){ q.blur(); f.el.click(); } } });
 
 function renderList(){ if(window.Shell) Shell.renderRecent(); } /* semua pemanggil lama (termasuk group.js) otomatis memperbarui daftar baru */
 fetch('/api/chars').then(r=>r.json()).then(cs=>{
   allChars=cs;
+  $('alllist').textContent=''; $('alllist').removeAttribute('aria-busy');
   rows=cs.map((c,i)=>{ const el=card(c); el.style.setProperty('--i',Math.min(i,12)); return {c,el}; }); $('alllist').append(...rows.map(r=>r.el));
   $('allcount').textContent=cs.length+' karakter';
-  renderList();
+  renderList(); renderCont();
   if(window.GX) GX.paintAll();
-}).catch(()=>{ $('alllist').textContent='Gagal memuat karakter'; });
+}).catch(()=>{ $('alllist').textContent='Gagal memuat karakter'; $('alllist').removeAttribute('aria-busy'); });
+window.addEventListener('shell:tab',e=>{ if(e.detail==='home') renderCont(); }); /* selesai ngobrol lalu balik ke Beranda: strip ikut segar */
 
 /* ===== Indikator online: heartbeat ke /api/online tiap 60 dtk selama tab kelihatan. Kalau server belum mendukung (enabled:false), pill tetap tersembunyi. ===== */
 (()=>{
