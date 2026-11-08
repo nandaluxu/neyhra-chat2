@@ -188,7 +188,7 @@
   #ltoast{bottom:28px}
   /* Beranda */
   #menu{padding:40px 56px 0}
-  #menu .m-hero,#menu .srch,#menu .b-head,#menu .bgrid,#menu .all-empty{width:100%;max-width:960px;margin-left:auto;margin-right:auto}
+  #menu .m-hero,#menu .srch,#menu .b-head,#menu .b-cont,#menu .bgrid,#menu .all-empty{width:100%;max-width:960px;margin-left:auto;margin-right:auto}
   #menu .m-hero{margin-top:0;margin-bottom:22px}
   #mtitle{font-size:56px}
   #mtitle.greet{font-size:32px}
@@ -325,7 +325,11 @@
 .b-cont{margin-bottom:4px}
 .b-strip{display:flex;gap:10px;overflow-x:auto;margin:0 -22px;padding:8px 22px 6px;scrollbar-width:none;scroll-snap-type:x proximity;scroll-padding:0 22px;-webkit-overflow-scrolling:touch}
 .b-strip::-webkit-scrollbar{display:none}
-@media(min-width:800px){.b-strip{margin:0 -56px;padding:8px 56px 6px;scroll-padding:0 56px}}
+/* desktop: satu baris rapi di dalam kolom isi (jumlah kartu mengikuti lebar; baris ke-2 dst. tingginya 0 jadi tersembunyi), tanpa scroll samping */
+@media(min-width:800px){
+  .b-strip{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;height:82px;box-sizing:border-box;overflow:hidden;margin:0;padding:8px 0 6px} /* tinggi dikunci satu baris; baris berikutnya terpotong */
+  .b-cc{width:auto;min-width:0;height:68px}
+}
 .b-cc{flex:none;scroll-snap-align:start;display:grid;grid-template-columns:48px minmax(0,1fr);grid-template-rows:auto auto;column-gap:10px;align-items:center;
       width:210px;padding:10px 14px 10px 10px;border-radius:20px;background:var(--surface);text-align:left;transition:transform .2s,background .2s}
 .b-cc:active{transform:scale(.97)}
@@ -338,8 +342,10 @@
 .b-tile.sk{animation:b-sk 1.3s ease-in-out infinite;box-shadow:none;pointer-events:none}
 .b-tile.sk::after{display:none}
 @keyframes b-sk{0%,100%{opacity:.55}50%{opacity:1}}
-.srch{position:sticky;top:0;z-index:4;box-shadow:0 0 0 8px var(--bg)} /* tetap kelihatan saat daftar di-scroll; halo bg menutupi kartu di belakangnya */
-.srch:focus-within{box-shadow:0 0 0 8px var(--bg),0 0 0 2px var(--ink)}
+@media(max-width:799px){ /* mobile: kotak cari tetap kelihatan saat di-scroll; halo bg menutupi kartu di belakangnya */
+  .srch{position:sticky;top:0;z-index:4;box-shadow:0 0 0 8px var(--bg)}
+  .srch:focus-within{box-shadow:0 0 0 8px var(--bg),0 0 0 2px var(--ink)}
+}
 .all-empty{display:flex;flex-direction:column;align-items:center;gap:12px;padding:30px 0}
 .all-empty p{color:var(--mut);font-size:14px}
 .all-empty button{padding:10px 18px;border-radius:99px;background:var(--surface);font-size:13.5px;font-weight:600}
