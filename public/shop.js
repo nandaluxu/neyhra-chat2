@@ -140,9 +140,9 @@ function renderInv() {
   if (!S) { ibody.innerHTML = failed ? empty('Gagal memuat', failed, '<button class="bn-go" type="button" data-act="retry">Coba lagi</button>') : empty('Memuat…'); return; }
   if (!invTotal()) { ibody.innerHTML = empty('Inventory kosong', 'Beli bunga, coklat, atau eskrim di Toko dulu, lalu berikan ke karakter.', '<button class="bn-go" type="button" data-act="shop">Ke Toko</button>'); return; }
   for (const i of itemsOf()) if ((gsel[i.id] | 0) > invN(i.id)) gsel[i.id] = invN(i.id);
-  ibody.innerHTML = itemsOf().map(it => {
+  ibody.innerHTML = itemsOf().filter(it => invN(it.id) > 0).map(it => { /* barang yang tidak dipunya tidak ditampilkan */
     const have = invN(it.id), n = gsel[it.id] | 0;
-    return '<div class="inv-row' + (have ? '' : ' zero') + '"><div class="sh-ic"><img src="' + icon(it.id) + '" alt="" draggable="false"></div>' +
+    return '<div class="inv-row"><div class="sh-ic"><img src="' + icon(it.id) + '" alt="" draggable="false"></div>' +
       '<div class="inv-info"><b>' + esc(it.name) + '</b><small>Punya ' + nf.format(have) + ' · +' + nf.format(it.exp) + ' EXP</small></div>' + stepper('g', it.id, n, 0, have) + '</div>';
   }).join('');
   const cnt = Object.values(gsel).reduce((s, n) => s + (n | 0), 0), exp = sumOf(gsel, 'exp');
