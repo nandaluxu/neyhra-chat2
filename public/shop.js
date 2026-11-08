@@ -93,7 +93,7 @@ body.addEventListener('click', e => {
 
 /* ---------- Menu "+" di kolom ketik ---------- */
 const plus = $('plusbtn'), pmenu = $('plusmenu'), scn = $('scnbtn');
-const scnItem = pmenu.querySelector('[data-a="scn"]'), sceneItem = pmenu.querySelector('[data-a="scene"]');
+const scnItem = pmenu.querySelector('[data-a="scn"]'), sceneItem = pmenu.querySelector('[data-a="scene"]'), imgItem = pmenu.querySelector('[data-a="img"]');
 function syncPlus() { /* tombol + tetap ada di semua chat 1-lawan-1 (Inventory selalu tersedia); titik hijau = skenario aktif.
   Yang menyesuaikan adalah item di dalamnya (paintPlusItems): Skenario Skrip hanya saat Mode roleplay aktif
   (lihat public/scenario.js), Scene Capture hanya untuk karakter yang punya gambar referensi (ch.scene). */
@@ -105,10 +105,14 @@ function syncPlus() { /* tombol + tetap ada di semua chat 1-lawan-1 (Inventory s
 new MutationObserver(syncPlus).observe(scn, { attributes: true, attributeFilter: ['class'] });
 new MutationObserver(syncPlus).observe(app, { attributes: true, attributeFilter: ['class'] }); /* buka/tutup layar chat */
 syncPlus();
-function paintPlusItems() { /* dipanggil tiap menu dibuka dan saat chat berpindah karakter */
+function paintPlusItems() { /* dipanggil tiap menu dibuka dan saat chat berpindah karakter
+  Yang menyesuaikan adalah item di dalamnya: Skenario Skrip hanya saat Mode roleplay aktif (lihat public/scenario.js),
+  Scene Capture hanya untuk karakter yang punya gambar referensi (ch.scene), Kirim Gambar hanya untuk
+  karakter yang bisa melihat gambar (ch.vision, field `vision: true` di char/<id>.js -> public/vision.js). */
   const rp = typeof rpOn === 'function' ? rpOn() : true;
   if (scnItem) scnItem.classList.toggle('hide', !rp);
   if (sceneItem) sceneItem.classList.toggle('hide', !(ch && ch.scene && !(window.GX && GX.cur)));
+  if (imgItem) imgItem.classList.toggle('hide', !(ch && ch.vision && !(window.GX && GX.cur)));
 }
 new MutationObserver(paintPlusItems).observe($('hname'), { childList: true, characterData: true, subtree: true });
 function openPlus() {
@@ -128,6 +132,7 @@ pmenu.addEventListener('click', e => {
   if (b.dataset.a === 'inv') openInv();
   else if (b.dataset.a === 'scn') scn.click();
   else if (b.dataset.a === 'scene' && window.SCENE) SCENE.manual(); /* pasang lampiran Scene Capture di kotak ketik (public/scene.js): ketik prompt sendiri atau kosongkan -> otomatis dari adegan */
+  else if (b.dataset.a === 'img' && window.VISION) VISION.pick(); /* pasang lampiran gambar di kotak ketik (public/vision.js): karakter dengan vision:true bisa melihatnya */
 });
 document.addEventListener('pointerdown', e => { if (!pmenu.classList.contains('hide') && !e.target.closest('#plusmenu,#plusbtn')) closePlus(); }, true);
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !pmenu.classList.contains('hide')) { e.stopPropagation(); closePlus(); plus.focus({ preventScroll: true }); } }, true);

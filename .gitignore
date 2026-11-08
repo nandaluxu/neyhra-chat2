@@ -1,2 +1,4 @@
 # Ignore folder assets hanya di root
 /assets/
+node_modules/
+.env

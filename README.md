@@ -261,6 +261,26 @@ Mode roleplay yang sudah ada (switch di Pengaturan) dikembangkan jadi *interacti
 
 `/api/scenario/list | save | delete | generate | start | state | begin | end`. Chat berjalan lewat `/api/chat` biasa dengan field tambahan `scenario: <id state>`; tanpa field itu semuanya seperti dulu (client lama tetap kompatibel).
 
+## Scene Capture (ilustrasi adegan, `lib/scene.js` + `public/scene.js`)
+
+- **Dua mode**: *manual* (menu "+" -> "Scene Capture") memasang LAMPIRAN di kotak ketik (pola hadiah): user boleh mengetik prompt sendiri, kosong = disusun otomatis dari adegan; *otomatis* (hanya saat Mode roleplay aktif) AI penilai menilai setelah balasan tampil, maks 1 per giliran + jeda 10 menit per karakter supaya adegan mirip tidak digambar ulang.
+- **Provider image-to-image berantai**: `deepchat` (Flux Schnell via `lib/deepchat.js`, UTAMA) lalu `nano` (CADANGAN, dipakai kalau deepchat gagal). Atur lewat env `SCENE_PROVIDER='deepchat,nano'` (isi `nano` untuk perilaku lama), matikan lewat `SCENE_ENABLED='0'`.
+- **Prompt optimizer**: sebelum digambar, prompt (punya user maupun AI penilai) diperluas lewat `optimizePrompt` DeepChat (context `image`) jadi prompt gambar komprehensif. Gagal -> prompt asli dipakai. Matikan lewat `SCENE_OPTIMIZE='0'`.
+- **refImg**: field di `char/<id>.js` (URL gambar referensi karakter) dipakai sebagai input image-to-image supaya wajah/rambut/gaya tetap sama. URL-nya tidak pernah dikirim ke browser; `/api/chars` hanya memberi flag `scene: true`.
+- Butuh login (Bearer). Hasil disalin ke R2 kalau env R2 lengkap; kalau tidak, URL provider dipakai apa adanya.
+
+## Vision: karakter bisa melihat gambar (`lib/vision.js` + `public/vision.js`)
+
+- **Khusus karakter dengan field `vision: true`** di `char/<id>.js` (contoh: `char/hutao.js`). `/api/chars` memberi flag `vision: true` -> menu "+" menampilkan "Kirim Gambar" hanya untuk karakter itu.
+- **Alur dua langkah**: (1) gambar (dikecilkan di browser: maks 896px untuk kirim, thumbnail 320px untuk log) dikirim ke `POST /api/vision` -> DeepChat (gpt-4o-mini multimodal) mendeskripsikan isinya secara faktual dalam bahasa Indonesia; (2) client memanggil `/api/chat` biasa dengan field `vision: <deskripsi>` -> deskripsi ditempel ke pesan user (pola kalimat kejadian hadiah) sehingga balasan karakter, voice note, hubungan, memori, dan skenario tetap jalan seperti biasa.
+- Gambar + caption (boleh kosong) tampil sebagai bubble gambar di sisi user; riwayat AI (`h:<id>`) memuat `[mengirim gambar: <deskripsi>] <caption>` supaya giliran berikutnya tetap ingat isinya. Gagal membaca gambar -> pesan batal, lampiran + ketikan dikembalikan.
+- Gambar tidak disimpan di server. Pembatas laju 20 gambar/jam per clientId (Mongo; tanpa Mongo fitur tetap jalan). Body parser 8 MB khusus `/api/vision` (dipasang sebelum parser global 50 KB, pola `lib/auth.js`).
+
+## DeepChat (`lib/deepchat.js`)
+
+- Klien API zero-dependency (reverse-engineered dari aplikasi Android): sesi anonim otomatis (signup Supabase + tanda tangan HMAC-SHA256), kredit habis -> klaim reward iklan otomatis (maks 5x) -> sesi baru kalau masih gagal. Dipakai Scene Capture (image-to-image/text-to-image + prompt optimizer) dan Vision (chat multimodal).
+- Ekspor: `chat` (vision lewat `options.image`: data URL/URL/base64/Buffer), `optimizePrompt`, `generateImage`, `imageToImage`, `getBalance`, `claimReward`, `downloadMedia`. Batas waktu per panggilan lewat `opts.timeoutMs` (default 30 dtk, env `DEEPCHAT_TIMEOUT_MS`).
+
 ## Tema, pencarian, ringkasan (public/extras.js + extras.css)
 
 - **Tema & aksen** (Pengaturan → Tampilan): mode Ikuti sistem / Terang / Gelap, dan switch "Warna aksen per karakter". Warna khas tiap karakter dihitung di browser dari rata-rata rona foto avatarnya (di-cache di localStorage `ac:<id>`), lalu dipakai untuk gelembung pesanmu, tombol kirim, dan gelombang voice note di chat karakter itu. Foto abu-abu = tanpa aksen. Chat grup tidak memakai aksen.
@@ -295,4 +315,4 @@ Tiap karakter punya **Level hubungan 1-100** yang naik lewat **EXP** dari obrola
 ## Lainnya
 
 - Taruh `reze.jpg` dll di `public/assets/`.
-- Karakter baru: buat `char/<nama>.js` (lihat `char/reze.js`). Field wajib: `id`, `name`, `voiceId`, `prompt`. Opsional: `tagline`, `avatar`, `pronounce`, `trait`, `relations`.
+- Karakter baru: buat `char/<nama>.js` (lihat `char/reze.js`). Field wajib: `id`, `name`, `voiceId`, `prompt`. Opsional: `tagline`, `avatar`, `pronounce`, `trait`, `relations`, `refImg` (Scene Capture), `story`, `vision: true` (bisa melihat gambar yang dikirim user).

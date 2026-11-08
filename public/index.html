@@ -501,6 +501,7 @@ header .pfp,header .who{cursor:pointer}
 <link rel="stylesheet" href="/tools/tools.css">
 <link rel="stylesheet" href="/scenario.css">
 <link rel="stylesheet" href="/scene.css">
+<link rel="stylesheet" href="/vision.css">
 <link rel="stylesheet" href="/profile.css">
 </head>
 <body>
@@ -641,6 +642,7 @@ header .pfp,header .who{cursor:pointer}
       <button type="button" role="menuitem" data-a="inv"><svg viewBox="0 0 24 24"><path d="M6 8h12l1 12H5L6 8zM9 8V6.5a3 3 0 016 0V8"/></svg><span>Inventory</span><em id="plusinv" class="hide"></em></button>
       <button type="button" role="menuitem" data-a="scn"><svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="10.5" rx="1.6"/><path d="M4.8 10L4 6.3a1.6 1.6 0 011.2-1.9l12.6-2.6a1.6 1.6 0 011.9 1.2L20.4 7"/></svg><span>Skenario Skrip</span></button>
       <button type="button" role="menuitem" data-a="scene" class="hide"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3 16l4.5-4.5 3.5 3.5 3-3L21 17"/><circle cx="15.5" cy="9.5" r="1.6"/></svg><span>Scene Capture</span></button>
+      <button type="button" role="menuitem" data-a="img" class="hide"><svg viewBox="0 0 24 24"><path d="M21.4 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg><span>Kirim Gambar</span></button>
     </div>
   </footer>
   </div>
@@ -1101,7 +1103,7 @@ async function restoreChat(id,tok){
     l.forEach((e,i)=>{
       const ks=keysOf(e), takes=[];
       ks.forEach((k,j)=>{ const a=recs[i][j]; if(a&&a.ab){ const u=URL.createObjectURL(new Blob([a.ab],{type:'audio/mpeg'})); urls.push(u); takes.push({url:u,dur:a.dur,bins:a.bins,k}); } });
-      if(e.r==='me') addText(e.x,e.t);
+      if(e.r==='me'){ if(e.img&&window.VISION) VISION.render(e); else addText(e.x,e.t); } /* Vision: pesan gambar (public/vision.js); biasa -> teks saja */
       else if(e.r==='scene'&&e.u){ if(window.SCENE&&SCENE.render) SCENE.render(e); else addThem('[ilustrasi adegan]',e.t); } /* Scene Capture: lampiran gambar (public/scene.js); fallback teks kalau filenya gagal dimuat */
       else if(e.r==='vn'&&takes.length){ const si=Math.max(0,takes.findIndex(x=>x.k===ks[e.si||0])); addVN({id:e.x,jp:e.jp,lang:e.lang,vn:e.vn,si},takes,e.t); }
       else if(e.r==='vn'&&e.vn) addThemNoAudio(id,e); /* audio nggak ada di perangkat ini (mis. dari sinkron akun) -> teks + tombol buat bikin voice note */
@@ -1134,15 +1136,18 @@ async function decode(ab){
   }catch(e){ return {bins:null,dur:null,url}; }
 }
 
-/* Indikator "berpikir" selama menunggu ChatGPT: teks acak, ganti tiap 3-5 detik (bubble + status header) */
+/* Indikator "berpikir" selama menunggu ChatGPT: teks acak, ganti tiap 3-5 detik (bubble + status header).
+   vision=true -> variasi teks khusus saat AI sedang membaca gambar (public/vision.js) */
 const THINK=['{n} sedang berpikir','{n} lagi mikir jawaban','{n} sedang menyusun kata-kata','{n} sedang memikirkan balasan','{n} sedang mencari kata yang pas','{n} lagi mikir sebentar','{n} sedang merangkai jawaban'];
-function thinkBubble(name){
+const VTHINK=['{n} sedang melihat gambarmu','{n} sedang memeriksa gambarnya','{n} menatap gambarnya sambil mikir','{n} sedang memahami isinya'];
+function thinkBubble(name,vision){
   const row=document.createElement('div'); row.className='row them';
   row.innerHTML='<div class="think"><span class="think-t"></span><div class="typing-b"><i></i><i></i><i></i></div></div>';
   const tx=row.querySelector('.think-t'); let last=-1, tm;
+  const pool=vision?VTHINK:THINK;
   const tick=()=>{
-    let i; do{ i=Math.floor(Math.random()*THINK.length); }while(i===last&&THINK.length>1);
-    last=i; const t=THINK[i].replace('{n}',name);
+    let i; do{ i=Math.floor(Math.random()*pool.length); }while(i===last&&pool.length>1);
+    last=i; const t=pool[i].replace('{n}',name);
     tx.textContent=t; tx.style.animation='none'; void tx.offsetWidth; tx.style.animation=''; /* ulang animasi fade */
     scroll(); /* status di bawah nama sengaja tidak diubah: tetap biasa (online) */
     tm=setTimeout(tick,3000+Math.random()*2000);
@@ -1191,22 +1196,38 @@ async function speakReply(chId,r,lang,t){
 
 async function submit(opt){
   const gf=opt&&opt.gift?opt:null; /* kiriman hadiah dari shop.js: teks bubble sudah jadi, input chat tidak disentuh */
-  const text=gf?gf.text:inp.value.trim();
   if(!gf&&window.GX&&GX.cur) return GX.submit(); /* layar grup: mesin giliran ada di group.js */
   if(!gf&&window.SHOP&&SHOP.has()) return SHOP.send(inp.value.trim()); /* ada hadiah di kotak ketik: kirim hadiah + ketikan user sekaligus (shop.js) */
   if(!gf&&window.SCENE&&SCENE.has()) return SCENE.send(inp.value.trim()); /* ada lampiran Scene Capture (scene.js): ketikan (boleh kosong) jadi prompt ilustrasi, bukan pesan chat */
+  const vf=!gf&&window.VISION?VISION.take():null; /* ada lampiran gambar (vision.js): diambil SETELAH intercept lain supaya tidak bertumpuk; caption boleh kosong (gambar saja) */
+  const text=gf?gf.text:(vf?vf.text:inp.value.trim());
   /* pesan rahasia ke Reze: dicegat di sini, TIDAK dikirim ke server (tanpa ChatGPT, tanpa Fish Audio) dan pesannya dibuang: tidak jadi bubble, tidak dicatat */
   if(!gf&&text&&ch&&ch.id==='reze'&&tryDev(text)){ inp.value=''; grow(); refresh(); clearTimeout(draftT); store.set('draft:'+ch.id,null); return; } /* kode mode dev: dicegat di browser, tidak dikirim dan tidak dicatat */
   if(!gf&&text&&ch&&window.GX&&GX.trySecret(text)){ inp.value=''; grow(); refresh(); clearTimeout(draftT); store.set('draft:'+ch.id,null); return; }
-  if(busy||!text||!ch||!ready||selOn){ inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake'); return; }
-  busy=true; hideGoon(); if(!gf){ inp.value=''; grow(); } refresh(); addText(text);
-  const chId=ch.id; record(chId,{r:'me',x:text}); if(!gf){ clearTimeout(draftT); store.set('draft:'+chId,null); }
+  if(busy||(!text&&!gf&&!vf)||!ch||!ready||selOn){ inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake'); if(vf)VISION.untake(vf); return; }
+  busy=true; hideGoon(); if(!gf){ inp.value=''; grow(); } refresh();
+  if(!vf) addText(text); /* pesan gambar: bubble-nya menunggu deskripsi berhasil supaya bisa dibatalkan bersih */
+  const chId=ch.id; if(!vf) record(chId,{r:'me',x:text}); if(!gf){ clearTimeout(draftT); store.set('draft:'+chId,null); }
   const useVoice=voiceOn&&!!vcode, lang=voiceLang; let okReply=false, relNote='', lastReply='';
-  let t=thinkBubble(ch.name); /* fase 1: ChatGPT lagi mikir */
+  let t=thinkBubble(ch.name,!!vf); /* fase 1 (vision): AI membaca gambar dulu; sisanya: ChatGPT lagi mikir */
+  let vd=''; /* deskripsi gambar dari /api/vision -> jadi konteks di /api/chat */
+  if(vf){
+    try{
+      const vr=await (await post('/api/vision',{clientId:cid,char:chId,image:vf.full})).json();
+      vd=String(vr&&vr.desc||'').slice(0,800);
+      if(!vd) throw new Error('deskripsi kosong');
+    }catch(e){ /* gagal membaca gambar: pesan batal, lampiran + ketikan dikembalikan */
+      t.remove(); toast('Gagal membaca gambar: '+(e.message||'coba lagi'));
+      VISION.untake(vf); inp.value=text; grow(); busy=false; refresh(); return;
+    }
+    const vt=Date.now(); /* deskripsi berhasil -> pesan user (gambar + caption) masuk chat + log */
+    if(ch&&ch.id===chId&&app.classList.contains('open')&&!(window.GX&&GX.cur)) VISION.render({img:vf.thumb,x:text,t:vt});
+    record(chId,{t:vt,r:'me',x:text,img:vf.thumb,vd});
+  }
   try{
     const hist=loadHist(ch.id);
-    const r=await (await post('/api/chat',{clientId:cid,char:ch.id,message:text,userName:uname,history:hist,voice:{on:useVoice,lang},memory:memUse(chId).list,rel:relPayload(chId),...engPayload(),...(rpOn()?{rp:true}:{}),...(gf?{gift:{items:gf.items,...(gf.say?{text:gf.say}:{})}}:{}),...(window.SCN?SCN.body(chId):{})},window.SCN?SCN.headers():{})).json();
-    saveHist(chId,[...loadHist(chId),['user',gf?gf.hist:text],['char',r.id]]); okReply=true; lastReply=r.id;
+    const r=await (await post('/api/chat',{clientId:cid,char:ch.id,message:text,userName:uname,history:hist,voice:{on:useVoice,lang},memory:memUse(chId).list,rel:relPayload(chId),...engPayload(),...(rpOn()?{rp:true}:{}),...(vd?{vision:vd}:{}),...(gf?{gift:{items:gf.items,...(gf.say?{text:gf.say}:{})}}:{}),...(window.SCN?SCN.body(chId):{})},window.SCN?SCN.headers():{})).json();
+    saveHist(chId,[...loadHist(chId),['user',vf?('[mengirim gambar: '+vd.slice(0,350)+']'+(text?' '+text:'')):gf?gf.hist:text],['char',r.id]]); okReply=true; lastReply=r.id;
     relNote=gf?(gf.note||''):relApply(chId,r.dExp!=null?r.dExp:(Math.round(Number(r.dRel))||0)*3,r.dMood); /* hadiah: EXP/mood sudah dihitung server (shop.js), angka penilaian AI diabaikan supaya tidak dobel */ /* hubungan & mood: angka dari balasan AI (sudah di-clamp server) */ /* baca ulang h: karena peringkasan di latar bisa saja baru membuang bagian lamanya */
     if(!useVoice){ t.remove(); showThem(chId,r.id); }
     else{
@@ -1223,7 +1244,7 @@ async function submit(opt){
   placeGoon();
 }
 
-function refresh(){ sendB.disabled=busy||(!inp.value.trim()&&!(window.SHOP&&SHOP.has())&&!(window.SCENE&&SCENE.has())); } /* ada lampiran hadiah/shop.js atau ilustrasi/scene.js = boleh kirim walau teks kosong */
+function refresh(){ sendB.disabled=busy||(!inp.value.trim()&&!(window.SHOP&&SHOP.has())&&!(window.SCENE&&SCENE.has())&&!(window.VISION&&VISION.has())); } /* ada lampiran hadiah/shop.js, ilustrasi/scene.js, atau gambar/vision.js = boleh kirim walau teks kosong */
 /* kolom ketik membesar sesuai isi (maks ±5 baris) */
 /* Saat layar chat tersembunyi (display:none, mis. tab Beranda di desktop) scrollHeight = 0; jangan dikunci jadi 0px, kembalikan ke tinggi CSS (44px) */
 function grow(){ inp.style.height='auto'; const h=inp.scrollHeight; inp.style.height=h?Math.min(Math.max(h,44),136)+'px':''; }
@@ -2473,6 +2494,7 @@ window.addEventListener('shell:tab',e=>{ if(e.detail==='home') renderCont(); });
 <script src="/profile.js"></script>
 <script src="/shop.js"></script>
 <script src="/scene.js"></script>
+<script src="/vision.js"></script>
 <script src="/tools/tools.js"></script>
 <script src="/router.js"></script>
 </body>

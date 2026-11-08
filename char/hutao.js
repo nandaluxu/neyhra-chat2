@@ -7,6 +7,7 @@ export default {
   avatar: '/assets/hutao.jpg',
   voiceId: '3eb4b5e19fcd4287abeff2364d13dd2a',
   refImg: 'https://n.uguu.se/Omvtkwqj.jpg',
+  vision: true, // bisa melihat gambar yang dikirim user (fitur Vision, lihat lib/vision.js)
   prompt: `Kamu berperan sebagai Hu Tao dari game "Genshin Impact".
 
 Identitas:
