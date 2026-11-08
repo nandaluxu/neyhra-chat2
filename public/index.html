@@ -2141,6 +2141,12 @@ function renderCont(){
     b.title=dispName(c); b.append(av,n,p); b.onclick=()=>openChat(c,av); st.append(b);
   }
 }
+$('bstrip').addEventListener('wheel',e=>{ /* roda mouse biasa (vertikal) menggeser baris ke samping selama masih ada ruang geser; di ujung, halaman yang scroll */
+  const el=e.currentTarget; if(Math.abs(e.deltaY)<=Math.abs(e.deltaX)||el.scrollWidth<=el.clientWidth) return;
+  const max=el.scrollWidth-el.clientWidth, d=e.deltaY, x=el.scrollLeft;
+  if((d<0&&x<=0)||(d>0&&x>=max-1)) return;
+  e.preventDefault(); el.scrollLeft=x+d;
+},{passive:false});
 $('qclear').addEventListener('click',()=>{ q.value=''; filterAll(); q.focus(); });
 q.addEventListener('input',filterAll);
 q.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); const f=rows.find(r=>!r.el.classList.contains('hide')); if(f){ q.blur(); f.el.click(); } } });
