@@ -182,6 +182,7 @@ function replyQuote(m, find) {
   q.append(el('b', null, src ? src.senderName : 'Pesan asli tidak tersedia'), el('span', null, src ? clip(src.text) : ''));
   return q;
 }
+const canReply = m => m.status !== 'sending' && m.status !== 'failed' && !String(m.id).startsWith('tmp-');
 function bubble(m, o, find) {
   const r = el('div', 'gc-msg ' + (o.mine ? 'me' : 'them') + (o.first ? ' first' : '') + (o.last ? ' last' : '') + (o.fresh ? ' new' : '') + (m.status === 'sending' ? ' sending' : '') + (m.status === 'failed' ? ' failed' : ''));
   r.dataset.id = m.id;
@@ -191,7 +192,8 @@ function bubble(m, o, find) {
   if (m.replyTo) b.append(replyQuote(m, find));
   b.append(el('div', 'gc-t', m.text), meta(m, o.mine));
   const del = el('button', 'gc-del'); del.type = 'button'; del.dataset.del = m.id; del.title = 'Hapus pesan (dev)'; del.setAttribute('aria-label', 'Hapus pesan ini (dev)'); del.innerHTML = I.trash;
-  if (o.last) { const re = el('button', 'gc-re'); re.type = 'button'; re.dataset.reply = m.id; re.title = 'Balas'; re.setAttribute('aria-label', 'Balas pesan ' + (o.mine ? 'milikmu' : 'dari ' + m.senderName)); re.innerHTML = I.re; if (o.mine) r.append(del, re, b); else r.append(b, re, del); }
+  // Semua pesan bisa dibalas (tombol muncul saat hover/fokus di desktop; di layar sentuh pakai geser ke kanan). Pesan yang belum terkirim belum punya id server, jadi belum bisa dibalas.
+  if (canReply(m)) { const re = el('button', 'gc-re'); re.type = 'button'; re.dataset.reply = m.id; re.title = 'Balas'; re.setAttribute('aria-label', 'Balas pesan ' + (o.mine ? 'milikmu' : 'dari ' + m.senderName)); re.innerHTML = I.re; if (o.mine) r.append(del, re, b); else r.append(b, re, del); }
   else if (o.mine) r.append(del, b); else r.append(b, del);
   return r;
 }
@@ -320,6 +322,61 @@ gc.addEventListener('click', e => {
     t.classList.add('arm'); armed.set(t, setTimeout(() => { armed.delete(t); t.classList.remove('arm'); }, 2500)); toast('Tap lagi untuk hapus pesan');
   }
 });
+
+/* ---------- Geser ke kanan untuk membalas ----------
+   Sentuh (HP/tablet): geser pesan mana pun ke kanan. Mouse (desktop): tahan dan seret ke kanan dari bagian pesan selain teksnya, supaya teks tetap bisa diseleksi
+   dengan seret. Lewat ambang (SW_GO) lalu dilepas = balas pesan itu; kurang dari itu = pesan kembali ke tempatnya. Gerak yang lebih banyak vertikal tetap
+   menggulir daftar seperti biasa (setiap pesan memakai touch-action: pan-y, jadi geser horizontal sampai ke sini). */
+const SW_GO = 56, SW_MAX = 84, SW_LOCK = 10;
+let sw = null, swQuiet = 0;
+const swClear = (animate) => {
+  if (!sw) return;
+  const { row } = sw; sw = null; list.classList.remove('swiping');
+  if (row.isConnected) {
+    row.classList.remove('swp', 'swr');
+    if (animate) { row.classList.add('swb'); row.style.transform = ''; setTimeout(() => { row.classList.remove('swb'); const i = row.querySelector('.gc-swi'); if (i) i.remove(); }, 260); }
+    else { row.style.transform = ''; const i = row.querySelector('.gc-swi'); if (i) i.remove(); }
+  }
+};
+list.addEventListener('pointerdown', e => {
+  if (sw || !e.isPrimary || e.button > 0) return;
+  const row = e.target.closest && e.target.closest('.gc-msg'); if (!row || !row.dataset.id) return;
+  if (row.classList.contains('sending') || row.classList.contains('failed') || String(row.dataset.id).startsWith('tmp-')) return;
+  if (e.target.closest('button,a,.gc-q')) return;
+  if (e.pointerType === 'mouse' && e.target.closest('.gc-t')) return; // teks tetap bisa diseleksi dengan mouse
+  sw = { id: e.pointerId, row, x: e.clientX, y: e.clientY, on: false, ready: false };
+});
+list.addEventListener('pointermove', e => {
+  if (!sw || e.pointerId !== sw.id) return;
+  const dx = e.clientX - sw.x, dy = e.clientY - sw.y;
+  if (!sw.on) {
+    if (Math.abs(dy) > SW_LOCK && Math.abs(dy) >= Math.abs(dx)) { sw = null; return; }  // menggulir vertikal
+    if (dx < -SW_LOCK) { sw = null; return; }                                           // ke kiri: bukan gestur balas
+    if (dx < SW_LOCK || dx < Math.abs(dy) * 1.5) return;                                 // belum jelas arahnya
+    sw.on = true; list.classList.add('swiping'); sw.row.classList.add('swp');
+    try { sw.row.setPointerCapture(e.pointerId); } catch {}
+    if (window.getSelection) getSelection().removeAllRanges();
+    const i = el('span', 'gc-swi'); i.setAttribute('aria-hidden', 'true'); i.innerHTML = I.re; sw.row.append(i);
+  }
+  const d = Math.max(0, Math.min(SW_MAX, dx - SW_LOCK));
+  sw.row.style.transform = 'translateX(' + d + 'px)';
+  const prog = Math.min(1, d / SW_GO), ico = sw.row.querySelector('.gc-swi');
+  if (ico) { ico.style.opacity = prog; ico.style.transform = 'scale(' + (0.6 + 0.4 * prog) + ')'; }
+  const ready = d >= SW_GO;
+  if (ready !== sw.ready) { sw.ready = ready; sw.row.classList.toggle('swr', ready); if (ready && e.pointerType !== 'mouse' && navigator.vibrate) navigator.vibrate(10); }
+});
+const swEnd = e => {
+  if (!sw || e.pointerId !== sw.id) return;
+  const was = sw.on, go = sw.on && sw.ready && e.type === 'pointerup', id = sw.row.dataset.id;
+  swClear(true);
+  if (was) swQuiet = Date.now(); // klik yang menyusul setelah seret jangan dianggap ketukan
+  if (go) { const m = A.getState().messages.find(x => x.id === id); if (m) setReply(m); }
+};
+list.addEventListener('pointerup', swEnd);
+list.addEventListener('pointercancel', swEnd);
+list.addEventListener('click', e => { if (Date.now() - swQuiet < 350) { e.stopPropagation(); e.preventDefault(); } }, true);
+list.addEventListener('selectstart', e => { if (sw && sw.on) e.preventDefault(); });
+
 /* quote = elemen fokusable (keyboard): Enter/Space lompat ke pesan asal */
 gc.addEventListener('keydown', e => {
   if (e.key !== 'Enter' && e.key !== ' ') return;
