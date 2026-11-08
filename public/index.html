@@ -2115,7 +2115,8 @@ function card(c){
   const av=document.createElement('span'); av.className='b-av';
   const im=img(c); im.loading='lazy'; im.decoding='async'; av.append(im, document.createElement('i'));
   const n=document.createElement('span'); n.className='b-name'; n.textContent=shortName(c); b.title=c.name;
-  b.append(av,n); b.onclick=()=>openChat(c,av); /* openChat sendiri memindahkan tab ke 'recent' */
+  const tg=document.createElement('span'); tg.className='b-tag'; tg.textContent=c.tagline||'';
+  b.append(av,n,tg); b.onclick=()=>openChat(c,av); /* openChat sendiri memindahkan tab ke 'recent' */
   return b;
 }
 let rows=[]; /* [{c, el}] tile di Beranda, dibuat sekali lalu cuma disembunyikan/ditampilkan saat mencari */
@@ -2130,7 +2131,7 @@ q.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); const
 function renderList(){ if(window.Shell) Shell.renderRecent(); } /* semua pemanggil lama (termasuk group.js) otomatis memperbarui daftar baru */
 fetch('/api/chars').then(r=>r.json()).then(cs=>{
   allChars=cs;
-  rows=cs.map(c=>({c,el:card(c)})); $('alllist').append(...rows.map(r=>r.el));
+  rows=cs.map((c,i)=>{ const el=card(c); el.style.setProperty('--i',Math.min(i,12)); return {c,el}; }); $('alllist').append(...rows.map(r=>r.el));
   $('allcount').textContent=cs.length+' karakter';
   renderList();
   if(window.GX) GX.paintAll();

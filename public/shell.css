@@ -300,3 +300,23 @@
   .mn-item:last-child{margin-top:auto}
   #app.open #mnav,#app.open #mscrim{display:none}
 }
+
+/* ---------- Beranda: kartu karakter potret (foto penuh + nama & tagline di atas gradasi) ---------- */
+.bgrid{grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:12px}
+.b-tile{position:relative;display:block;padding:0;gap:0;border-radius:24px;overflow:hidden;aspect-ratio:3/4;background:var(--surface);isolation:isolate;
+        text-align:left;animation:b-in .5s cubic-bezier(.2,.9,.3,1) both;animation-delay:calc(var(--i,0) * 40ms);
+        box-shadow:0 1px 2px rgba(0,0,0,.06);transition:transform .3s cubic-bezier(.2,.9,.3,1.2),box-shadow .3s}
+@media(hover:hover){.b-tile:hover{background:var(--surface);transform:translateY(-4px);box-shadow:0 14px 30px rgba(0,0,0,.18)}
+                    .b-tile:hover .b-av img{transform:scale(1.07)}}
+.b-tile:active{transform:scale(.97)}
+.b-tile::after{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;
+               background:linear-gradient(to top,rgba(0,0,0,.78) 0%,rgba(0,0,0,.35) 38%,rgba(0,0,0,0) 62%)}
+.b-av{position:absolute;inset:0;width:auto;height:auto}
+.b-av img{border-radius:0;object-position:center 22%;transition:transform .6s cubic-bezier(.2,.9,.3,1)}
+.b-av i{right:auto;left:auto;top:10px;right:10px;bottom:auto;width:11px;height:11px;border:2px solid rgba(255,255,255,.95);z-index:2;box-shadow:0 0 0 3px rgba(0,0,0,.18)}
+.b-name{position:absolute;left:14px;right:14px;bottom:30px;z-index:2;max-width:none;text-align:left;color:#fff;font-size:16px;font-weight:650;letter-spacing:-.02em;text-shadow:0 1px 8px rgba(0,0,0,.35)}
+.b-tag{position:absolute;left:14px;right:14px;bottom:12px;z-index:2;color:rgba(255,255,255,.78);font-size:11.5px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.b-tile:focus-visible{outline-offset:3px}
+@keyframes b-in{from{opacity:0;transform:translateY(14px) scale(.97)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.b-tile{animation:none}.b-av img{transition:none}}
+@media(max-width:799px){.bgrid{gap:10px}.b-name{font-size:15px;left:12px;right:12px}.b-tag{left:12px;right:12px}}
