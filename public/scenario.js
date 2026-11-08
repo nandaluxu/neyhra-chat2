@@ -65,10 +65,12 @@
   $('app').appendChild(modal)
   const panel = { modal, list: $('scn-list'), editor: $('scn-editor'), lstat: $('scn-lstat'), cards: $('scn-cards'), quota: $('scn-quota'), add: $('scn-add') }
 
-  /* ---------- Tombol clapperboard di footer (index.html) ---------- */
+  /* ---------- Tombol clapperboard di footer (index.html) ----------
+     Skenario Skrip = fitur roleplay: hanya tampil saat Mode roleplay aktif di Pengaturan. */
   const btn = $('scnbtn')
+  const rpReady = () => (typeof rpOn === 'function' ? rpOn() : true) /* guard kalau file ini ke-load sebelum index.html (tidak seharusnya) */
   function paintBtn() {
-    const on = !!(app.classList.contains('open') && ch && !(window.GX && GX.cur))
+    const on = !!(app.classList.contains('open') && ch && !(window.GX && GX.cur) && rpReady())
     const act = !!(on && S.active && S.active.charId === ch.id)
     btn.classList.toggle('hide', !on)
     btn.classList.toggle('on', act)
@@ -78,16 +80,18 @@
 
   /* ---------- Bar tipis skenario aktif ---------- */
   function paintBar() {
-    const on = !!(S.active && ch && S.active.charId === ch.id && app.classList.contains('open') && !(window.GX && GX.cur))
+    const on = !!(S.active && ch && S.active.charId === ch.id && app.classList.contains('open') && !(window.GX && GX.cur) && rpReady())
     bar.classList.toggle('show', on)
     if (on) $('scnbar-t').textContent = 'Skenario aktif: ' + S.active.title
     paintBtn()
   }
   $('scnend').onclick = () => endScenario()
 
-  /* ---------- Panel: buka/tutup ---------- */
+  /* ---------- Panel: buka/tutup (selalu dalam konteks karakter yang sedang dibuka) ---------- */
   function openPanel() {
     if (!ch || (window.GX && GX.cur)) return
+    $('scntitle').textContent = 'Skenario Skrip'
+    $('scn-desc').textContent = 'Buat cerita unik anda sendiri bersama ' + (ch.name || 'karakter ini') + ' dalam adegan bebas.'
     modal.classList.remove('hide')
     showList()
     if (!tok()) { renderNeedLogin(); return }
@@ -151,7 +155,7 @@
     if (!tok()) { renderNeedLogin(); return }
     renderStat('load')
     try {
-      const r = await scnApi('list')
+      const r = await scnApi('list', ch ? { charId: ch.id } : {}) /* per karakter: hanya skrip milik karakter yang sedang dibuka */
       S.scripts = r.scripts
       S.quota = r.quota
       paintQuota()
@@ -204,7 +208,7 @@
 
   async function deleteScript(s) {
     try {
-      const r = await scnApi('delete', { id: s.id })
+      const r = await scnApi('delete', { id: s.id, ...(ch ? { charId: ch.id } : {}) })
       S.quota = r.quota
       toast('Skrip dihapus, satu slot kembali')
       refreshList()
@@ -426,7 +430,7 @@
   async function syncState() {
     if (!tok()) { S.active = null; paintBar(); return }
     try {
-      const r = await scnApi('state')
+      const r = await scnApi('state', ch ? { charId: ch.id } : {}) /* skenario aktif PER KARAKTER (lib/scenario.js) */
       S.active = r.active || null
     } catch { return } /* gagal cek state: diam saja, jangan ganggu obrolan */
     if (S.active && ch && S.active.charId === ch.id && app.classList.contains('open') && !(window.GX && GX.cur)) {
@@ -453,9 +457,10 @@
 
   /* ---------- Jembatan ke submit() di index.html ---------- */
   window.SCN = {
-    body(id) { return S.active && S.active.charId === id ? { scenario: S.active.id } : {} },
+    /* skenario hanya aktif saat Mode roleplay menyala — mati roleplay = balik ke chat biasa (state tetap tersimpan di server) */
+    body(id) { return rpReady() && S.active && S.active.charId === id ? { scenario: S.active.id } : {} },
     headers() { return tok() ? { Authorization: 'Bearer ' + tok() } : {} },
-    activeFor(id) { return !!(S.active && S.active.charId === id) },
+    activeFor(id) { return !!(rpReady() && S.active && S.active.charId === id) },
     /* dipanggil submit() saat request chat gagal: error skenario -> bersihkan state lokal */
     onErr(e) {
       if (!e || !e.scn) return
@@ -465,6 +470,10 @@
     },
     refresh: syncState
   }
+
+  /* Mode roleplay (Pengaturan) dinyalakan/dimatikan saat chat terbuka -> tampilkan/sembunyikan semua UI skenario */
+  const srp = $('srp')
+  if (srp) srp.addEventListener('change', () => { paintBar() })
 
   paintBtn()
 })()

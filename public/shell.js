@@ -68,6 +68,7 @@ function charPrev(id) {
   const l = loadLog(id), e = l[l.length - 1];
   if (!e) return { text: 'Belum ada pesan', t: 0 };
   if (e.ks || e.k) return { mic: true, text: 'Voice note', t: e.t || 0 };
+  if (e.r === 'scene') return { text: 'Ilustrasi adegan', t: e.t || 0 }; /* lampiran Scene Capture (public/scene.js) */
   const x = String(e.x || '').replace(/\*/g, '').replace(/\s+/g, ' ').trim();
   return { text: (e.r === 'me' ? 'Kamu: ' : '') + x, t: e.t || 0 };
 }

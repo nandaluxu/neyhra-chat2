@@ -1,0 +1,21 @@
+/* ===== Scene Capture: lampiran ilustrasi adegan di percakapan (public/scene.js) =====
+   Ikut gaya bubble chat: .bub untuk lingkaran luar, .ts untuk waktu, .typing-b dipakai ulang
+   untuk indikator "menggambar adegan". */
+
+/* bubble gambar: nempel di sisi karakter (row them), lebar mengikuti foto chat */
+.scene-b{padding:6px 6px 4px;max-width:min(78vw,300px)}
+.scene-b img{display:block;width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:14px;background:var(--surface);cursor:zoom-in;animation:in .25s ease-out}
+.scene-b img:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.scene-f{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 6px 2px}
+.scene-cap{font-size:11.5px;font-weight:600;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.scene-b .ts{padding:0;flex:none}
+
+/* indikator loading: bubble kecil + titik berkedip (typing-b dipakai ulang) */
+.scene-load{display:flex;align-items:center;gap:10px;max-width:100%}
+.scene-load .think-t{font-size:13px;color:var(--mut)}
+
+/* saat mode seleksi pesan aktif, gambar ikut meredup seperti bubble lain (selmode ada di index.html) */
+#chatview.selmode .scene-b img{filter:brightness(.75)}
+#chatview.selmode .scene-b img{cursor:default}
+
+@media(prefers-reduced-motion:reduce){.scene-b img{animation:none}}

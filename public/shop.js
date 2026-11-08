@@ -93,16 +93,28 @@ body.addEventListener('click', e => {
 
 /* ---------- Menu "+" di kolom ketik ---------- */
 const plus = $('plusbtn'), pmenu = $('plusmenu'), scn = $('scnbtn');
-function syncPlus() { /* ikut status tombol skenario lama (tampil hanya di chat 1-lawan-1; titik hijau = skenario aktif) */
-  plus.classList.toggle('hide', scn.classList.contains('hide'));
+const scnItem = pmenu.querySelector('[data-a="scn"]'), sceneItem = pmenu.querySelector('[data-a="scene"]');
+function syncPlus() { /* tombol + tetap ada di semua chat 1-lawan-1 (Inventory selalu tersedia); titik hijau = skenario aktif.
+  Yang menyesuaikan adalah item di dalamnya (paintPlusItems): Skenario Skrip hanya saat Mode roleplay aktif
+  (lihat public/scenario.js), Scene Capture hanya untuk karakter yang punya gambar referensi (ch.scene). */
+  const on = !!(app.classList.contains('open') && ch && !(window.GX && GX.cur));
+  plus.classList.toggle('hide', !on);
   plus.classList.toggle('scn-on', scn.classList.contains('on'));
-  if (plus.classList.contains('hide')) closePlus();
+  if (!on) closePlus();
 }
 new MutationObserver(syncPlus).observe(scn, { attributes: true, attributeFilter: ['class'] });
+new MutationObserver(syncPlus).observe(app, { attributes: true, attributeFilter: ['class'] }); /* buka/tutup layar chat */
 syncPlus();
+function paintPlusItems() { /* dipanggil tiap menu dibuka dan saat chat berpindah karakter */
+  const rp = typeof rpOn === 'function' ? rpOn() : true;
+  if (scnItem) scnItem.classList.toggle('hide', !rp);
+  if (sceneItem) sceneItem.classList.toggle('hide', !(ch && ch.scene && !(window.GX && GX.cur)));
+}
+new MutationObserver(paintPlusItems).observe($('hname'), { childList: true, characterData: true, subtree: true });
 function openPlus() {
   $('plusinv').textContent = S ? invTotal() : '';
   $('plusinv').classList.toggle('hide', !S);
+  paintPlusItems();
   pmenu.classList.remove('hide'); plus.setAttribute('aria-expanded', 'true');
   if (atok && !S) load(false);
 }
@@ -113,7 +125,9 @@ pmenu.addEventListener('pointerdown', e => e.preventDefault());
 pmenu.addEventListener('click', e => {
   const b = e.target.closest('button[data-a]'); if (!b) return;
   closePlus();
-  if (b.dataset.a === 'inv') openInv(); else if (b.dataset.a === 'scn') scn.click();
+  if (b.dataset.a === 'inv') openInv();
+  else if (b.dataset.a === 'scn') scn.click();
+  else if (b.dataset.a === 'scene' && window.SCENE) SCENE.manual(); /* langsung memproses adegan, TANPA overlay (public/scene.js) */
 });
 document.addEventListener('pointerdown', e => { if (!pmenu.classList.contains('hide') && !e.target.closest('#plusmenu,#plusbtn')) closePlus(); }, true);
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !pmenu.classList.contains('hide')) { e.stopPropagation(); closePlus(); plus.focus({ preventScroll: true }); } }, true);

@@ -500,6 +500,7 @@ header .pfp,header .who{cursor:pointer}
 <link rel="stylesheet" href="/shop.css">
 <link rel="stylesheet" href="/tools/tools.css">
 <link rel="stylesheet" href="/scenario.css">
+<link rel="stylesheet" href="/scene.css">
 <link rel="stylesheet" href="/profile.css">
 </head>
 <body>
@@ -639,6 +640,7 @@ header .pfp,header .who{cursor:pointer}
     <div id="plusmenu" class="hide" role="menu" aria-label="Menu tambahan">
       <button type="button" role="menuitem" data-a="inv"><svg viewBox="0 0 24 24"><path d="M6 8h12l1 12H5L6 8zM9 8V6.5a3 3 0 016 0V8"/></svg><span>Inventory</span><em id="plusinv" class="hide"></em></button>
       <button type="button" role="menuitem" data-a="scn"><svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="10.5" rx="1.6"/><path d="M4.8 10L4 6.3a1.6 1.6 0 011.2-1.9l12.6-2.6a1.6 1.6 0 011.9 1.2L20.4 7"/></svg><span>Skenario Skrip</span></button>
+      <button type="button" role="menuitem" data-a="scene" class="hide"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3 16l4.5-4.5 3.5 3.5 3-3L21 17"/><circle cx="15.5" cy="9.5" r="1.6"/></svg><span>Scene Capture</span></button>
     </div>
   </footer>
   </div>
@@ -1100,6 +1102,7 @@ async function restoreChat(id,tok){
       const ks=keysOf(e), takes=[];
       ks.forEach((k,j)=>{ const a=recs[i][j]; if(a&&a.ab){ const u=URL.createObjectURL(new Blob([a.ab],{type:'audio/mpeg'})); urls.push(u); takes.push({url:u,dur:a.dur,bins:a.bins,k}); } });
       if(e.r==='me') addText(e.x,e.t);
+      else if(e.r==='scene'&&e.u){ if(window.SCENE&&SCENE.render) SCENE.render(e); else addThem('[ilustrasi adegan]',e.t); } /* Scene Capture: lampiran gambar (public/scene.js); fallback teks kalau filenya gagal dimuat */
       else if(e.r==='vn'&&takes.length){ const si=Math.max(0,takes.findIndex(x=>x.k===ks[e.si||0])); addVN({id:e.x,jp:e.jp,lang:e.lang,vn:e.vn,si},takes,e.t); }
       else if(e.r==='vn'&&e.vn) addThemNoAudio(id,e); /* audio nggak ada di perangkat ini (mis. dari sinkron akun) -> teks + tombol buat bikin voice note */
       else addThem(e.x,e.t); /* audio sudah dibuang -> tampil sebagai teks */
@@ -1197,12 +1200,12 @@ async function submit(opt){
   if(busy||!text||!ch||!ready||selOn){ inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake'); return; }
   busy=true; hideGoon(); if(!gf){ inp.value=''; grow(); } refresh(); addText(text);
   const chId=ch.id; record(chId,{r:'me',x:text}); if(!gf){ clearTimeout(draftT); store.set('draft:'+chId,null); }
-  const useVoice=voiceOn&&!!vcode, lang=voiceLang; let okReply=false, relNote='';
+  const useVoice=voiceOn&&!!vcode, lang=voiceLang; let okReply=false, relNote='', lastReply='';
   let t=thinkBubble(ch.name); /* fase 1: ChatGPT lagi mikir */
   try{
     const hist=loadHist(ch.id);
     const r=await (await post('/api/chat',{clientId:cid,char:ch.id,message:text,userName:uname,history:hist,voice:{on:useVoice,lang},memory:memUse(chId).list,rel:relPayload(chId),...engPayload(),...(rpOn()?{rp:true}:{}),...(gf?{gift:{items:gf.items,...(gf.say?{text:gf.say}:{})}}:{}),...(window.SCN?SCN.body(chId):{})},window.SCN?SCN.headers():{})).json();
-    saveHist(chId,[...loadHist(chId),['user',gf?gf.hist:text],['char',r.id]]); okReply=true;
+    saveHist(chId,[...loadHist(chId),['user',gf?gf.hist:text],['char',r.id]]); okReply=true; lastReply=r.id;
     relNote=gf?(gf.note||''):relApply(chId,r.dExp!=null?r.dExp:(Math.round(Number(r.dRel))||0)*3,r.dMood); /* hadiah: EXP/mood sudah dihitung server (shop.js), angka penilaian AI diabaikan supaya tidak dobel */ /* hubungan & mood: angka dari balasan AI (sudah di-clamp server) */ /* baca ulang h: karena peringkasan di latar bisa saja baru membuang bagian lamanya */
     if(!useVoice){ t.remove(); showThem(chId,r.id); }
     else{
@@ -1212,7 +1215,10 @@ async function submit(opt){
   }catch(e){ t.remove(); toast(e.message); if(window.SCN&&SCN.onErr) SCN.onErr(e); }
   setStatus('online',false); busy=false; refresh();
   if(relNote) toast(relNote);
-  if(okReply) maybeMemorize(chId);
+  if(okReply){
+    maybeMemorize(chId);
+    if(window.SCENE&&SCENE.auto) SCENE.auto(chId,lastReply); /* Scene Capture otomatis: AI menilai setelah balasan tampil (public/scene.js). Maks satu per giliran. */
+  }
   placeGoon();
 }
 
@@ -1510,7 +1516,7 @@ ctxOv.addEventListener('click',e=>{
   const t=Number(ctxRow.dataset.t);
   if(b.dataset.a==='copy'){
     const en=loadLog(ch.id).find(x=>x.t===t);
-    copyText(en?en.x:''); toast('Teks disalin'); closeCtx();
+    copyText(en?(en.u||en.x):''); toast('Teks disalin'); closeCtx(); /* pesan ilustrasi: yang disalin alamat gambarnya */
   }else if(b.dataset.a==='del'){
     if(!ctxArm){ b.classList.add('arm'); b.querySelector('span').textContent='Tap lagi untuk hapus'; ctxArm=setTimeout(()=>{ ctxArm=0; b.classList.remove('arm'); b.querySelector('span').textContent='Hapus pesan ini'; },2600); return; }
     clearTimeout(ctxArm); ctxArm=0;
@@ -2465,6 +2471,7 @@ window.addEventListener('shell:tab',e=>{ if(e.detail==='home') renderCont(); });
 <script src="/scenario.js"></script>
 <script src="/profile.js"></script>
 <script src="/shop.js"></script>
+<script src="/scene.js"></script>
 <script src="/tools/tools.js"></script>
 <script src="/router.js"></script>
 </body>

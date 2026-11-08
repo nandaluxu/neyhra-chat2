@@ -3,6 +3,7 @@ export default {
   name: 'Rem',
   tagline: 'Re:Zero',
   avatar: '/assets/rem.jpg',
+  refImg: '/assets/rem.jpg', // Scene Capture: gambar referensi visual karakter (URL http(s) penuh, atau path '/assets/...' yang diarahkan ke AVATAR_BASE). Tanpa field ini, Scene Capture tidak tersedia untuk karakter ini.
   voiceId: 'eb79df9571014449b42bcd869f86fe0a',
   trait: 'Lembut, sopan, sangat loyal dan penyayang, terutama pada Subaru dan Ram', // satu baris sifat untuk daftar anggota di chat grup
   relations: { // opsional, dipakai di chat grup (hanya yang hadir di grup yang masuk prompt)
