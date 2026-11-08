@@ -239,7 +239,8 @@ mark.cur{background:#ff9f43}
 
 /* ===== Tombol "lanjut ngobrol sendiri" (di samping pesan AI terbaru) ===== */
 #goon{flex:none;align-self:flex-end;width:38px;height:38px;margin-left:6px;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--mut);display:grid;place-items:center;transition:color .15s,border-color .15s,transform .1s;animation:rise2 .3s ease-out}
-#goon svg{width:17px;height:17px}
+#goon{padding:0;line-height:0}
+#goon svg{width:18px;height:18px;stroke-width:2}
 #goon:active{transform:scale(.92)}
 #goon:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 @media(hover:hover){#goon:hover{color:var(--ink);border-color:var(--mut)}}
@@ -1033,8 +1034,16 @@ function trimLog(l){
   while(l.length>LOGMAX){ const o=l.shift(); keysOf(o).forEach(k=>idb.del(k)); }
   let n=0; for(let i=l.length-1;i>=0;i--){ const ks=keysOf(l[i]); if(!ks.length) continue; n+=ks.length; if(n>AUDMAX){ ks.forEach(k=>idb.del(k)); delete l[i].k; delete l[i].ks; delete l[i].si; } } /* voice note lama: audio dibuang, teksnya tetap */
 }
+/* Total pesan terkirim (seumur hidup). Disimpan di 'sent' dan ikut sinkron akun, jadi angkanya TIDAK turun saat obrolan dihapus
+   (dan tidak dihitung dua kali kalau obrolan yang dihapus muncul lagi dari akun). Yang ditampilkan = yang lebih besar antara angka ini dan
+   jumlah pesan 'me' yang ada di log sekarang, supaya obrolan hasil impor/sinkron yang belum pernah terhitung tetap masuk. */
+const mineInLogs=()=>{ let n=0; try{ for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k&&k.startsWith('log:')) for(const e of loadLog(k.slice(4))) if(e.r==='me') n++; } }catch{} return n; };
+const sentSaved=()=>Math.max(0,parseInt(store.get('sent'))||0);
+const sentTotal=()=>Math.max(sentSaved(),mineInLogs());
 function record(id,e){
-  const l=loadLog(id); e.t=e.t||Date.now(); l.push(e); trimLog(l);
+  const l=loadLog(id); e.t=e.t||Date.now();
+  if(e.r==='me') store.set('sent',String(sentTotal()+1)); /* dihitung sebelum entri masuk log, jadi tidak terhitung ganda */
+  l.push(e); trimLog(l);
   store.set('log:'+id,JSON.stringify(l));
   if(window.Shell) Shell.touch();
 }
@@ -1551,7 +1560,7 @@ function placeGoon(){
   const b=document.createElement('button'); b.type='button'; b.id='goon';
   b.title='Suruh '+ch.name+' lanjut bicara sendiri';
   b.setAttribute('aria-label','Suruh '+ch.name+' lanjut bicara sendiri tanpa balasanmu');
-  b.innerHTML='<svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/><path d="M7.5 10.5h9M13 7.5l3 3-3 3"/></svg>';
+  b.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7l5 5-5 5M13 7l5 5-5 5"/></svg>'; /* dua panah ke kanan = lanjut */
   b.onclick=goOn;
   last.append(b); last.classList.add('has-goon');
 }
@@ -1641,7 +1650,7 @@ $('sjson').onclick=async()=>{
     const gd=window.GX&&GX.enabled()?await GX.exportData():{groups:[],nAud:0,nMsg:0}; /* grup + pesan + audio yang sudah dibuat */
     nMsg+=gd.nMsg; nAud+=gd.nAud;
     if(!chars.length&&!gd.groups.length){ setStat('Belum ada obrolan untuk diekspor.'); busyData(false); return; }
-    const blob=new Blob([JSON.stringify({app:'neyhra-chat',version:1,exportedAt:new Date().toISOString(),chars,...(gd.groups.length&&{groups:gd.groups})})],{type:'application/json'}), d=new Date();
+    const blob=new Blob([JSON.stringify({app:'neyhra-chat',version:1,exportedAt:new Date().toISOString(),chars,sent:sentTotal(),...(gd.groups.length&&{groups:gd.groups})})],{type:'application/json'}), d=new Date();
     saveBlob(blob,'neyhra-chat-'+d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0')+'.json');
     setStat('Cadangan disimpan: '+chars.length+' karakter'+(gd.groups.length?', '+gd.groups.length+' grup':'')+', '+nMsg+' pesan, '+nAud+' audio ('+fmtB(blob.size)+').');
   }catch{ setStat('Gagal membuat cadangan.'); }
@@ -1664,6 +1673,7 @@ function cleanEntry(e){ /* file impor itu data tak tepercaya: pastikan bentuknya
 /* Gabungkan data hasil ekspor ke perangkat ini (tidak menimpa yang sudah ada). Dipakai impor file dan sinkron akun. */
 async function applyImport(data){
     let added=0, chN=0, aud=0, memAdded=0;
+    { const n=Math.floor(Number(data.sent)); if(Number.isFinite(n)&&n>sentSaved()&&n<1e9) store.set('sent',String(n)); } /* total terkirim: ambil yang lebih besar */
     for(const c of data.chars){
       if(!c||typeof c.id!=='string'||!/^[\w-]{1,64}$/.test(c.id)||!Array.isArray(c.log)) continue;
       for(const [k,a] of Object.entries(c.audio||{})){
@@ -1798,9 +1808,10 @@ async function syncCloud(auto,opts){ /* mengembalikan true kalau akun & perangka
     const {chars,nMsg}=await collectChars(false); /* 2) simpan gabungan terbaru (kalau memang beda dengan isi akun) */
     let size=me.cloud?me.cloud.size:0, ts=cts;
     const pulledChars=pulled.data?JSON.stringify(JSON.parse(pulled.data).chars):null;
-    if((chars.length||pulled.data)&&JSON.stringify(chars)!==pulledChars){
+    const pulledSent=pulled.data?Math.floor(Number(JSON.parse(pulled.data).sent))||0:0;
+    if((chars.length||pulled.data)&&(JSON.stringify(chars)!==pulledChars||sentTotal()>pulledSent)){
       if(!auto) setA('Menyimpan ke akun…');
-      const r=await aApi('push',{data:{app:'neyhra-chat',version:1,exportedAt:new Date().toISOString(),chars}});
+      const r=await aApi('push',{data:{app:'neyhra-chat',version:1,exportedAt:new Date().toISOString(),chars,sent:sentTotal()}});
       size=r.size; ts=r.updatedAt;
     }
     store.set('cloudts',ts); store.set('cloudsig',sigOf(JSON.stringify(chars)));

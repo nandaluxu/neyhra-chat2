@@ -71,6 +71,7 @@ function localStats() {
   }
   rows.sort((a, b) => b.total - a.total);
   const best = rows.reduce((b, r) => (!b || r.lv > b.lv ? r : b), null);
+  if (typeof sentTotal === 'function') sent = sentTotal(); // total seumur hidup (tidak turun saat obrolan dihapus), lihat record() di index.html
   return { sent, chars: rows.length, rows, best, days, today };
 }
 const stageName = lv => { const S = REL && REL.stages; return S && S.length ? S[idxOf(S, lv)].name : ''; };

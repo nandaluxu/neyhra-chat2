@@ -284,7 +284,7 @@ function setReply(m) {
   rp = { id: m.id, name: m.senderName, text: m.text };
   rpBar.classList.remove('hide');
   rpBar.querySelector('b').textContent = 'Membalas ' + m.senderName;
-  rpBar.querySelector('span').textContent = clip(m.text);
+  rpBar.querySelector('.gc-rp-c span').textContent = clip(m.text); // bukan querySelector('span') polos: itu mengenai span ikon (.gc-rp-i) yang lebih dulu di DOM
   inp.placeholder = 'Balas ' + m.senderName + '…';
   paintComposer();
   if (matchMedia('(hover:hover)').matches) inp.focus({ preventScroll: true });
