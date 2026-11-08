@@ -47,7 +47,8 @@ const I = {
   spin: '<svg class="gc-sp" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66"/></svg>',
   offline: '<svg viewBox="0 0 24 24"><path d="M2 8.8a15 15 0 0 1 4-2.6M22 8.8a15 15 0 0 0-9-3.7M5 12.9a10 10 0 0 1 5-2.7M19 12.9a10 10 0 0 0-2.4-1.9M8.5 16.4a5 5 0 0 1 7 0M12 20h.01M3 3l18 18"/></svg>',
   msg: '<svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg>',
-  chev: '<svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>'
+  chev: '<svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>',
+  re: '<svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 016 6v1"/></svg>'
 };
 
 /* ---------- Kerangka DOM ---------- */
@@ -64,6 +65,7 @@ app.insertAdjacentHTML('beforeend', `
   <main id="gc-list" role="log" aria-live="polite" aria-relevant="additions" aria-label="Percakapan global"></main>
   <div class="gc-foot">
     <div class="gc-meta"><span class="gc-as" id="gc-as"></span><span class="gc-count" id="gc-count" title="Maksimal ${MAX} karakter">0/${MAX}</span></div>
+    <div class="gc-rp hide" id="gc-rp"><span class="gc-rp-i" aria-hidden="true">${I.re}</span><div class="gc-rp-c"><b></b><span></span></div><button id="gc-rpx" type="button" title="Batal balas" aria-label="Batal balas">${I.close}</button></div>
     <div class="gc-row">
       <textarea id="gc-inp" rows="1" placeholder="Pesan untuk semua orang" aria-label="Pesan" aria-describedby="gc-count" autocomplete="off" autocapitalize="sentences"></textarea>
       <button id="gc-send" type="button" title="Kirim" aria-label="Kirim pesan" disabled>${I.send}</button>
@@ -167,15 +169,30 @@ function meta(m, mine) {
   else { t.append(now(m.ts)); if (mine) t.insertAdjacentHTML('beforeend', I.check); }
   return t;
 }
-function bubble(m, o) {
+/* Balasan: cuplikan pesan yang dibalas di atas teks. Pesan asal dicari di memori (sudah dimuat);
+   kalau tidak ada (belum dimuat lewat loadOlder / sudah dihapus) tetap tampil tanpa isi. */
+const clip = t => { const s = String(t).replace(/\s+/g, ' '); return [...s].slice(0, 90).join('') + ([...s].length > 90 ? '…' : ''); };
+function replyQuote(m, find) {
+  const src = find ? find(m.replyTo) : null;
+  const q = el('div', 'gc-q' + (src ? '' : ' gone'));
+  q.dataset.q = m.replyTo;
+  q.setAttribute('role', 'button');
+  q.setAttribute('tabindex', '0');
+  q.title = src ? 'Lihat pesan yang dibalas' : 'Pesan asli tidak tersedia';
+  q.append(el('b', null, src ? src.senderName : 'Pesan asli tidak tersedia'), el('span', null, src ? clip(src.text) : ''));
+  return q;
+}
+function bubble(m, o, find) {
   const r = el('div', 'gc-msg ' + (o.mine ? 'me' : 'them') + (o.first ? ' first' : '') + (o.last ? ' last' : '') + (o.fresh ? ' new' : '') + (m.status === 'sending' ? ' sending' : '') + (m.status === 'failed' ? ' failed' : ''));
   r.dataset.id = m.id;
   if (!o.mine) { r.style.setProperty('--h', hue(m.senderId)); const av = el('span', o.last ? 'gc-av' : 'gc-av sp', o.last ? [...m.senderName][0] || '?' : ''); av.setAttribute('aria-hidden', 'true'); if (o.last) addPhoto(av, m); r.append(av); }
   const b = el('div', 'gc-b');
   if (!o.mine && o.first) b.append(el('div', 'gc-n', m.senderName));
+  if (m.replyTo) b.append(replyQuote(m, find));
   b.append(el('div', 'gc-t', m.text), meta(m, o.mine));
   const del = el('button', 'gc-del'); del.type = 'button'; del.dataset.del = m.id; del.title = 'Hapus pesan (dev)'; del.setAttribute('aria-label', 'Hapus pesan ini (dev)'); del.innerHTML = I.trash;
-  if (o.mine) r.append(del, b); else r.append(b, del);
+  if (o.last) { const re = el('button', 'gc-re'); re.type = 'button'; re.dataset.reply = m.id; re.title = 'Balas'; re.setAttribute('aria-label', 'Balas pesan ' + (o.mine ? 'milikmu' : 'dari ' + m.senderName)); re.innerHTML = I.re; if (o.mine) r.append(del, re, b); else r.append(b, re, del); }
+  else if (o.mine) r.append(del, b); else r.append(b, del);
   return r;
 }
 function paintList(s) {
@@ -184,6 +201,7 @@ function paintList(s) {
   let added = 0, other = 0, mine = 0;
   if (!msgs.length) frag.append(emptyView(s));
   else {
+    const byId = new Map(msgs.map(x => [x.id, x])); // lookup untuk pratinjau balasan
     let lastDay = '';
     msgs.forEach((m, i) => {
       const p = msgs[i - 1], n = msgs[i + 1], dk = dayKey(m.ts);
@@ -192,7 +210,7 @@ function paintList(s) {
       const more = !!n && dayKey(n.ts) === dk && authorKey(n) === authorKey(m) && n.ts - m.ts < GROUP;
       const isNew = !seen.has(m.id);
       if (isNew) { seen.add(m.id); if (primed && !older) { added++; isMine(m) ? mine++ : other++; } }
-      frag.append(bubble(m, { mine: isMine(m), first: !cont, last: !more, fresh: primed && isNew && !older }));
+      frag.append(bubble(m, { mine: isMine(m), first: !cont, last: !more, fresh: primed && isNew && !older }, id => byId.get(id)));
     });
   }
   list.replaceChildren(frag);
@@ -237,7 +255,7 @@ function paintComposer(s) {
   const n = len(inp.value), can = canSend(s);
   cnt.textContent = n + '/' + MAX; cnt.classList.toggle('warn', n >= MAX - 24 && n < MAX); cnt.classList.toggle('max', n >= MAX);
   sendB.disabled = !can || !inp.value.trim();
-  inp.placeholder = can ? 'Pesan untuk semua orang' : s.status === 'connecting' ? 'Menghubungkan…' : 'Offline, pesan belum bisa dikirim';
+  inp.placeholder = rp ? 'Balas ' + rp.name + '…' : can ? 'Pesan untuk semua orang' : s.status === 'connecting' ? 'Menghubungkan…' : 'Offline, pesan belum bisa dikirim';
   paintAs();
 }
 const grow = () => { inp.style.height = 'auto'; inp.style.height = Math.min(inp.scrollHeight, 136) + 'px'; };
@@ -253,23 +271,60 @@ sendB.onclick = submit;
 function submit() {
   const s = A.getState(), text = inp.value.replace(/\n{3,}/g, '\n\n').trim();
   if (!text || !canSend(s) || len(text) > MAX) { shake(inp); return; }
-  A.send(text); inp.value = ''; grow(); paintComposer();
+  A.send(text, rp && rp.id); clearReply(); inp.value = ''; grow(); paintComposer();
 }
+
+/* ---------- Balas pesan ----------
+   Tombol balas ada di bubble terakhir tiap grup pesan. `rp` = pesan yang sedang dibalas (id + cuplikan untuk pratinjau);
+   id-nya diteruskan ke adapter.send -> server menyimpannya sebagai replyTo di MongoDB. */
+let rp = null;
+const rpBar = document.getElementById('gc-rp');
+function setReply(m) {
+  if (!m || typeof m.id !== 'string') return;
+  rp = { id: m.id, name: m.senderName, text: m.text };
+  rpBar.classList.remove('hide');
+  rpBar.querySelector('b').textContent = 'Membalas ' + m.senderName;
+  rpBar.querySelector('span').textContent = clip(m.text);
+  inp.placeholder = 'Balas ' + m.senderName + '…';
+  paintComposer();
+  if (matchMedia('(hover:hover)').matches) inp.focus({ preventScroll: true });
+}
+function clearReply() {
+  if (!rp) return;
+  rp = null; rpBar.classList.add('hide');
+  paintComposer();
+}
+document.getElementById('gc-rpx').onclick = clearReply;
 as.addEventListener('click', e => { if (e.target.closest('#gc-login')) { close(); $('setbtn').click(); } });
 window.addEventListener('acct', () => { paintAs(true); if (isOpen) render(A.getState(), true); }); // masuk/keluar atau nama profil berubah -> label dan posisi bubble (kanan = saya) ikut berubah
 
 /* ---------- Aksi dari bubble / banner / tampilan kosong (delegasi klik) ---------- */
 const armed = new WeakMap();
+function jumpTo(id) {
+  const row = list.querySelector('[data-id="' + CSS.escape(id) + '"]');
+  if (!row) { toast('Pesan asal tidak ada di tampilan ini'); return; }
+  row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  row.classList.remove('flash'); void row.offsetWidth; row.classList.add('flash');
+  setTimeout(() => row.classList.remove('flash'), 1400);
+}
 gc.addEventListener('click', e => {
-  const t = e.target.closest('[data-act],[data-retry],[data-del]'); if (!t) return;
+  const t = e.target.closest('[data-act],[data-retry],[data-del],[data-reply],[data-q]'); if (!t) return;
   if (t.dataset.act === 'reconnect') { A.reconnect(); }
   else if (t.dataset.act === 'greet') { inp.value = 'Halo semuanya!'; grow(); paintComposer(); inp.focus(); }
   else if (t.dataset.retry) { if (!canSend(A.getState())) toast('Belum terhubung'); else A.retry(t.dataset.retry); }
+  else if (t.dataset.reply) { const m = A.getState().messages.find(x => x.id === t.dataset.reply); if (m) setReply(m); }
+  else if (t.dataset.q) { jumpTo(t.dataset.q); }
   else if (t.dataset.del) { // hapus per pesan (Mode dev): tap dua kali
     if (!devOn()) return;
     if (armed.has(t)) { clearTimeout(armed.get(t)); armed.delete(t); A.deleteMessage(t.dataset.del); toast('Pesan dihapus'); return; }
     t.classList.add('arm'); armed.set(t, setTimeout(() => { armed.delete(t); t.classList.remove('arm'); }, 2500)); toast('Tap lagi untuk hapus pesan');
   }
+});
+/* quote = elemen fokusable (keyboard): Enter/Space lompat ke pesan asal */
+gc.addEventListener('keydown', e => {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  const t = e.target.closest && e.target.closest('[data-q]'); if (!t) return;
+  e.preventDefault(); jumpTo(t.dataset.q);
 });
 
 /* ---------- Render utama ---------- */
@@ -291,7 +346,7 @@ function open() {
   syncDev(); primed = false; unread = 0; render(A.getState(), true);
   if (matchMedia('(hover:hover)').matches) setTimeout(() => inp.focus({ preventScroll: true }), 300);
 }
-function close() { if (!isOpen) return; isOpen = false; gc.classList.remove('show'); gc.setAttribute('aria-hidden', 'true'); inp.blur(); }
+function close() { if (!isOpen) return; isOpen = false; gc.classList.remove('show'); gc.setAttribute('aria-hidden', 'true'); clearReply(); inp.blur(); }
 $('gcbtn').onclick = open;
 $('gc-back').onclick = close;
 document.addEventListener('keydown', e => {

@@ -71,6 +71,33 @@
 .gc-ts svg{width:12px;height:12px;stroke-width:2.2}
 .gc-ts .gc-sp{animation:vspin .8s linear infinite}
 .gc-retry{display:inline-block;padding:2px 0;font-size:11px;font-weight:600;color:var(--rec);text-decoration:underline;text-underline-offset:2px}
+
+/* balas pesan: tombol di bubble terakhir tiap grup (hover di desktop, selalu tampil di layar sentuh) */
+.gc-re{display:grid;place-items:center;width:32px;height:32px;border-radius:50%;flex:none;align-self:center;color:var(--mut);transition:background .15s,color .15s,transform .1s}
+.gc-re svg{width:15px;height:15px}
+.gc-re:active{transform:scale(.92)}
+@media(hover:hover){.gc-re{visibility:hidden}.gc-msg:hover .gc-re,.gc-msg:focus-within .gc-re{visibility:visible}}
+.gc-re:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+@media(hover:hover){.gc-re:hover{background:var(--surface);color:var(--ink)}}
+/* cuplikan pesan yang dibalas di dalam bubble */
+.gc-q{margin:0 0 4px;padding:4px 8px;border-left:2.5px solid var(--mut);border-radius:7px;background:rgba(127,127,127,.14);font-size:12px;line-height:1.35;color:var(--mut);cursor:pointer;max-width:100%;-webkit-user-select:none;user-select:none}
+.gc-q b{display:block;font-weight:600;color:inherit;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gc-q span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gc-q:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.gc-q.gone span{display:none}
+.gc-msg.flash .gc-b{animation:gcflash 1.3s ease-out}
+@keyframes gcflash{0%,55%{box-shadow:0 0 0 2px var(--ink)}100%{box-shadow:0 0 0 2px transparent}}
+/* pratinjau balasan di atas kolom ketik */
+.gc-rp{display:flex;align-items:center;gap:8px;margin:0 6px 6px;padding:7px 8px 7px 10px;border-radius:12px;background:var(--surface);font-size:12px;color:var(--mut)}
+.gc-rp-i{flex:none;display:grid;place-items:center;width:24px;height:24px;color:inherit}
+.gc-rp-i svg{width:14px;height:14px}
+.gc-rp-c{min-width:0;flex:1}
+.gc-rp-c b{display:block;font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gc-rp-c span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#gc-rpx{flex:none;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;color:var(--mut)}
+#gc-rpx svg{width:14px;height:14px}
+#gc-rpx:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+@media(hover:hover){#gc-rpx:hover{background:var(--surface);color:var(--ink)}}
 .me.sending .gc-b{opacity:.65}
 .me.failed .gc-b{box-shadow:0 0 0 1.5px var(--rec)}
 .gc-msg.new .gc-b{animation:gcb .32s cubic-bezier(.2,.9,.3,1.15)}
