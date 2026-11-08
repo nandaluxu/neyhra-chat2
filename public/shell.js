@@ -346,6 +346,7 @@ function afterClose() { app.classList.remove('dp-on'); renderRecent(); }
 
 /* ---------- Esc ---------- */
 function esc() {
+  if (app.classList.contains('mn-on')) { closeMn(); return true; }
   if (!rnmodal.classList.contains('hide')) { closeRename(); return true; }
   if (!dlmodal.classList.contains('hide')) { closeDelete(); return true; }
   if (menuFor) { closeMenu(true); return true; }
@@ -363,6 +364,28 @@ rlogo.addEventListener('click', () => {
   const on = app.classList.toggle('rail-x');
   store.set('rail', on ? '1' : null); syncRail();
 });
+/* ---------- Mobile (<800px): bar bawah cuma Beranda / Obrolan / Profil; sisanya (Minigame, Toko, Bonus, Pengaturan) di panel kiri seperti desktop ---------- */
+const MN_ITEMS = [[rgames, 'Minigame'], [rshop, 'Toko'], [rbonus, 'Bonus'], [$('setbtn'), 'Pengaturan']];
+const mnav = document.createElement('aside'); mnav.id = 'mnav'; mnav.setAttribute('aria-label', 'Menu lainnya'); mnav.setAttribute('aria-hidden', 'true');
+mnav.innerHTML = '<div class="mn-head"><span class="m-logo"><img src="/icon.svg" alt="" draggable="false"></span><b>Neyhra Chat</b></div>';
+const mnBtns = MN_ITEMS.map(([src, label]) => {
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'mn-item';
+  b.append(src.querySelector('svg').cloneNode(true), Object.assign(document.createElement('span'), { textContent: label }));
+  b.addEventListener('click', () => { closeMn(); src.click(); }); // klik tombol asli (handler tab/pengaturan tetap satu sumber)
+  mnav.append(b); return [b, src];
+});
+const mscrim = document.createElement('div'); mscrim.id = 'mscrim';
+const mnbtn = document.createElement('button'); mnbtn.type = 'button'; mnbtn.id = 'mnbtn'; mnbtn.setAttribute('aria-label', 'Buka menu'); mnbtn.setAttribute('aria-expanded', 'false');
+mnbtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>';
+app.append(mnav, mscrim);
+const mbrand = document.querySelector('#menu .m-brand'); if (mbrand) mbrand.prepend(mnbtn);
+function syncMn() { for (const [b, src] of mnBtns) b.classList.toggle('on', src.classList.contains('on')); }
+function openMn() { if (mqD.matches) return; syncMn(); app.classList.add('mn-on'); mnav.setAttribute('aria-hidden', 'false'); mnbtn.setAttribute('aria-expanded', 'true'); }
+function closeMn() { app.classList.remove('mn-on'); mnav.setAttribute('aria-hidden', 'true'); mnbtn.setAttribute('aria-expanded', 'false'); }
+mnbtn.addEventListener('click', openMn);
+mscrim.addEventListener('click', closeMn);
+window.addEventListener('shell:tab', () => { closeMn(); syncMn(); });
+
 rhome.addEventListener('click', () => setTab('home'));
 rrecent.addEventListener('click', () => setTab('recent', { auto: true }));
 rbonus.addEventListener('click', () => setTab('bonus'));
@@ -378,6 +401,7 @@ $('lpempty-home').addEventListener('click', () => setTab('home'));
 $('lptabs').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setMode(b.dataset.v); });
 
 mqD.addEventListener('change', () => {
+  if (mqD.matches) closeMn();
   closeMenu(false);
   if (!mqD.matches) app.classList.remove('dp-on');
   syncRail(); renderRecent();

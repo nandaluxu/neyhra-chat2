@@ -218,6 +218,7 @@
   #rail .r-item{flex:1;justify-content:center;height:48px;padding:0}
   #rail .r-item.on::before{display:none}
   #rail .r-bottom{margin-top:0}
+  #rail #rgames,#rail #rshop,#rail #rbonus,#rail #setbtn{display:none} /* pindah ke #mnav */
   #app.open #rail,#app:has(#gc.show) #rail{display:none}
   #menu,#lpanel{position:absolute;inset:0;padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))}
   #lpanel{padding-top:0;padding-left:0;padding-right:0}
@@ -278,4 +279,24 @@
   #app #smodal{left:var(--rail-c)}
   #app.rail-x[data-tab="home"] #smodal{left:var(--rail-x)}
   #app #smodal .sbox{padding-top:8px}
+}
+
+/* ---------- Mobile: tombol menu + panel kiri (#mnav) ---------- */
+#mnbtn,#mnav,#mscrim{display:none}
+@media(max-width:799px){
+  #mnbtn{display:grid;place-items:center;width:40px;height:40px;border-radius:12px;color:var(--ink);flex:none;margin-left:-6px}
+  #mnbtn svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}
+  #mnav{display:flex;flex-direction:column;gap:6px;position:absolute;top:0;bottom:0;left:0;width:min(78%,300px);z-index:9;
+        padding:calc(18px + env(safe-area-inset-top,0px)) 12px calc(18px + env(safe-area-inset-bottom,0px));
+        background:var(--bg);border-right:1px solid var(--line);box-shadow:12px 0 40px rgba(0,0,0,.18);
+        transform:translateX(-102%);visibility:hidden;transition:transform .28s cubic-bezier(.2,.9,.2,1),visibility 0s .28s}
+  #app.mn-on #mnav{transform:none;visibility:visible;transition-delay:0s}
+  #mscrim{display:block;position:absolute;inset:0;z-index:8;background:rgba(0,0,0,.35);opacity:0;pointer-events:none;transition:opacity .25s}
+  #app.mn-on #mscrim{opacity:1;pointer-events:auto}
+  .mn-head{display:flex;align-items:center;gap:12px;padding:0 6px 16px;font-size:17px;letter-spacing:-.03em}
+  .mn-item{display:flex;align-items:center;gap:14px;width:100%;height:48px;padding:0 12px;border-radius:14px;color:var(--mut);font-size:15px;font-weight:500;text-align:left}
+  .mn-item svg{width:22px;height:22px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  .mn-item.on{background:var(--surface);color:var(--ink)}
+  .mn-item:last-child{margin-top:auto}
+  #app.open #mnav,#app.open #mscrim{display:none}
 }
