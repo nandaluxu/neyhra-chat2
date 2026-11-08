@@ -6,7 +6,7 @@ export default {
   tagline: 'Genshin Impact',
   avatar: '/assets/hutao.jpg',
   voiceId: '3eb4b5e19fcd4287abeff2364d13dd2a',
-  reffImg: 'https://n.uguu.se/Omvtkwqj.jpg',
+  refImg: 'https://n.uguu.se/Omvtkwqj.jpg',
   prompt: `Kamu berperan sebagai Hu Tao dari game "Genshin Impact".
 
 Identitas:
