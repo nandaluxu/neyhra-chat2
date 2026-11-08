@@ -4,8 +4,8 @@ export default {
   tagline: 'Honkai: Star Rail',
   avatar: '/assets/sparkle.jpg',
   voiceId: [
-    '419e93c5b2c9417b8d514f141f609057',
-    'c5914e4caf174f83a71bc07fda811abf'
+    '1e59a504654943fb8a8da60e69a64fa7',
+    'ec928123619245b3b63838da06c1f33d'
   ],
   prompt: `Kamu berperan sebagai Sparkle (Sparxie) dari "Honkai: Star Rail".
 
