@@ -107,6 +107,18 @@ Tab ketiga di navbar (ikon hadiah), alamat `/bonus`. Perlu akun (MongoDB aktif d
 - **Field baru di `users`**: `bonusDay`, `bonusN`, `refCode` (index unik sparse), `invited`, `refBy`, `refAt`.
 - **Client**: `public/bonus.js` + `bonus.css`. Menyegarkan lewat kejadian `shell:tab` (dari `Shell.setTab`) dan `acct` (dari `paintAcct`).
 
+## Toko + Inventory (hadiah untuk menaikkan hubungan)
+
+Tab **Toko** di navbar (alamat `/shop`). Perlu akun. Barang: Bunga 75, Coklat 120, Eskrim 125 coin. Ikon di `public/shop/*.svg`.
+
+- **Beli**: pilih beberapa jenis + jumlah sekaligus, satu tombol "Beli". Coin berkurang dan barang masuk Inventory dalam satu operasi atomik di server (tidak bisa minus / dobel belanja).
+- **Memberi hadiah**: di layar chat 1-lawan-1 ada tombol **+** di kanan kolom ketik. Isinya **Inventory** dan **Skenario Skrip**. Di Inventory pilih jenis + jumlah (boleh campur), tekan "Berikan". Barang berkurang, EXP + mood hubungan naik (tidak kena batas harian obrolan, karena dibayar coin), bubble roleplay `🎁 *memberikan 2 bunga dan 1 coklat*` muncul di chat, lalu karakter menjawab.
+- **Atur barang/harga/EXP**: tabel `ITEMS` di atas `lib/shop.js` (price, exp, mood). Tidak perlu mengubah kode lain, kecuali menambah ikon `public/shop/<id>.svg`.
+- **API** (POST, Bearer, `lib/shop.js`): `/api/auth/shop`, `/api/auth/shop/buy` (`{ items }`), `/api/auth/shop/gift` (`{ char, items }` -> `{ exp, mood }`).
+- **AI**: `/api/chat` menerima field `gift: { items }`; bentuknya dicek ulang server (`giftLine`) lalu pesan ke AI diganti kalimat kejadian. Angka `<rel>/<mood>` dari AI diabaikan di giliran hadiah (EXP sudah dihitung server).
+- **Field baru di `users`**: `inv` `{ <idBarang>: jumlah }`.
+- **Client**: `public/shop.js` + `shop.css`; `submit({ gift:true, ... })` di `index.html`; `relApply(..., free)`.
+
 ## Minigame (coin dari main game)
 
 Tab di navbar (ikon gamepad, di atas Bonus), alamat `/games`. Perlu akun (MongoDB aktif dan sudah masuk). Halaman berisi daftar game; sekarang baru **Tebak Angka** (kartu kedua "Segera hadir" sebagai tempat game berikutnya).
@@ -132,6 +144,7 @@ Tetap satu aplikasi (tanpa muat ulang), tapi tiap layar punya alamat dan tombol 
 | `/chat/<id>` | Obrolan Terakhir dengan chat karakter terbuka, mis. `/chat/reze` |
 | `/global` | Chat Global |
 | `/bonus` | Bonus (klaim harian, kode referal) |
+| `/shop` | Toko (beli hadiah pakai coin) |
 | `/games` | Minigame (Tebak Angka) |
 | `/settings` | Pengaturan |
 

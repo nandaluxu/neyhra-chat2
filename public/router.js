@@ -5,6 +5,7 @@
      /global         Chat Global
      /bonus          Bonus (klaim harian, kode referal)
      /games          Minigame (Tebak Angka, dst.)
+     /shop           Toko (beli hadiah, berikan lewat tombol + di chat)
      /profile        Profil (foto, bio, pengikut, mengikuti)
      /settings       Pengaturan
    Cara kerja: URL mengikuti layar yang tampil (diamati dari kelas DOM), dan tombol back/forward browser
@@ -24,6 +25,7 @@
     if (gcEl.classList.contains('show')) return '/global'
     if (appEl.dataset.tab === 'bonus') return '/bonus'
     if (appEl.dataset.tab === 'games') return '/games'
+    if (appEl.dataset.tab === 'shop') return '/shop'
     if (appEl.dataset.tab === 'profile') return '/profile'
     if (appEl.dataset.tab === 'recent') {
       if (appEl.classList.contains('open') && !(window.GX && GX.cur) && typeof ch !== 'undefined' && ch) return '/chat/' + ch.id
@@ -59,6 +61,8 @@
         Shell.setTab('bonus', { auto: false })
       } else if (path === '/games') {
         Shell.setTab('games', { auto: false })
+      } else if (path === '/shop') {
+        Shell.setTab('shop', { auto: false })
       } else if (path === '/profile') {
         Shell.setTab('profile', { auto: false })
       } else if (path === '/chat') {

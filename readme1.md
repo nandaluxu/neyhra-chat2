@@ -73,7 +73,9 @@ Ditulis oleh: `lib/auth.js` (register), `lib/bonus.js`, `lib/games.js`, `lib/pic
   bio,                    // maks 120 char
   av,                     // versi foto (angka); tidak ada = belum punya foto
   avatarUrl,              // alamat foto di Cloudflare R2 (mode utama)
-  avKey                   // nama objek di bucket (untuk hapus foto lama di R2)
+  avKey,                  // nama objek di bucket (untuk hapus foto lama di R2)
+  // --- toko (lib/shop.js) ---
+  inv                     // { bunga: 2, coklat: 1, eskrim: 0 } isi Inventory; berubah hanya lewat /api/auth/shop/buy dan /gift
 }
 ```
 Index: `{username:1} unique`, `{refCode:1} unique sparse`, `{createdAt:-1}`.

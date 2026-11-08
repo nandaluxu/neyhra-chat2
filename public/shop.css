@@ -1,0 +1,91 @@
+/* ===== Toko + Inventory =====
+   Logika di shop.js. Memakai kelas bn-* (bonus.css) untuk header/saldo/tombol/pesan supaya tampilannya sama dengan tab Bonus,
+   dan variabel tema yang sudah ada: --bg --surface --ink --mut --line --ok --rec. */
+
+/* ---------- Tab Toko ---------- */
+#shop{display:none;overflow-y:auto;overscroll-behavior:contain;background:var(--bg);scrollbar-width:none;min-width:0}
+#shop::-webkit-scrollbar{display:none}
+#app[data-tab="shop"] #shop{display:block}
+#app[data-tab="shop"] :is(#menu,#lpanel,#chatview,#cempty,#dpanel){display:none}
+@media(min-width:800px){#shop{grid-column:2;grid-row:1}}
+@media(max-width:799px){#shop{position:absolute;inset:0;padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))}}
+
+.sh-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;margin-top:18px}
+.sh-card{display:flex;flex-direction:column;align-items:center;gap:6px;padding:16px 14px 14px;border-radius:22px;background:var(--surface);text-align:center;min-width:0}
+.sh-ic{width:88px;height:88px;display:grid;place-items:center;border-radius:20px;background:var(--bg)}
+.sh-ic img{width:64px;height:64px;object-fit:contain;display:block}
+.sh-card h3{font-size:16px;font-weight:600;letter-spacing:-.01em;margin-top:4px}
+.sh-desc{font-size:12.5px;line-height:1.4;color:var(--mut);min-height:34px}
+.sh-meta{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;font-size:12.5px;color:var(--mut)}
+.sh-price{display:inline-flex;align-items:center;gap:5px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+.sh-price img{width:16px;height:16px}
+.sh-own{font-variant-numeric:tabular-nums}
+
+/* pencacah jumlah */
+.sh-step{display:inline-flex;align-items:center;gap:2px;margin-top:6px;padding:3px;border-radius:99px;background:var(--bg)}
+.sh-step button{width:34px;height:34px;border-radius:50%;font-size:18px;font-weight:500;line-height:1;color:var(--ink);transition:background .15s,opacity .15s}
+@media(hover:hover){.sh-step button:not(:disabled):hover{background:var(--line)}}
+.sh-step button:disabled{opacity:.3;cursor:default}
+.sh-step button:focus-visible{outline:2px solid var(--ink);outline-offset:1px}
+.sh-step output{min-width:34px;text-align:center;font-size:15px;font-weight:600;font-variant-numeric:tabular-nums}
+
+/* ringkasan beli (menempel di bawah) */
+.sh-sum{position:sticky;bottom:12px;margin-top:16px;padding:14px 16px;border-radius:22px;background:var(--ink);color:var(--bg);display:flex;align-items:center;gap:12px;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+.sh-sum .t{flex:1;min-width:0;font-size:13px;line-height:1.35}
+.sh-sum .t b{display:inline-flex;align-items:center;gap:5px;font-size:16px;font-variant-numeric:tabular-nums}
+.sh-sum .t b img{width:17px;height:17px}
+.sh-sum .t small{display:block;opacity:.7;font-size:12px}
+.sh-sum button{flex:none;padding:11px 20px;border-radius:99px;background:var(--bg);color:var(--ink);font-size:14px;font-weight:600}
+.sh-sum button:disabled{opacity:.4;cursor:default}
+.sh-sum button:focus-visible{outline:2px solid var(--bg);outline-offset:2px}
+
+/* ---------- Tombol "+" di kolom ketik ---------- */
+#scnbtn{display:none!important} /* diganti menu "+" (tombolnya tetap ada: dipanggil dari menu, dan statusnya dibaca #plusbtn) */
+#plusbtn{position:relative;color:var(--mut)}
+#plusbtn svg{transition:transform .25s cubic-bezier(.2,.9,.3,1.2)}
+#plusbtn[aria-expanded=true]{background:var(--surface);color:var(--ink)}
+#plusbtn[aria-expanded=true] svg{transform:rotate(45deg)}
+@media(hover:hover){#plusbtn:hover{background:var(--surface)}}
+#plusbtn:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+#plusbtn.scn-on::after{content:"";position:absolute;top:9px;right:9px;width:8px;height:8px;border-radius:50%;background:var(--ok);border:2px solid var(--bg)}
+
+#plusmenu{position:absolute;right:10px;bottom:calc(100% + 8px);z-index:12;width:224px;padding:6px;border-radius:18px;background:var(--bg);border:1px solid var(--line);
+  box-shadow:0 12px 32px rgba(0,0,0,.16);transform-origin:100% 100%;animation:plusin .22s cubic-bezier(.2,.9,.3,1.2)}
+@keyframes plusin{from{opacity:0;transform:translateY(8px) scale(.9)}}
+#plusmenu button{display:flex;align-items:center;gap:12px;width:100%;height:48px;padding:0 12px;border-radius:12px;font-size:14.5px;font-weight:500;text-align:left;justify-content:flex-start}
+#plusmenu button svg{width:20px;height:20px;flex:none}
+#plusmenu button span{flex:1;min-width:0}
+#plusmenu button em{font-style:normal;font-size:12px;font-weight:600;min-width:22px;padding:2px 7px;border-radius:99px;background:var(--surface);color:var(--mut);text-align:center;font-variant-numeric:tabular-nums}
+@media(hover:hover){#plusmenu button:hover{background:var(--surface)}}
+#plusmenu button:focus-visible{background:var(--surface);outline:2px solid var(--ink);outline-offset:-2px}
+
+/* ---------- Inventory (sheet di layar chat) ---------- */
+#invmodal{position:absolute;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(0,0,0,.45);backdrop-filter:blur(3px)}
+#invmodal.hide{display:none}
+.invbox{width:100%;max-width:400px;max-height:100%;display:flex;flex-direction:column;background:var(--bg);border:1px solid var(--line);border-radius:22px;padding:18px 18px 16px;animation:nin .25s cubic-bezier(.2,.9,.3,1.2)}
+.invhead{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.invhead h2{font-size:18px;font-weight:600;letter-spacing:-.02em}
+.invhead p{margin-top:2px;font-size:12.5px;line-height:1.4;color:var(--mut)}
+.invhead button{width:34px;height:34px;border-radius:50%;margin-right:-6px;flex:none;color:var(--mut)}
+.invhead button svg{width:18px;height:18px}
+#invbody{flex:1;min-height:0;overflow-y:auto;margin-top:12px;scrollbar-width:none;overscroll-behavior:contain}
+#invbody::-webkit-scrollbar{display:none}
+.inv-row{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:16px;background:var(--surface)}
+.inv-row+.inv-row{margin-top:8px}
+.inv-row.zero{opacity:.5}
+.inv-row .sh-ic{width:52px;height:52px;border-radius:14px;flex:none}
+.inv-row .sh-ic img{width:38px;height:38px}
+.inv-info{flex:1;min-width:0}
+.inv-info b{display:block;font-size:14.5px;font-weight:600}
+.inv-info small{display:block;margin-top:1px;font-size:12px;color:var(--mut);font-variant-numeric:tabular-nums}
+.inv-row .sh-step{margin-top:0;background:var(--bg)}
+.inv-row .sh-step button{width:30px;height:30px}
+.inv-row .sh-step output{min-width:26px;font-size:14px}
+.invfoot{margin-top:12px}
+.invfoot .sum{display:flex;justify-content:space-between;gap:8px;font-size:12.5px;color:var(--mut);font-variant-numeric:tabular-nums;min-height:18px}
+.invfoot .bn-btn{margin-top:8px}
+@media(max-width:519px){
+  #invmodal{align-items:flex-end;padding:12px 12px calc(12px + env(safe-area-inset-bottom,0px))}
+  .invbox{max-width:none;border-radius:26px}
+}
+@media(prefers-reduced-motion:reduce){#plusmenu,.invbox{animation:none}}
