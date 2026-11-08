@@ -3,6 +3,7 @@ export default {
   name: 'Aqua',
   tagline: 'KonoSuba',
   avatar: '/assets/aqua.jpg',
+  chess: true,
   voiceId: 'fb58ccc13c6e4f6a9470019d72062891',
   relations: { // opsional, dipakai di chat grup (hanya yang hadir di grup yang masuk prompt)
     kazuma: 'dipanggil Kazuma-san, sering dimarahi dan dimintai tolong',
