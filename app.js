@@ -4,57 +4,50 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { loadChars, fixReading } from './chars.js'
 import { reply, groupReply, summarize } from './sessions.js'
+import { finalize, baseName, stripTags, hasJp, stripLB } from './finalize.js' // perapihan balasan model (dipakai bersama lib/scenario.js)
+import { scenarioRouter, scenarioChat } from './scenario.js'
+import { sceneRouter, refImgOf } from './scene.js'
+import { visionRouter } from './vision.js'
+import { getLorkaModels } from './lorka.js'
 import { ping } from './online.js'
 import { gcRouter } from './gc.js'
 import { cleanState, readDeltas, publicConfig } from './relation.js'
+import { giftLine } from './shop.js'
+import { mongoEnabled, pingMongo } from './mongo.js'
+import { authRouter } from './auth.js'
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
 const PUBLIC = path.join(ROOT, 'public')
 
 const app = express()
+app.use(authRouter) // Login: /api/auth/* (lib/auth.js). Dipasang SEBELUM parser global karena body-nya lebih besar (data obrolan).
+app.use(visionRouter) // Vision: /api/vision (lib/vision.js). Juga SEBELUM parser global (body membawa gambar data URL ±6 MB).
 app.use(express.json({ limit: '50kb' }))
 app.use(gcRouter) // Chat Global: /api/gc/sync|send|signal|delete (lihat lib/gc.js)
+app.use(scenarioRouter) // Skenario Skrip: /api/scenario/* (lihat lib/scenario.js)
+app.use(sceneRouter) // Scene Capture: /api/scene/capture (lihat lib/scene.js)
+
+// MongoDB: cek koneksi saja (tidak menulis). Fitur login/persona nanti menumpang di lib/mongo.js.
+app.get('/api/db/health', async (_req, res) => {
+  if (!mongoEnabled()) return res.json({ enabled: false })
+  try { res.json({ enabled: true, ok: true, ms: await pingMongo() }) }
+  catch (e) { res.status(503).json({ enabled: true, ok: false, error: String(e?.message || e).slice(0, 120) }) }
+})
 // Di Vercel, folder public/ dilayani CDN langsung. Baris ini untuk jalan lokal (dan cadangan kalau request sampai ke sini).
-app.use(express.static(PUBLIC))
+app.use(express.static(PUBLIC, { redirect: false })) // redirect:false supaya /tools (ada foldernya) tidak dialihkan ke /tools/ tapi dijawab index.html
+// URL per layar (lihat public/router.js): semua alamat ini menampilkan aplikasi yang sama. Di Vercel ditangani `rewrites` di vercel.json.
+app.get(['/chat', '/chat/:id', '/global', '/bonus', '/games', '/shop', '/tools', '/tools/:id', '/profile', '/settings'], (_req, res) => res.sendFile(path.join(PUBLIC, 'index.html')))
 
 // nama user masuk ke prompt -> buang karakter yang bisa merusak format prompt
 const cleanName = n => String(n ?? '').replace(/[\u0000-\u001f<>\[\]{}`]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 24)
-const hasJp = /[\u3040-\u30ff\u4e00-\u9fff]/
 
 // riwayat dikirim dari browser (server stateless, cocok untuk Vercel)
 const cleanHistory = (h, n = 24) => (Array.isArray(h) ? h : []).slice(-n)
   .map(x => Array.isArray(x) && x[1] ? [x[0] === 'user' ? 'user' : 'char', cleanText(x[1], 600)] : null)
   .filter(Boolean)
 
-// tag ekspresi untuk TTS: [laughing], [sad], (break), ... -> dibuang untuk teks subtitle/chat
-const stripTags = t => String(t || '').replace(/\[[^\]]*\]|\((?:break|long-break|breath)\)/gi, ' ').replace(/\s+/g, ' ').trim()
-// versi untuk teks chat/subtitle: tag dibuang tapi jeda baris/paragraf dipertahankan (stripTags di atas meratakan semuanya jadi satu baris)
-const tidyChat = t => String(t || '').replace(/\[[^\]]*\]|\((?:break|long-break|breath)\)/gi, ' ')
-  .replace(/\r\n?/g, '\n').replace(/[ \t\u00a0]+/g, ' ').replace(/ ?\n ?/g, '\n').replace(/\n{3,}/g, '\n\n').trim()
-// kalau model menulis <whisper>kata</whisper>, ubah ke gaya Fish Audio: [whisper] kata [normal voice]
-const normTags = t => String(t || '')
-  .replace(/<([a-z][a-z \-]{1,24})>([\s\S]*?)<\/\1>/gi, (_, tag, inner) => `[${tag.trim()}] ${inner.trim()} [normal voice]`)
-  .replace(/<\/?[a-z][^>]*>/gi, ' ')
-  .replace(/\s+/g, ' ').trim()
-
 // kode untuk menyalakan voice (bisa diganti lewat env VOICE_CODE). Bukan login, cuma pagar supaya kuota TTS tidak dipakai sembarang orang.
 const okCode = c => typeof c === 'string' && c.trim().toLowerCase() === (process.env.VOICE_CODE || 'NANDAxFURINA').toLowerCase()
-
-// Tawa tulis (wkwk, haha, あはは, ...) di teks voice -> diberi tag [laughing]/[chuckling] supaya TTS benar-benar tertawa,
-// bukan membaca "w-k-w-k". Tawa yang sudah diberi tag oleh model dibiarkan (hanya teksnya dirapikan).
-const LAUGHS = [
-  [/\b(?=[wk]{3,}\b)(?=\w*w)(?=\w*k)[wk]+\b|\bawokawok\w*\b/, 'Haha', 'laughing'],  // wkwk, kwkw, awokawok
-  [/\b[ae]?(?:ha){2,}h?\b/, null, 'laughing'],                                   // haha, ahaha
-  [/\b[ae]?(?:he|hi){2,}h?\b/, null, 'chuckling'],                               // hehe, hihi
-  [/\bxi(?:xi)+\b/, 'Hihi', 'chuckling'],
-  [/あは{2,}|は{3,}|アハハ+|ハハハ+/, null, 'laughing'],
-  [/うふふ+|ふふ+っ?|えへへ+|くすくす|ククク+|クスクス|フフ+|ウフフ+|エヘヘ+/, null, 'chuckling']
-].map(([re, sound, kind]) => [new RegExp(`((?:\\[(?:laughing|chuckling)[^\\]]*\\]\\s*)?)(${re.source})([!！?？.。…~]*)`, 'gi'), sound, kind])
-const laughify = t => LAUGHS.reduce((out, [re, sound, kind]) =>
-  out.replace(re, (_, tag, word, punct) => tag
-    ? `${tag}${sound || word}${punct}`
-    : `[${kind}] ${sound || word}${punct} [normal voice] `), String(t || ''))
-  .replace(/\s*\[normal voice\]\s*$/i, '').replace(/(\[normal voice\])\s+(?=[,，、.。!！?？])/gi, '$1').replace(/\s+/g, ' ').trim()
 
 const find = async id => (await loadChars()).find(c => c.id === id)
 
@@ -71,7 +64,6 @@ const cleanMemory = m => {
   }).filter(Boolean).filter(x => (left -= x.title.length + x.body.length + 4) >= 0)
 }
 const cleanScene = t => cleanText(t, 120).replace(/[\[\]{}`]/g, ' ').replace(/\s+/g, ' ').trim()
-const baseName = n => String(n || '').replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim()
 const STOP = new Set(['the', 'and', 'dan', 'iff', 'gluttony'])
 const nameTokens = n => [...new Set(baseName(n).toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(t => t.length >= 3 && !STOP.has(t)))]
 
@@ -107,35 +99,22 @@ function resolveNext(raw, members, allowed) {
   return tok.length === 1 ? tok[0].id : null
 }
 
-// model kadang meniru format riwayat dan membuka balasan dengan "Nama:" -> dibuang (juga kalau didahului tag ekspresi, mis. "[sad] Furina: ...")
-const dropSelfLabel = (text, c) => {
-  const esc = k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const names = [...new Set([baseName(c.name), baseName(c.name).split(/[\s/]+/)[0]].filter(Boolean))]
-  return String(text || '').replace(new RegExp(`^((?:\\s*\\[[^\\]]*\\])*)\\s*(?:${names.map(esc).join('|')})\\s*[:：]\\s*`, 'i'), '$1 ').trim()
-}
-
-// Satu-satunya tempat teks balasan model dirapikan, dipakai chat biasa DAN grup supaya fix tidak perlu ditulis dua kali.
-// `readers` = karakter yang namanya mungkin disebut (di grup: semua anggota), supaya bacaan nama (南雲 -> ナグモ) benar walau yang menyebut karakter lain.
-function finalize(out, c, voice, readers = [c]) {
-  const pronounce = Object.assign({}, ...readers.map(r => r?.pronounce).filter(Boolean))
-  const reader = { ...c, pronounce: Object.keys(pronounce).length ? pronounce : undefined }
-  const id = dropSelfLabel(tidyChat(out.id), c)
-  if (!id) throw new Error('Respons kosong')
-  if (!voice.on) return { id }
-  const jpText = fixReading(reader, dropSelfLabel(tidyChat(out.jp), c)) // 南雲 -> ナグモ, dll, supaya subtitle tidak salah baca
-  let vn = fixReading(reader, dropSelfLabel(normTags(out.vn), c))
-  if (!vn || (voice.lang === 'jp' && !hasJp.test(vn))) vn = voice.lang === 'jp' ? (jpText || id) : id // jaga-jaga model salah format
-  return { id, jpText, vn: laughify(vn) }
-}
-
 // avatar: <AVATAR_BASE>/<id>.jpg (kalau char punya avatar berupa URL penuh, itu yang dipakai)
 const AVATAR_BASE = process.env.AVATAR_BASE || 'https://raw.githubusercontent.com/nandaluxu/neyhra-chat2/refs/heads/main/assets'
 // voices: hanya dikirim kalau karakter punya >1 voice, dan hanya { key, label }. voiceId asli TIDAK pernah dikirim ke browser.
+// scene: penanda karakter bisa diilustrasikan Scene Capture (punya refImg). URL refImg sendiri TIDAK dikirim ke browser.
+// vision: penanda karakter bisa melihat gambar yang dikirim user (field `vision: true` di char/<id>.js).
 app.get('/api/chars', async (_, res) =>
-  res.json((await loadChars()).map(({ id, name, tagline, avatar, voices }) => ({
-    id, name, tagline, avatar: /^https?:\/\//.test(avatar || '') ? avatar : `${AVATAR_BASE}/${id}.jpg`,
-    ...(voices.length > 1 && { voices: voices.map(({ key, label }) => ({ key, label })) })
-  }))))
+  res.json((await loadChars()).map(c => {
+    const { id, name, tagline, avatar, voices } = c
+    return {
+      id, name, tagline, avatar: /^https?:\/\//.test(avatar || '') ? avatar : `${AVATAR_BASE}/${id}.jpg`,
+      ...(voices.length > 1 && { voices: voices.map(({ key, label }) => ({ key, label })) }),
+      ...(refImgOf(c) && { scene: true }),
+      ...(c.vision === true && { vision: true }),
+      ...(c.chess === true && { chess: true }) // boleh jadi lawan catur di Minigame (lib/chess.js)
+    }
+  })))
 
 // tabel tahap hubungan + label mood untuk panel profil (satu sumber kebenaran, sama dengan yang dipakai prompt)
 app.get('/api/relation', (_, res) => res.json(publicConfig()))
@@ -145,11 +124,17 @@ app.post('/api/unlock', (req, res) =>
 
 // Satu panggilan ChatGPT -> id (chat), jp (subtitle), vn (teks voice note + tag ekspresi)
 app.post('/api/chat', async (req, res) => {
-  const { clientId, char, message, userName, history, voice: v, group: gr, memory, rel: relIn, engine: engIn } = req.body || {}
+  const { clientId, char, message, userName, history, voice: v, group: gr, memory, rel: relIn, engine: engIn, rp: rpIn, scenario: scnIn, gift: giftIn, vision: visIn, cont: contIn } = req.body || {}
   const all = await loadChars()
   const c = all.find(x => x.id === char)
   const isGroup = gr != null // tidak ada field `group` = chat 1-lawan-1 seperti biasa
-  if (!c || !clientId || (!isGroup && !message?.trim())) return res.status(400).json({ error: 'Request tidak valid' })
+  // cont = tombol "lanjut ngobrol sendiri": pesan user boleh kosong, model diminta melanjutkan sebagai karakternya (lihat lib/sessions.js).
+  // Hanya untuk chat 1-lawan-1; di mode grup/skenario diabaikan supaya alur yang ada tidak berubah.
+  const cont = contIn === true && !isGroup && typeof scnIn !== 'string'
+  // vision = deskripsi gambar dari /api/vision (lib/vision.js): user mengirim gambar ke karakter yang bisa melihatnya.
+  // Pesan boleh kosong (gambar tanpa caption). Di mode grup diabaikan (lampiran gambar memang cuma untuk chat 1-lawan-1).
+  const vd = !isGroup && typeof visIn === 'string' ? cleanText(visIn, 800) : ''
+  if (!c || !clientId || (!isGroup && !cont && !vd && !message?.trim())) return res.status(400).json({ error: 'Request tidak valid' })
   const voice = v?.on ? { on: true, lang: v.lang === 'id' ? 'id' : 'jp' } : { on: false }
   if (isGroup) {
     const user = cleanName(userName), g = groupContext(all, c, gr, user, history)
@@ -165,15 +150,43 @@ app.post('/api/chat', async (req, res) => {
   }
   // Mesin alternatif (Lorka) HANYA untuk uji dari Mode dev di browser. Tanpa field `engine` = ChatGPT seperti biasa. Nama model divalidasi ketat.
   const engine = engIn?.name === 'lorka' ? { name: 'lorka', model: /^[\w.:\/-]{1,60}$/.test(engIn.model || '') ? engIn.model : undefined } : null
+  const rp = rpIn === true // Mode roleplay (switch di Pengaturan), hanya chat 1-lawan-1
   try {
     // relIn = { rel, mood, shift } dari browser. Tanpa field ini (client lama) chat jalan seperti dulu, tanpa sistem hubungan.
     const rel = relIn && typeof relIn === 'object' ? cleanState(relIn) : null
-    const out = await reply(clientId, c, message.trim().slice(0, 2000), { user: cleanName(userName), history: cleanHistory(history), voice, memory: cleanMemory(memory), rel, engine })
-    res.json({ ...finalize(out, c, voice), ...(rel && readDeltas(out, rel)) })
+    // Hadiah dari Inventory (field `gift` = { items }): bentuknya dicek ulang di sini, lalu pesan ke AI diganti kalimat kejadian. EXP-nya diurus client dari /api/auth/shop/gift.
+    // Hadiah + pesan: client boleh mengirim `gift.text` (ketikan user yang menyertai hadiah). Dibersihkan lalu ditempel ke kalimat kejadian supaya AI menanggapi keduanya.
+    const gl = giftLine(giftIn)
+    const gsay = gl && typeof giftIn?.text === 'string' ? giftIn.text.replace(/[\u0000-\u001f\[\]"]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 500) : ''
+    // pesan yang sampai ke AI: hadiah -> kalimat kejadian; gambar (vision) -> deskripsi isi gambar; selain itu pesan biasa.
+    // Pola kalimatnya sama dengan hadiah: kejadian dulu, lalu ketikan user (boleh tidak ada) ditempel setelahnya.
+    const visBlock = vd
+      ? `[User mengirim sebuah GAMBAR dan kamu bisa melihat isinya. Isi gambarnya: "${vd}".]` + (cleanText(message, 500)
+        ? `\n\n[Sambil mengirim gambar itu, user juga menulis: "${cleanText(message, 500)}". Tanggapi gambar sekaligus ucapannya secara natural.]`
+        : '\n\n[User tidak menulis apa pun selain gambar itu. Tanggapi gambarnya.]')
+      : ''
+    const msg = ((gl ? gl + (gsay ? `\n\n[Sambil memberikan hadiah itu, user juga bilang: "${gsay}". Tanggapi hadiahnya sekaligus ucapannya.]` : '') : visBlock || message) || '').trim().slice(0, 2000)
+    // Skenario Skrip (field `scenario` = id state aktif dari panel Skenario Skrip): sutradara menilai kalau perlu,
+    // Actor membalas dengan arahan sutradara. Respons bentuknya sama persis dengan chat biasa, jadi UI
+    // (voice note, hubungan, memori) tidak perlu tahu bedanya.
+    if (scnIn && typeof scnIn === 'string') {
+      const out = await scenarioChat({ req, stateId: scnIn, clientId: String(clientId).slice(0, 64), char: c, message: msg, user: cleanName(userName), history: cleanHistory(history), voice, memory: cleanMemory(memory), rel, engine, rp })
+      return res.json({ ...finalize(out, c, voice, [c], rp), ...(rel && readDeltas(out, rel)) })
+    }
+    const out = await reply(clientId, c, msg, { user: cleanName(userName), history: cleanHistory(history), voice, memory: cleanMemory(memory), rel, engine, rp, cont })
+    res.json({ ...finalize(out, c, voice, [c], rp), ...(rel && readDeltas(out, rel)) })
   } catch (e) {
+    if (e?.scn) return res.status(e.status || 400).json({ error: e.message, scn: true }) // error khusus skenario (belum login, kuota, state tidak aktif): client membersihkan statusnya
     console.error('[chat]', engine ? engine.name : '', e.response?.status || '', e.message)
     res.status(502).json({ error: engine ? `Lorka gagal: ${e.message}`.slice(0, 160) : 'ChatGPT gagal merespons, coba lagi' })
   }
+})
+
+// Daftar model Lorka (panel Dev). Cuma membaca daftar publik, tidak membawa data user.
+app.get('/api/lorka/models', async (req, res) => {
+  res.set('Cache-Control', 'no-store')
+  try { res.json({ ver: req.query.v === 'v1' ? 'v1' : 'v2', models: await getLorkaModels(req.query.v) }) }
+  catch (e) { console.error('[lorka:models]', e.message); res.status(502).json({ error: String(e.message).slice(0, 200) }) }
 })
 
 // Ringkas bagian lama obrolan 1-lawan-1 jadi satu memori { title, body }. Server tidak menyimpan apa pun; client yang menyimpan ke localStorage.
@@ -207,7 +220,7 @@ app.post('/api/tts', async (req, res) => {
   if (!process.env.FISH_API_KEY) return res.status(500).json({ error: 'FISH_API_KEY belum diisi' })
   try {
     const r = await axios.post('https://api.fish.audio/v1/tts',
-      { text: (hasJp.test(text) ? fixReading(c, text) : text).slice(0, 800), reference_id: v.id, format: 'mp3' },
+      { text: stripLB(hasJp.test(text) ? fixReading(c, text) : text).slice(0, 800), reference_id: v.id, format: 'mp3' },
       {
         headers: { Authorization: `Bearer ${process.env.FISH_API_KEY}`, model: process.env.FISH_MODEL || 's2.1-pro-free' },
         responseType: 'arraybuffer', timeout: 60000
