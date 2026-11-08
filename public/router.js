@@ -6,6 +6,8 @@
      /bonus          Bonus (klaim harian, kode referal)
      /games          Minigame (Tebak Angka, dst.)
      /shop           Toko (beli hadiah, berikan lewat tombol + di chat)
+     /tools          Tools (kumpulan alat; folder public/tools/)
+     /tools/<id>     satu tool terbuka (mis. /tools/voice = AI Voice)
      /profile        Profil (foto, bio, pengikut, mengikuti)
      /settings       Pengaturan
    Cara kerja: URL mengikuti layar yang tampil (diamati dari kelas DOM), dan tombol back/forward browser
@@ -26,6 +28,7 @@
     if (appEl.dataset.tab === 'bonus') return '/bonus'
     if (appEl.dataset.tab === 'games') return '/games'
     if (appEl.dataset.tab === 'shop') return '/shop'
+    if (appEl.dataset.tab === 'tools') return window.Tools && Tools.path ? Tools.path() : '/tools'
     if (appEl.dataset.tab === 'profile') return '/profile'
     if (appEl.dataset.tab === 'recent') {
       if (appEl.classList.contains('open') && !(window.GX && GX.cur) && typeof ch !== 'undefined' && ch) return '/chat/' + ch.id
@@ -44,7 +47,7 @@
     if (path === curPath()) return true
     applying++
     try {
-      const m = /^\/chat\/([\w-]+)$/.exec(path)
+      const m = /^\/chat\/([\w-]+)$/.exec(path), tm = /^\/tools(?:\/([a-z0-9-]{1,32}))?$/.exec(path)
       // 1) tutup yang menutupi: pengaturan, chat global
       if (path !== '/settings' && !setEl.classList.contains('hide')) $('sx').click()
       if (path !== '/global' && gcEl.classList.contains('show')) $('gc-back').click()
@@ -61,6 +64,9 @@
         Shell.setTab('bonus', { auto: false })
       } else if (path === '/games') {
         Shell.setTab('games', { auto: false })
+      } else if (tm) {
+        Shell.setTab('tools', { auto: false })
+        if (window.Tools) Tools.open(tm[1] || null)
       } else if (path === '/shop') {
         Shell.setTab('shop', { auto: false })
       } else if (path === '/profile') {
@@ -94,7 +100,8 @@
   })
 
   const mo = new MutationObserver(() => { Promise.resolve().then(sync) })
-  for (const [el, a] of [[appEl, 'class'], [appEl, 'data-tab'], [setEl, 'class'], [gcEl, 'class']]) mo.observe(el, { attributes: true, attributeFilter: [a] })
+  // satu observe per elemen: observe() kedua pada elemen yang sama MENIMPA filter yang pertama, jadi atribut appEl digabung di sini
+for (const [el, a] of [[appEl, ['class', 'data-tab', 'data-tool']], [setEl, ['class']], [gcEl, ['class']]]) mo.observe(el, { attributes: true, attributeFilter: a })
 
   // saat dimuat: alamat awal -> layar yang sesuai
   const start = norm(location.pathname)

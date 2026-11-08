@@ -133,6 +133,11 @@ Tab di navbar (ikon gamepad, di atas Bonus), alamat `/games`. Perlu akun (MongoD
 - **Field baru** di `users`: `gameDay`, `gameWins` (Tebak Angka), `picDay`, `picWins`, `picDone` (Tebak Gambar). Koleksi baru: `game_state`.
 - **Client**: `public/games.js` + `games.css`. Menambah game baru: tambah entri di `GAMES` (`ready:true`), fungsi render layarnya, dan route aksinya di handler klik.
 
+## Tools (tab "Tools", folder `public/tools/`)
+Tab di navbar (ikon kunci inggris, di bawah Bonus; di HP ada di menu panel kiri), alamat `/tools` dan `/tools/<id>`. Isinya kumpulan alat kecil; tiap tool punya foldernya sendiri dan baru diunduh saat dibuka. Tool pertama: **AI Voice** (`/tools/voice`): ketik teks, pilih karakter (dipindai otomatis dari daftar karakter) dan suaranya kalau karakternya punya lebih dari satu, lalu langsung jadi audio yang bisa diputar/diunduh. Memakai `POST /api/tts` yang sama dengan voice note, jadi butuh kode voice yang sama (kotak kodenya muncul di halaman tool kalau belum aktif). Tidak ada kode server baru.
+- **Menambah tool**: folder baru `public/tools/<id>/`, `Tools.register(...)` di `<id>.js`, satu entri di `LIST` pada `public/tools/tools.js`. Langkah lengkap: `public/tools/README.md`.
+- `lib/app.js`: `express.static` sekarang `{ redirect: false }` (supaya `/tools` tidak dialihkan ke `/tools/` karena ada foldernya) dan rute `/tools`, `/tools/:id` menjawab `index.html`. `vercel.json`: rewrite `/tools` dan `/tools/:id`.
+
 ## URL per layar (public/router.js)
 
 Tetap satu aplikasi (tanpa muat ulang), tapi tiap layar punya alamat dan tombol back/forward browser berfungsi:
@@ -146,6 +151,7 @@ Tetap satu aplikasi (tanpa muat ulang), tapi tiap layar punya alamat dan tombol 
 | `/bonus` | Bonus (klaim harian, kode referal) |
 | `/shop` | Toko (beli hadiah pakai coin) |
 | `/games` | Minigame (Tebak Angka) |
+| `/tools`, `/tools/<id>` | Tools (mis. `/tools/voice` = AI Voice) |
 | `/settings` | Pengaturan |
 
 - Bisa dibuka langsung lewat tautan. `id` yang tidak dikenal kembali ke `/`. Chat grup (fitur rahasia) memakai alamat `/chat`.

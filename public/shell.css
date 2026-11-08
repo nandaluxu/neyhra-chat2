@@ -218,7 +218,7 @@
   #rail .r-item{flex:1;justify-content:center;height:48px;padding:0}
   #rail .r-item.on::before{display:none}
   #rail .r-bottom{margin-top:0}
-  #rail #rgames,#rail #rshop,#rail #rbonus,#rail #setbtn{display:none} /* pindah ke #mnav */
+  #rail #rgames,#rail #rshop,#rail #rbonus,#rail #rtools,#rail #setbtn{display:none} /* pindah ke #mnav */
   #app.open #rail,#app:has(#gc.show) #rail{display:none}
   #menu,#lpanel{position:absolute;inset:0;padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))}
   #lpanel{padding-top:0;padding-left:0;padding-right:0}

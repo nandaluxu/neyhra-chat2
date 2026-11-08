@@ -30,6 +30,14 @@
       "destination": "/index.html"
     },
     {
+      "source": "/tools",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/tools/:id",
+      "destination": "/index.html"
+    },
+    {
       "source": "/profile",
       "destination": "/index.html"
     },

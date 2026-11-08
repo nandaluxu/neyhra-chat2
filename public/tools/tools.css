@@ -1,0 +1,55 @@
+/* ===== Tab Tools: hub + gaya bersama semua tool =====
+   Logika hub di tools.js. Tiap tool punya foldernya sendiri (tools/<id>/<id>.js + <id>.css) dan dimuat hanya saat dibuka.
+   Variabel tema yang dipakai: --bg --surface --ink --mut --line --ok --rec. Kelas bersama diawali .tl- (boleh dipakai tool mana pun). */
+
+#tools{display:none;overflow-y:auto;overscroll-behavior:contain;background:var(--bg);scrollbar-width:none;min-width:0}
+#tools::-webkit-scrollbar{display:none}
+#app[data-tab="tools"] #tools{display:block}
+#app[data-tab="tools"] :is(#menu,#lpanel,#chatview,#cempty,#dpanel){display:none}
+@media(min-width:800px){#tools{grid-column:2;grid-row:1}}
+@media(max-width:799px){#tools{position:absolute;inset:0;padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))}}
+
+.tl-in{max-width:760px;margin:0 auto;padding:calc(24px + env(safe-area-inset-top,0px)) 18px 40px}
+@media(min-width:800px){.tl-in{padding:44px 40px 56px}}
+.tl-top h1{font-size:30px;font-weight:700;letter-spacing:-.03em;line-height:1.1}
+.tl-sub{margin-top:6px;font-size:14px;line-height:1.4;color:var(--mut)}
+
+/* hub */
+.tl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;margin-top:20px}
+.tl-card{display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:18px;border-radius:22px;background:var(--surface);text-align:left;transition:transform .2s,background .2s}
+.tl-card:hover{transform:translateY(-2px)}
+.tl-card:active{transform:scale(.98)}
+.tl-card .ic{width:44px;height:44px;border-radius:14px;background:var(--ink);color:var(--bg);display:grid;place-items:center;margin-bottom:6px}
+.tl-card .ic svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.tl-card b{font-size:16px;font-weight:650;letter-spacing:-.01em}
+.tl-card span.d{font-size:13px;line-height:1.4;color:var(--mut)}
+.tl-card.soon{background:none;border:1.5px dashed var(--line);cursor:default;pointer-events:none}
+.tl-card.soon .ic{background:var(--surface);color:var(--mut)}
+.tl-card.soon b{color:var(--mut)}
+
+/* kepala tool (tombol kembali + judul) */
+.tl-head{display:flex;align-items:center;gap:6px;margin:0 0 4px -10px}
+.tl-back{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;flex:none}
+.tl-back:hover{background:var(--surface)}
+.tl-back svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.tl-head h1{font-size:24px;font-weight:700;letter-spacing:-.03em}
+.tl-load,.tl-err{margin-top:48px;text-align:center;font-size:14px;color:var(--mut)}
+.tl-err button{margin-top:12px}
+
+/* bagian bersama */
+.tl-block{margin-top:22px}
+.tl-label{display:flex;align-items:baseline;justify-content:space-between;gap:10px;font-size:13px;font-weight:600;margin-bottom:8px}
+.tl-label small{font-weight:400;color:var(--mut);font-size:12px}
+.tl-field{width:100%;border:0;outline:0;border-radius:16px;background:var(--surface);padding:13px 15px;font:inherit;font-size:16px;color:var(--ink)}
+.tl-field:focus{box-shadow:0 0 0 2px var(--ink)}
+textarea.tl-field{resize:vertical;min-height:112px;line-height:1.45}
+.tl-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:46px;padding:0 22px;border-radius:99px;background:var(--surface);font-weight:600;font-size:15px;transition:transform .15s,opacity .2s}
+.tl-btn:active{transform:scale(.97)}
+.tl-btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+.tl-btn.pri{background:var(--ink);color:var(--bg)}
+.tl-btn.full{width:100%}
+.tl-note{margin-top:8px;font-size:12.5px;line-height:1.45;color:var(--mut)}
+.tl-chip{display:inline-flex;align-items:center;height:32px;padding:0 13px;border-radius:99px;background:var(--surface);font-size:13px;font-weight:550;white-space:nowrap}
+.tl-chip.on{background:var(--ink);color:var(--bg)}
+.tl-spin{width:16px;height:16px;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:tlspin .7s linear infinite}
+@keyframes tlspin{to{transform:rotate(360deg)}}
