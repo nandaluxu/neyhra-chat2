@@ -85,11 +85,14 @@ Ini realita 2026: YouTube memblokir endpoint `player` dari IP datacenter yang di
 walau ini terjadi** — yang mati hanya stream. Urutan solusi:
 
 1. **Deploy dulu, coba dulu.** Banyak kasus langsung jalan di Vercel.
-2. Kalau kena: set env `YT_COOKIE` di Vercel (Settings → Environment Variables):
-   - buka youtube.com di browser kamu (login akun Google biasa — boleh akun kosong khusus ini),
-   - DevTools → Network → klik request apa pun ke youtube.com → copy nilai header `Cookie`,
-   - paste sebagai value `YT_COOKIE`, redeploy.
-   Catatan: cookie bisa kadaluarsa (mingguan-bulanan); kalau stream mati lagi, ulangi.
+2. Kalau kena: pasang cookie YouTube lewat env `YT_COOKIE` (cara paling gampang, pakai ekstensi):
+   - Pakai akun Google **cadangan** (bukan akun utama), login di youtube.com.
+   - Pasang ekstensi **Get cookies.txt LOCALLY**, buka youtube.com, klik ekstensi → **Export** (format Netscape) → dapat file `.txt`.
+   - Buka file itu di Notepad, **Select All → Copy**.
+   - Vercel → Project → Settings → Environment Variables → tambah `YT_COOKIE`, **paste isi file utuh** (multi-baris boleh; server mengubahnya sendiri ke format header). Simpan, lalu **Redeploy**.
+   - ⚠️ JANGAN commit file cookies.txt ke GitHub / taruh di repo: isinya = kunci masuk akun Google. Cukup di env Vercel.
+   - Cookie bisa kedaluwarsa (mingguan-bulanan); kalau mati lagi, ekspor ulang.
+   Cek hasilnya: buka `https://web-kamu/api/music/debug` → harus muncul `"kesimpulan":"OK: server bisa mengambil audio"`.
 3. Kalau masih gagal: pindah region function (Vercel → Settings → Functions → Region), atau
    cari diskusi terbaru issue `LuanRT/YouTube.js` soal PO token.
 

@@ -159,7 +159,11 @@ async function playSong(idx, list) {
   }
   audio.muAt = Date.now(); // waktu src diganti (pagar anti-loop di event error)
   audio.src = j.url;
-  audio.play().catch(() => say('Ketuk tombol putar untuk memulai (browser memblokir autoplay).'));
+  audio.play().catch(e => {
+    /* hanya NotAllowedError yang benar-benar autoplay; selain itu = sumber audio gagal dimuat (jangan salah tuduh browser) */
+    if (e && e.name === 'NotAllowedError') say('Ketuk tombol putar untuk memulai (browser memblokir autoplay).');
+    else if (e && e.name !== 'AbortError') explainFail();
+  });
   if ('mediaSession' in navigator) {
     try {
       navigator.mediaSession.metadata = new MediaMetadata({ title: s.title, artist: s.artist, artwork: s.thumb ? [{ src: s.thumb, sizes: '544x544', type: 'image/jpeg' }] : [] });
@@ -304,11 +308,21 @@ let lrcIdx = -1;
 audio.addEventListener('play', () => { renderPl(); renderSheet() });
 audio.addEventListener('pause', () => { renderPl(); renderSheet() });
 audio.addEventListener('ended', () => { if (repeat === 'one') { audio.currentTime = 0; audio.play().catch(() => {}) } else next() });
+/* ambil alasan asli dari server (JSON error dari /api/music/audio) lalu tampilkan */
+async function explainFail() {
+  let msg = 'Gagal memutar lagu ini.';
+  try {
+    const r = await fetch(audio.src, { headers: { Range: 'bytes=0-1' } });
+    if (!r.ok) { const j = await r.json().catch(() => ({})); msg = (j.code === 'bot_check' ? 'YouTube menolak dari IP server (bot check) — pasang YT_COOKIE di Vercel. Cek /api/music/debug. ' : (j.error || 'Server error ' + r.status) + ' ') }
+    else msg = 'Browser tidak bisa memutar format audio ini' + (audio.error ? ' (kode ' + audio.error.code + ')' : '') + '.';
+  } catch (e) { msg = 'Gagal menghubungi server musik.' }
+  lastErr = msg; say(msg); renderPl(); renderSheet();
+}
 audio.addEventListener('error', () => {
   if (!audio.src) return;
   /* URL kedaluwarsa (±6 jam) = hal biasa setelah lama idle: selesaikan ulang sekali.
      Pagar anti-loop: kalau error terjadi <4 dtk setelah src terakhir diganti, tampilkan pesan saja. */
-  if (Date.now() - (audio.muAt || 0) < 4000) { lastErr = 'Gagal memutar lagu ini. Coba lagu lain, atau ketuk putar lagi.'; say(lastErr); renderPl(); renderSheet(); return }
+  if (Date.now() - (audio.muAt || 0) < 4000) { explainFail(); return }
   lastErr = 'URL stream kedaluwarsa — mengambil yang baru…';
   playSong(qi);
 });
