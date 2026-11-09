@@ -1,13 +1,14 @@
-/* ===== Tab Musik: cari lagu, putar (streaming langsung dari googlevideo), antrean, lirik =====
+/* ===== Tab Musik: cari lagu, putar (audio di-proxy server per potongan 1 MB), antrean, lirik =====
    Dimuat setelah shell.js, sebelum router.js (lihat index.html). Server: lib/music.js.
    Memakai global index.html: $, store, cid, app (let/const global, akses langsung).
    Kejadian: 'shell:tab' (dari Shell.setTab) menyegarkan layar saat tabnya tampil.
 
    Cara kerja singkat:
    - Pencarian memanggil /api/music/search (server pakai YouTube Music; cache Redis 30 menit).
-   - Memutar lagu memanggil /api/music/stream -> server mengembalikan URL googlevideo -> <audio>
-     memutar langsung dari situ (audio tidak lewat server). URL ±6 jam kedaluwarsa: kalau gagal,
-     tombol putar otomatis me-resolve ulang.
+   - Memutar lagu memanggil /api/music/stream -> server mengembalikan URL /api/music/audio?id=..
+     (proxy milik server sendiri) -> <audio> memutar dari situ lewat Range request; server
+     meneruskan potongan ±1 MB dari googlevideo. Ini wajib karena URL googlevideo terikat IP yang
+     me-resolve (IP Vercel) sehingga kalau diputar langsung oleh browser user akan 403.
    - Mini player menempel di bawah dan TIDAK ikut pindah tab: musik terus jalan saat ke Beranda /
      Minigame / dsb. Saat chat karakter atau Chat Global dibuka, barnya menyembunyikan diri
      (musik tetap berlanjut; buka lagi lewat tab Musik).

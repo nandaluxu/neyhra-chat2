@@ -6,9 +6,12 @@ import { redisConfig } from './online.js'
 // ===== Fitur Musik: cari lagu (YouTube Music), URL stream audio, lirik (LRCLIB) =====
 // Dipasang di lib/app.js: app.use(musicRouter). Frontend: public/music.js (tab "Musik").
 //
-// Arsitektur "resolve-only": server hanya MENCARI URL stream (1-5 detik), browser user yang
-// memutarnya langsung dari googlevideo lewat tag <audio>. File audio tidak pernah lewat server
-// ini, jadi bandwidth Vercel tetap tipis (per lagu hanya beberapa KB) dan fungsi cepat selesai.
+// Arsitektur (diperbaiki): server mencari URL stream, lalu MENERUSKAN audionya per potongan kecil (/api/music/audio,
+// Range 1 MB per permintaan). Kenapa tidak lagi "resolve-only" (browser memutar URL googlevideo langsung)?
+// URL googlevideo terikat ke IP yang meminta URL-nya (parameter ip=). Server Vercel yang mencari URL, browser user (IP
+// lain) yang memutarnya -> googlevideo membalas 403 -> lagu tidak pernah bisa diputar. Jadi pencari dan pemutar HARUS
+// IP yang sama = server. Satu lagu ±4 MB lewat Vercel; potongan 1 MB menjaga tiap permintaan tetap singkat (aman dari
+// batas durasi fungsi). Jalan lokal (npm start) tidak punya masalah ini; MUSIC_DIRECT=1 mengembalikan perilaku lama.
 //
 // Cache & rate-limit memakai Redis lewat konfigurasi yang sama dengan lib/online.js (Upstash REST
 // atau Redis TCP). Tanpa Redis (jalan lokal) keduanya jatuh ke memori — cukup untuk dev.
@@ -115,41 +118,107 @@ r.get('/api/music/search', async (req, res) => {
 
 /* ---------- endpoint: URL stream audio ---------- */
 // Client diurut dari yang paling tahan bot-check (pola yt-dlp). Cookie otomatis ikut kalau YT_COOKIE diset.
-const CHAIN = ['ANDROID_VR', 'TVHTML5_SIMPLY_EMBEDDED_PLAYER', 'IOS', 'WEB']
+// Nama = nilai InnerTubeClient youtubei.js (bukan nama ClientType; 'TVHTML5_SIMPLY_EMBEDDED_PLAYER' dulu salah dan tidak dikenali).
+const CHAIN = ['ANDROID_VR', 'TV_SIMPLY', 'IOS', 'WEB_EMBEDDED', 'WEB']
+// User-Agent sesuai client yang mengeluarkan URL (googlevideo kadang menolak/menahan kalau tidak cocok)
+const UA_WEB = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
+const UA = {
+  ANDROID_VR: 'com.google.android.apps.youtube.vr.oculus/1.62.27 (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip',
+  IOS: 'com.google.ios.youtube/20.10.4 (iPhone16,2; U; CPU iOS 18_3_2 like Mac OS X;)'
+}
+// Cari URL stream terbaik untuk satu lagu. Hasil di-cache DI MEMORI instance (bukan Redis): URL terikat ke IP instance yang
+// mencarinya, jadi URL dari instance lain tidak berguna. force=true = abaikan cache (URL sudah ditolak googlevideo).
+const sc = new Map(), inflight = new Map()
+async function resolveStream(id, force = false) {
+  const hit = sc.get(id)
+  if (!force && hit && Date.now() < hit.exp) return hit.s
+  if (inflight.has(id)) return inflight.get(id)
+  const p = (async () => {
+    let bot = false
+    try {
+      const yt = await getYt()
+      for (const client of CHAIN) {
+        try {
+          const info = await yt.getBasicInfo(id, { client }) // opsi objek: kalau string dilempar langsung, client diabaikan dan selalu WEB
+          const st = info.playability_status && info.playability_status.status
+          if (st === 'LOGIN_REQUIRED') { bot = true; continue }
+          if (st !== 'OK') continue
+          const audio = (info.streaming_data && info.streaming_data.adaptive_formats || [])
+            .filter(f => f.has_audio && !f.has_video)
+            // m4a/AAC dulu (jalan di semua browser, termasuk Safari), lalu bitrate tertinggi
+            .sort((a, b) => (/mp4/.test(b.mime_type || '') - /mp4/.test(a.mime_type || '')) || ((b.bitrate || 0) - (a.bitrate || 0)))
+          if (!audio.length) continue
+          const best = audio[0], url = best.decipher(yt.session.player)
+          if (!url) continue
+          const s = { url, ua: UA[client] || UA_WEB, mime: String(best.mime_type || 'audio/mp4').split(';')[0], len: Number(best.content_length) || 0, itag: best.itag, kbps: Math.round((best.bitrate || 0) / 1000), client }
+          if (sc.size > 200) sc.clear()
+          sc.set(id, { s, exp: Date.now() + 90 * 60e3 }) // 90 menit; URL aslinya ±6 jam
+          return s
+        } catch (e) { console.error('[music:resolve]', client, e.message) /* client ini gagal; coba berikutnya */ }
+      }
+    } catch (e) {
+      console.error('[music:stream]', e.message)
+      return { fail: { status: 502, error: 'Stream gagal diambil, coba lagi' } }
+    }
+    // semua client gagal. bot=true = IP server kena bot-check (umum di beberapa region Vercel).
+    if (bot) return { fail: { status: 503, code: 'bot_check', error: 'YouTube menolak dari IP server ini (bot check). Set env YT_COOKIE (Cookie browser yang login YouTube) lalu redeploy.' } }
+    return { fail: { status: 503, code: 'no_streams', error: 'Lagu ini tidak bisa diputar (tidak ada format audio).' } }
+  })().finally(() => inflight.delete(id))
+  inflight.set(id, p)
+  return p
+}
+
 r.get('/api/music/stream', async (req, res) => {
   const id = String(req.query.id || '')
   const cid = String(req.query.clientId || '')
   if (!/^[\w-]{6,20}$/.test(id)) return res.status(400).json({ error: 'ID lagu tidak valid' })
   if (!(await allow(cid, 60, 60))) return res.status(429).json({ error: 'Terlalu sering, tunggu sebentar' })
   res.set('Cache-Control', 'no-store')
-  const ck = K + ':v:' + id
-  const cached = await cget(ck)
-  if (cached) return res.json(JSON.parse(cached))
-  let bot = false
-  try {
-    const yt = await getYt()
-    for (const client of CHAIN) {
-      try {
-        const info = await yt.getBasicInfo(id, client)
-        const st = info.playability_status && info.playability_status.status
-        if (st === 'LOGIN_REQUIRED') { bot = true; continue }
-        if (st !== 'OK') continue
-        const audio = (info.streaming_data && info.streaming_data.adaptive_formats || [])
-          .filter(f => f.has_audio).sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))
-        if (!audio.length) continue
-        const best = audio[0]
-        const out = { url: best.decipher(yt.session.player), itag: best.itag, kbps: Math.round((best.bitrate || 0) / 1000) }
-        cset(ck, JSON.stringify(out), 4 * 3600) // URL googlevideo ±6 jam: 4 jam = margin aman
-        return res.json(out)
-      } catch { /* client ini gagal; coba client berikutnya */ }
+  const s = await resolveStream(id)
+  if (s.fail) return res.status(s.fail.status).json({ code: s.fail.code, error: s.fail.error })
+  // MUSIC_DIRECT=1: kembalikan URL googlevideo langsung (hanya benar kalau server dan pemutar satu IP, mis. npm start lokal)
+  const url = process.env.MUSIC_DIRECT === '1' ? s.url : '/api/music/audio?id=' + encodeURIComponent(id) + '&clientId=' + encodeURIComponent(cid)
+  res.json({ url, itag: s.itag, kbps: s.kbps })
+})
+
+/* ---------- endpoint: audio (diteruskan dari googlevideo per potongan, mendukung Range) ---------- */
+const CHUNK = 1024 * 1024
+r.get('/api/music/audio', async (req, res) => {
+  const id = String(req.query.id || '')
+  const cid = String(req.query.clientId || '')
+  if (!/^[\w-]{6,20}$/.test(id)) return res.status(400).json({ error: 'ID lagu tidak valid' })
+  if (!(await allow('a' + cid, 600, 60))) return res.status(429).json({ error: 'Terlalu sering, tunggu sebentar' })
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const s = await resolveStream(id, attempt > 0) // percobaan ke-2: cari URL baru (URL lama ditolak / instance lain)
+    if (s.fail) return res.status(s.fail.status).json({ code: s.fail.code, error: s.fail.error })
+    // Range dari browser: "bytes=a-b", "bytes=a-", atau "bytes=-n" (n byte terakhir). Tanpa Range = mulai dari 0.
+    const m = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range || ''))
+    let start = 0, end = CHUNK - 1
+    if (m && (m[1] || m[2])) {
+      if (m[1]) { start = +m[1]; end = m[2] ? +m[2] : start + CHUNK - 1 }
+      else if (s.len) { start = Math.max(0, s.len - +m[2]); end = s.len - 1 }
     }
-  } catch (e) {
-    console.error('[music:stream]', e.message)
-    return res.status(502).json({ error: 'Stream gagal diambil, coba lagi' })
+    end = Math.min(end, start + CHUNK - 1)
+    if (s.len) { if (start >= s.len) return res.status(416).set('Content-Range', 'bytes */' + s.len).end(); end = Math.min(end, s.len - 1) }
+    let up
+    try {
+      up = await axios.get(s.url, { responseType: 'stream', headers: { Range: `bytes=${start}-${end}`, 'User-Agent': s.ua, 'Accept-Encoding': 'identity' }, timeout: 12000, maxRedirects: 3, validateStatus: () => true, decompress: false })
+    } catch (e) { console.error('[music:audio]', e.message); continue }
+    if (up.status === 403 || up.status === 404 || up.status === 410) { up.data.destroy(); sc.delete(id); continue }
+    if (up.status !== 206 && up.status !== 200) { up.data.destroy(); return res.status(502).json({ error: 'Audio tidak tersedia dari sumber' }) }
+    const cr = /bytes (\d+)-(\d+)\/(\d+|\*)/.exec(String(up.headers['content-range'] || ''))
+    const total = cr && cr[3] !== '*' ? +cr[3] : s.len || 0
+    const a = cr ? +cr[1] : 0, b = cr ? +cr[2] : (+up.headers['content-length'] || 0) - 1 // 200 (Range diabaikan) = isi penuh dari byte 0
+    res.status(206).set({
+      'Content-Type': s.mime, 'Accept-Ranges': 'bytes', 'Cache-Control': 'private, max-age=3600',
+      'Content-Range': `bytes ${a}-${b}/${total || '*'}`, 'Content-Length': String(b - a + 1)
+    })
+    req.on('close', () => up.data.destroy())
+    up.data.on('error', () => res.destroy())
+    up.data.pipe(res)
+    return
   }
-  // semua client gagal. bot=true = IP server kena bot-check (umum di beberapa region Vercel).
-  if (bot) return res.status(503).json({ code: 'bot_check', error: 'YouTube menolak dari IP server ini (bot check). Set env YT_COOKIE (Cookie browser yang login YouTube) lalu redeploy.' })
-  res.status(503).json({ code: 'no_streams', error: 'Lagu ini tidak bisa diputar (tidak ada format audio).' })
+  res.status(502).json({ error: 'Audio tidak bisa diambil, coba lagi' })
 })
 
 /* ---------- endpoint: lirik (LRCLIB: gratis, tanpa auth, tanpa bot-check) ---------- */

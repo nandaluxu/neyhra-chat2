@@ -6,8 +6,10 @@ Musik **tetap berjalan** saat pindah tab (Beranda, Minigame, dst.) — seperti S
 - Pencarian & metadata: **YouTube Music** (lewat library `youtubei.js` v18, lisensi MIT)
 - Lirik: **LRCLIB** (gratis, tanpa auth)
 - Cache & rate-limit: **Redis Upstash** kamu (otomatis terpakai, pola sama dengan `lib/online.js`)
-- Arsitektur *resolve-only*: audio TIDAK lewat server Vercel — server hanya mencari URL stream
-  (1–5 detik), browser user memutar langsung dari googlevideo. Bandwidth Vercel tetap tipis.
+- Arsitektur **proxy per-potongan**: server me-resolve URL stream (client ANDROID_VR dulu, lalu
+  TV_SIMPLY/IOS/WEB_EMBEDDED/WEB) lalu menyalurkan audio lewat `/api/music/audio` dalam potongan
+  1 MB (Range/206). Kenapa tidak langsung dari googlevideo: URL-nya **terikat IP yang me-resolve**
+  (IP Vercel), jadi browser user kena 403 → lagu "tidak bisa diputar". Itu penyebab bug sebelumnya.
 
 ---
 
@@ -64,7 +66,8 @@ Tidak ada env baru yang wajib. MONGODB/REDIS/R2 milikmu tidak disentuh.
 - ✅ `/api/music/lyrics` — lirik synced LRCLIB dengan timestamp benar (28 baris)
 - ✅ Validasi input (query kosong/kepanjangan → 400, ID ngaco → 400), rate-limit → 429
 - ✅ Installer `add-music.mjs` — 19/19 tambalan kena pada salinan main branch
-- ⚠️ `/api/music/stream` — dari IP sandbox yang di-flag, semua client kena bot-check
+- ✅ `/api/music/stream` + `/api/music/audio` — diuji dengan server googlevideo tiruan (Range/206, 416, retry saat 403, cache resolve). Belum diuji ke YouTube asli.
+- ⚠️ (catatan lama) `/api/music/stream` — dari IP sandbox yang di-flag, semua client kena bot-check
   (dibalas rapi dengan pesan set `YT_COOKIE`). Di IP Vercel hasilnya bisa berbeda —
   lihat bagian bot-check di bawah.
 
@@ -90,15 +93,18 @@ walau ini terjadi** — yang mati hanya stream. Urutan solusi:
 3. Kalau masih gagal: pindah region function (Vercel → Settings → Functions → Region), atau
    cari diskusi terbaru issue `LuanRT/YouTube.js` soal PO token.
 
-Dua hal yang JANGAN dilakukan:
+Yang JANGAN dilakukan:
 - Jangan menyimpan file audio ke R2 ("sekalian di-download sekalian") — itu berubah jadi
-  distribusi konten, risikonya jauh lebih tinggi daripada sekadar memberi link stream.
-- Jangan buat proxy audio lewat Vercel — bandwidthnya meledak.
+  distribusi konten, risikonya jauh lebih tinggi daripada sekadar proxy streaming.
+
+Catatan bandwidth: satu lagu ≈ 3–4 MB lewat function Vercel. Untuk pemakaian pribadi/kecil aman;
+kalau ramai, pertimbangkan host lain untuk proxy. Env opsional `MUSIC_DIRECT=1` mengembalikan mode
+lama (URL googlevideo langsung ke browser) — hanya berguna kalau server dan user satu IP (mis. dev lokal).
 
 ## Batasan & catatan jujur
 
-- **URL stream kedaluwarsa ±6 jam** dan terikat IP pemesan. Frontend otomatis me-resolve ulang
-  kalau gagal; antrean tersimpan di localStorage user.
+- **URL stream kedaluwarsa ±6 jam** dan terikat IP pemesan. Server menyimpannya di memori 90 menit dan
+  otomatis me-resolve ulang kalau googlevideo menolak; antrean tersimpan di localStorage user.
 - **Risiko ToS YouTube tetap ada** — ini risiko yang sama dengan NewPipe/ytdlp. Untuk pemakaian
   pribadi/kecil-kecilan umumnya aman, tapi jangan dijadikan produk komersial.
 - Kadaluwarsa antrean: lagu yang diputar berhari-hari lalu akan re-resolve saat diputar lagi.
