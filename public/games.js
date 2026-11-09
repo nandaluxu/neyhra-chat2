@@ -379,13 +379,17 @@ let chSaying = false, chSayTok = 0;
 const chUnlocked = () => { try { return localStorage.getItem('chessu') === '1'; } catch { return false; } }; // kode rahasia ke Reze (tryChess di index.html); pagar UI, bukan keamanan
 const chChars = () => !chUnlocked() ? [] : (typeof allChars !== 'undefined' && Array.isArray(allChars) ? allChars : []).filter(c => c.chess);
 const oppOf = id => (typeof allChars !== 'undefined' && Array.isArray(allChars) ? allChars : []).find(c => c.id === id) || null;
+let chSpeaking = false, chVoiceOnly = false, chPendingAudio = null; // sedang bersuara / ocehan ini hanya suara (teks disembunyikan) / suara yang diblokir autoplay browser
 let chAnimKey = ''; // bubble hanya beranimasi saat isinya BARU. Papan digambar ulang tiap ketukan (pilih bidak), tanpa ini bubble ikut "melompat" tiap kali.
 function chSayInner() {
   const g = cs && cs.game, oc = g && g.opp ? oppOf(g.opp) : null; if (!oc) return '';
   const av = '<img class="ch-sa" src="' + esc(oc.avatar || '') + '" alt="" referrerpolicy="no-referrer">';
   const still = k => { const s = k === chAnimKey; chAnimKey = k; return s ? ' still' : ''; };
   if (chSaying) return av + '<div class="ch-sb typing' + still('T' + chSayTok) + '" aria-label="' + esc(oc.name) + ' sedang mengetik"><i></i><i></i><i></i></div>';
-  if (g.say) return av + '<div class="ch-sb' + still('S' + g.say) + '"><b>' + esc(oc.name) + '</b><p>' + esc(g.say) + '</p></div>';
+  const wave = chSpeaking ? '<span class="ch-wave" aria-hidden="true"><i></i><i></i><i></i><i></i></span>' : '';
+  const replay = chPendingAudio ? '<button type="button" class="ch-play" data-act="cvoice">Putar suara</button>' : '';
+  if (chVoiceOnly && chSpeaking) return av + '<div class="ch-sb speak' + still('V' + chSayTok) + '"><b>' + esc(oc.name) + '</b><p>' + wave + '<span>sedang bicara…</span></p></div>'; // ocehan hanya suara: teks tidak ditampilkan
+  if (g.say) return av + '<div class="ch-sb' + still('S' + g.say) + '"><b>' + wave + esc(oc.name) + '</b><p>' + esc(g.say) + '</p>' + replay + '</div>';
   return av + '<div class="ch-sb idle"><b>' + esc(oc.name) + '</b><p>Lawanmu kali ini.</p></div>';
 }
 const chSayPaint = () => { const el = $('chsay'); if (el) el.innerHTML = chSayInner(); };  // hanya kotak ocehan yang digambar ulang, supaya animasi bidak tidak terputus
@@ -405,7 +409,18 @@ async function csay(revealAt = 0) {
   if (wait > 0) await chSleep(wait); // komentar menggambarkan posisi SETELAH langkah AI: jangan mendahului bidaknya
   if (tok !== chSayTok) { chSaying = false; return; }
   chSaying = false;
-  if (cs && cs.game) { cs.game.say = r.say; chSayPaint(); if (audio && screen === 'chess') chVoicePlay(audio); }
+  if (!(cs && cs.game)) return;
+  // Suara SELALU diputar kalau ada. Teks cuma kadang-kadang ikut tampil (server yang menentukan, r.show); kalau suaranya tidak ada (voice mati / TTS gagal)
+  // atau diblokir browser, teks tetap ditampilkan supaya ocehannya tidak hilang begitu saja.
+  const wantText = r.show !== false || !audio;
+  if (wantText) cs.game.say = r.say;
+  chPendingAudio = null;
+  if (!audio) chVoiceOnly = false; // ocehan baru tanpa suara: jangan tampilkan indikator "sedang bicara" milik ocehan sebelumnya
+  if (audio && screen === 'chess') {
+    const ok = await chVoicePlay(audio, !wantText);
+    if (!ok) { cs.game.say = r.say; chPendingAudio = audio; } // autoplay diblokir: tampilkan teks + tombol "Putar suara"
+  }
+  chSayPaint();
 }
 
 /* ---------- Catur: suara lawan ----------
@@ -414,27 +429,32 @@ async function csay(revealAt = 0) {
    Audionya DISIAPKAN dulu (chTTS) lalu diputar (chVoicePlay — JANGAN dinamai chPlay: itu nama fungsi animasi bidak di bawah, tabrakan nama bikin suara tidak pernah jalan) SEKALIGUS dengan teks komentarnya — teks dan suara selalu muncul bareng. */
 let chAudio = null, chAudioUrl = '';
 const chVoiceOn = () => typeof voiceOn !== 'undefined' && voiceOn && typeof vcode !== 'undefined' && !!vcode;
-function chVoiceStop() { try { if (chAudio) { chAudio.pause(); chAudio.onended = null; } if (chAudioUrl) URL.revokeObjectURL(chAudioUrl); } catch {} chAudio = null; chAudioUrl = ''; }
+function chVoiceStop() { try { if (chAudio) { chAudio.pause(); chAudio.onended = null; } if (chAudioUrl) URL.revokeObjectURL(chAudioUrl); } catch {} chAudio = null; chAudioUrl = ''; chSpeaking = false; chVoiceOnly = false; }
 async function chTTS(charId, vn, tok) {
   if (!charId || !vn || !chVoiceOn() || typeof post !== 'function') return null;
-  try {
-    const ab = await (await post('/api/tts', { char: charId, text: vn, voice: typeof voiceKeyOf === 'function' ? voiceKeyOf(charId) : undefined }, { 'x-voice-code': vcode })).arrayBuffer();
-    if (tok !== chSayTok) return null; // sudah ada ocehan lebih baru: jangan pakai yang basi
-    return new Blob([ab], { type: 'audio/mpeg' });
-  } catch (e) {
-    if (e && e.status === 403) { try { vcode = ''; store.set('vcode', null); setVoice(false); toast('Kode voice tidak valid, voice dimatikan'); } catch {} } // sama seperti chat
-    return null;
+  for (let attempt = 0; attempt < 2; attempt++) { // satu kali coba ulang: TTS kadang gagal sesaat (batas laju / jaringan), padahal suara harus selalu ada
+    try {
+      const ab = await (await post('/api/tts', { char: charId, text: vn, voice: typeof voiceKeyOf === 'function' ? voiceKeyOf(charId) : undefined }, { 'x-voice-code': vcode })).arrayBuffer();
+      if (tok !== chSayTok) return null; // sudah ada ocehan lebih baru: jangan pakai yang basi
+      return new Blob([ab], { type: 'audio/mpeg' });
+    } catch (e) {
+      if (e && e.status === 403) { try { vcode = ''; store.set('vcode', null); setVoice(false); toast('Kode voice tidak valid, voice dimatikan'); } catch {} return null; } // sama seperti chat
+      if (tok !== chSayTok) return null;
+      if (attempt === 0) await chSleep(700);
+    }
   }
+  return null;
 }
-function chVoicePlay(blob) { // nama UNIK: chPlay dipakai fungsi animasi bidak (deklarasi fungsi terakhir menimpa yang pertama — bug voice tidak pernah muncul)
+function chVoicePlay(blob, voiceOnly) { // nama UNIK: chPlay dipakai fungsi animasi bidak (deklarasi fungsi terakhir menimpa yang pertama — bug voice tidak pernah muncul)
   try {
     chVoiceStop();
+    chVoiceOnly = !!voiceOnly;
     chAudioUrl = URL.createObjectURL(blob);
     const a = chAudio = new Audio(chAudioUrl);
     a.playbackRate = typeof vSpeed === 'number' && vSpeed > 0 ? vSpeed : 1;
-    a.onended = () => { if (chAudio === a) chVoiceStop(); };
-    a.play().catch(() => {});
-  } catch { chVoiceStop(); }
+    a.onended = () => { if (chAudio === a) { chVoiceStop(); chSayPaint(); } };
+    return a.play().then(() => { if (chAudio === a) { chSpeaking = true; chSayPaint(); } return true; }).catch(() => { if (chAudio === a) chVoiceStop(); return false; }); // false = diblokir autoplay browser
+  } catch { chVoiceStop(); return Promise.resolve(false); }
 }
 
 /* ---------- Catur: animasi + lawan "mikir" ----------
@@ -582,6 +602,7 @@ body.addEventListener('click', e => {
   else if (a === 'pguess') pguess();
   else if (a === 'chnew') { intro = true; msg = ['', '']; chSel = -1; chPromo = null; render(); } // kembali ke pilihan tingkat
   else if (a === 'copp') { chOpp = b.dataset.id || ''; try { localStorage.setItem('chessOpp', chOpp); } catch {} render(); }
+  else if (a === 'cvoice') { const blob = chPendingAudio; chPendingAudio = null; if (blob) chVoicePlay(blob, false); chSayPaint(); }
   else if (a === 'cstart') cstart(b.dataset.lv);
   else if (a === 'csq') csq(b.dataset.i);
   else if (a === 'cpromo') { if (chPromo) cmove(chPromo.from, chPromo.to, b.dataset.p); }
