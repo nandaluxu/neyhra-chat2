@@ -9,9 +9,8 @@
      (proxy milik server sendiri) -> <audio> memutar dari situ lewat Range request; server
      meneruskan potongan ±1 MB dari googlevideo. Ini wajib karena URL googlevideo terikat IP yang
      me-resolve (IP Vercel) sehingga kalau diputar langsung oleh browser user akan 403.
-   - Mini player menempel di bawah dan TIDAK ikut pindah tab: musik terus jalan saat ke Beranda /
-     Minigame / dsb. Saat chat karakter atau Chat Global dibuka, barnya menyembunyikan diri
-     (musik tetap berlanjut; buka lagi lewat tab Musik).
+   - Musik terus jalan saat pindah tab, tapi tampilannya (mini player, Now Playing, toast) hanya
+     muncul di tab Musik supaya tidak menimpa halaman lain. Ikon Musik di rail menandakan sedang memutar.
    - Antrean + posisi + mode (acak/ulang) disimpan di localStorage ('mqueue') seperti chat. */
 (() => {
 'use strict';
@@ -336,7 +335,7 @@ addEventListener('keydown', e => {
 });
 
 /* ---------- integrasi shell ---------- */
-addEventListener('shell:tab', () => { if (active()) render() });
+addEventListener('shell:tab', () => { if (active()) render(); else { sheet = false; np.classList.remove('on') } });
 if (active()) render();
 renderPl();
 
