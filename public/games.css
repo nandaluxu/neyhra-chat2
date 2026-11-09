@@ -215,11 +215,5 @@
 @keyframes chdot{0%,60%,100%{opacity:.35;transform:none}30%{opacity:1;transform:translateY(-3px)}}
 @media(prefers-reduced-motion:reduce){.ch-sb,.ch-sb.typing i{animation:none}}
 
-/* Catur: ocehan yang hanya suara + tombol putar manual */
-.ch-sb.speak p{display:flex;align-items:center;gap:10px;color:var(--mut)}
-.ch-wave{display:inline-flex;align-items:center;gap:2px;height:14px;margin-right:6px;vertical-align:middle}
-.ch-wave i{width:3px;height:100%;border-radius:2px;background:var(--ink);transform-origin:center;animation:chwave .9s ease-in-out infinite}
-.ch-wave i:nth-child(2){animation-delay:.12s}.ch-wave i:nth-child(3){animation-delay:.24s}.ch-wave i:nth-child(4){animation-delay:.36s}
-@keyframes chwave{0%,100%{transform:scaleY(.3)}50%{transform:scaleY(1)}}
+/* Catur: tombol putar suara manual (kalau autoplay diblokir browser) */
 .ch-play{margin-top:8px;padding:6px 12px;border-radius:99px;background:var(--ink);color:var(--bg);font-size:12px;font-weight:600}
-@media(prefers-reduced-motion:reduce){.ch-wave i{animation:none}}
