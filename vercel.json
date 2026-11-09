@@ -42,6 +42,10 @@
       "destination": "/index.html"
     },
     {
+      "source": "/music",
+      "destination": "/index.html"
+    },
+    {
       "source": "/settings",
       "destination": "/index.html"
     }

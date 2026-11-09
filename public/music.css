@@ -1,0 +1,149 @@
+/* ===== Tab Musik: pencarian, mini player, lembar Now Playing, lirik =====
+   Logika di music.js. Hanya memakai variabel tema yang sudah ada: --bg --surface --ink --mut --line --ok --rec.
+   Pola tab sama dengan bonus.css/games.css: tampil saat #app[data-tab="music"]. */
+
+#music{display:none;overflow-y:auto;overscroll-behavior:contain;background:var(--bg);scrollbar-width:none;min-width:0}
+#music::-webkit-scrollbar{display:none}
+#app[data-tab="music"] #music{display:block}
+#app[data-tab="music"] :is(#menu,#lpanel,#chatview,#cempty,#dpanel){display:none}
+@media(min-width:800px){#music{grid-column:2;grid-row:1}}
+@media(max-width:799px){
+  #music{position:absolute;inset:0;padding-bottom:calc(190px + env(safe-area-inset-bottom,0px))} /* bar bawah + mini player */
+}
+
+.mu-in{max-width:760px;margin:0 auto;padding:calc(24px + env(safe-area-inset-top,0px)) 18px 40px}
+@media(min-width:800px){.mu-in{padding:44px 40px 56px}}
+.mu-top h1{font-size:30px;font-weight:700;letter-spacing:-.03em;line-height:1.1}
+.mu-sub{margin-top:6px;font-size:14px;line-height:1.4;color:var(--mut)}
+.mu-sub small{display:block;margin-top:2px;font-size:12px}
+
+/* pencarian */
+.mu-srch{display:flex;align-items:center;gap:10px;margin-top:20px;padding:13px 16px;border-radius:99px;background:var(--surface);transition:box-shadow .2s}
+.mu-srch:focus-within{box-shadow:0 0 0 2px var(--ink)}
+.mu-srch svg{width:19px;height:19px;color:var(--mut);flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}
+.mu-srch input{flex:1;min-width:0;border:0;outline:0;background:transparent;color:var(--ink);font:inherit;font-size:15.5px}
+.mu-srch input::placeholder{color:var(--mut)}
+.mu-go{flex:none;display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:var(--ink);color:var(--bg);transition:opacity .2s}
+.mu-go:disabled{opacity:.4}
+.mu-go svg{color:var(--bg);width:16px;height:16px}
+
+/* hasil */
+.mu-res-h{margin:26px 2px 4px;font-size:11.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--mut)}
+.mu-song{display:flex;align-items:center;gap:12px;width:100%;padding:9px 10px;border-radius:14px;text-align:left;transition:background .15s}
+.mu-song:hover{background:var(--surface)}
+.mu-song.now{background:var(--surface)}
+.mu-song img{width:46px;height:46px;border-radius:10px;object-fit:cover;background:var(--line);flex:none}
+.mu-song .si{flex:1;min-width:0}
+.mu-song .si b{display:block;font-size:14px;font-weight:600;letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mu-song .si span{display:block;margin-top:1px;font-size:12.5px;color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mu-song .dur{font-size:12.5px;color:var(--mut);font-variant-numeric:tabular-nums;flex:none}
+.mu-add{flex:none;display:grid;place-items:center;width:34px;height:34px;border-radius:50%;color:var(--mut);transition:background .15s,color .15s}
+.mu-add:hover{background:var(--bg);color:var(--ink)}
+.mu-add svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}
+.mu-eq{display:flex;align-items:flex-end;gap:2px;height:14px;width:16px;flex:none}
+.mu-eq i{flex:1;background:var(--ink);border-radius:2px;animation:mueq 1s ease-in-out infinite}
+.mu-eq i:nth-child(2){animation-delay:.25s}
+.mu-eq i:nth-child(3){animation-delay:.5s}
+@keyframes mueq{0%,100%{height:30%}50%{height:100%}}
+.mu-skel{display:flex;gap:12px;padding:9px 10px}
+.mu-skel .a{width:46px;height:46px;border-radius:10px;background:var(--surface);flex:none;animation:mutsk 1.4s ease-in-out infinite}
+.mu-skel .b{flex:1;align-self:center}
+.mu-skel .b i{display:block;height:12px;border-radius:6px;background:var(--surface);animation:mutsk 1.4s ease-in-out infinite}
+.mu-skel .b i+i{width:55%;margin-top:7px;height:9px;animation-delay:.15s}
+@keyframes mutsk{50%{opacity:.45}}
+.mu-msg{margin-top:16px;padding:14px 16px;border-radius:14px;background:var(--surface);font-size:13.5px;line-height:1.5;color:var(--mut)}
+.mu-msg b{color:var(--ink)}
+
+/* ===== Mini player: menempel di bawah, tetap tampil di semua tab (musik terus jalan) =====
+   Disembunyikan hanya saat chat terbuka / chat global (musik tetap berlanjut, hanya barnya). */
+#mupl{position:absolute;left:0;right:0;bottom:0;z-index:3;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(16px);border-top:1px solid var(--line);transform:translateY(110%);transition:transform .3s cubic-bezier(.2,.9,.3,1)}
+#mupl.on{transform:none}
+#app.open #mupl,#app:has(#gc.show) #mupl{transform:translateY(110%)} /* pola :has sama dengan shell.css */
+@media(min-width:800px){#mupl{left:var(--rail-c)}}
+@media(max-width:799px){#mupl{bottom:calc(60px + env(safe-area-inset-bottom,0px))}} /* di atas bar bawah */
+.mupl-in{display:flex;align-items:center;gap:12px;max-width:760px;margin:0 auto;padding:9px 14px calc(9px + env(safe-area-inset-bottom,0px))}
+@media(max-width:799px){.mupl-in{padding-bottom:9px}}
+#mupl .art{width:44px;height:44px;border-radius:10px;object-fit:cover;background:var(--surface);flex:none;cursor:pointer}
+#mupl .si{flex:1;min-width:0;cursor:pointer}
+#mupl .si b{display:block;font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#mupl .si span{display:block;font-size:12px;color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#mupl .si .dm{color:var(--ok);font-weight:600}
+.mupb{position:absolute;left:0;right:0;top:-1px;height:2.5px}
+.mupb i{display:block;height:100%;width:0;background:var(--ink);opacity:.85}
+.mupl-play{display:grid;place-items:center;width:40px;height:40px;border-radius:50%;background:var(--ink);color:var(--bg);flex:none;transition:transform .15s}
+.mupl-play:active{transform:scale(.92)}
+.mupl-play svg{width:18px;height:18px;fill:currentColor}
+.mupl-nxt{flex:none;display:grid;place-items:center;width:38px;height:38px;border-radius:50%;color:var(--mut)}
+.mupl-nxt:hover{color:var(--ink)}
+.mupl-nxt svg{width:19px;height:19px;fill:currentColor}
+.muspin{animation:murot 1s linear infinite}
+@keyframes murot{to{transform:rotate(360deg)}}
+
+/* ===== Lembar Now Playing ===== */
+#mnp{position:absolute;inset:0;z-index:9;background:var(--bg);display:flex;flex-direction:column;transform:translateY(102%);visibility:hidden;transition:transform .34s cubic-bezier(.2,.9,.3,1),visibility 0s .34s}
+#mnp.on{transform:none;visibility:visible;transition:transform .34s cubic-bezier(.2,.9,.3,1)}
+.mnp-in{flex:1;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;width:100%;max-width:560px;margin:0 auto;padding:calc(16px + env(safe-area-inset-top,0px)) 22px 30px}
+.mnp-in::-webkit-scrollbar{display:none}
+.mnp-top{display:flex;justify-content:space-between;align-items:center}
+.mnp-top .t{font-size:11.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
+.mnp-x{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;color:var(--ink)}
+.mnp-x:hover{background:var(--surface)}
+.mnp-x svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}
+.mnp-art{width:min(72vw,340px);aspect-ratio:1;border-radius:26px;object-fit:cover;background:var(--surface);margin:20px auto 0;box-shadow:0 18px 50px rgba(0,0,0,.22)}
+.mnp-meta{text-align:center;margin-top:20px}
+.mnp-meta h1{font-size:21px;font-weight:700;letter-spacing:-.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mnp-meta p{margin-top:4px;font-size:13.5px;color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mnp-err{margin:14px auto 0;max-width:420px;padding:10px 14px;border-radius:12px;background:var(--surface);font-size:12.5px;line-height:1.45;color:var(--mut)}
+.mnp-err b{color:var(--rec)}
+/* penggeser waktu */
+.mnp-seek{position:relative;height:22px;display:flex;align-items:center;cursor:pointer;touch-action:none}
+.mnp-seek .tr{position:absolute;left:0;right:0;height:4px;border-radius:99px;background:var(--line)}
+.mnp-seek .fl{position:absolute;left:0;height:4px;border-radius:99px;background:var(--ink);width:0}
+.mnp-seek .kn{position:absolute;width:13px;height:13px;border-radius:50%;background:var(--ink);left:0;transform:translateX(-50%);opacity:0;transition:opacity .15s}
+.mnp-seek:hover .kn,.mnp-seek.drag .kn{opacity:1}
+.mnp-time{display:flex;justify-content:space-between;font-size:11.5px;color:var(--mut);font-variant-numeric:tabular-nums;margin-top:5px}
+.mnp-ctl{display:flex;justify-content:center;align-items:center;gap:18px;margin-top:14px}
+.mnp-ctl .big{width:58px;height:58px}
+.mnp-ctl .big svg{width:24px;height:24px}
+.mnp-ctl .sv{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.mnp-ctl .svf{fill:currentColor;stroke:none}
+.mnp-side{flex:none;display:grid;place-items:center;width:38px;height:38px;border-radius:50%;color:var(--mut);transition:color .15s}
+.mnp-side:hover{color:var(--ink)}
+.mnp-side.on{color:var(--ink)}
+.mnp-tabs{display:flex;gap:8px;justify-content:center;margin-top:24px}
+.mnp-tab{padding:8px 16px;border-radius:99px;background:var(--surface);color:var(--mut);font-size:13px;font-weight:600;transition:background .2s,color .2s}
+.mnp-tab.on{background:var(--ink);color:var(--bg)}
+/* lirik */
+.mu-lrc{margin-top:16px;padding:8px 2px;max-height:44dvh;min-height:190px;overflow-y:auto;scrollbar-width:none;mask-image:linear-gradient(transparent,#000 12%,#000 88%,transparent)}
+.mu-lrc::-webkit-scrollbar{display:none}
+.mu-lrc .ln{padding:9px 8px;border-radius:10px;font-size:16px;line-height:1.5;color:var(--mut);transition:color .25s;cursor:pointer}
+.mu-lrc .ln:hover{color:var(--ink)}
+.mu-lrc .ln[data-lrc="on"]{color:var(--ink);font-weight:700}
+.mu-lrc .ln.past{opacity:.45}
+.mu-lrc-empty{padding:36px 12px;text-align:center;color:var(--mut);font-size:13.5px;line-height:1.5}
+/* antrean */
+.mu-qhead{display:flex;justify-content:space-between;align-items:baseline;margin:18px 2px 8px}
+.mu-qhead b{font-size:15px;font-weight:600}
+.mu-qhead button{font-size:12.5px;color:var(--mut);padding:6px 10px;border-radius:99px}
+.mu-qhead button:hover{background:var(--surface);color:var(--ink)}
+.mu-qrow{display:flex;align-items:center;gap:11px;padding:8px 8px;border-radius:12px;transition:background .15s}
+.mu-qrow:hover{background:var(--surface)}
+.mu-qrow.now{background:var(--surface)}
+.mu-qrow img{width:40px;height:40px;border-radius:9px;object-fit:cover;background:var(--line);flex:none}
+.mu-qrow .si{flex:1;min-width:0}
+.mu-qrow .si b{display:block;font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mu-qrow .si span{display:block;font-size:12px;color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mu-qrow .n{font-size:12px;color:var(--mut);font-variant-numeric:tabular-nums;flex:none;width:22px;text-align:center}
+.mu-qrow .rm{flex:none;display:grid;place-items:center;width:30px;height:30px;border-radius:50%;color:var(--mut)}
+.mu-qrow .rm:hover{color:var(--rec)}
+.mu-qrow .rm svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}
+.mu-qempty{padding:28px 12px;text-align:center;color:var(--mut);font-size:13.5px}
+
+/* titik merah di tombol rail saat lagu berjalan */
+#rmusic{position:relative}
+#rmusic.play::after{content:"";position:absolute;top:9px;right:11px;width:7px;height:7px;border-radius:50%;background:var(--rec)}
+
+/* toast musik (toast bawaan ada di footer chat, tidak selalu terlihat) */
+#mutoast{position:absolute;left:50%;bottom:calc(74px + env(safe-area-inset-bottom,0px));transform:translate(-50%,12px);z-index:30;max-width:calc(100% - 28px);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:14px;font-size:13px;font-weight:500;line-height:1.4;box-shadow:0 6px 22px rgba(0,0,0,.25);opacity:0;pointer-events:none;transition:opacity .25s,transform .25s}
+#mutoast.show{opacity:1;transform:translate(-50%,0);pointer-events:auto;cursor:pointer}
+@media(min-width:800px){#mutoast{bottom:74px}}

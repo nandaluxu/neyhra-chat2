@@ -26,21 +26,21 @@ function say(t) {
 
 /* ---------- Tab ---------- */
 let mode = 'char'; // sub-tab daftar: 'char' | 'group'
-const rhome = $('rhome'), rrecent = $('rrecent'), rbonus = $('rbonus'), rgames = $('rgames'), rshop = $('rshop'), rtools = $('rtools'), rprofile = $('rprofile'), rlogo = $('rlogo');
+const rhome = $('rhome'), rrecent = $('rrecent'), rbonus = $('rbonus'), rgames = $('rgames'), rshop = $('rshop'), rtools = $('rtools'), rprofile = $('rprofile'), rmusic = $('rmusic'), rlogo = $('rlogo');
 
 function syncRail() {
   const t = tab(), home = t === 'home';
-  for (const [el, k] of [[rhome, 'home'], [rrecent, 'recent'], [rbonus, 'bonus'], [rgames, 'games'], [rshop, 'shop'], [rtools, 'tools'], [rprofile, 'profile']]) {
+  for (const [el, k] of [[rhome, 'home'], [rrecent, 'recent'], [rbonus, 'bonus'], [rgames, 'games'], [rshop, 'shop'], [rtools, 'tools'], [rprofile, 'profile'], [rmusic, 'music']]) {
     el.classList.toggle('on', t === k);
     if (t === k) el.setAttribute('aria-current', 'page'); else el.removeAttribute('aria-current');
   }
   rlogo.setAttribute('aria-expanded', String(home && mqD.matches && app.classList.contains('rail-x')));
 }
 function setTab(t, opts) {
-  t = t === 'recent' || t === 'bonus' || t === 'games' || t === 'shop' || t === 'tools' || t === 'profile' ? t : 'home';
+  t = t === 'recent' || t === 'bonus' || t === 'games' || t === 'shop' || t === 'tools' || t === 'profile' || t === 'music' ? t : 'home';
   const auto = !opts || opts.auto !== false;
   app.dataset.tab = t; syncRail();
-  if (t === 'home' || t === 'bonus' || t === 'games' || t === 'shop' || t === 'tools' || t === 'profile') { // layar tanpa chat: Beranda, Bonus, Minigame, Toko, Tools, Profil
+  if (t === 'home' || t === 'bonus' || t === 'games' || t === 'shop' || t === 'tools' || t === 'profile' || t === 'music') { // layar tanpa chat: Beranda, Bonus, Minigame, Toko, Tools, Musik, Profil
     closeMenu();
     if (isOpen()) closeChat();
     detail(false, { keep: true });
@@ -390,6 +390,7 @@ window.addEventListener('shell:tab', () => { closeMn(); syncMn(); });
 rhome.addEventListener('click', () => setTab('home'));
 rrecent.addEventListener('click', () => setTab('recent', { auto: true }));
 rbonus.addEventListener('click', () => setTab('bonus'));
+rmusic.addEventListener('click', () => setTab('music'));
 rgames.addEventListener('click', () => setTab('games'));
 rshop.addEventListener('click', () => setTab('shop'));
 rtools.addEventListener('click', () => setTab('tools'));
