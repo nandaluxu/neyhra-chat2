@@ -1,7 +1,12 @@
 /* ===== Tab Musik: cari lagu, putar (audio di-proxy server per potongan 1 MB), antrean, lirik =====
    Dimuat setelah shell.js, sebelum router.js (lihat index.html). Server: lib/music.js.
-   Memakai global index.html: $, store, cid, app (let/const global, akses langsung).
-   Kejadian: 'shell:tab' (dari Shell.setTab) menyegarkan layar saat tabnya tampil.
+   Memakai global index.html: $, store, cid, app, devOn (let/const global, akses langsung).
+   Kejadian: 'shell:tab' (dari Shell.setTab) menyegarkan layar saat tabnya tampil; 'devmode' (dari switch
+   Mode dev di Pengaturan) menghentikan musik saat Mode dev dimatikan.
+
+   STATUS: fitur DITUTUP untuk user biasa (streaming YouTube dari IP server sering ditolak, bot check).
+   Tab, ikon rail, alamat /music, dan antrean tersimpan hanya aktif saat Mode dev menyala —
+   pagar di klien (pola kode rahasia yang lain), endpoint server tetap ada untuk pengujian.
 
    Cara kerja singkat:
    - Pencarian memanggil /api/music/search (server pakai YouTube Music; cache Redis 30 menit).
@@ -16,7 +21,8 @@
 'use strict';
 const $ = id => document.getElementById(id);
 const app = $('app'), body = $('mubody');
-const active = () => app.dataset.tab === 'music';
+const dev = () => typeof devOn === 'function' && devOn(); /* Musik hanya untuk Mode dev (lihat catatan status di atas) */
+const active = () => app.dataset.tab === 'music' && dev();
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmt = s => { if (!s || !isFinite(s) || s < 0) return '0:00'; const m = Math.floor(s / 60), r = Math.floor(s % 60); return m + ':' + String(r).padStart(2, '0') };
 const jget = async url => { try { const r = await fetch(url); return await r.json() } catch { return { error: 'Gagal menghubungi server' } } };
@@ -55,8 +61,9 @@ let lyr = null, lyrLoading = false; // lirik: [{t, text}] atau null
 let sheet = false, sheetTab = 'lyrics';
 const cur = () => (qi >= 0 && qi < queue.length ? queue[qi] : null);
 
-/* muat/simpan antrean (pola store seperti pin/logs aplikasi) */
-try { const o = JSON.parse(store.get('mqueue') || 'null'); if (o && Array.isArray(o.queue)) { queue = o.queue; qi = Math.min(o.qi ?? -1, o.queue.length - 1); repeat = ['off', 'all', 'one'].includes(o.repeat) ? o.repeat : 'off'; shuffle = !!o.shuffle; } } catch {}
+/* muat/simpan antrean (pola store seperti pin/logs aplikasi); antrean HANYA dipulihkan saat Mode dev
+   aktif — user biasa tidak melihat mini player dari sisa antrean lama */
+if (dev()) try { const o = JSON.parse(store.get('mqueue') || 'null'); if (o && Array.isArray(o.queue)) { queue = o.queue; qi = Math.min(o.qi ?? -1, o.queue.length - 1); repeat = ['off', 'all', 'one'].includes(o.repeat) ? o.repeat : 'off'; shuffle = !!o.shuffle; } } catch {}
 const save = () => store.set('mqueue', JSON.stringify({ queue: queue.slice(0, 100), qi, repeat, shuffle }));
 
 /* ---------- mini player + lembar now playing: dibangun sekali, isi diperbarui ---------- */
@@ -339,6 +346,19 @@ addEventListener('shell:tab', () => { if (active()) render(); else { sheet = fal
 if (active()) render();
 renderPl();
 
-/* konteks untuk mode dev (opsional dipakai lewat konsol) */
-window.MU = { play: playSong, next, prev, queue: () => queue, search: doSearch };
+/* konteks untuk mode dev (opsional dipakai lewat konsol) — hanya terpasang saat Mode dev aktif */
+const MU_API = { play: playSong, next, prev, queue: () => queue, search: doSearch };
+if (dev()) window.MU = MU_API;
+/* Mode dev dimatikan saat musik jalan (kejadian 'devmode' dari Pengaturan): hentikan lagu,
+   bersihkan antrean, sembunyikan pemutar, dan pulangkan tab ke Beranda. */
+addEventListener('devmode', () => {
+  if (dev()) { window.MU = MU_API; return }
+  try { delete window.MU } catch {}
+  audio.pause();
+  try { audio.removeAttribute('src'); audio.load() } catch {}
+  queue = []; qi = -1; save();
+  sheet = false; np.classList.remove('on');
+  renderPl();
+  if (app.dataset.tab === 'music' && typeof setTab === 'function') setTab('home');
+});
 })();

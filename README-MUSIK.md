@@ -1,5 +1,14 @@
 # Fitur Musik untuk neyhra-chat2 — Delta Zip
 
+> ⚠️ **STATUS: DITUTUP — hanya bisa diakses saat Mode dev aktif.**
+> Streaming YouTube dari IP server sering ditolak (bot check), jadi fitur Musik disembunyikan dari
+> user biasa: ikon di rail, tab Musik, alamat `/music`, pemulihan antrean, dan `window.MU` hanya
+> aktif saat **Mode dev** menyala (kode rahasia ke Reze → switch Mode dev di Pengaturan; matikan
+> Mode dev saat musik jalan → lagu berhenti dan tab pulang ke Beranda). Pagar di sisi klien, pola
+> kode rahasia yang lain — bukan keamanan; endpoint `/api/music/*` tetap ada di server untuk
+> pengujian. Cara buka lagi untuk semua user: hapus pagar `devOn` di `paintMusic`/`setTab`
+> (`public/index.html`, `public/shell.js`, `public/music.js`).
+
 Tab **Musik** di rail/sidepanel: cari lagu, putar, antrean, lirik tersinkron (karaoke).
 Musik **tetap berjalan** saat pindah tab (Beranda, Minigame, dst.) — seperti Spotify.
 

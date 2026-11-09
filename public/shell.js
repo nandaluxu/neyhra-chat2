@@ -37,6 +37,7 @@ function syncRail() {
   rlogo.setAttribute('aria-expanded', String(home && mqD.matches && app.classList.contains('rail-x')));
 }
 function setTab(t, opts) {
+  if (t === 'music' && !(typeof devOn === 'function' && devOn())) t = 'home'; // Musik ditutup: tab hanya terbuka saat Mode dev aktif (index.html: devOn/paintMusic)
   t = t === 'recent' || t === 'bonus' || t === 'games' || t === 'shop' || t === 'tools' || t === 'profile' || t === 'music' ? t : 'home';
   const auto = !opts || opts.auto !== false;
   app.dataset.tab = t; syncRail();
