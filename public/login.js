@@ -34,7 +34,7 @@ app.append(m);
 
 const box = $('lbox');
 const say = (id, t, err) => { const el = $(id); el.textContent = t || ''; el.classList.toggle('err', !!err); };
-const ui1 = { set: (t, e) => say('lstat', t, e), busy: on => box.classList.toggle('sbusy', on) };
+const ui1 = { set: (t, e) => say('lstat', t, e), busy: on => box.classList.toggle('sbusy', on), ok: r => { if (!(r && r.needUsername)) close(); } }; /* ok: dipanggil authGo begitu login sukses — overlay menutup sendiri, sinkron lanjut di belakang layar (akun Google baru tetap dibuka untuk langkah pilih username) */
 let step = 1, lastFocus = null;
 
 function showStep(n) {
@@ -133,7 +133,7 @@ async function onCredential(resp) {
   if (typeof atok !== 'undefined' && atok) return link(credential);
   const r = await authGo('google', { credential }, ui1);
   if (!r) return;
-  if (r.needUsername) { showStep(2); try { sessionStorage.removeItem(skipKey); } catch {} } else close();
+  if (r.needUsername) { showStep(2); try { sessionStorage.removeItem(skipKey); } catch {} } /* overlay sudah ditutup oleh ui.ok untuk yang tidak perlu username */
 }
 
 /* ---------- Pengaturan: hubungkan / lepas Google (akun lama) ---------- */

@@ -1839,6 +1839,7 @@ async function authGo(kind,body,ui){
     atok=r.token; store.set('authtok',atok); store.set('authname',r.name); if(Number.isFinite(r.coins)) saveWallet(r); paintAcct(null);
     ui.set(kind==='register'?'Akun dibuat. Menyimpan obrolanmu ke akun…':'Berhasil masuk. Mengambil obrolan dari akunmu…');
     ui.busy(false);
+    if(ui.ok) try{ ui.ok(r) }catch{} /* overlay login menutup dirinya dari sini (login selesai = tutup; sinkron jalan di belakang layar) */
     await initAcct(); await syncCloud(false); /* langsung sinkron: obrolan akun masuk ke perangkat ini, obrolan perangkat ini masuk ke akun */
     return r;
   }catch(e){ ui.set(e.message,true); }
