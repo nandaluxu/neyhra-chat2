@@ -2416,8 +2416,10 @@ function paintDev(){ $('sdevg').classList.toggle('hide',store.get('devu')!=='1')
    tab Musik hanya muncul saat Mode dev aktif. Pagar UI seperti kode rahasia lain, bukan keamanan. */
 function paintMusic(){ $('rmusic').classList.toggle('hide',!devOn()); }
 paintMusic();
+let devCodeMem=null; /* kode dev hanya di memori (hilang saat muat ulang; nanti ditanya lagi lewat prompt) */
 function tryDev(text){
   if(!window.GX||!GX.hash||GX.hash(text.trim().toLowerCase().replace(/\s+/g,''))!==DEV_SECRET) return false;
+  devCodeMem=text.trim();
   const was=store.get('devu')==='1'; store.set('devu','1'); if(!was) store.set('dev','1');
   paintDev(); toast(was?'Mode dev sudah terbuka, atur di Pengaturan':'Mode dev terbuka dan aktif'); return true;
 }
@@ -2445,6 +2447,31 @@ function renderDev(){
   const box=$('mdev'); box.textContent='';
   if(!devOn()){ box.classList.add('hide'); return; }
   box.classList.remove('hide');
+  /* Dev: tambah Coin & Gems ke akun yang sedang masuk (divalidasi server lewat kode dev, lib/dev.js) */
+  { const g3=document.createElement('h3'); g3.textContent='Dev: tambah Coin & Gems'; box.appendChild(g3);
+    const gh=document.createElement('p'); gh.className='mhelp';
+    gh.textContent=atok?'Menambah saldo akunmu (bukan mengganti). Maks 1.000.000 per tombol.':'Masuk ke akun dulu untuk memakai fitur ini.'; box.appendChild(gh);
+    if(atok){
+      const row=document.createElement('div'); row.className='mdrow'; row.style.flexWrap='wrap'; row.style.gap='6px';
+      const mk=ph=>{ const i=document.createElement('input'); i.type='number'; i.min='0'; i.step='1'; i.inputMode='numeric'; i.placeholder=ph; i.style.cssText='width:96px;padding:6px 8px;border-radius:8px;border:1px solid var(--line,#444);background:transparent;color:inherit'; return i; };
+      const ic=mk('Coin'), ig=mk('Gems');
+      const btn=document.createElement('button'); btn.type='button'; btn.className='mdel'; btn.textContent='Tambah';
+      const msg=document.createElement('small'); msg.style.cssText='display:block;width:100%';
+      btn.onclick=async()=>{
+        const coins=Math.max(0,parseInt(ic.value)||0), gems=Math.max(0,parseInt(ig.value)||0);
+        if(!coins&&!gems){ msg.textContent='Isi Coin atau Gems dulu.'; msg.classList.add('err'); return; }
+        if(!devCodeMem){ const c=prompt('Masukkan kode dev:'); if(!c||!c.trim()) return; devCodeMem=c.trim(); }
+        btn.disabled=true; msg.classList.remove('err'); msg.textContent='Menambah…';
+        try{
+          const r=await aApi('dev/grant',{code:devCodeMem,coins,gems});
+          if(r.ok){ saveWallet(r); ic.value=''; ig.value=''; msg.textContent='Berhasil. Saldo sekarang: '+nfW.format(r.coins)+' coin · '+nfW.format(r.gems)+' gems'; }
+          else{ msg.textContent=r.error||'Gagal.'; msg.classList.add('err'); }
+        }catch(e){ if(e.status===403) devCodeMem=null; msg.textContent=(e.message||'Gagal menambah saldo.'); msg.classList.add('err'); }
+        btn.disabled=false;
+      };
+      row.append(ic,ig,btn,msg); box.appendChild(row);
+    }
+  }
   const h3=document.createElement('h3'); h3.textContent='Dev: ringkas sekarang'; box.appendChild(h3);
   const help=document.createElement('p'); help.className='mhelp'; help.textContent='Meringkas seluruh riwayat konteks karakter itu sekarang juga, tanpa menunggu 16 pesan dan tanpa menyisakan 4 pesan terakhir.'; box.appendChild(help);
   const ids=[]; try{ for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k.startsWith('h:')&&loadHist(k.slice(2)).length>=2) ids.push(k.slice(2)); } }catch{}
