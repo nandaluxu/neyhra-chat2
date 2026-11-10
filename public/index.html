@@ -1189,6 +1189,7 @@ function thinkBubble(name,vision){
   const tx=row.querySelector('.think-t'); let last=-1, tm;
   const pool=vision?VTHINK:THINK;
   const tick=()=>{
+    if(!row.isConnected) return; /* bubble sudah dibuang (ganti chat): hentikan ocehan, jangan menggulir layar chat yang lain */
     let i; do{ i=Math.floor(Math.random()*pool.length); }while(i===last&&pool.length>1);
     last=i; const t=pool[i].replace('{n}',name);
     tx.textContent=t; tx.style.animation='none'; void tx.offsetWidth; tx.style.animation=''; /* ulang animasi fade */
@@ -1237,6 +1238,45 @@ async function speakReply(chId,r,lang,t){
   }
 }
 
+/* ===== Jeda cerdas: AI menjawab setelah user berhenti mengetik =====
+   User bebas spam pesan beruntun; pesan yang sudah dikirim langsung jadi bubble + masuk antrean (pend).
+   Selama user masih mengetik ATAU masih mengirim, jawaban AI ditunda: timer 10 detik di-reset tiap
+   ketikan maupun kiriman baru (typing dan kirim dibedakan, tapi keduanya sama-sama menunda).
+   Setelah 10 detik benar-benar diam, semua antrean digabung jadi SATU permintaan /api/chat dan
+   dijawab sekali — jadi spam tidak menumpuk balasan dan obrolan tetap terasa hidup. */
+let pend=[],pendT=0;
+const PEND_MS=10000;
+const stillHere=id=>!!ch&&ch.id===id&&app.classList.contains('open')&&!(window.GX&&GX.cur);
+function showThemSafe(id,text){ if(stillHere(id)) showThem(id,text); else { record(id,{r:'them',x:text}); renderList(); } } /* balasan datang setelah pindah chat: masuk log karakter aslinya, tidak nyasar ke layar sekarang */
+function pendArm(){ clearTimeout(pendT); pendT=setTimeout(()=>{ pendT=0; pendFlush(false) },PEND_MS); setStatus('menunggu kamu selesai…',true); }
+async function pendFlush(keepBusy){ /* keepBusy=true: dipanggil dari jalur hadiah/gambar yang memegang busy sendiri */
+  if(!pend.length){ clearTimeout(pendT); pendT=0; return; }
+  clearTimeout(pendT); pendT=0;
+  const b=pend; pend=[];
+  const chId=b[0].chId, c=allChars.find(x=>x.id===chId); if(!c) return;
+  const text=b.map(x=>String(x.x||'')).filter(Boolean).join('\n\n').slice(0,2000);
+  const useVoice=voiceOn&&!!vcode, lang=voiceLang; let okReply=false, relNote='', lastReply='', r=null;
+  busy=true; setStatus(idleStat(),false); refresh();
+  let t=stillHere(chId)?thinkBubble(c.name,false):null; /* sudah pindah chat: tidak perlu bubble mikir (balasannya tetap dicatat) */
+  try{
+    const hist=loadHist(chId);
+    r=await (await post('/api/chat',{clientId:cid,char:chId,message:text,userName:uname,history:hist,voice:{on:useVoice,lang},memory:memUse(chId).list,rel:relPayload(chId),qr:true,...engPayload(),...(rpOn()?{rp:true}:{})})).json();
+    saveHist(chId,[...loadHist(chId),['user',text],['char',r.id]]); okReply=true; lastReply=r.id;
+    relNote=relApply(chId,r.dExp!=null?r.dExp:(Math.round(Number(r.dRel))||0)*3,r.dMood);
+    if(!useVoice||!stillHere(chId)){ if(t)t.remove(); showThemSafe(chId,r.id); } /* pindah chat saat voice: teksnya saja yang dicatat */
+    else{ t.remove(); t=typingBubble(); setStatus('merekam suara',true); await speakReply(chId,r,lang,t); }
+  }catch(e){ if(t)t.remove(); toast(e.message); }
+  setStatus(idleStat(),false); if(!keepBusy){ busy=false; refresh(); }
+  if(relNote) toast(relNote);
+  if(okReply){
+    if(Array.isArray(r.qr)&&stillHere(chId)) qrPaint(r.qr); else if(!pend.length) qrPaint(); /* chip saran balasan */
+    if(Array.isArray(r.nq)) r.nq.forEach((tt,i)=>setTimeout(()=>toast(tt),600+i*2300)); /* misi selesai / piala baru */
+    maybeMemorize(chId);
+    if(window.SCENE&&SCENE.auto) SCENE.auto(chId,lastReply);
+  }
+  placeGoon();
+}
+
 async function submit(opt){
   const gf=opt&&opt.gift?opt:null; /* kiriman hadiah dari shop.js: teks bubble sudah jadi, input chat tidak disentuh */
   if(!gf&&window.GX&&GX.cur) return GX.submit(); /* layar grup: mesin giliran ada di group.js */
@@ -1251,6 +1291,14 @@ async function submit(opt){
   busy=true; hideGoon(); if(!gf){ inp.value=''; grow(); } refresh();
   if(!vf) addText(text); /* pesan gambar: bubble-nya menunggu deskripsi berhasil supaya bisa dibatalkan bersih */
   const chId=ch.id; if(!vf) record(chId,{r:'me',x:text}); if(!gf){ clearTimeout(draftT); store.set('draft:'+chId,null); }
+  /* Jeda cerdas (cuma teks biasa, tanpa hadiah/gambar/skenario aktif): pesan masuk antrean — AI menjawab
+     semua antrean SEKALI setelah user diam 10 detik. Skenario Skrip tidak diantrekan: gilirannya diatur sutradaranya. */
+  const scnOn=()=>{ try{ return !!(window.SCN&&SCN.body(chId).scenario) }catch{ return false } };
+  if(!gf&&!vf&&!scnOn()){
+    pend.push({chId,x:text}); pendArm();
+    busy=false; refresh(); return;
+  }
+  if(pend.length) await pendFlush(true); /* hadiah/gambar/skenario saat masih ada antrean teks: antreannya dikirim dulu */
   const useVoice=voiceOn&&!!vcode, lang=voiceLang; let okReply=false, relNote='', lastReply='';
   let t=thinkBubble(ch.name,!!vf); /* fase 1 (vision): AI membaca gambar dulu; sisanya: ChatGPT lagi mikir */
   let vd=''; /* deskripsi gambar dari /api/vision -> jadi konteks di /api/chat */
@@ -1272,7 +1320,7 @@ async function submit(opt){
     const r=await (await post('/api/chat',{clientId:cid,char:ch.id,message:text,userName:uname,history:hist,voice:{on:useVoice,lang},memory:memUse(chId).list,rel:relPayload(chId),qr:true,...engPayload(),...(rpOn()?{rp:true}:{}),...(vd?{vision:vd}:{}),...(gf?{gift:{items:gf.items,...(gf.say?{text:gf.say}:{})}}:{}),...(window.SCN?SCN.body(chId):{})},window.SCN?SCN.headers():{})).json();
     saveHist(chId,[...loadHist(chId),['user',vf?('[mengirim gambar: '+vd.slice(0,350)+']'+(text?' '+text:'')):gf?gf.hist:text],['char',r.id]]); okReply=true; lastReply=r.id;
     relNote=gf?(gf.note||''):relApply(chId,r.dExp!=null?r.dExp:(Math.round(Number(r.dRel))||0)*3,r.dMood); /* hadiah: EXP/mood sudah dihitung server (shop.js), angka penilaian AI diabaikan supaya tidak dobel */ /* hubungan & mood: angka dari balasan AI (sudah di-clamp server) */ /* baca ulang h: karena peringkasan di latar bisa saja baru membuang bagian lamanya */
-    if(!useVoice){ t.remove(); showThem(chId,r.id); }
+    if(!useVoice||!stillHere(chId)){ t.remove(); showThemSafe(chId,r.id); } /* pindah chat saat menunggu: balasan masuk log karakter aslinya, tidak nyasar */
     else{
       t.remove(); t=typingBubble(); setStatus('merekam suara',true); /* fase 2: masuk Fish Audio -> indikator voice */
       await speakReply(chId,r,lang,t);
@@ -1294,7 +1342,7 @@ function refresh(){ sendB.disabled=busy||(!inp.value.trim()&&!(window.SHOP&&SHOP
 /* Saat layar chat tersembunyi (display:none, mis. tab Beranda di desktop) scrollHeight = 0; jangan dikunci jadi 0px, kembalikan ke tinggi CSS (44px) */
 function grow(){ inp.style.height='auto'; const h=inp.scrollHeight; inp.style.height=h?Math.min(Math.max(h,44),136)+'px':''; }
 { let lw=inp.offsetWidth; new ResizeObserver(()=>{ const w=inp.offsetWidth; if(w!==lw){ lw=w; if(w) grow(); } }).observe(inp); } /* baru kelihatan -> hitung ulang (draft panjang) */
-inp.addEventListener('input',()=>{ refresh(); grow(); });
+inp.addEventListener('input',()=>{ refresh(); grow(); if(pendT) pendArm(); }); /* masih ada antrean = user masih mengetik: tunda jawaban AI lagi */
 /* HP: Enter = baris baru, kirim lewat tombol (seperti WhatsApp). Desktop: Enter kirim, Shift+Enter baris baru */
 const COARSE=matchMedia('(pointer:coarse)').matches;
 inp.enterKeyHint=COARSE?'enter':'send';
@@ -1453,6 +1501,7 @@ function openChat(c,avEl){
     if(window.GX&&GX.cur) GX.onClose(); /* simpan draft grup, hentikan rantai */
     else if(ch) store.set('draft:'+ch.id,inp.value.trim()?inp.value:null);
   } else if(!inline){ moving=true; setTimeout(()=>moving=false,DUR); }
+  if(pend.length) pendFlush(false); /* masih ada pesan mengantre: kirim sekarang; balasannya masuk log karakter aslinya */
   if(window.GX) GX.reset(); /* keluar dari mode grup (tombol titik tiga grup, placeholder, dll) */
   ch=c; closeSearch(); if(current) current.stop(); openSub=null; urls.forEach(u=>URL.revokeObjectURL(u)); urls=[]; clearTimeout(clrT); clrT=0;
   chat.innerHTML=''; lastDay=''; ready=false; const tok=++openTok; setStatus(idleStat(),false); qrPaint();
