@@ -41,6 +41,15 @@ console.log('\n[0] Fungsi murni (lib/economy.js)')
   const multi = rollGacha(0, 10)
   eq('multi 10x menghasilkan 10 hasil', multi.results.length, 10)
   eq('refund = 4 gems per kartu gagal', multi.refund, 4 * multi.results.filter(r => r.t === 'gems').length)
+  // cincin sebagai hadiah (lib/shop.js)
+  const { cleanItems, giftLine } = await import('../lib/shop.js')
+  ok('cleanItems: cincin sah di pool HADIAH', Array.isArray(cleanItems({ 'cincin-biru': 1 }, true)))
+  ok('cleanItems: cincin DITOLAK di pool BELANJA', cleanItems({ 'cincin-biru': 1 }) === null)
+  const rl = giftLine({ items: { 'cincin-merah': 1 } }, { id: 'aqua' })
+  ok('giftLine cincin: kalimat istimewa untuk AI', rl.includes('hadiah istimewa') && rl.includes('CINCIN'), rl)
+  const rl2 = giftLine({ items: { 'cincin-biru': 1, macaron: 2 } }, { id: 'furina' })
+  ok('giftLine campur: cincin + barang favorit disebut keduanya', rl2.includes('hadiah istimewa') && rl2.includes('FAVORITMU') && rl2.includes('2 macaron'), rl2)
+  ok('giftLine: id cincin palsu ditolak', giftLine({ items: { 'cincin-palsu': 1 } }, { id: 'aqua' }) === null)
 }
 
 // ==== akun uji ====
@@ -144,6 +153,52 @@ console.log('\n[6] Gift favorit vs biasa')
   eq('campuran: hanya bagian favorit yang dibonus (55x1.5 + 24)', mix.j.exp, Math.round(55 * 1.5) + 24)
   const kurang = await api('/api/auth/shop/gift', { token: T, body: { char: 'furina', items: { bir: 99 } } })
   eq('stok kurang ditolak', kurang.status, 409)
+}
+
+console.log('\n[6b] Cincin gacha: bisa diberikan ke karakter (hadiah istimewa)')
+{
+  // akun baru khusus cincin: dorong pity sampai 60 (pull ke-60 dijamin cincin) lewat 6x multi pull
+  const u = 'cincin' + Date.now().toString(36)
+  const t3 = (await api('/api/auth/register', { body: { username: u, password: 'rahasia123' } })).j.token // 3 tiket awal
+  await api('/api/auth/dev/grant', { token: t3, body: { code: 'uji123', coins: 100000, gems: 0 } })
+  const top = await api('/api/auth/economy/exchange', { token: t3, body: { kind: 'c2t', amount: 57, idem: 'cinctkt1aaaa1111' } }) // 3 + 57 = 60 tiket
+  ok('beli 57 tiket untuk dorong pity', top.j.ok, top.j)
+  let last = null
+  for (let i = 0; i < 6; i++) last = await api('/api/auth/economy/gacha', { token: t3, body: { pulls: 10, idem: 'cinpull' + i + 'aaaa1111' } }) // 6 x multi = 60 pull
+  ok('6x multi pull sukses', last.j.ok, last.j)
+  const v = (await api('/api/auth/economy', { token: t3 })).j
+  const ringId = (v.rings || []).map(r => r.id).find(id => (v.inv[id] || 0) > 0)
+  ok('60 pull (pity) menghasilkan minimal 1 cincin di inventory', !!ringId, v.inv)
+  const cfg = (v.rings || []).find(r => r.id === ringId)
+  eq('config cincin terkirim lengkap (tag/exp/mood/desc)', !!(cfg && cfg.tag && cfg.exp && cfg.mood && cfg.desc), true)
+  // fixture uji: pasti punya 2 cincin-merah + 1 bir (jumlah pull yang kebetulan dapat cincin tidak menentukan jalur uji)
+  const { MongoClient } = await import('mongodb')
+  const mc = new MongoClient(process.env.MONGODB_URI); await mc.connect()
+  await mc.db().collection('users').updateOne({ username: u }, { $set: { 'inv.cincin-merah': 2 } })
+  await mc.close()
+  const g = await api('/api/auth/shop/gift', { token: t3, body: { char: 'furina', items: { 'cincin-merah': 1 } } })
+  ok('beri cincin ke karakter sukses', g.j.ok, g.j)
+  eq('EXP cincin sesuai config (800)', g.j.exp, 800)
+  eq('Mood cincin sesuai config (14, kena batas 15)', g.j.mood, 14)
+  ok('respon menandai ringHit (hadiah istimewa)', g.j.ringHit === true)
+  eq('cincin berkurang dari inventory (2 -> 1)', g.j.inv['cincin-merah'], 1)
+  ok('cincin tidak menandai favHit (sudah istimewa, tanpa bonus favorit)', !g.j.favHit)
+  // campur cincin + barang biasa (bir bukan favorit Furina -> tidak ada bonus favorit)
+  const b = await api('/api/auth/shop/buy', { token: t3, body: { items: { bir: 1 }, idem: 'cinbeli01aaaa1111' } })
+  ok('beli bir untuk uji campuran', b.j.ok, b.j)
+  const mix = await api('/api/auth/shop/gift', { token: t3, body: { char: 'furina', items: { 'cincin-merah': 1, bir: 1 } } })
+  ok('gift campur cincin + bir sukses', mix.j.ok, mix.j)
+  eq('campuran: EXP = cincin 800 + bir 64 (tanpa bonus favorit)', mix.j.exp, 800 + 64)
+  ok('campuran tetap menandai ringHit', mix.j.ringHit === true)
+  eq('campuran: cincin berkurang lagi (1 -> 0)', mix.j.inv['cincin-merah'], 0)
+  // stok cincin kurang tetap ditolak
+  const kurang = await api('/api/auth/shop/gift', { token: t3, body: { char: 'furina', items: { 'cincin-merah': 1 } } })
+  eq('stok cincin kurang ditolak (409)', kurang.status, 409)
+  // cincin TIDAK bisa dibeli di toko / id palsu ditolak
+  const bad = await api('/api/auth/shop/buy', { token: t3, body: { items: { 'cincin-merah': 1 }, idem: 'cinbeli02aaaa1111' } })
+  eq('cincin tidak bisa dibeli di toko (400)', bad.status, 400)
+  const fake = await api('/api/auth/shop/gift', { token: t3, body: { char: 'furina', items: { 'cincin-palsu': 1 } } })
+  eq('id cincin palsu ditolak di gift (400)', fake.status, 400)
 }
 
 console.log('\n[7] Idempotency & anti-eksploitasi')
