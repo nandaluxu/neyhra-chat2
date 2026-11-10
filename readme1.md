@@ -220,7 +220,7 @@ Index: `{username:1} unique`, `{refCode:1} unique sparse`, `{createdAt:-1}`.
 |---|---|---|---|
 | `char/*.js` (55 file) | 236 KB | definisi karakter: `id, name, prompt, tagline, trait, voiceId, relations, pronounce` | dimuat server tiap request (`loadChars`); **tidak pernah** dikirim utuh ke browser (browser hanya dapat `id, name, tagline, avatar, voices{key,label}` lewat `/api/chars`) |
 | `data/tebakgambar.json` | 232 KB | soal game Tebak Gambar (jawaban & deskripsi disimpan server-side) | `lib/picgame.js` |
-| `assets/*.jpg` (59) | 2,2 MB | avatar karakter — dilayani **GitHub raw CDN** (`AVATAR_BASE` env, default `raw.githubusercontent.com/nandaluxu/neyhra-chat2/main/assets`), bukan dari server Vercel | `<img>` di browser |
+| `assets/*.jpg` (59) | 2,2 MB | avatar karakter — dilayani **GitHub raw CDN** (`AVATAR_BASE` env, default `raw.githubusercontent.com/nandaluxu/ppcp/refs/heads/main/assets`, file `<id>.jpg`), bukan dari server Vercel | `<img>` di browser |
 | `public/` | 512 KB | seluruh client bundle — detail §6 | dilayani CDN Vercel / `express.static` lokal |
 | `api/index.js` → `lib/app.js` | — | satu fungsi serverless untuk semua `/api/*` (rewrite `vercel.json`), `maxDuration: 60` | — |
 
