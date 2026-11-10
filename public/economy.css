@@ -1,0 +1,193 @@
+/* ===== Ekonomi: Gacha (Card Flip / Deck Reveal) + Tukar Currency =====
+   Logika di economy.js. Memakai kelas bn-* (bonus.css) untuk beberapa bagian bersama, kelas sh-step /
+   sh-sum (shop.css) untuk pencacah jumlah, dan variabel tema: --bg --surface --ink --mut --line --ok --rec.
+   Punggung kartu sengaja memakai warna tetap (biru malam + emas) supaya terasa seperti kartu TCG sungguhan
+   di tema terang maupun gelap. Animasi hanya transform/opacity (ringan), dan dimatikan lewat
+   prefers-reduced-motion. */
+
+/* ---------- Gacha: banner ---------- */
+.gc-hero{position:relative;overflow:hidden;margin-top:18px;padding:26px 20px 22px;border-radius:24px;text-align:center;
+  background:radial-gradient(120% 130% at 50% -20%,color-mix(in srgb,#5b4bd8 26%,var(--surface)),var(--surface) 70%)}
+.gc-hero h2{font-size:24px;font-weight:700;letter-spacing:-.02em}
+.gc-hero p{margin:8px auto 0;max-width:430px;font-size:13.5px;line-height:1.5;color:var(--mut)}
+.gc-hero p b{color:var(--ink)}
+.gc-hero-cards{display:flex;justify-content:center;align-items:flex-end;height:86px;margin-bottom:10px}
+.gc-hero-cards img{width:56px;height:56px;object-fit:contain;filter:drop-shadow(0 6px 14px rgba(0,0,0,.28))}
+.gc-hero-cards .gc-hero-r2{width:74px;height:74px;margin:0 -14px;z-index:2;position:relative}
+.gc-hero-cards .gc-hero-r1{transform:rotate(-14deg) translateY(6px)}
+.gc-hero-cards .gc-hero-r3{transform:rotate(14deg) translateY(6px)}
+@media(prefers-reduced-motion:no-preference){
+  .gc-hero-cards img{animation:gcfloat 3.4s ease-in-out infinite}
+  .gc-hero-cards .gc-hero-r2{animation-delay:.4s}
+  .gc-hero-cards .gc-hero-r3{animation-delay:.8s}
+  @keyframes gcfloat{50%{transform:translateY(-6px)}}
+  .gc-hero-cards .gc-hero-r1{animation-name:gcfloat1}
+  .gc-hero-cards .gc-hero-r3{animation-name:gcfloat3}
+  @keyframes gcfloat1{50%{transform:rotate(-14deg) translateY(0)}}
+  @keyframes gcfloat3{50%{transform:rotate(14deg) translateY(0)}}
+}
+
+/* pity + koleksi cincin */
+.gc-stats{display:grid;grid-template-columns:1.4fr 1fr;gap:12px;margin-top:12px}
+.gc-pity{padding:14px 16px;border-radius:20px;background:var(--surface)}
+.gc-pity-t{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-size:13px}
+.gc-pity-t span{color:var(--mut)}
+.gc-pity-t b{font-variant-numeric:tabular-nums}
+.gc-bar{height:8px;margin-top:8px;border-radius:99px;background:var(--bg);overflow:hidden}
+.gc-bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#8e6fe8,#ffd25e);transition:width .4s}
+.gc-pity small{display:block;margin-top:6px;font-size:11.5px;line-height:1.4;color:var(--mut)}
+.gc-inv{display:flex;flex-direction:column;gap:6px;justify-content:center;padding:14px 16px;border-radius:20px;background:var(--surface)}
+.gc-ring{display:inline-flex;align-items:center;gap:8px;font-size:13px}
+.gc-ring img{width:30px;height:30px;object-fit:contain}
+.gc-ring b{font-variant-numeric:tabular-nums}
+.gc-ring.zero{opacity:.4}
+@media(max-width:560px){.gc-stats{grid-template-columns:1fr}.gc-inv{flex-direction:row;justify-content:space-around;flex-wrap:wrap}}
+
+/* tombol pull */
+.gc-pull{display:grid;grid-template-columns:1fr 1.2fr;gap:12px;margin-top:14px}
+.gc-btn{position:relative;display:flex;flex-direction:column;align-items:center;gap:5px;padding:15px 12px;border-radius:20px;
+  background:var(--surface);border:1.5px solid transparent;transition:transform .15s,border-color .15s}
+.gc-btn:active{transform:scale(.97)}
+.gc-btn.main{background:linear-gradient(160deg,#8e6fe8,#6d4bd8);color:#fff;border-color:transparent}
+.gc-btn b{font-size:15.5px;font-weight:700;letter-spacing:-.01em}
+.gc-btn span{display:inline-flex;align-items:center;gap:5px;font-size:13px;opacity:.85;font-variant-numeric:tabular-nums}
+.gc-btn span img{width:15px;height:15px}
+.gc-btn span em{font-style:normal;font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:99px;background:rgba(255,255,255,.18)}
+.gc-btn:not(.main) span em{background:var(--bg);color:var(--mut)}
+.gc-btn:disabled{opacity:.4;cursor:default;transform:none}
+.gc-btn:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+@media(hover:hover){.gc-btn:not(:disabled):hover{transform:translateY(-2px);border-color:var(--ink)}}
+@media(max-width:560px){.gc-pull{grid-template-columns:1fr}}
+
+/* tabel peluang */
+.gc-rates{margin-top:14px;padding:6px 16px;border-radius:20px;background:var(--surface)}
+.gc-rates table{width:100%;border-collapse:collapse;font-size:13px}
+.gc-rates caption{text-align:left;font-size:11.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);padding:10px 0 4px}
+.gc-rates td{padding:7px 0;border-top:1px solid var(--line);color:var(--mut)}
+.gc-rates td:last-child{text-align:right;color:var(--ink);font-variant-numeric:tabular-nums}
+.gc-rates td img{width:14px;height:14px;vertical-align:-2px}
+
+/* ---------- Panggung kartu (setelah server menentukan hasil) ---------- */
+.gc-stage{margin-top:18px}
+.gc-stage-t{text-align:center;font-size:13.5px;color:var(--mut)}
+.gc-cards{display:grid;gap:10px;grid-template-columns:repeat(3,minmax(0,1fr));max-width:430px;margin:16px auto 0;perspective:1200px}
+.gc-stage.multi .gc-cards{grid-template-columns:repeat(5,minmax(0,1fr));max-width:640px;gap:8px}
+@media(max-width:560px){.gc-stage.multi .gc-cards{grid-template-columns:repeat(4,minmax(0,1fr))}}
+
+.gc-card{position:relative;aspect-ratio:5/7;min-width:0;padding:0;border-radius:14px;transform-style:preserve-3d;
+  transition:transform .55s cubic-bezier(.3,.8,.3,1),opacity .35s;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.gc-card.flip{transform:rotateY(180deg);cursor:default}
+.gc-card.noanim{transition:opacity .35s}
+.gc-card.dead{opacity:.28;pointer-events:none}
+.gc-card:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+@media(hover:hover){.gc-card:not(.flip):not(.dead):hover{transform:translateY(-4px) rotate(-1.5deg)}}
+
+.gc-face{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+  border-radius:14px;backface-visibility:hidden;-webkit-backface-visibility:hidden;overflow:visible}
+.gc-face.back{background:linear-gradient(165deg,#26265e,#3d2a72 55%,#4d2f7e);border:1.5px solid #6a58b8;
+  box-shadow:inset 0 0 0 4px rgba(255,255,255,.06),0 6px 16px rgba(28,20,70,.35)}
+.gc-face.back::before{content:"";position:absolute;inset:7px;border-radius:9px;border:1.5px dashed rgba(255,214,120,.5)}
+.gc-face.back svg{width:38%;height:38%;fill:#ffd25e;opacity:.9;filter:drop-shadow(0 2px 4px rgba(0,0,0,.3))}
+.gc-face.front{transform:rotateY(180deg);background:var(--surface);border:1.5px solid var(--line);
+  box-shadow:0 6px 16px rgba(0,0,0,.14)}
+.gc-face.front img{width:58%;height:auto;max-height:58%;object-fit:contain;position:relative;z-index:1}
+.gc-face.front b{position:relative;z-index:1;font-size:clamp(9px,2.6vw,12.5px);font-weight:700;letter-spacing:-.01em;padding:0 4px;text-align:center}
+.gc-face.front.ring{border-color:#ffd25e;background:radial-gradient(circle at 50% 32%,color-mix(in srgb,#ffd25e 26%,var(--surface)),var(--surface) 72%)}
+.gc-face.front.gems{border-color:color-mix(in srgb,#30a46c 55%,var(--line))}
+.gc-face.front.gems img{filter:drop-shadow(0 3px 8px rgba(48,163,108,.35))}
+
+/* kilau lembut di kartu terbuka */
+.gc-shine{position:absolute;inset:0;border-radius:14px;overflow:hidden;pointer-events:none}
+.gc-shine::after{content:"";position:absolute;top:-60%;left:-30%;width:55%;height:220%;transform:rotate(22deg);
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.32),transparent)}
+@media(prefers-reduced-motion:no-preference){
+  .gc-face.front .gc-shine::after{animation:gcshine 1.1s .15s ease-out}
+  @keyframes gcshine{to{left:110%}}
+  .gc-card.flip .gc-face.front.ring img{animation:gcpop .6s .1s cubic-bezier(.2,1.4,.3,1)}
+  @keyframes gcpop{0%{transform:scale(.4)}60%{transform:scale(1.12)}100%{transform:scale(1)}}
+}
+
+/* partikel cahaya cincin (dibuat economy.js, transform-only) */
+.gc-pt{position:absolute;left:50%;top:50%;width:7px;height:7px;margin:-3.5px;border-radius:50%;pointer-events:none;z-index:3;
+  background:radial-gradient(circle,#fff6d8,#ffd25e 60%,transparent 75%);
+  animation:gcpt .95s cubic-bezier(.2,.7,.3,1) forwards}
+@keyframes gcpt{from{opacity:1;transform:translate(0,0) scale(.7)}to{opacity:0;transform:translate(var(--tx),var(--ty)) scale(1.25)}}
+@media(prefers-reduced-motion:reduce){.gc-pt{display:none}}
+
+/* alat panggung: Buka Semua / Lewati */
+.gc-tools{display:flex;justify-content:center;gap:10px;margin-top:18px}
+.gc-tools button{padding:11px 22px;border-radius:99px;background:var(--surface);font-size:14px;font-weight:600;color:var(--ink)}
+.gc-tools button:last-child{background:transparent;color:var(--mut)}
+.gc-tools button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+@media(hover:hover){.gc-tools button:hover{background:var(--line)}}
+
+/* ringkasan hasil */
+.gc-sum{max-width:430px;margin:20px auto 0;padding:20px;border-radius:22px;background:var(--surface);text-align:center;animation:nin .3s cubic-bezier(.2,.9,.3,1.2)}
+.gc-sum-hero{display:flex;align-items:center;gap:14px;text-align:left}
+.gc-sum-hero img{width:64px;height:64px;object-fit:contain;flex:none}
+.gc-sum-hero.ring img{filter:drop-shadow(0 4px 12px rgba(255,210,94,.55))}
+.gc-sum-hero b{display:block;font-size:18px;font-weight:700;letter-spacing:-.01em}
+.gc-sum-hero small{display:block;margin-top:2px;font-size:12.5px;color:var(--mut);line-height:1.4}
+.gc-sum-sub{margin-top:10px;font-size:12.5px;color:var(--mut);font-variant-numeric:tabular-nums}
+.gc-sum-bal{display:flex;align-items:center;justify-content:center;gap:16px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line);font-size:14px;font-weight:700;font-variant-numeric:tabular-nums}
+.gc-sum-bal img{width:16px;height:16px;vertical-align:-2px;margin-right:3px}
+.gc-sum-bal span{font-size:11px;font-weight:500;color:var(--mut);margin-left:2px}
+.gc-sum-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px}
+.gc-sum-btns .gc-btn{padding:12px 8px;border-radius:16px}
+.gc-sum-btns>button:last-child{grid-column:1/-1;padding:12px;border-radius:16px;background:transparent;color:var(--mut);font-size:14px;font-weight:600}
+@media(prefers-reduced-motion:reduce){.gc-sum{animation:none}}
+
+/* ---------- Tukar Currency ---------- */
+.ex-card{margin-top:16px;padding:18px;border-radius:22px;background:var(--surface)}
+.ex-card.main{background:radial-gradient(130% 120% at 85% -20%,color-mix(in srgb,#5b4bd8 14%,var(--surface)),var(--surface) 65%)}
+.ex-card h2{display:flex;align-items:center;gap:6px;font-size:16px;font-weight:600;letter-spacing:-.01em;flex-wrap:wrap}
+.ex-card h2 img{width:17px;height:17px}
+.ex-rate{margin-top:4px;font-size:13px;line-height:1.45;color:var(--mut)}
+.ex-rate b{color:var(--ink)}
+.ex-two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.ex-two .ex-card{margin-top:12px;display:flex;flex-direction:column}
+.ex-two .ex-card .bn-btn{margin-top:auto}
+@media(max-width:640px){.ex-two{grid-template-columns:1fr}}
+
+.ex-tiers{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.ex-tiers span{padding:5px 11px;border-radius:99px;background:var(--bg);font-size:12px;color:var(--mut);font-variant-numeric:tabular-nums;transition:background .2s,color .2s}
+.ex-tiers span b{color:inherit}
+.ex-tiers span.on{background:var(--ink);color:var(--bg);font-weight:600}
+
+.ex-row{display:flex;flex-direction:column;gap:10px;margin-top:14px}
+#excoin{width:100%;border:0;outline:0;background:var(--bg);color:var(--ink);border-radius:14px;padding:13px 16px;
+  font:inherit;font-size:19px;font-weight:600;font-variant-numeric:tabular-nums}
+#excoin:focus{box-shadow:0 0 0 2px var(--ink)}
+.ex-chips{display:flex;gap:8px;flex-wrap:wrap}
+.ex-chips button{padding:8px 14px;border-radius:99px;background:var(--bg);font-size:12.5px;font-weight:600;color:var(--mut);font-variant-numeric:tabular-nums}
+.ex-chips button.on{background:var(--ink);color:var(--bg)}
+.ex-chips button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+
+.ex-prev{margin-top:14px;border-radius:16px;background:var(--bg);padding:4px 14px}
+.ex-prev-r{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 0;font-size:13px;color:var(--mut);border-bottom:1px dashed var(--line)}
+.ex-prev-r:last-child{border-bottom:0}
+.ex-prev-r b{display:inline-flex;align-items:center;gap:5px;color:var(--ink);font-variant-numeric:tabular-nums}
+.ex-prev-r b img{width:14px;height:14px}
+.ex-prev-r.bon b{color:var(--ok)}
+.ex-prev-r.tot{border-top:1.5px solid var(--line);border-bottom:0;font-weight:600}
+.ex-prev .bad{display:block;padding:9px 0;font-size:12.5px;color:var(--rec)}
+.ex-prev:empty{display:none}
+
+.ex-qt{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:12px 0 14px}
+.ex-qt .sh-step{margin-top:0;background:var(--bg)}
+.ex-tot{text-align:right}
+.ex-tot b{display:inline-flex;align-items:center;gap:5px;font-size:15px;font-variant-numeric:tabular-nums}
+.ex-tot b img{width:15px;height:15px}
+.ex-tot small{display:block;margin-top:1px;font-size:11.5px;color:var(--mut);font-variant-numeric:tabular-nums}
+
+.ex-note{margin-top:14px;font-size:12px;line-height:1.5;color:var(--mut);text-align:center}
+
+.ex-hist{margin-top:20px}
+.ex-hist h3{font-size:11.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
+.ex-hrow{display:flex;align-items:center;gap:12px;margin-top:8px;padding:10px 12px;border-radius:14px;background:var(--surface)}
+.ex-hic{flex:none;width:34px;height:34px;display:grid;place-items:center;border-radius:10px;background:var(--bg);font-size:15px}
+.ex-htx{flex:1;min-width:0;font-size:13px;line-height:1.35}
+.ex-htx small{display:block;color:var(--mut);font-size:11px}
+
+/* tautan kecil di pesan (mis. "Tukar" saat tiket habis) */
+.bn-msg .lnk{padding:0;font-size:inherit;font-weight:600;color:var(--ink);text-decoration:underline;text-underline-offset:2px}

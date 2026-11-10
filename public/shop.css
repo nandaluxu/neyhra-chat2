@@ -2,6 +2,83 @@
    Logika di shop.js. Memakai kelas bn-* (bonus.css) untuk header/saldo/tombol/pesan supaya tampilannya sama dengan tab Bonus,
    dan variabel tema yang sudah ada: --bg --surface --ink --mut --line --ok --rec. */
 
+/* ---------- Tab Toko: navigasi bagian (Belanja / Gacha / Tukar, tombolnya di index.html) ---------- */
+#shnav{margin-top:16px}
+#shnav button{font-size:13.5px}
+
+/* ---------- Belanja: beranda kategori ---------- */
+.sh-cats{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin-top:18px}
+.sh-cat{display:flex;align-items:center;gap:14px;padding:16px;border-radius:22px;background:var(--surface);text-align:left;transition:transform .15s}
+.sh-cat:active{transform:scale(.97)}
+.sh-cat-ic{display:grid;grid-template-columns:1fr 1fr;gap:4px;flex:none;width:76px;padding:8px;border-radius:16px;background:var(--bg)}
+.sh-cat-ic img{width:100%;height:30px;object-fit:contain}
+.sh-cat-t{flex:1;min-width:0}
+.sh-cat-t b{display:block;font-size:16px;font-weight:600;letter-spacing:-.01em}
+.sh-cat-t small{display:block;margin-top:2px;font-size:12px;line-height:1.35;color:var(--mut)}
+.sh-cat-go{flex:none;width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;color:var(--mut)}
+@media(hover:hover){.sh-cat:hover{transform:translateY(-2px)}}
+
+/* baris info cincin (di bawah kategori kalau user punya cincin) */
+.sh-ringrow{display:flex;align-items:center;gap:12px;margin-top:12px;padding:12px 16px;border-radius:18px;background:var(--surface);font-size:13.5px;width:100%;text-align:left}
+.sh-ringics{display:flex;flex:none}
+.sh-ringics img{width:34px;height:34px;object-fit:contain;margin-left:-10px;filter:drop-shadow(0 2px 6px rgba(0,0,0,.25))}
+.sh-ringics img:first-child{margin-left:0}
+.sh-ringrow .mut{color:var(--mut)}
+
+/* tombol kembali (di dalam kategori / detail barang) */
+.sh-back{display:inline-flex;align-items:center;gap:6px;margin-top:16px;padding:8px 14px 8px 8px;border-radius:99px;background:var(--surface);font-size:13.5px;font-weight:500;color:var(--ink)}
+.sh-back svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+@media(hover:hover){.sh-back:hover{background:var(--line)}}
+.sh-back:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+
+/* kartu barang bisa diketuk (masuk ke detail) */
+.sh-tap{cursor:pointer;transition:transform .15s}
+@media(hover:hover){.sh-tap:hover{transform:translateY(-2px)}}
+.sh-tap:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+
+/* lencana favorit di kartu barang */
+.sh-fav{display:inline-flex;align-items:center;gap:3px;margin-top:2px;padding:3px 9px;border-radius:99px;background:color-mix(in srgb,var(--rec) 12%,transparent);color:var(--rec);font-size:11.5px;font-weight:600}
+
+/* ---------- Detail barang ---------- */
+.sh-detail{display:flex;gap:18px;margin-top:14px;padding:20px;border-radius:22px;background:var(--surface)}
+.sh-dic{flex:none;width:132px;height:132px;display:grid;place-items:center;border-radius:24px;background:var(--bg)}
+.sh-dic img{width:96px;height:96px;object-fit:contain}
+.sh-dinfo{flex:1;min-width:0}
+.sh-dinfo h2{font-size:20px;font-weight:700;letter-spacing:-.02em}
+.sh-dinfo .sh-desc{margin-top:4px;min-height:0}
+.sh-meta.l{justify-content:flex-start;margin-top:10px}
+.sh-eff{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.sh-eff span{padding:4px 10px;border-radius:99px;background:var(--bg);font-size:12px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+.sh-favbig{margin-top:12px;padding:10px 12px;border-radius:14px;background:color-mix(in srgb,var(--rec) 10%,transparent);font-size:12.5px;line-height:1.45;color:var(--ink)}
+.sh-favbig b{color:var(--rec)}
+.sh-favbig small{display:block;color:var(--mut)}
+@media(max-width:560px){.sh-detail{flex-direction:column;align-items:center;text-align:center}.sh-meta.l{justify-content:center}.sh-eff{justify-content:center}}
+
+/* ---------- Modal konfirmasi (pembelian / tukar; dipakai shop.js & economy.js) ---------- */
+#shqmodal,#exqmodal{position:absolute;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(0,0,0,.45);backdrop-filter:blur(3px)}
+#shqmodal.hide,#exqmodal.hide{display:none}
+.qbox{width:100%;max-width:340px;background:var(--bg);border:1px solid var(--line);border-radius:22px;padding:18px;animation:nin .25s cubic-bezier(.2,.9,.3,1.2)}
+.qbox h2{font-size:17px;font-weight:600}
+.qitem{display:flex;align-items:center;gap:12px;margin-top:12px;padding:12px;border-radius:16px;background:var(--surface)}
+.qitem img{width:44px;height:44px;object-fit:contain;flex:none}
+.qitem b{display:block;font-size:14.5px}
+.qitem small{display:block;margin-top:2px;font-size:12px;color:var(--mut);font-variant-numeric:tabular-nums}
+.qbtns{display:flex;gap:8px;margin-top:14px}
+.qbtns button{flex:1;padding:12px;border-radius:99px;font-size:14px;font-weight:600}
+.qbtns button:first-child{background:var(--surface);color:var(--ink)}
+.qbtns button:last-child{background:var(--ink);color:var(--bg)}
+.qbtns button:last-child:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+@media(prefers-reduced-motion:reduce){.qbox{animation:none}}
+
+/* ---------- Inventory: seksi + favorit + cincin ---------- */
+.inv-sec{margin:14px 2px 8px;font-size:11.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
+.inv-sec:first-child{margin-top:12px}
+.inv-row.fav{box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--rec) 45%,transparent)}
+.inv-row.ring .sh-ic{background:radial-gradient(circle at 50% 40%,color-mix(in srgb,#ffd25e 22%,var(--bg)),var(--bg))}
+.inv-favtag{display:inline-flex;align-items:center;color:var(--rec);font-weight:600}
+.inv-favb{display:block;margin-top:3px;font-size:11.5px;line-height:1.35;color:var(--rec);font-weight:600}
+.att-chip.fav{box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--rec) 45%,transparent)}
+
 /* ---------- Tab Toko ---------- */
 #shop{display:none;overflow-y:auto;overscroll-behavior:contain;background:var(--bg);scrollbar-width:none;min-width:0}
 #shop::-webkit-scrollbar{display:none}

@@ -1,13 +1,15 @@
 /* ===== Toko + Inventory =====
-   Dimuat setelah shell.js, sebelum router.js. Semua aturan (harga, saldo, stok, EXP hadiah) dijaga server (lib/shop.js):
-   di sini hanya menampilkan dan memanggil /api/auth/shop, /buy, /gift.
+   Dimuat setelah shell.js, sebelum router.js dan economy.js. Semua aturan (harga, saldo, stok, EXP hadiah, bonus favorit)
+   dijaga server (lib/shop.js + lib/economy.js): di sini hanya menampilkan dan memanggil endpoint-nya.
    Bagian:
-     1. Tab Toko (#shop): beli bunga/coklat/eskrim dengan coin, beberapa jenis & jumlah sekaligus.
-     2. Menu "+" di kolom ketik (#plusbtn): Inventory dan Skenario Skrip.
-     3. Inventory (#invmodal): pilih jenis + jumlah, "Lampirkan ke chat" -> hadiah jadi lampiran di kotak ketik (#attbar);
-        saat kirim: EXP hubungan naik, ada bubble roleplay (+ ketikan user) dan balasan AI.
-   Memakai global index.html: atok, aOn, aApi, saveWallet, loadWallet, paintWallet, ch, ready, busy, selOn, inp, sendB, grow, refresh, draftT, submit, relApply, shortName, toast, GX, store.
-   Mengekspor window.SHOP { has(), send(teks) } yang dipakai submit() dan refresh() di index.html. */
+     1. Navigasi bagian Toko (#shnav): Belanja (file ini) | Gacha | Tukar (public/economy.js, window.ECON).
+     2. Tab Belanja (#shop): kategori -> daftar barang -> detail barang -> beli (dengan modal konfirmasi).
+     3. Menu "+" di kolom ketik (#plusbtn): Inventory dan Skenario Skrip.
+     4. Inventory (#invmodal): pilih jenis + jumlah, "Lampirkan ke chat" -> hadiah jadi lampiran di kotak ketik (#attbar);
+        saat kirim: EXP hubungan naik (bonus x1,5 / Mood x2 kalau barang favorit karakternya), ada bubble roleplay + balasan AI.
+        Cincin hasil gacha tampil di sini sebagai koleksi (tidak bisa diberikan).
+   Memakai global index.html: atok, aOn, aApi, saveWallet, loadWallet, paintWallet, ch, allChars, ready, busy, selOn, inp,
+   sendB, grow, refresh, draftT, submit, relApply, shortName, toast, GX, store, openLogin, rpOn, Shell. */
 (() => {
 'use strict';
 const $ = id => document.getElementById(id);
@@ -17,19 +19,133 @@ const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;'
 const active = () => app.dataset.tab === 'shop';
 const icon = id => '/shop/' + encodeURIComponent(id) + '.svg';
 const COIN = '<img src="/coin.svg" alt="" draggable="false">';
+const TICK = '<img src="/ticket.svg" alt="" draggable="false">';
+const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : 'id' + Date.now() + Math.random().toString(36).slice(2));
 
-let S = null;               // { items, inv, max, coins, gems } dari server
+let S = null;               // { items, cats, rings, fav, favMult, inv, max, coins, gems, tickets } dari server
 let ready0 = false, failed = '', lastTok = '', lastAt = 0, loading = false;
-const cart = {};            // beli: id -> jumlah
 const gsel = {};            // hadiah: id -> jumlah
 let shMsg = ['', ''], buying = false, giving = false;
 
+/* ---------- Navigasi bagian Toko: Belanja / Gacha / Tukar ---------- */
+const HEAD = {
+  toko: ['Toko', 'Beli hadiah pakai coin, lalu berikan ke karakter lewat tombol + di kolom chat untuk menaikkan hubungan.'],
+  gacha: ['Gacha', 'Tukar tiket jadi kesempatan dapat Cincin. Tidak dapat? Gems-mu kembali.'],
+  tukar: ['Tukar Currency', 'Coin ke Gems (bonus bertingkat), atau beli Tiket pakai Coin / Gems.']
+};
+window.SHP = {
+  view: 'toko',
+  set(v, opts) {
+    if (!HEAD[v] || v === this.view && !(opts && opts.force)) { if (v === this.view) this.paint(); return; }
+    this.view = v;
+    $('shh1').textContent = HEAD[v][0]; $('shsub').textContent = HEAD[v][1];
+    $('shnav').querySelectorAll('button').forEach(b => {
+      const on = b.dataset.v === v;
+      b.classList.toggle('sel', on); b.setAttribute('aria-selected', String(on));
+    });
+    if (v === 'toko') { load(); render(); }
+    else if (window.ECON && ECON.show) ECON.show(v); // economy.js merender #shbody untuk Gacha/Tukar
+    window.dispatchEvent(new CustomEvent('shop:nav', { detail: v }));
+  },
+  paint() { // sinkronkan tampilan nav + judul dengan state sekarang (dipakai saat tab Toko dibuka lagi)
+    const v = this.view;
+    $('shh1').textContent = HEAD[v][0]; $('shsub').textContent = HEAD[v][1];
+    $('shnav').querySelectorAll('button').forEach(b => {
+      const on = b.dataset.v === v;
+      b.classList.toggle('sel', on); b.setAttribute('aria-selected', String(on));
+    });
+  }
+};
+$('shnav').addEventListener('click', e => {
+  const b = e.target.closest('button[data-v]'); if (!b) return;
+  SHP.set(b.dataset.v);
+});
+
+/* ---------- Tab Belanja: kategori -> barang -> detail ---------- */
+let place = 'home'; // 'home' | 'cat:<id>' | 'item:<id>'
 const itemsOf = () => (S && S.items) || [];
+const catsOf = () => (S && S.cats) || [];
 const invN = id => Math.max(0, (S && S.inv && S.inv[id]) | 0);
 const invTotal = () => itemsOf().reduce((s, i) => s + invN(i.id), 0);
-const sumOf = (sel, key) => itemsOf().reduce((s, i) => s + (sel[i.id] | 0) * i[key], 0);
-const pairs = sel => Object.fromEntries(itemsOf().filter(i => (sel[i.id] | 0) > 0).map(i => [i.id, sel[i.id] | 0]));
-const sentence = sel => { const a = itemsOf().filter(i => (sel[i.id] | 0) > 0).map(i => (sel[i.id] | 0) + ' ' + i.name.toLowerCase()); return a.join(', ').replace(/, ([^,]*)$/, ' dan $1'); };
+const ringIds = () => ((S && S.rings) || []).map(r => r.id);
+const ringTotal = () => ringIds().reduce((s, id) => s + invN(id), 0);
+const itemOf = id => itemsOf().find(i => i.id === id);
+const catOf = id => catsOf().find(c => c.id === id);
+/* siapa saja yang memfavoritkan barang ini (S.fav = { charId: itemId }, nama dari allChars) */
+const favChars = id => {
+  const f = (S && S.fav) || {}, out = [];
+  for (const cid in f) if (f[cid] === id) {
+    const c = (typeof allChars !== 'undefined' ? allChars : []).find(x => x.id === cid);
+    out.push(c ? shortName(c) : cid);
+  }
+  return out;
+};
+
+const empty = (title, text, btn) => '<div class="bn-empty"><h2>' + esc(title) + '</h2>' + (text ? '<p>' + esc(text) + '</p>' : '') + (btn || '') + '</div>';
+const stepper = (act, id, n, min, max) =>
+  '<div class="sh-step" role="group" aria-label="Jumlah"><button type="button" data-act="' + act + '-" data-id="' + id + '" aria-label="Kurangi"' + (n <= min ? ' disabled' : '') + '>−</button>' +
+  '<output>' + n + '</output><button type="button" data-act="' + act + '+" data-id="' + id + '" aria-label="Tambah"' + (n >= max ? ' disabled' : '') + '>+</button></div>';
+const backRow = (label, act) => '<button type="button" class="sh-back" data-act="' + act + '"><svg viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>' + esc(label) + '</button>';
+
+function render() {
+  if (SHP.view !== 'toko') return; // Gacha/Tukar dirender economy.js
+  const focus = document.activeElement && body.contains(document.activeElement) ? document.activeElement.dataset.act + '|' + document.activeElement.dataset.id : '';
+  if (!ready0 && !aOn) { body.innerHTML = empty('Memuat…'); return; }
+  if (!aOn) { body.innerHTML = empty('Toko belum tersedia', 'Fitur akun belum aktif di server ini, jadi toko belum bisa dipakai.'); return; }
+  if (!atok) { body.innerHTML = empty('Masuk dulu ya', 'Coin, gems, dan inventory tersimpan di akunmu, jadi kamu perlu masuk atau daftar dulu.', '<button class="bn-go" type="button" data-act="login">Masuk / Daftar</button>'); return; }
+  if (!S) { body.innerHTML = failed ? empty('Gagal memuat', failed, '<button class="bn-go" type="button" data-act="retry">Coba lagi</button>') : empty('Memuat…'); return; }
+
+  if (place.startsWith('item:')) return renderItem(place.slice(5));
+  if (place.startsWith('cat:')) return renderCat(place.slice(4));
+  /* beranda Belanja: kartu kategori (barang tidak ditumpuk dalam satu halaman) */
+  body.innerHTML = '<div class="sh-cats">' + catsOf().map(cat => {
+    const its = itemsOf().filter(i => i.cat === cat.id);
+    return '<button type="button" class="sh-cat" data-act="cat" data-id="' + esc(cat.id) + '">' +
+      '<span class="sh-cat-ic">' + its.slice(0, 4).map(i => '<img src="' + icon(i.id) + '" alt="" draggable="false">').join('') + '</span>' +
+      '<span class="sh-cat-t"><b>' + esc(cat.name) + '</b><small>' + its.length + ' barang · ' + esc(cat.desc) + '</small></span>' +
+      '<svg viewBox="0 0 24 24" class="sh-cat-go"><path d="M9 6l6 6-6 6"/></svg></button>';
+  }).join('') + '</div>' +
+    (ringTotal() ? '<div class="sh-ringrow" data-act="rings"><span class="sh-ringics">' + ringIds().filter(id => invN(id)).map(id => '<img src="' + icon(id) + '" alt="">').join('') + '</span><span>Kamu punya <b>' + ringTotal() + ' cincin</b> dari gacha<span class="mut"> · lihat di Inventory (tombol + di kolom chat)</span></span></div>' : '');
+  refocus(focus);
+}
+function renderCat(catId) {
+  const cat = catOf(catId);
+  if (!cat) { place = 'home'; return render(); }
+  body.innerHTML = backRow('Semua kategori', 'home') +
+    '<div class="sh-grid">' + itemsOf().filter(i => i.cat === catId).map(it => {
+      const favs = favChars(it.id);
+      return '<button type="button" class="sh-card sh-tap" data-act="item" data-id="' + esc(it.id) + '"><div class="sh-ic"><img src="' + icon(it.id) + '" alt="" draggable="false"></div><h3>' + esc(it.name) + '</h3>' +
+        (favs.length ? '<span class="sh-fav">❤ Favorit ' + esc(favs.map(x => x.split(' ')[0]).join(', ')) + '</span>' : '') +
+        '<div class="sh-meta"><span class="sh-price">' + COIN + nf.format(it.price) + '</span><span class="sh-own">Punya ' + nf.format(invN(it.id)) + '</span></div></button>';
+    }).join('') + '</div>';
+  refocus('');
+}
+let qty = 1;
+function renderItem(id) {
+  const it = itemOf(id);
+  if (!it) { place = 'home'; return render(); }
+  const max = S.max.qty, n = Math.max(1, Math.min(max, qty)), total = it.price * n, poor = total > S.coins;
+  const favs = favChars(it.id), favMult = (S && S.favMult) || { exp: 1.5, mood: 2 };
+  const exp = it.exp * n, mood = Math.min(15, it.mood * n);
+  body.innerHTML = backRow(catOf(it.cat) ? catOf(it.cat).name : 'Kategori', 'cat:' + it.cat) +
+    '<div class="sh-detail"><div class="sh-dic"><img src="' + icon(it.id) + '" alt="" draggable="false"></div>' +
+    '<div class="sh-dinfo"><h2>' + esc(it.name) + '</h2><p class="sh-desc">' + esc(it.desc) + '</p>' +
+    '<div class="sh-meta l"><span class="sh-price">' + COIN + nf.format(it.price) + '</span><span class="sh-own">Punya ' + nf.format(invN(it.id)) + '</span></div>' +
+    '<div class="sh-eff"><span>+' + nf.format(exp) + ' EXP hubungan</span><span>+' + nf.format(mood) + ' Mood</span></div>' +
+    (favs.length ? '<div class="sh-favbig">❤ Barang favorit <b>' + esc(favs.join(', ')) + '</b><small>Diberikan ke mereka: EXP ×' + String(favMult.exp).replace('.', ',') + ' · Mood ×' + favMult.mood + '</small></div>' : '') +
+    '</div></div>' +
+    '<div class="sh-sum"><div class="t"><b>' + COIN + nf.format(total) + '</b><small>' + (poor ? 'Coin kamu belum cukup' : 'Saldo: ' + nf.format(S.coins) + ' coin') + '</small></div>' +
+    stepper('q', it.id, n, 1, max) +
+    '<button type="button" data-act="buy"' + (poor || buying ? ' disabled' : '') + '>' + (buying ? 'Membeli…' : 'Beli') + '</button></div>';
+  refocus('');
+}
+function refocus(focus) {
+  if (!focus) return;
+  const [a, id] = focus.split('|');
+  const el = body.querySelector('[data-act="' + a + '"][data-id="' + id + '"]');
+  if (el && !el.disabled) el.focus({ preventScroll: true });
+}
+function setMsg(t, c) { shMsg = [t || '', c || '']; }
 
 /* ---------- Muat dari server ---------- */
 async function load(force) {
@@ -44,51 +160,52 @@ async function load(force) {
   loading = false; render(); renderInv();
 }
 
-/* ---------- Tab Toko ---------- */
-const empty = (title, text, btn) => '<div class="bn-empty"><h2>' + esc(title) + '</h2>' + (text ? '<p>' + esc(text) + '</p>' : '') + (btn || '') + '</div>';
-const stepper = (act, id, n, min, max) =>
-  '<div class="sh-step" role="group" aria-label="Jumlah"><button type="button" data-act="' + act + '-" data-id="' + id + '" aria-label="Kurangi"' + (n <= min ? ' disabled' : '') + '>−</button>' +
-  '<output>' + n + '</output><button type="button" data-act="' + act + '+" data-id="' + id + '" aria-label="Tambah"' + (n >= max ? ' disabled' : '') + '>+</button></div>';
-
-function render() {
-  const focus = document.activeElement && body.contains(document.activeElement) ? document.activeElement.dataset.act + '|' + document.activeElement.dataset.id : '';
-  if (!ready0 && !aOn) { body.innerHTML = empty('Memuat…'); return; }
-  if (!aOn) { body.innerHTML = empty('Toko belum tersedia', 'Fitur akun belum aktif di server ini, jadi toko belum bisa dipakai.'); return; }
-  if (!atok) { body.innerHTML = empty('Masuk dulu ya', 'Coin dan inventory tersimpan di akunmu, jadi kamu perlu masuk atau daftar dulu.', '<button class="bn-go" type="button" data-act="login">Masuk / Daftar</button>'); return; }
-  if (!S) { body.innerHTML = failed ? empty('Gagal memuat', failed, '<button class="bn-go" type="button" data-act="retry">Coba lagi</button>') : empty('Memuat…'); return; }
-  const max = S.max.qty, total = sumOf(cart, 'price'), poor = total > S.coins;
-  body.innerHTML =
-    '<div class="sh-grid">' + itemsOf().map(it => {
-      const n = cart[it.id] | 0;
-      return '<div class="sh-card"><div class="sh-ic"><img src="' + icon(it.id) + '" alt="" draggable="false"></div><h3>' + esc(it.name) + '</h3><p class="sh-desc">' + esc(it.desc) + '</p>' +
-        '<div class="sh-meta"><span class="sh-price">' + COIN + nf.format(it.price) + '</span><span class="sh-own">Punya ' + nf.format(invN(it.id)) + '</span></div>' +
-        '<div class="sh-meta">+' + nf.format(it.exp) + ' EXP hubungan</div>' + stepper('c', it.id, n, 0, max) + '</div>';
-    }).join('') + '</div>' +
-    '<div class="bn-msg' + (shMsg[1] ? ' ' + shMsg[1] : '') + '" role="status" id="shmsg">' + esc(shMsg[0]) + '</div>' +
-    '<div class="sh-sum"><div class="t"><b>' + COIN + nf.format(total) + '</b><small>' + (total ? (poor ? 'Coin kamu belum cukup' : 'Saldo: ' + nf.format(S.coins) + ' coin') : 'Pilih barang yang mau dibeli') + '</small></div>' +
-    '<button type="button" data-act="buy"' + (!total || poor || buying ? ' disabled' : '') + '>' + (buying ? 'Membeli…' : 'Beli') + '</button></div>';
-  if (focus) { const [a, id] = focus.split('|'); const el = body.querySelector('[data-act="' + a + '"][data-id="' + id + '"]'); if (el && !el.disabled) el.focus({ preventScroll: true }); }
+/* ---------- Modal konfirmasi pembelian ---------- */
+const qm = document.createElement('div');
+qm.id = 'shqmodal'; qm.className = 'hide'; qm.setAttribute('role', 'dialog'); qm.setAttribute('aria-modal', 'true'); qm.setAttribute('aria-label', 'Konfirmasi pembelian');
+qm.innerHTML = '<div class="qbox"><h2>Konfirmasi</h2><div id="shqbody"></div><div class="qbtns"><button type="button" id="shqno">Batal</button><button type="button" id="shqyes">Beli</button></div></div>';
+document.getElementById('app').append(qm);
+let qCb = null;
+function askConfirm(html, label, cb) {
+  $('shqbody').innerHTML = html;
+  $('shqyes').textContent = label || 'Beli';
+  qCb = cb; qm.classList.remove('hide'); $('shqyes').focus({ preventScroll: true });
 }
-function setMsg(t, c) { shMsg = [t || '', c || '']; const el = $('shmsg'); if (el) { el.textContent = shMsg[0]; el.className = 'bn-msg' + (c ? ' ' + c : ''); } }
+function closeConfirm() { qm.classList.add('hide'); qCb = null; }
+qm.addEventListener('click', e => { if (e.target === qm) closeConfirm(); });
+$('shqno').onclick = closeConfirm;
+$('shqyes').onclick = () => { const cb = qCb; closeConfirm(); if (cb) cb(); };
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !qm.classList.contains('hide')) { e.stopPropagation(); closeConfirm(); } }, true);
 
 async function buy() {
-  if (buying || !S) return;
-  const items = pairs(cart); if (!Object.keys(items).length) return;
-  buying = true; setMsg(''); render();
+  if (buying || !S || !place.startsWith('item:')) return;
+  const it = itemOf(place.slice(5)); if (!it) return;
+  const n = Math.max(1, Math.min(S.max.qty, qty)), total = it.price * n;
+  if (total > S.coins) return;
+  buying = true; renderItem(it.id);
   try {
-    const r = await aApi('shop/buy', { items });
-    if (r && r.ok) { const was = sentence(cart); S = r; lastAt = Date.now(); saveWallet(r); for (const k in cart) delete cart[k]; setMsg('Berhasil membeli ' + was + '. Cek di Inventory (tombol + di kolom chat).', 'ok'); }
-  } catch (e) { setMsg(e.message || 'Gagal membeli.', 'err'); load(true); }
-  buying = false; render(); renderInv();
+    const r = await aApi('shop/buy', { items: { [it.id]: n }, idem: uuid() }); /* idem: double-click/replay tidak dobel potong */
+    if (r && r.ok) { S = r; lastAt = Date.now(); saveWallet(r); setMsg('ok'); toast('Berhasil membeli ' + n + ' ' + it.name.toLowerCase() + '. Cek di Inventory (tombol + di kolom chat).'); }
+  } catch (e) { toast(e.message || 'Gagal membeli.'); load(true); }
+  buying = false; renderItem(it.id); renderInv();
 }
 
 body.addEventListener('click', e => {
   const b = e.target.closest('[data-act]'); if (!b || b.disabled) return;
   const a = b.dataset.act, id = b.dataset.id;
-  if (a === 'c+' || a === 'c-') { const n = (cart[id] | 0) + (a === 'c+' ? 1 : -1); cart[id] = Math.max(0, Math.min(S.max.qty, n)); setMsg(''); render(); }
-  else if (a === 'buy') buy();
+  if (a === 'cat') { place = 'cat:' + id; render(); }
+  else if (a === 'item') { qty = 1; place = 'item:' + id; render(); }
+  else if (a === 'home') { place = 'home'; render(); }
+  else if (a.startsWith('cat:')) { place = a; render(); }
+  else if (a === 'q+' || a === 'q-') { qty = Math.max(1, Math.min(S.max.qty, qty + (a === 'q+' ? 1 : -1))); render(); }
+  else if (a === 'buy') {
+    const it = itemOf(place.slice(5)); if (!it) return;
+    const n = Math.max(1, Math.min(S.max.qty, qty)), total = it.price * n;
+    askConfirm('<div class="qitem"><img src="' + icon(it.id) + '" alt=""><div><b>' + esc(it.name) + ' × ' + n + '</b><small>Total ' + nf.format(total) + ' coin · saldo jadi ' + nf.format(Math.max(0, S.coins - total)) + '</small></div></div>', 'Beli', buy);
+  }
   else if (a === 'login') openLogin();
   else if (a === 'retry') load(true);
+  else if (a === 'rings') toast('Cincin gacha ada di Inventory: buka chat mana pun, lalu tombol + di kolom ketik.');
 });
 
 /* ---------- Menu "+" di kolom ketik ---------- */
@@ -118,7 +235,7 @@ function paintPlusItems() { /* dipanggil tiap menu dibuka dan saat chat berpinda
 }
 new MutationObserver(paintPlusItems).observe($('hname'), { childList: true, characterData: true, subtree: true });
 function openPlus() {
-  $('plusinv').textContent = S ? invTotal() : '';
+  $('plusinv').textContent = S ? invTotal() + ringTotal() : '';
   $('plusinv').classList.toggle('hide', !S);
   paintPlusItems();
   pmenu.classList.remove('hide'); plus.setAttribute('aria-expanded', 'true');
@@ -161,16 +278,36 @@ function renderInv() {
   foot.classList.add('hide');
   if (!aOn || !atok) { ibody.innerHTML = empty('Masuk dulu ya', 'Inventory tersimpan di akunmu, jadi kamu perlu masuk atau daftar dulu.', '<button class="bn-go" type="button" data-act="login">Masuk / Daftar</button>'); return; }
   if (!S) { ibody.innerHTML = failed ? empty('Gagal memuat', failed, '<button class="bn-go" type="button" data-act="retry">Coba lagi</button>') : empty('Memuat…'); return; }
-  if (!invTotal()) { ibody.innerHTML = empty('Inventory kosong', 'Beli bunga, coklat, atau eskrim di Toko dulu, lalu berikan ke karakter.', '<button class="bn-go" type="button" data-act="shop">Ke Toko</button>'); return; }
+  const rings = ((S.rings) || []).filter(r => invN(r.id) > 0);
+  const favId = (S.fav && ch && S.fav[ch.id]) || null;
+  const favMult = S.favMult || { exp: 1.5, mood: 2 };
+  if (!invTotal() && !rings.length) { ibody.innerHTML = empty('Inventory kosong', 'Beli hadiah di Toko dulu, lalu berikan ke karakter. Cincin bisa didapat dari Gacha.', '<button class="bn-go" type="button" data-act="shop">Ke Toko</button>'); return; }
   for (const i of itemsOf()) if ((gsel[i.id] | 0) > invN(i.id)) gsel[i.id] = invN(i.id);
-  ibody.innerHTML = itemsOf().filter(it => invN(it.id) > 0).map(it => { /* barang yang tidak dipunya tidak ditampilkan */
-    const have = invN(it.id), n = gsel[it.id] | 0;
-    return '<div class="inv-row"><div class="sh-ic"><img src="' + icon(it.id) + '" alt="" draggable="false"></div>' +
-      '<div class="inv-info"><b>' + esc(it.name) + '</b><small>Punya ' + nf.format(have) + ' · +' + nf.format(it.exp) + ' EXP</small></div>' + stepper('g', it.id, n, 0, have) + '</div>';
-  }).join('');
-  const cnt = Object.values(gsel).reduce((s, n) => s + (n | 0), 0), exp = sumOf(gsel, 'exp');
+  ibody.innerHTML =
+    (rings.length ? '<div class="inv-sec">Hadiah istimewa · koleksi gacha</div>' + rings.map(r =>
+      '<div class="inv-row ring"><div class="sh-ic"><img src="' + icon(r.id) + '" alt="" draggable="false"></div>' +
+      '<div class="inv-info"><b>' + esc(r.name) + '</b><small>Punya ' + nf.format(invN(r.id)) + ' · tidak bisa diberikan</small></div></div>'
+    ).join('') + (invTotal() ? '<div class="inv-sec">Hadiah untuk diberikan</div>' : '') : '') +
+    itemsOf().filter(it => invN(it.id) > 0).map(it => { /* barang yang tidak dipunya tidak ditampilkan */
+      const have = invN(it.id), n = gsel[it.id] | 0, fav = favId === it.id;
+      return '<div class="inv-row' + (fav ? ' fav' : '') + '"><div class="sh-ic"><img src="' + icon(it.id) + '" alt="" draggable="false"></div>' +
+        '<div class="inv-info"><b>' + esc(it.name) + '</b><small>Punya ' + nf.format(have) + ' · +' + nf.format(it.exp) + ' EXP' + (fav ? ' <span class="inv-favtag">❤ ×' + String(favMult.exp).replace('.', ',') + '</span>' : '') + '</small>' +
+        (fav ? '<span class="inv-favb">❤ Favorit ' + esc(shortName(ch)) + ' — EXP ×' + String(favMult.exp).replace('.', ',') + ', Mood ×' + favMult.mood + '</span>' : '') + '</div>' + stepper('g', it.id, n, 0, have) + '</div>';
+    }).join('');
+  /* ringkasan: EXP/Mood dihitung dengan multiplier favorit (server yang memutuskan angka final) */
+  let exp = 0, moodRaw = 0, favHit = false;
+  for (const it of itemsOf()) {
+    const n = gsel[it.id] | 0; if (!n) continue;
+    const fav = favId === it.id;
+    if (fav) favHit = true;
+    exp += it.exp * n * (fav ? favMult.exp : 1);
+    moodRaw += it.mood * n * (fav ? favMult.mood : 1);
+  }
+  const cnt = Object.values(gsel).reduce((s, n) => s + (n | 0), 0);
   foot.classList.remove('hide');
-  $('invsum').textContent = cnt ? cnt + ' barang · +' + nf.format(exp) + ' EXP' : 'Pilih barang yang mau diberikan';
+  $('invsum').innerHTML = cnt
+    ? cnt + ' barang · +' + nf.format(Math.round(exp)) + ' EXP' + (favHit ? ' <span class="inv-favtag">❤ bonus favorit</span>' : '')
+    : 'Pilih barang yang mau diberikan';
   const go = $('invgo'); go.disabled = !cnt || giving; go.textContent = 'Lampirkan ke chat';
   if (focus) { const [a, id] = focus.split('|'); const el = ibody.querySelector('[data-act="' + a + '"][data-id="' + id + '"]'); if (el && !el.disabled) el.focus({ preventScroll: true }); }
 }
@@ -186,9 +323,10 @@ $('invgo').onclick = attach;
 
 /* Hadiah = LAMPIRAN di kotak ketik (seperti file yang dilampirkan di chat): "Lampirkan ke chat" cuma menyiapkan hadiahnya, belum dikirim
    dan barang belum berkurang. Saat tombol kirim ditekan (atau Enter), hadiah dan ketikan user (boleh kosong) terkirim sekaligus:
-   server mengurangi barang (atomik) dan menghitung EXP; di sini EXP/mood ditambahkan ke hubungan, bubble roleplay masuk ke chat
-   dan AI menjawab keduanya (lewat submit() di index.html dengan field `gift`). Lampiran hanya berlaku untuk chat tempat ia dibuat. */
-let att = null; // { char, items:{id:n}, parts:[{id,name,n}], what, exp }
+   server mengurangi barang (atomik) dan menghitung EXP (bonus favorit kalau cocok); di sini EXP/mood ditambahkan ke hubungan,
+   bubble roleplay masuk ke chat dan AI menjawab keduanya (lewat submit() di index.html dengan field `gift`).
+   Lampiran hanya berlaku untuk chat tempat ia dibuat. */
+let att = null; // { char, items:{id:n}, parts:[{id,name,n}], what, exp, fav }
 const attbar = document.createElement('div');
 attbar.id = 'attbar'; attbar.className = 'hide'; attbar.setAttribute('aria-live', 'polite');
 document.querySelector('#chatview footer').before(attbar);
@@ -199,12 +337,14 @@ function renderAtt() {
   attbar.textContent = '';
   attbar.classList.toggle('hide', !att);
   if (!att) { if (typeof refresh === 'function') refresh(); return; }
-  const chip = document.createElement('div'); chip.className = 'att-chip';
+  const chip = document.createElement('div'); chip.className = 'att-chip' + (att.fav ? ' fav' : '');
   const ics = document.createElement('span'); ics.className = 'att-ic';
   att.parts.slice(0, 3).forEach(p => { const im = new Image(); im.src = icon(p.id); im.alt = ''; im.draggable = false; ics.append(im); });
   const tx = document.createElement('span'); tx.className = 'att-tx';
   const t1 = document.createElement('b'), t2 = document.createElement('small');
-  t1.textContent = att.parts.map(p => p.n + ' ' + p.name.toLowerCase()).join(', '); t2.textContent = 'Hadiah · +' + nf.format(att.exp) + ' EXP'; chip.title = 'Hadiah ini terkirim bersama pesanmu';
+  t1.textContent = att.parts.map(p => p.n + ' ' + p.name.toLowerCase()).join(', ');
+  t2.textContent = 'Hadiah · +' + nf.format(att.exp) + ' EXP' + (att.fav ? ' · ❤ bonus favorit' : '');
+  chip.title = 'Hadiah ini terkirim bersama pesanmu';
   tx.append(t1, t2);
   const x = document.createElement('button'); x.type = 'button'; x.className = 'att-x'; x.title = 'Lepas hadiah'; x.setAttribute('aria-label', 'Lepas hadiah dari kotak ketik');
   x.innerHTML = '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>'; // ikon statis
@@ -218,9 +358,14 @@ window.addEventListener('acct', () => { if (!atok) { att = null; renderAtt(); } 
 
 function attach() { // tombol di Inventory: siapkan hadiah di kotak ketik, belum dikirim
   if (giving || !S || !ch || (window.GX && GX.cur)) return;
-  const items = pairs(gsel); if (!Object.keys(items).length) return;
+  const items = {}; let cnt = 0;
+  for (const i of itemsOf()) if ((gsel[i.id] | 0) > 0) { items[i.id] = gsel[i.id] | 0; cnt += items[i.id]; }
+  if (!cnt) return;
+  const favId = (S.fav && S.fav[ch.id]) || null, favMult = S.favMult || { exp: 1.5, mood: 2 };
   const parts = itemsOf().filter(i => items[i.id]).map(i => ({ id: i.id, name: i.name, n: items[i.id] }));
-  att = { char: ch.id, items, parts, what: sentence(gsel), exp: sumOf(gsel, 'exp') };
+  let exp = 0, favHit = false;
+  for (const i of itemsOf()) { const n = items[i.id]; if (!n) continue; const fav = favId === i.id; if (fav) favHit = true; exp += i.exp * n * (fav ? favMult.exp : 1); }
+  att = { char: ch.id, items, parts, what: parts.map(p => p.n + ' ' + p.name.toLowerCase()).join(', '), exp: Math.round(exp), fav: favHit };
   for (const k in gsel) delete gsel[k];
   closeInv(); renderAtt();
   inp.focus({ preventScroll: true });
@@ -241,18 +386,24 @@ async function send(userText) { // dipanggil submit() saat ada lampiran
   att = null; renderAtt();
   const note = relApply(chId, r.exp, r.mood, true); /* EXP hadiah tidak kena batas harian obrolan: sudah dibayar pakai coin */
   const expTxt = '+' + nf.format(r.exp) + ' EXP';
+  if (r.favHit) setTimeout(() => toast('❤ ' + name + ' benar-benar suka hadiahmu! Bonus favorit: EXP ×' + String(r.favHit.exp).replace('.', ',') + ' · Mood ×' + r.favHit.mood), 500);
   if (!ch || ch.id !== chId || (window.GX && GX.cur)) { toast('Hadiah terkirim ke ' + name + ' · ' + expTxt + (note ? ' · ' + note : '')); return; } /* chat sudah pindah: EXP tetap masuk ke karakter yang benar */
   inp.value = ''; grow(); refresh(); clearTimeout(draftT); store.set('draft:' + chId, null); // ketikan ikut terkirim, kotak ketik dikosongkan
   toast('Kamu memberikan ' + a.what + ' ke ' + name + ' · ' + expTxt);
-  submit({ gift: true, items: a.items, say, text: '🎁 *memberikan ' + a.what + '*' + (say ? '\n' + say : ''), hist: '*memberikan ' + a.what + ' kepadamu*' + (say ? ' sambil bilang: ' + say : ''), note });
+  submit({ gift: true, items: a.items, say, text: '🎁 *memberikan ' + a.what + '*' + (r.favHit ? ' *(barang favoritnya!)*' : '') + (say ? '\n' + say : ''), hist: '*memberikan ' + a.what + ' kepadamu*' + (r.favHit ? ' (barang favoritnya!)' : '') + (say ? ' sambil bilang: ' + say : ''), note });
 }
 window.SHOP = { has: hasAtt, send };
 
 /* ---------- Kapan menyegarkan ---------- */
-window.addEventListener('shell:tab', e => { if (e.detail === 'shop') load(); });
-window.addEventListener('acct', () => { ready0 = true; if (!atok) S = null; if (active()) load(true); else if (invOpen()) { renderInv(); } });
-document.addEventListener('visibilitychange', () => { if (!document.hidden && active()) load(); });
-new MutationObserver(() => { if (active() && $('smodal').classList.contains('hide')) load(true); })
+window.addEventListener('shell:tab', e => {
+  if (e.detail !== 'shop') return;
+  SHP.paint();
+  if (SHP.view === 'toko') load(); else if (window.ECON && ECON.show) ECON.show(SHP.view);
+});
+window.addEventListener('shop:nav', () => { if (SHP.view === 'toko' && active()) load(true); }); /* balik dari Gacha/Tukar: data bisa saja berubah */
+window.addEventListener('acct', () => { ready0 = true; if (!atok) S = null; if (active() && SHP.view === 'toko') load(true); else if (invOpen()) { renderInv(); } });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && active() && SHP.view === 'toko') load(); });
+new MutationObserver(() => { if (active() && $('smodal').classList.contains('hide') && SHP.view === 'toko') load(true); })
   .observe($('smodal'), { attributes: true, attributeFilter: ['class'] });
 
 paintWallet(loadWallet());

@@ -523,6 +523,7 @@ header .pfp,header .who{cursor:pointer}
 <link rel="stylesheet" href="/bonus.css">
 <link rel="stylesheet" href="/games.css">
 <link rel="stylesheet" href="/shop.css">
+<link rel="stylesheet" href="/economy.css">
 <link rel="stylesheet" href="/tools/tools.css">
 <link rel="stylesheet" href="/scenario.css">
 <link rel="stylesheet" href="/scene.css">
@@ -632,9 +633,14 @@ header .pfp,header .who{cursor:pointer}
   <section id="shop" aria-label="Toko">
     <div class="bn-in">
       <div class="bn-top">
-        <div><h1>Toko</h1><p class="bn-sub">Beli hadiah pakai coin, lalu berikan ke karakter lewat tombol + di kolom chat untuk menaikkan hubungan.</p></div>
-        <div class="bn-wallet" role="group" aria-label="Saldo" data-w title="Masuk untuk punya coin &amp; gems"><span class="w-cur" data-k="coins"><img src="/coin.svg" alt="" draggable="false"><b class="w-n">–</b><span class="w-l">Coin</span></span><span class="w-cur" data-k="gems"><img src="/gems.png" alt="" draggable="false"><b class="w-n">–</b><span class="w-l">Gems</span></span></div>
+        <div><h1 id="shh1">Toko</h1><p class="bn-sub" id="shsub">Beli hadiah pakai coin, lalu berikan ke karakter lewat tombol + di kolom chat untuk menaikkan hubungan.</p></div>
+        <div class="bn-wallet" role="group" aria-label="Saldo" data-w title="Masuk untuk punya coin &amp; gems"><span class="w-cur" data-k="coins"><img src="/coin.svg" alt="" draggable="false"><b class="w-n">–</b><span class="w-l">Coin</span></span><span class="w-cur" data-k="gems"><img src="/gems.png" alt="" draggable="false"><b class="w-n">–</b><span class="w-l">Gems</span></span><span class="w-cur" data-k="tickets"><img src="/ticket.svg" alt="" draggable="false"><b class="w-n">–</b><span class="w-l">Tiket</span></span></div>
       </div>
+      <nav id="shnav" class="seg x3" role="tablist" aria-label="Bagian Toko">
+        <button type="button" role="tab" aria-selected="true" data-v="toko" class="sel">Belanja</button>
+        <button type="button" role="tab" aria-selected="false" data-v="gacha">Gacha</button>
+        <button type="button" role="tab" aria-selected="false" data-v="tukar">Tukar</button>
+      </nav>
       <div id="shbody"></div>
     </div>
   </section>
@@ -1863,12 +1869,12 @@ function paintWallet(w){
   const ok=!!(atok&&w&&Number.isFinite(w.coins)&&Number.isFinite(w.gems));
   document.querySelectorAll('[data-w]').forEach(box=>{
     box.classList.toggle('off',!ok);
-    box.title=ok?'Coin '+nfW.format(w.coins)+' · Gems '+nfW.format(w.gems):'Masuk untuk punya coin & gems';
-    box.querySelectorAll('.w-cur').forEach(el=>{ el.querySelector('.w-n').textContent=ok?fmtW(w[el.dataset.k]):'–'; });
+    box.title=ok?'Coin '+nfW.format(w.coins)+' · Gems '+nfW.format(w.gems)+(Number.isFinite(w.tickets)?' · Tiket '+nfW.format(w.tickets):''):'Masuk untuk punya coin & gems';
+    box.querySelectorAll('.w-cur').forEach(el=>{ const k=el.dataset.k; el.querySelector('.w-n').textContent=ok&&(k==='tickets'?Number.isFinite(w.tickets):true)?fmtW(w[k]||0):'–'; });
   });
 }
 const loadWallet=()=>{ try{ const w=JSON.parse(store.get('wallet')||'null'); return w&&Number.isFinite(w.coins)&&Number.isFinite(w.gems)?w:null; }catch{ return null; } };
-const saveWallet=w=>{ store.set('wallet',w?JSON.stringify({coins:w.coins,gems:w.gems}):null); paintWallet(w); };
+const saveWallet=w=>{ store.set('wallet',w?JSON.stringify({coins:w.coins,gems:w.gems,tickets:Number.isFinite(w.tickets)?w.tickets:0}):null); paintWallet(w); }; /* tickets ikut tersimpan (wallet lama tanpa tickets = 0) */
 function paintAcct(cloud){
   syncUname();
   window.__acctSeen=1; window.dispatchEvent(new Event('acct')); /* bonus.js ikut menyegarkan (status akun / masuk / keluar berubah) */
@@ -2730,6 +2736,7 @@ document.addEventListener('visibilitychange',()=>{ if(!document.hidden) setTimeo
 <script src="/scenario.js"></script>
 <script src="/profile.js"></script>
 <script src="/shop.js"></script>
+<script src="/economy.js"></script>
 <script src="/music.js"></script>
 <script src="/scene.js"></script>
 <script src="/vision.js"></script>
