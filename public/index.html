@@ -755,6 +755,7 @@ header .pfp,header .who{cursor:pointer}
       </div>
       <div class="sgroup hide" id="sdevg"><h3>Dev</h3>
         <label class="srow"><span><b>Mode dev</b><i>Munculkan alat dev: "Ringkas sekarang" di menu Memori dan kelola Chat Global.</i></span><input type="checkbox" id="sdev" class="sw"></label>
+        <div id="sdevcoin" class="hide"></div>
         <div id="sengbox" class="hide">
           <span class="vlab">Mesin AI (uji)</span>
           <div class="seg" id="seg-eng"><button type="button" data-v="chatgpt">ChatGPT (utama)</button><button type="button" data-v="lorka">Lorka</button></div>
@@ -2411,7 +2412,7 @@ $('lmbtn').onclick=()=>{
   if(!box.classList.contains('hide')){ box.classList.add('hide'); $('lmbtn').textContent='Lihat daftar model'; return; }
   box.classList.remove('hide'); $('lmbtn').textContent='Tutup daftar model'; loadModels();
 };
-function paintDev(){ $('sdevg').classList.toggle('hide',store.get('devu')!=='1'); $('sdev').checked=store.get('dev')==='1'; paintMusic(); paintEng(); }
+function paintDev(){ renderDevWallet(); $('sdevg').classList.toggle('hide',store.get('devu')!=='1'); $('sdev').checked=store.get('dev')==='1'; paintMusic(); paintEng(); }
 /* Musik: fitur ditutup sementara (streaming YouTube sering ditolak dari IP server) — ikon di rail &
    tab Musik hanya muncul saat Mode dev aktif. Pagar UI seperti kode rahasia lain, bukan keamanan. */
 function paintMusic(){ $('rmusic').classList.toggle('hide',!devOn()); }
@@ -2442,13 +2443,15 @@ function tryChess(text){
 }
 $('smedia').onchange=()=>{ store.set('scnauto',$('smedia').checked?'1':null); };
 $('srp').checked=rpOn(); $('srp').onchange=()=>{ store.set('rp',$('srp').checked?'1':null); };
-$('sdev').onchange=()=>{ store.set('dev',$('sdev').checked?'1':null); renderDev(); paintMusic(); paintEng(); window.dispatchEvent(new Event('devmode')); };
-function renderDev(){
-  const box=$('mdev'); box.textContent='';
+$('setbtn').addEventListener('click',()=>renderDevWallet()); /* segarkan status login tiap Pengaturan dibuka */
+$('sdev').onchange=()=>{ store.set('dev',$('sdev').checked?'1':null); renderDev(); renderDevWallet(); paintMusic(); paintEng(); window.dispatchEvent(new Event('devmode')); };
+/* Dev: tambah Coin & Gems — baris di grup Dev Pengaturan (#sdevcoin), divalidasi server lewat kode dev (lib/dev.js) */
+function renderDevWallet(){
+  const box=$('sdevcoin'); if(!box) return; box.textContent='';
   if(!devOn()){ box.classList.add('hide'); return; }
   box.classList.remove('hide');
   /* Dev: tambah Coin & Gems ke akun yang sedang masuk (divalidasi server lewat kode dev, lib/dev.js) */
-  { const g3=document.createElement('h3'); g3.textContent='Dev: tambah Coin & Gems'; box.appendChild(g3);
+  { const g3=document.createElement('span'); g3.className='vlab'; g3.textContent='Tambah Coin & Gems (uji)'; box.appendChild(g3);
     const gh=document.createElement('p'); gh.className='mhelp';
     gh.textContent=atok?'Menambah saldo akunmu (bukan mengganti). Maks 1.000.000 per tombol.':'Masuk ke akun dulu untuk memakai fitur ini.'; box.appendChild(gh);
     if(atok){
@@ -2472,6 +2475,11 @@ function renderDev(){
       row.append(ic,ig,btn,msg); box.appendChild(row);
     }
   }
+}
+function renderDev(){
+  const box=$('mdev'); box.textContent='';
+  if(!devOn()){ box.classList.add('hide'); return; }
+  box.classList.remove('hide');
   const h3=document.createElement('h3'); h3.textContent='Dev: ringkas sekarang'; box.appendChild(h3);
   const help=document.createElement('p'); help.className='mhelp'; help.textContent='Meringkas seluruh riwayat konteks karakter itu sekarang juga, tanpa menunggu 16 pesan dan tanpa menyisakan 4 pesan terakhir.'; box.appendChild(help);
   const ids=[]; try{ for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k.startsWith('h:')&&loadHist(k.slice(2)).length>=2) ids.push(k.slice(2)); } }catch{}
