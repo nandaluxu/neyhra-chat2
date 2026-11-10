@@ -253,6 +253,7 @@ Index: `{username:1} unique`, `{refCode:1} unique sparse`, `{createdAt:-1}`.
 | Key | Isi | Batas |
 |---|---|---|
 | `log:<id>` | riwayat tampilan (bubble, versi voice note) | **150 pesan** (LOGMAX); yang keluar → audionya dibuang dari IndexedDB |
+| `cnt:<id>` | **total pesan seumur hidup** per karakter (dua arah), naik tiap `record()`; dipakai statistik Profil (tab Karakter + profil publik) supaya jumlahnya tidak mentok di 150 | tidak turun saat log dipangkas/dihapus; ikut ekspor/sinkron lewat field `n` per karakter |
 | `h:<id>` | riwayat yang dikirim ke AI (`[role, teks]`) | **40 pesan** (server pakai 24 terakhir) |
 | `mem:<id>` | memori ringkasan obrolan lama `[{id,title,body}]` | dipakai maks **1500 karakter** (MEM_MAX_USE) |
 | `rel:<id>` | EXP total + mood hubungan dengan karakter | EXP maks 17.325 (Lv 100) |

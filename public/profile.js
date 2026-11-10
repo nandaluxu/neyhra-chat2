@@ -69,7 +69,7 @@ function localStats() {
       const d = Math.round((today - sod(e.t || 0)) / 864e5); if (e.t && d >= 0 && d < 7) days[6 - d]++;
     }
     sent += mine;
-    const st = relLoad(c.id); rows.push({ c, total: l.length, mine, exp: st.r, lv: lvOf(st.r) });
+    const st = relLoad(c.id); rows.push({ c, total: (typeof loadCnt === 'function' ? loadCnt(c.id) : l.length), mine, exp: st.r, lv: lvOf(st.r) }); /* total = seumur hidup per karakter (counter), bukan panjang log yang dipangkas 150 */
   }
   rows.sort((a, b) => b.total - a.total);
   const best = rows.reduce((b, r) => (!b || r.lv > b.lv ? r : b), null);
@@ -172,7 +172,7 @@ function panelSum(panel, own) {
     col.append(bar, h('small', null, nm[new Date(s.today - (6 - i) * 864e5).getDay()])); chart.append(col);
   });
   sec2.append(chart, own
-    ? h('p', 'pf-note', 'Dihitung dari obrolan yang tersimpan di perangkat ini (maks 150 pesan terakhir per karakter).')
+    ? h('p', 'pf-note', 'Jumlah pesan dihitung seumur hidup dan tidak berkurang saat obrolan dihapus. Di perangkat ini hanya 150 pesan terakhir per karakter yang disimpan; pesan sebelum fitur penghitung ini ada mulai dari jumlah yang tersimpan saat itu.')
     : h('p', 'pf-note', view.statsAt ? 'Terakhir diperbarui ' + new Date(view.statsAt).toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) + ' dari perangkat pemiliknya.' : 'Diterbitkan dari perangkat pemilik profil ini.'));
   panel.append(sec1, sec2);
 }

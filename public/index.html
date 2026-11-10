@@ -1045,6 +1045,12 @@ const saveHist=(id,h)=>store.set('h:'+id,JSON.stringify(h.slice(-40))); /* 40 (b
 const LOGMAX=150, AUDMAX=30; /* maks pesan per karakter, dan maks voice note yang audionya disimpan */
 const keysOf=e=>e.ks||(e.k?[e.k]:[]); /* kunci audio di IndexedDB (satu per versi voice note) */
 const loadLog=id=>{try{const l=JSON.parse(store.get('log:'+id)||'[]');return Array.isArray(l)?l:[]}catch{return []}};
+/* Total pesan seumur hidup PER KARAKTER (semua pesan, dua arah). Log tampilan dipangkas LOGMAX supaya localStorage tak bengkak,
+   jadi menghitung dari log membuat jumlah mentok di 150 untuk yang rajin ngobrol; counter ini naik tiap record() dan TIDAK turun
+   saat log dipangkas/dihapus (semangat yang sama dengan counter 'sent'). Seed minimal = panjang log yang masih ada, supaya
+   perangkat lama (sebelum counter ini ada) langsung mulai dari jumlah yang terlihat sekarang. Ikut ekspor/sinkron lewat field `n` (collectChars/applyImport). */
+const cntKey=id=>'cnt:'+id;
+const loadCnt=id=>Math.max(parseInt(store.get(cntKey(id)))||0,loadLog(id).length);
 const idb=(()=>{
   let p; const open=()=>p||(p=new Promise(res=>{ try{ const r=indexedDB.open('neyhra',1); r.onupgradeneeded=()=>r.result.createObjectStore('vn'); r.onsuccess=()=>res(r.result); r.onerror=()=>res(null); }catch{ res(null) } }));
   const tx=async(mode,fn)=>{ const db=await open(); if(!db) return null; return new Promise(res=>{ try{ const t=db.transaction('vn',mode), rq=fn(t.objectStore('vn')); t.oncomplete=()=>res(rq?rq.result:null); t.onerror=t.onabort=()=>res(null); }catch{ res(null) } }); };
@@ -1064,6 +1070,7 @@ const sentTotal=()=>Math.max(sentSaved(),mineInLogs());
 function record(id,e){
   const l=loadLog(id); e.t=e.t||Date.now();
   if(e.r==='me') store.set('sent',String(sentTotal()+1)); /* dihitung sebelum entri masuk log, jadi tidak terhitung ganda */
+  store.set(cntKey(id),String(loadCnt(id)+1)); /* total per karakter: naik satu tiap pesan baru, tidak turun saat dipangkas/dihapus */
   l.push(e); trimLog(l);
   store.set('log:'+id,JSON.stringify(l));
   if(window.Shell) Shell.touch();
@@ -1698,7 +1705,7 @@ async function collectChars(withAudio){
         if(audio[k]) continue; const a=await idb.get(k);
         if(a&&a.ab){ audio[k]={mime:'audio/mpeg',dur:a.dur==null?null:a.dur,bins:a.bins?Array.from(a.bins):null,data:b64(a.ab)}; nAud++; }
       }
-      nMsg+=log.length; chars.push({id,name:names[id]||id,log,hist:loadHist(id),audio,...(mem.length?{mem}:{}),...(store.get(relKey(id))?{rel:relSan(relLoad(id))}:{})});
+      nMsg+=log.length; chars.push({id,name:names[id]||id,n:loadCnt(id),log,hist:loadHist(id),audio,...(mem.length?{mem}:{}),...(store.get(relKey(id))?{rel:relSan(relLoad(id))}:{})});
     }
   return {chars,nMsg,nAud};
 }
@@ -1748,7 +1755,9 @@ async function applyImport(data){
         if(!ex){ cur.push(e); idx.set(key,e); add++; }
         else if(e.r==='vn'){ const u=[...new Set([...keysOf(ex),...keysOf(e)])]; if(u.length>keysOf(ex).length){ ex.ks=u; delete ex.k; if(ex.si==null) ex.si=0; } if(!ex.vn&&e.vn) ex.vn=e.vn; }
       }
-      cur.sort((a,b)=>a.t-b.t); trimLog(cur); store.set('log:'+c.id,JSON.stringify(cur));
+      cur.sort((a,b)=>a.t-b.t);
+      { const n=Math.floor(Number(c.n)); store.set(cntKey(c.id),String(Math.max(loadCnt(c.id),Number.isFinite(n)&&n>0&&n<1e9?n:0,cur.length))); } /* total per karakter: terbesar antara lokal, nilai cadangan (field n), dan hasil gabungan SEBELUM dipangkas 150 */
+      trimLog(cur); store.set('log:'+c.id,JSON.stringify(cur));
       if(!store.get('h:'+c.id)&&Array.isArray(c.hist)&&c.hist.length) saveHist(c.id,c.hist.filter(h=>Array.isArray(h)&&typeof h[1]==='string'));
       if(c.rel&&typeof c.rel==='object'&&!store.get(relKey(c.id))) relSave(c.id,relSan(c.rel)); /* hubungan: hanya diisi kalau di perangkat ini belum ada */
       if(Array.isArray(c.mem)&&c.mem.length){ /* memori digabung berdasarkan id, tidak menimpa */
@@ -1901,7 +1910,7 @@ function statsSnap(){
     const l=loadLog(c.id),st=relLoad(c.id);
     if(!l.length&&!st.r) continue;
     for(const e of l){ if(e.r!=='me') continue; const d=Math.round((today-sod(e.t||0))/864e5); if(e.t&&d>=0&&d<7) days[6-d]++; }
-    rows.push({id:c.id,lv:lvOf(st.r),e:st.r,m:l.length});
+    rows.push({id:c.id,lv:lvOf(st.r),e:st.r,m:loadCnt(c.id)}); /* m = total pesan seumur hidup (counter), bukan panjang log yang dipangkas 150 */
   }
   rows.sort((a,b)=>b.m-a.m);
   return {sent:sentTotal(),days,chars:rows.slice(0,20)};
