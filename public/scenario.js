@@ -126,9 +126,9 @@
     const box = document.createElement('div')
     box.className = 'scn-lstat'
     const h = document.createElement('h3'); h.textContent = 'Butuh akun'
-    const p = document.createElement('p'); p.textContent = 'Skrip disimpan di akunmu supaya tidak tercampur dengan user lain. Masuk lewat Pengaturan \u2192 Akun (butuh MongoDB aktif di server).'
-    const b = document.createElement('button'); b.type = 'button'; b.className = 'scn-retry'; b.textContent = 'Buka Pengaturan'
-    b.onclick = () => { closePanel(); openSettings() }
+    const p = document.createElement('p'); p.textContent = 'Skrip disimpan di akunmu supaya tidak tercampur dengan user lain. Masuk atau daftar dulu (butuh MongoDB aktif di server).'
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'scn-retry'; b.textContent = 'Masuk / Daftar'
+    b.onclick = () => { closePanel(); openLogin() }
     box.append(h, p, b)
     panel.lstat.textContent = ''; panel.lstat.appendChild(box)
   }

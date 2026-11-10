@@ -297,7 +297,7 @@ function clearReply() {
   paintComposer();
 }
 document.getElementById('gc-rpx').onclick = clearReply;
-as.addEventListener('click', e => { if (e.target.closest('#gc-login')) { close(); $('setbtn').click(); } });
+as.addEventListener('click', e => { if (e.target.closest('#gc-login')) { close(); openLogin(); } });
 window.addEventListener('acct', () => { paintAs(true); if (isOpen) render(A.getState(), true); }); // masuk/keluar atau nama profil berubah -> label dan posisi bubble (kanan = saya) ikut berubah
 
 /* ---------- Aksi dari bubble / banner / tampilan kosong (delegasi klik) ---------- */

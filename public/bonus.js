@@ -161,7 +161,7 @@ body.addEventListener('click', e => {
   else if (a === 'redeem') redeem();
   else if (a === 'copy') copyCode();
   else if (a === 'share') navigator.share({ title: 'Neyhra Chat', text: 'Pakai kode referalku ' + st.refCode + ' di Neyhra Chat.', url: location.origin }).catch(() => {});
-  else if (a === 'login') $('setbtn').click();
+  else if (a === 'login') openLogin();
   else if (a === 'retry') load(true);
 });
 body.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'bnin') { e.preventDefault(); redeem(); } });

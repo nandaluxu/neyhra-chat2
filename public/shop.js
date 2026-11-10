@@ -87,7 +87,7 @@ body.addEventListener('click', e => {
   const a = b.dataset.act, id = b.dataset.id;
   if (a === 'c+' || a === 'c-') { const n = (cart[id] | 0) + (a === 'c+' ? 1 : -1); cart[id] = Math.max(0, Math.min(S.max.qty, n)); setMsg(''); render(); }
   else if (a === 'buy') buy();
-  else if (a === 'login') $('setbtn').click();
+  else if (a === 'login') openLogin();
   else if (a === 'retry') load(true);
 });
 
@@ -178,7 +178,7 @@ ibody.addEventListener('click', e => {
   const b = e.target.closest('[data-act]'); if (!b || b.disabled) return;
   const a = b.dataset.act, id = b.dataset.id;
   if (a === 'g+' || a === 'g-') { gsel[id] = Math.max(0, Math.min(invN(id), (gsel[id] | 0) + (a === 'g+' ? 1 : -1))); renderInv(); }
-  else if (a === 'login') { closeInv(); $('setbtn').click(); }
+  else if (a === 'login') { closeInv(); openLogin(); }
   else if (a === 'retry') load(true);
   else if (a === 'shop') { closeInv(); Shell.setTab('shop'); }
 });

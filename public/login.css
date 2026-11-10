@@ -1,0 +1,30 @@
+/* ===== Overlay Masuk / Daftar / Google + pilih username =====
+   Logika di login.js. Pola modal sama dengan #nmodal dkk (index.html): menutupi #app, bottom sheet di layar kecil. */
+#lmodal{position:absolute;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(0,0,0,.45);backdrop-filter:blur(3px);animation:lfade .2s ease}
+#lmodal.hide{display:none}
+@keyframes lfade{from{opacity:0}}
+.lbox{position:relative;width:100%;max-width:380px;max-height:100%;overflow-y:auto;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:22px;padding:24px 20px 20px;animation:nin .25s cubic-bezier(.2,.9,.3,1.2)}
+.lbox h2{font-size:20px;font-weight:700;letter-spacing:-.02em;padding-right:34px}
+.lsub{margin-top:6px;font-size:13px;line-height:1.45;color:var(--mut)}
+.lx{position:absolute;top:14px;right:14px;display:grid;place-items:center;width:34px;height:34px;border-radius:50%;color:var(--mut)}
+.lx:hover{background:var(--surface);color:var(--ink)}
+.lx svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+#lgwrap{margin-top:18px}
+#lgbtn{display:flex;justify-content:center;min-height:44px}
+.lor{display:flex;align-items:center;gap:10px;margin:14px 0 2px;font-size:12px;color:var(--mut)}
+.lor::before,.lor::after{content:"";flex:1;height:1px;background:var(--line)}
+.lbox .ainp{margin-top:10px}
+.lbox .seg{margin-top:12px}
+.lprimary{display:block;width:100%;margin-top:12px;padding:12px;border-radius:12px;background:var(--ink);color:var(--bg);font-size:14px;font-weight:600;transition:transform .15s}
+.lprimary:active{transform:scale(.97)}
+.llink{display:block;margin:10px auto 0;padding:6px 10px;font-size:13px;color:var(--mut)}
+.llink:hover{color:var(--ink)}
+.lstat{margin-top:10px;font-size:12.5px;line-height:1.4;color:var(--mut)}
+.lstat:empty{display:none}
+.lstat.err{color:var(--rec)}
+#gbtn{margin-top:8px;display:flex}
+#gbtn:empty{display:none}
+@media(max-width:799px){
+  #lmodal{align-items:flex-end;padding:12px 12px calc(12px + env(safe-area-inset-bottom,0px))}
+  .lbox{max-width:none;border-radius:26px;padding:26px 20px 20px}
+}

@@ -504,6 +504,7 @@ header .pfp,header .who{cursor:pointer}
 <link rel="stylesheet" href="/vision.css">
 <link rel="stylesheet" href="/profile.css">
 <link rel="stylesheet" href="/music.css">
+<link rel="stylesheet" href="/login.css">
 </head>
 <body>
 <div id="app">
@@ -706,14 +707,9 @@ header .pfp,header .who{cursor:pointer}
         <label class="srow"><span><b>Putar otomatis berikutnya</b><i>Setelah satu voice note selesai, lanjut ke voice note di bawahnya.</i></span><input type="checkbox" id="sauto" class="sw"></label>
       </div>
       <div class="sgroup hide" id="sacct"><h3>Akun</h3>
-        <div id="aout" class="hide">
-          <p class="mhelp" style="margin:0 0 4px">Masuk untuk memindahkan obrolan ke perangkat lain. Obrolan langsung disinkronkan saat masuk, dan dihapus dari perangkat ini saat kamu keluar. Bukan untuk keamanan tinggi: pakai password yang tidak kamu pakai di tempat lain.</p>
-          <input id="auser" class="ainp" type="text" autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="20" placeholder="Username" aria-label="Username">
-          <input id="apass" class="ainp" type="password" autocomplete="current-password" maxlength="100" placeholder="Password" aria-label="Password">
-          <div class="seg"><button type="button" id="alogin">Masuk</button><button type="button" id="areg">Daftar</button></div>
-        </div>
         <div id="ain" class="hide">
           <div class="stor"><div class="sl"><span>Masuk sebagai</span><span id="aname"></span></div><div class="sl" style="margin-top:6px"><span>Cadangan cloud</span><span id="acloud">…</span></div></div>
+          <div class="stor hide" id="grow"><div class="sl"><span>Google</span><span id="gtxt">…</span></div><div id="gbtn"></div><button class="mkvn hide" id="gunl" type="button">Lepas Google</button></div>
           <label class="srow"><span><b>Sembunyikan statistik profil</b><i>Tab Ringkasan &amp; Karakter di profilmu tidak dilihat orang lain. Profilmu sendiri tetap lengkap. Default: terlihat.</i></span><input type="checkbox" id="shide" class="sw"></label>
           <button class="srow" id="async" type="button"><span><b>Sinkronkan sekarang</b><i>Ambil obrolan dari akunmu lalu simpan yang terbaru. Otomatis juga saat aplikasi dibuka dan tab kembali aktif. Teks, memori, dan hubungan karakter ikut; voice note dan chat grup tidak.</i></span><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 14-5l2 2M20 4v5h-5M20 12a8 8 0 0 1-14 5l-2-2M4 20v-5h5"/></svg></button>
           <button class="srow" id="aout2" type="button"><span><b>Keluar</b><i>Obrolan disimpan ke akun dulu, lalu dihapus dari perangkat ini. Voice note dan chat grup tidak ikut tersimpan.</i></span><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
@@ -1778,7 +1774,7 @@ $('simp').onclick=()=>{ $('sfile').value=''; $('sfile').click(); };
 $('sfile').onchange=()=>{ const f=$('sfile').files[0]; if(f) importJSON(f); };
 
 /* ===== Akun (login sederhana, MongoDB): pindah obrolan antar perangkat. Cuma teks/memori/hubungan, tanpa audio dan grup. ===== */
-const sacct=$('sacct'), aout=$('aout'), ain=$('ain'), astat=$('astat');
+const sacct=$('sacct'), ain=$('ain'), astat=$('astat');
 let atok=store.get('authtok')||'', aOn=false;
 /* Pemilik data di perangkat ini (`dataowner` = uid akun, bukan nama tampilan yang bisa diganti). Dicatat saat masuk, dihapus bersama data saat Keluar.
    Tujuannya: obrolan/hubungan milik satu akun tidak pernah tergabung ke akun LAIN (mis. pinjam akun teman, sesi habis, lalu masuk ke akunmu). */
@@ -1787,7 +1783,7 @@ const hasLocalData=()=>{ try{ for(let i=0;i<localStorage.length;i++){ const k=lo
 const setA=(t,err)=>{ astat.textContent=t||''; astat.classList.toggle('err',!!err); };
 const aApi=async(path,body)=>{
   try{ return await (await post('/api/auth/'+path,body||{},atok?{Authorization:'Bearer '+atok}:undefined)).json(); }
-  catch(e){ if(e.status===401&&atok&&path!=='login'&&path!=='delete'){ atok=''; store.set('authtok',null); store.set('authname',null); saveWallet(null); paintAcct(); } throw e; }
+  catch(e){ if(e.status===401&&atok&&path!=='login'&&path!=='google'&&path!=='delete'){ atok=''; store.set('authtok',null); store.set('authname',null); saveWallet(null); paintAcct(); } throw e; }
 };
 /* Saldo coin & gems (disimpan di MongoDB, hanya dibaca di sini). Cache di localStorage `wallet` supaya angka langsung tampil saat dibuka. */
 const nfW=new Intl.NumberFormat('id-ID'), nfC=new Intl.NumberFormat('id-ID',{notation:'compact',maximumFractionDigits:1});
@@ -1805,8 +1801,8 @@ const saveWallet=w=>{ store.set('wallet',w?JSON.stringify({coins:w.coins,gems:w.
 function paintAcct(cloud){
   syncUname();
   window.__acctSeen=1; window.dispatchEvent(new Event('acct')); /* bonus.js ikut menyegarkan (status akun / masuk / keluar berubah) */
-  sacct.classList.toggle('hide',!aOn);
-  aout.classList.toggle('hide',!!atok); ain.classList.toggle('hide',!atok);
+  sacct.classList.toggle('hide',!(aOn&&atok)); /* belum masuk: grup Akun tidak ada di Pengaturan (login = overlay, openLogin() di login.js) */
+  ain.classList.toggle('hide',!atok);
   if(atok){ $('aname').textContent=store.get('authname')||''; if(cloud!==undefined) $('acloud').textContent=cloud?fmtB(cloud.size)+' · '+new Date(cloud.updatedAt).toLocaleString('id-ID',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'belum ada'; }
 }
 async function initAcct(){
@@ -1814,36 +1810,37 @@ async function initAcct(){
     const r=await (await fetch('/api/auth/me',{method:'POST',headers:{'Content-Type':'application/json',...(atok?{Authorization:'Bearer '+atok}:{})},body:JSON.stringify({clientId:cid})})).json().catch(()=>({}));
     if(r.enabled===false){ aOn=false; paintAcct(); return; }
     aOn=true;
+    window.__gacct=r.ok?{linked:!!(r.google&&r.google.linked),email:(r.google&&r.google.email)||'',hasPassword:!!r.hasPassword,pendingName:!!r.pendingName,username:r.username||''}:null;
     if(r.ok){ store.set('authname',r.name); store.set('gid',r.gid||null); store.set('gu',r.username||null); store.set('gcids',Array.isArray(r.cids)?JSON.stringify(r.cids):null); if(r.uid&&!ownerOf()) store.set('dataowner',r.uid); saveWallet(r); paintAcct(r.cloud); }
     else{ if(atok){ atok=''; store.set('authtok',null); store.set('authname',null); store.set('gid',null); store.set('gu',null); store.set('gcids',null); saveWallet(null); } paintAcct(); }
   }catch{ aOn=false; paintAcct(); } /* server tak terjangkau -> sembunyikan, jangan ganggu pengaturan lain */
 }
-async function authGo(kind){
-  const username=$('auser').value.trim(), password=$('apass').value;
-  if(!username||!password){ setA('Isi username dan password dulu.',true); return; }
-  sacct.classList.add('sbusy'); setA(kind==='register'?'Mendaftar…':'Masuk…');
+/* Masuk / daftar / Google. body = {username,password} atau {credential}. ui = {set(teks,err), busy(bool)} (default: grup Akun di Pengaturan; overlay login punya ui sendiri).
+   Mengembalikan respons server kalau berhasil, null kalau gagal atau dibatalkan. */
+async function authGo(kind,body,ui){
+  ui=ui||{set:setA,busy:on=>sacct.classList.toggle('sbusy',on)};
+  ui.busy(true); ui.set(kind==='register'?'Mendaftar…':kind==='google'?'Masuk dengan Google…':'Masuk…');
   try{
-    const r=await aApi(kind,{username,password});
+    const r=await aApi(kind,body);
     const owner=ownerOf();
     if(r.uid&&owner&&owner!==r.uid&&hasLocalData()){ /* data di perangkat milik akun lain: jangan digabung, bersihkan dulu */
       const okGo=confirm('Perangkat ini masih menyimpan obrolan milik akun lain. Obrolan itu akan dihapus dari perangkat ini supaya tidak tercampur ke akun "'+r.name+'" (yang sudah tersinkron tetap aman di akun aslinya). Lanjut masuk?');
-      if(!okGo){ try{ await post('/api/auth/logout',{},{Authorization:'Bearer '+r.token}); }catch{} setA('Batal masuk. Obrolan di perangkat ini tidak diubah.'); sacct.classList.remove('sbusy'); return; }
-      setA('Membersihkan data akun lain…');
+      if(!okGo){ try{ await post('/api/auth/logout',{},{Authorization:'Bearer '+r.token}); }catch{} ui.set('Batal masuk. Obrolan di perangkat ini tidak diubah.'); ui.busy(false); return null; }
+      ui.set('Membersihkan data akun lain…');
       await wipeLocal({authtok:r.token,authname:r.name,dataowner:r.uid,gid:r.gid}); /* token akun baru ikut dipertahankan; setelah muat ulang sinkron otomatis mengambil data akunnya */
-      location.reload(); return;
+      location.reload(); return null;
     }
     if(r.uid) store.set('dataowner',r.uid);
     store.set('gid',r.gid||null);
-    atok=r.token; store.set('authtok',atok); store.set('authname',r.name); if(Number.isFinite(r.coins)) saveWallet(r); $('apass').value=''; paintAcct(null);
-    setA(kind==='register'?'Akun dibuat. Menyimpan obrolanmu ke akun…':'Berhasil masuk. Mengambil obrolan dari akunmu…');
-    sacct.classList.remove('sbusy');
+    atok=r.token; store.set('authtok',atok); store.set('authname',r.name); if(Number.isFinite(r.coins)) saveWallet(r); paintAcct(null);
+    ui.set(kind==='register'?'Akun dibuat. Menyimpan obrolanmu ke akun…':'Berhasil masuk. Mengambil obrolan dari akunmu…');
+    ui.busy(false);
     await initAcct(); await syncCloud(false); /* langsung sinkron: obrolan akun masuk ke perangkat ini, obrolan perangkat ini masuk ke akun */
-    return;
-  }catch(e){ setA(e.message,true); }
-  sacct.classList.remove('sbusy');
+    return r;
+  }catch(e){ ui.set(e.message,true); }
+  ui.busy(false);
+  return null;
 }
-$('alogin').onclick=()=>authGo('login'); $('areg').onclick=()=>authGo('register');
-$('apass').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); authGo('login'); } });
 
 /* Sinkron: ambil dari akun -> gabungkan -> simpan. Manual (tombol) atau otomatis (auto=true): saat aplikasi dibuka dan saat tab kembali aktif.
    Otomatis itu senyap (tanpa reload, tanpa pesan error) dan murah: cek dulu /me (cuma waktu update cloud), unduh/kirim data hanya kalau ada yang berubah. */
@@ -1972,8 +1969,9 @@ $('adel').onclick=async()=>{
   const b=$('adel'), lab=b.querySelector('b');
   if(!adelT){ b.classList.add('arm'); lab.textContent='Tap lagi untuk hapus akun'; adelT=setTimeout(()=>{ adelT=0; b.classList.remove('arm'); lab.textContent='Hapus akun'; },3500); return; }
   clearTimeout(adelT); adelT=0; b.classList.remove('arm'); lab.textContent='Hapus akun';
-  const pw=prompt('Masukkan passwordmu untuk menghapus akun ini:'); if(!pw) return;
-  try{ await aApi('delete',{password:pw}); atok=''; store.set('authtok',null); store.set('authname',null); saveWallet(null); paintAcct(); setA('Akun dan cadangan cloud dihapus.'); }
+  const g=window.__gacct, noPw=!!(g&&!g.hasPassword);
+  const pw=prompt(noPw?'Akun ini masuk lewat Google (tanpa password). Ketik username-mu ('+(g.username||'')+') untuk menghapus akun:':'Masukkan passwordmu untuk menghapus akun ini:'); if(!pw) return;
+  try{ await aApi('delete',noPw?{confirm:pw}:{password:pw}); atok=''; store.set('authtok',null); store.set('authname',null); saveWallet(null); paintAcct(); setA('Akun dan cadangan cloud dihapus.'); }
   catch(e){ setA(e.message,true); }
 };
 { const _os=openSettings; openSettings=function(){ _os(); setA(''); initAcct(); }; $('setbtn').onclick=openSettings; } /* cek status akun tiap Pengaturan dibuka */
@@ -2533,6 +2531,7 @@ window.addEventListener('shell:tab',e=>{ if(e.detail==='home') renderCont(); });
 <script src="/scene.js"></script>
 <script src="/vision.js"></script>
 <script src="/tools/tools.js"></script>
+<script src="/login.js"></script>
 <script src="/router.js"></script>
 </body>
 </html>

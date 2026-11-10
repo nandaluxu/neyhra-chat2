@@ -410,7 +410,7 @@ document.addEventListener('click', e => {
   const b = e.target.closest('[data-act]'); if (!b || b.disabled) return;
   const inBody = body.contains(b), inModal = modal && modal.contains(b); if (!inBody && !inModal) return;
   const a = b.dataset.act;
-  if (a === 'login') $('setbtn').click();
+  if (a === 'login') openLogin();
   else if (a === 'retry') load(true);
   else if (a === 'back') backToMe();
   else if (a === 'edit') openEdit();

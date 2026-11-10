@@ -607,7 +607,7 @@ body.addEventListener('click', e => {
     if (!chArm) { chArm = setTimeout(() => { chArm = 0; render(); }, 2600); render(); } // teks tombol ikut keadaan chArm di chessScreen()
     else { clearTimeout(chArm); chArm = 0; cresign(); }
   }
-  else if (a === 'login') $('setbtn').click();
+  else if (a === 'login') openLogin();
   else if (a === 'retry') load(true);
 });
 body.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'gmin') { e.preventDefault(); guess(); } else if (e.key === 'Enter' && e.target.id === 'gmpin') { e.preventDefault(); pguess(); } });
