@@ -408,6 +408,10 @@ async function csay(revealAt = 0) {
   if (tok !== chSayTok) { chSaying = false; return; }
   chSaying = false;
   if (!(cs && cs.game)) return;
+  // Ocehan sebelumnya masih BUNYI? Tunggu selesai (maks 15 dtk) — pemain yang main cepat tidak lagi memotong lawannya di
+  // tengah kalimat; ocehan baru (termasuk komentar penutup atau sapaan permainan baru) menggantikan setelah kalimatnya habis.
+  await chWaitVoice();
+  if (tok !== chSayTok || !(cs && cs.game)) return; // selagi menunggu pemain melangkah lagi / permainan berubah: buang ocehan ini
   // Teks SELALU tampil dan suaranya (kalau ada) diputar bersamaan: teks baru dipasang begitu audio benar-benar mulai bunyi.
   // Kalau suaranya tidak ada (voice mati / TTS gagal) teks langsung tampil; kalau diblokir autoplay browser, teks tampil + tombol "Putar suara".
   chPendingAudio = null;
@@ -427,6 +431,17 @@ async function csay(revealAt = 0) {
 let chAudio = null, chAudioUrl = '';
 const chVoiceOn = () => typeof voiceOn !== 'undefined' && voiceOn && typeof vcode !== 'undefined' && !!vcode;
 function chVoiceStop() { try { if (chAudio) { chAudio.pause(); chAudio.onended = null; } if (chAudioUrl) URL.revokeObjectURL(chAudioUrl); } catch {} chAudio = null; chAudioUrl = ''; }
+function chWaitVoice() { /* tunggu ocehan yang sedang diputar habis dulu (pengaman 15 dtk): ocehan berikutnya tidak memotong kalimat lawan di tengah. Selesai menunggu juga kalau audionya diganti/dihentikan (chVoiceStop) atau layar Catur ditutup. */
+  return new Promise(res => {
+    const el = chAudio;
+    if (!el || el.paused || el.ended) return res();
+    let iv = 0, tm = 0;
+    const done = () => { if (iv) clearInterval(iv); if (tm) clearTimeout(tm); el.removeEventListener('ended', done); res(); };
+    iv = setInterval(() => { if (chAudio !== el || el.paused || el.ended) done(); }, 100);
+    el.addEventListener('ended', done);
+    tm = setTimeout(done, 15000);
+  });
+}
 async function chTTS(charId, vn, tok) {
   if (!charId || !vn || !chVoiceOn() || typeof post !== 'function') return null;
   for (let attempt = 0; attempt < 2; attempt++) { // satu kali coba ulang: TTS kadang gagal sesaat (batas laju / jaringan), padahal suara harus selalu ada

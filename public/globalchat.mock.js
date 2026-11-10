@@ -33,7 +33,7 @@ const INCOMING = [
   'Barusan nyoba voice note bahasa Jepang, ternyata seru juga.',
   'Selamat siang semuanya!',
   'Ada yang tau cara ekspor obrolan ke file? Lupa lewat menu mana.',
-  'Lewat Pengaturan, nanti ada tombol ekspor semua dalam bentuk JSON.',
+  'Di header chat ada tombol unduhnya, obrolannya jadi file .txt (atau .zip kalau ada voice note).',
   'Makasih infonya, langsung aku coba.',
   'Kalian biasanya ngobrol sama karakter yang mana?',
   'Hari ini hujan terus, enaknya rebahan sambil chat.'
@@ -51,7 +51,7 @@ const seed = () => [
   mkMsg('nadia', 'Coba Frieren, pelan tapi bikin nagih.', 27 * 60 + 3),
   mkMsg('luna', 'Ada yang udah coba voice note Furina? Suaranya enak banget.', 95),
   mkMsg('rendra', 'Udah, pakai suara Jepang. Subtitle-nya ngebantu banget buat nangkep artinya.', 92),
-  mkMsg('rendra', 'Buat yang baru: riwayat chat disimpan di perangkat masing-masing, jadi kalau ganti HP jangan lupa ekspor dulu lewat Pengaturan. Biar obrolan sama karakter favoritmu nggak hilang begitu aja.', 91),
+  mkMsg('rendra', 'Buat yang baru: riwayat chat disimpan di perangkat masing-masing, jadi kalau ganti HP masuk aja pakai akun yang sama biar obrolannya nggak hilang begitu aja.', 91),
   mkMsg('luna', 'Noted, nanti aku coba bahasa Jepang juga.', 88),
   mkMsg('farel', 'Tips: nama kamu bisa diganti di menu utama, biar sapaannya lebih personal.', 40),
   mkMsg(null, 'Makasih infonya, baru tau!', 22, true),

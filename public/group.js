@@ -746,21 +746,6 @@ GX.exportChat = async () => {
   gexp = false;
 };
 
-// cadangan lengkap (Pengaturan > Ekspor semua): grup + pesan + audio yang sudah dibuat
-GX.exportData = async () => {
-  const out = []; let nAud = 0, nMsg = 0;
-  for (const g of groups) {
-    const msgs = loadMsgs(g.id), audio = {};
-    for (const m of msgs) for (const k of keysOf(m)) {
-      if (audio[k]) continue;
-      const a = await idb.get(k);
-      if (a && a.ab) { audio[k] = { mime: 'audio/mpeg', dur: a.dur == null ? null : a.dur, bins: a.bins ? Array.from(a.bins) : null, data: b64(a.ab) }; nAud++; }
-    }
-    nMsg += msgs.length;
-    out.push({ id: g.id, name: g.name, members: g.members, muted: g.muted || [], scene: g.scene || '', createdAt: g.createdAt, msgs, audio });
-  }
-  return { groups: out, nAud, nMsg };
-};
 function cleanMsg(e) { // file impor itu data tak tepercaya
   if (!e || typeof e !== 'object' || !isNum(e.ts) || typeof e.from !== 'string' || !(e.from === 'user' || e.from === 'system' || ID_RE.test(e.from))) return null;
   const o = { from: e.from, ts: e.ts, text: String(e.text == null ? '' : e.text).slice(0, 8000) };

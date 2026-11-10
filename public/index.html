@@ -722,8 +722,7 @@ header .pfp,header .who{cursor:pointer}
         <p id="astat" role="status"></p>
       </div>
       <div class="sgroup" id="sdata"><h3>Data obrolan</h3>
-        <button class="srow" id="sjson" type="button"><span><b>Ekspor semua (JSON)</b><i>Cadangan lengkap semua karakter, termasuk semua versi audio voice note.</i></span><svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 19h14"/></svg></button>
-        <button class="srow" id="simp" type="button"><span><b>Impor obrolan</b><i>Gabungkan dari file JSON hasil ekspor. Pesan yang sudah ada nggak ditimpa.</i></span><svg viewBox="0 0 24 24"><path d="M12 15V4M7 9l5-5 5 5M5 19h14"/></svg></button>
+        <button class="srow" id="simp" type="button"><span><b>Impor obrolan</b><i>Gabungkan dari file JSON cadangan lama (hasil ekspor versi sebelumnya). Pesan yang sudah ada nggak ditimpa.</i></span><svg viewBox="0 0 24 24"><path d="M12 15V4M7 9l5-5 5 5M5 19h14"/></svg></button>
         <input type="file" id="sfile" accept=".json,application/json" hidden>
         <p id="sstat" role="status"></p>
       </div>
@@ -749,7 +748,7 @@ header .pfp,header .who{cursor:pointer}
         </div>
       </div>
       <div class="sgroup"><h3>Reset</h3>
-        <button class="srow danger" id="sreset" type="button"><span><b>Reset semua</b><i>Hapus semua obrolan (karakter &amp; grup), voice note, nama, grup, dan pengaturan di perangkat ini. Nggak bisa dibatalkan, ekspor dulu kalau perlu.</i></span><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12h10l1-12M9 7V4h6v3"/></svg></button>
+        <button class="srow danger" id="sreset" type="button"><span><b>Reset semua</b><i>Hapus semua obrolan (karakter &amp; grup), voice note, nama, grup, dan pengaturan di perangkat ini. Nggak bisa dibatalkan.</i></span><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12h10l1-12M9 7V4h6v3"/></svg></button>
       </div>
     </div>
   </div>
@@ -1048,7 +1047,7 @@ const loadLog=id=>{try{const l=JSON.parse(store.get('log:'+id)||'[]');return Arr
 /* Total pesan seumur hidup PER KARAKTER (semua pesan, dua arah). Log tampilan dipangkas LOGMAX supaya localStorage tak bengkak,
    jadi menghitung dari log membuat jumlah mentok di 150 untuk yang rajin ngobrol; counter ini naik tiap record() dan TIDAK turun
    saat log dipangkas/dihapus (semangat yang sama dengan counter 'sent'). Seed minimal = panjang log yang masih ada, supaya
-   perangkat lama (sebelum counter ini ada) langsung mulai dari jumlah yang terlihat sekarang. Ikut ekspor/sinkron lewat field `n` (collectChars/applyImport). */
+   perangkat lama (sebelum counter ini ada) langsung mulai dari jumlah yang terlihat sekarang. Ikut sinkron akun/impor lewat field `n` (collectChars/applyImport). */
 const cntKey=id=>'cnt:'+id;
 const loadCnt=id=>Math.max(parseInt(store.get(cntKey(id)))||0,loadLog(id).length);
 const idb=(()=>{
@@ -1651,7 +1650,7 @@ async function goOn(){
   placeGoon();
 }
 
-/* ===== Pengaturan: putar otomatis, ekspor/impor JSON, indikator penyimpanan ===== */
+/* ===== Pengaturan: putar otomatis, impor JSON, indikator penyimpanan ===== */
 const sm=$('smodal'), sauto=$('sauto'), sstat=$('sstat');
 let allChars=[];
 const setStat=t=>{ sstat.textContent=t; };
@@ -1688,41 +1687,21 @@ async function refreshStorage(){
   $('st3').textContent=est?('Total dipakai situs ini: '+fmtB(est.usage||0)+(quota?' dari ± '+fmtB(quota)+' yang tersedia di browser ini.':'.')):'';
 }
 
-/* base64 <-> ArrayBuffer (per potongan supaya audio besar aman) */
-const b64=ab=>{ const u=new Uint8Array(ab); let o=''; for(let i=0;i<u.length;i+=0x8000) o+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000)); return btoa(o); };
+/* base64 -> ArrayBuffer (per potongan supaya audio besar aman). Dipakai membaca audio di file impor. */
 const unb64=str=>{ const bin=atob(str), u=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u[i]=bin.charCodeAt(i); return u.buffer; };
 const busyData=on=>$('sdata').classList.toggle('sbusy',on);
 
-/* Kumpulkan obrolan per karakter dari localStorage (+ audio dari IndexedDB kalau withAudio). Dipakai ekspor JSON dan sinkron akun. */
-async function collectChars(withAudio){
+/* Kumpulkan obrolan per karakter dari localStorage (tanpa audio — voice note tidak ikut sinkron). Dipakai sinkron akun. */
+async function collectChars(){
     const names=Object.fromEntries(allChars.map(c=>[c.id,c.name])), ids=[];
     for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k.startsWith('log:')||k.startsWith('mem:')){ const i=k.slice(4); if(!ids.includes(i)) ids.push(i); } }
-    const chars=[]; let nMsg=0, nAud=0;
+    const chars=[]; let nMsg=0;
     for(const id of ids){
       const log=loadLog(id), mem=loadMem(id); if(!log.length&&!mem.length) continue;
-      const audio={};
-      if(withAudio) for(const e of log) for(const k of keysOf(e)){
-        if(audio[k]) continue; const a=await idb.get(k);
-        if(a&&a.ab){ audio[k]={mime:'audio/mpeg',dur:a.dur==null?null:a.dur,bins:a.bins?Array.from(a.bins):null,data:b64(a.ab)}; nAud++; }
-      }
-      nMsg+=log.length; chars.push({id,name:names[id]||id,n:loadCnt(id),log,hist:loadHist(id),audio,...(mem.length?{mem}:{}),...(store.get(relKey(id))?{rel:relSan(relLoad(id))}:{})});
+      nMsg+=log.length; chars.push({id,name:names[id]||id,n:loadCnt(id),log,hist:loadHist(id),...(mem.length?{mem}:{}),...(store.get(relKey(id))?{rel:relSan(relLoad(id))}:{})});
     }
-  return {chars,nMsg,nAud};
+  return {chars,nMsg};
 }
-
-$('sjson').onclick=async()=>{
-  busyData(true); setStat('Menyiapkan cadangan…');
-  try{
-    const {chars,nMsg:m0,nAud:a0}=await collectChars(true); let nMsg=m0, nAud=a0;
-    const gd=window.GX&&GX.enabled()?await GX.exportData():{groups:[],nAud:0,nMsg:0}; /* grup + pesan + audio yang sudah dibuat */
-    nMsg+=gd.nMsg; nAud+=gd.nAud;
-    if(!chars.length&&!gd.groups.length){ setStat('Belum ada obrolan untuk diekspor.'); busyData(false); return; }
-    const blob=new Blob([JSON.stringify({app:'neyhra-chat',version:1,exportedAt:new Date().toISOString(),chars,sent:sentTotal(),...(gd.groups.length&&{groups:gd.groups})})],{type:'application/json'}), d=new Date();
-    saveBlob(blob,'neyhra-chat-'+d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0')+'.json');
-    setStat('Cadangan disimpan: '+chars.length+' karakter'+(gd.groups.length?', '+gd.groups.length+' grup':'')+', '+nMsg+' pesan, '+nAud+' audio ('+fmtB(blob.size)+').');
-  }catch{ setStat('Gagal membuat cadangan.'); }
-  busyData(false);
-};
 
 const isNum=x=>typeof x==='number'&&isFinite(x), isKey=x=>typeof x==='string'&&/^[\w-]{1,48}$/.test(x);
 function cleanEntry(e){ /* file impor itu data tak tepercaya: pastikan bentuknya benar sebelum dipakai */
@@ -1737,7 +1716,7 @@ function cleanEntry(e){ /* file impor itu data tak tepercaya: pastikan bentuknya
   }
   return o;
 }
-/* Gabungkan data hasil ekspor ke perangkat ini (tidak menimpa yang sudah ada). Dipakai impor file dan sinkron akun. */
+/* Gabungkan data cadangan ke perangkat ini (tidak menimpa yang sudah ada). Dipakai impor file JSON dan sinkron akun. */
 async function applyImport(data){
     let added=0, chN=0, aud=0, memAdded=0;
     { const n=Math.floor(Number(data.sent)); if(Number.isFinite(n)&&n>sentSaved()&&n<1e9) store.set('sent',String(n)); } /* total terkirim: ambil yang lebih besar */
@@ -1780,7 +1759,7 @@ async function importJSON(file){
     const {added,chN,aud,memAdded,gi}=await applyImport(data);
     setStat(added||aud||memAdded||(gi&&gi.groups)?'Impor selesai: '+added+' pesan baru dari '+chN+' karakter'+(gi&&gi.groups?' dan '+gi.groups+' grup':'')+', '+aud+' audio'+(memAdded?' dan '+memAdded+' memori':'')+' ditambahkan.':'Nggak ada yang baru, semua sudah ada di perangkat ini.');
     refreshStorage();
-  }catch{ setStat('File nggak valid. Pilih file JSON hasil ekspor aplikasi ini.'); }
+  }catch{ setStat('File nggak valid. Pilih file JSON cadangan aplikasi ini.'); }
   busyData(false);
 }
 $('simp').onclick=()=>{ $('sfile').value=''; $('sfile').click(); };
@@ -1867,7 +1846,7 @@ async function syncCloud(auto,opts){ /* mengembalikan true kalau akun & perangka
   try{
     const me=await aApi('me'), cts=me.cloud?me.cloud.updatedAt:null;
     if(me.uid&&ownerOf()&&ownerOf()!==me.uid){ aBusy=false; if(!auto){ sacct.classList.remove('sbusy'); setA('Obrolan di perangkat ini milik akun lain, jadi tidak digabung. Keluar lalu masuk lagi untuk membersihkannya.',true); } return false; } /* jangan pernah kirim data akun lain ke akun ini */
-    const before=await collectChars(false), localSig=sigOf(JSON.stringify(before.chars));
+    const before=await collectChars(), localSig=sigOf(JSON.stringify(before.chars));
     if(auto&&cts===store.get('cloudts')&&localSig===store.get('cloudsig')){ try{ await pushStats(); }catch{} aLast=Date.now(); aBusy=false; return true; } /* tidak ada yang berubah di mana pun (statistik profil punya tanda perubahan sendiri) */
     const pulled=await aApi('pull'); let added=0, memAdded=0;
     if(pulled.data){ /* 1) gabungkan data akun ke perangkat ini (tidak menimpa) */
@@ -1876,7 +1855,7 @@ async function syncCloud(auto,opts){ /* mengembalikan true kalau akun & perangka
         ({added,memAdded}=await applyImport(d));
       }
     }
-    const {chars,nMsg}=await collectChars(false); /* 2) simpan gabungan terbaru (kalau memang beda dengan isi akun) */
+    const {chars,nMsg}=await collectChars(); /* 2) simpan gabungan terbaru (kalau memang beda dengan isi akun) */
     let size=me.cloud?me.cloud.size:0, ts=cts;
     const pulledChars=pulled.data?JSON.stringify(JSON.parse(pulled.data).chars):null;
     const pulledSent=pulled.data?Math.floor(Number(JSON.parse(pulled.data).sent))||0:0;
