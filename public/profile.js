@@ -22,9 +22,10 @@ const iconBtn = (cls, svg, label) => { const b = h('button', cls); b.type = 'but
 let me = null;          // profil sendiri { username, name, bio, avatar (alamat foto atau ''), joined, invited, followers, following }
 let view = null;        // profil yang sedang ditampilkan (me atau akun lain)
 let viewing = '';       // username akun lain yang sedang dilihat ('' = profil sendiri)
-let tabKey = 'sum';     // 'sum' | 'chars' | 'friends'
+let tabKey = 'sum';     // 'sum' | 'chars' | 'cups' | 'friends'
 let ready = false, failed = '', busy = false, lastTok = '', lastAt = 0;
 const fr = { q: '', items: null, err: '', seq: 0 }; // tab Teman
+let cups = null; // tab Piala: { ach:[...], streak:{now,best} } dari /api/auth/quests (profil sendiri)
 let frT = 0;
 
 /* nama profil dipakai juga di Beranda (sapaan), chat dengan karakter, dan Chat Global */
@@ -118,7 +119,7 @@ function render() {
     else renderTabs([['sum', 'Ringkasan'], ['chars', 'Karakter']]); // seperti profil sendiri, tanpa tab Teman
     return;
   }
-  renderTabs([['sum', 'Ringkasan'], ['chars', 'Karakter'], ['friends', 'Teman']]);
+  renderTabs([['sum', 'Ringkasan'], ['chars', 'Karakter'], ['cups', 'Piala'], ['friends', 'Teman']]);
 }
 
 /* kerangka tab + panel; list = [key, label]. Profil orang tidak punya tab Teman, jadi tabKey yang tidak ada di list kembali ke tab pertama */
@@ -136,7 +137,7 @@ function paintPanel() {
   const panel = $('pfpanel'); if (!panel) return;
   panel.textContent = '';
   const own = !!(view && view.isMe);
-  if (tabKey === 'chars') panelChars(panel, own); else if (own && tabKey === 'friends') panelFriends(panel); else panelSum(panel, own);
+  if (tabKey === 'chars') panelChars(panel, own); else if (own && tabKey === 'cups') panelCups(panel); else if (own && tabKey === 'friends') panelFriends(panel); else panelSum(panel, own);
 }
 
 /* ---------- Statistik profil orang lain (dari server; diterbitkan perangkat pemiliknya lewat profile/stats) ---------- */
@@ -175,6 +176,45 @@ function panelSum(panel, own) {
     ? h('p', 'pf-note', 'Jumlah pesan dihitung seumur hidup dan tidak berkurang saat obrolan dihapus. Di perangkat ini hanya 150 pesan terakhir per karakter yang disimpan; pesan sebelum fitur penghitung ini ada mulai dari jumlah yang tersimpan saat itu.')
     : h('p', 'pf-note', view.statsAt ? 'Terakhir diperbarui ' + new Date(view.statsAt).toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) + ' dari perangkat pemiliknya.' : 'Diterbitkan dari perangkat pemilik profil ini.'));
   panel.append(sec1, sec2);
+}
+
+/* ---------- Tab Piala (achievements, data /api/auth/quests; hanya profil sendiri) ---------- */
+let cupsBusy = false, cupsAt = 0, cupsErr = '';
+async function loadCups(force) {
+  if (!atok || cupsBusy || (!force && cups && Date.now() - cupsAt < 15000)) return;
+  cupsBusy = true; cupsErr = '';
+  try { const r = await aApi('quests'); if (r && r.ok) { cups = r; cupsAt = Date.now(); } else cupsErr = (r && r.error) || 'Gagal memuat.'; }
+  catch (e) { cupsErr = (e && e.status === 401) ? '' : (e && e.message) || 'Gagal memuat.'; }
+  cupsBusy = false;
+}
+function panelCups(panel) {
+  loadCups().then(() => { if (tabKey === 'cups') paintPanel(); }); // datang belakangan: gamar ulang tab ini
+  const head = h('div', 'pf-sec');
+  const got = cups ? cups.ach.filter(a => a.got).length : 0, all = cups ? cups.ach.length : 0;
+  head.append(h('h3', null, 'Piala ' + got + '/' + all));
+  head.append(h('p', 'pf-note', 'Piala didapat otomatis dari aktivitasmu: ngobrol, main game, beri hadiah, klaim harian, dan misi. Hadiahnya langsung masuk saldo.'));
+  if (cups && cups.streak && (cups.streak.now > 1 || cups.streak.best > 1)) {
+    const st = h('p', 'pf-note', 'Streak klaim harian: ' + cups.streak.now + ' hari (rekor ' + cups.streak.best + ').');
+    head.append(st);
+  }
+  panel.append(head);
+  const grid = h('div', 'pf-cups');
+  if (!cups) { grid.append(h('p', 'pf-note', cupsErr || 'Memuat piala…')); panel.append(grid); return; }
+  const nf2 = new Intl.NumberFormat('id-ID');
+  for (const a of cups.ach) {
+    const c = h('div', 'pf-cup' + (a.got ? ' got' : ''));
+    c.setAttribute('role', 'listitem');
+    const pct = Math.min(100, Math.round(a.v / a.n * 100));
+    c.innerHTML = '<span class="pc-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 01-10 0V4zM7 6H4a3 3 0 003 4M17 6h3a3 3 0 01-3 4"/></svg></span>';
+    const t = h('div', 'pc-t');
+    t.append(h('b', null, a.name));
+    t.append(h('small', null, a.desc + ' · ' + (a.got ? 'terbuka' : nf2.format(a.v) + '/' + nf2.format(a.n))));
+    const bar = h('div', 'pc-bar'), fill = h('i'); fill.style.width = pct + '%'; bar.append(fill);
+    t.append(bar);
+    c.append(t);
+    grid.append(c);
+  }
+  panel.append(grid);
 }
 
 /* ---------- Tab Karakter ---------- */
@@ -273,7 +313,7 @@ async function fetchMe() {
   return false;
 }
 async function load(force) {
-  if (lastTok !== atok) { lastTok = atok; me = null; view = null; viewing = ''; failed = ''; fr.items = null; fr.q = ''; fr.err = ''; tabKey = 'sum'; syncRail(); }
+  if (lastTok !== atok) { lastTok = atok; me = null; view = null; viewing = ''; failed = ''; fr.items = null; fr.q = ''; fr.err = ''; cups = null; tabKey = 'sum'; syncRail(); }
   if (!aOn || !atok) { me = null; view = null; render(); syncRail(); return; }
   if (busy || (!force && me && Date.now() - lastAt < 4000)) { render(); return; }
   busy = true; if (!view) render();

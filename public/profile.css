@@ -118,3 +118,17 @@ button.pf-stat:active{transform:scale(.97)}
 .pf-mact button.go{background:var(--ink);color:var(--bg)}
 .pf-mact button:disabled{opacity:.5}
 #pfmodal .pf-list{margin-top:12px}
+
+/* ===== Tab Piala (achievements dari /api/auth/quests) ===== */
+.pf-cups{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;margin-top:10px}
+.pf-cup{display:flex;align-items:center;gap:11px;padding:12px;border-radius:16px;background:var(--surface);opacity:.55}
+.pf-cup.got{opacity:1;outline:1.5px solid var(--ink)}
+.pc-ic{flex:none;width:38px;height:38px;border-radius:12px;background:var(--bg);display:flex;align-items:center;justify-content:center}
+.pf-cup.got .pc-ic{background:color-mix(in srgb,#d4a017 22%,var(--bg))}
+.pc-ic svg{width:19px;height:19px;fill:none;stroke:var(--ink);stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.pc-t{flex:1;min-width:0}
+.pc-t b{display:block;font-size:13.5px;font-weight:600}
+.pc-t small{display:block;margin-top:2px;font-size:11.5px;color:var(--mut)}
+.pc-bar{margin-top:6px;height:4px;border-radius:99px;background:var(--line);overflow:hidden}
+.pc-bar i{display:block;height:100%;border-radius:99px;background:var(--ink)}
+.pf-cup.got .pc-bar i{background:#d4a017}

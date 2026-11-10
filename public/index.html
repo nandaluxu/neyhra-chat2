@@ -494,6 +494,27 @@ header .pfp,header .who{cursor:pointer}
 .rsteps li.cur::before{background:var(--ink);box-shadow:0 0 0 3px var(--line)}
 .rsteps li.lock{color:var(--mut);font-weight:400}
 .rsteps small{display:block;margin-top:1px;font-size:12px;font-weight:400;color:var(--mut)}
+
+/* ===== Quick replies: chip saran balasan dari AI, melayang di atas footer (logika di index.html bawah) ===== */
+#qrrow{position:absolute;left:10px;right:10px;bottom:calc(100% + 8px);z-index:5;display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+#qrrow::-webkit-scrollbar{display:none}
+#qrrow.hide{display:none}
+.qr-chip{flex:none;max-width:72%;padding:9px 15px;border-radius:18px 18px 18px 5px;background:var(--surface);border:1px solid var(--line);color:var(--ink);
+  font-size:13.5px;line-height:1.35;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  box-shadow:0 4px 16px rgba(0,0,0,.14);transition:transform .15s}
+.qr-chip:active{transform:scale(.96)}
+.qr-chip:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+
+/* ===== Pesan proaktif: notifikasi karakter menyapa (pola #gnote di group.css) ===== */
+#pronote{position:absolute;left:12px;right:12px;top:calc(10px + env(safe-area-inset-top,0px));z-index:30;max-width:420px;margin:0 auto;display:flex;align-items:center;gap:12px;
+  padding:12px 14px;border-radius:18px;background:var(--ink);color:var(--bg);box-shadow:0 10px 34px rgba(0,0,0,.28);
+  transform:translateY(-150%);opacity:0;pointer-events:none;transition:transform .5s cubic-bezier(.2,.9,.3,1.2),opacity .3s}
+#pronote.show{transform:none;opacity:1;pointer-events:auto}
+#pronote img{width:40px;height:40px;border-radius:50%;object-fit:cover;flex:none}
+#pronote .pn-t{min-width:0;flex:1}
+#pronote b{display:block;font-size:14px;font-weight:600}
+#pronote span{display:block;margin-top:1px;font-size:12.5px;line-height:1.35;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#pronote button{flex:none;padding:9px 16px;border-radius:99px;background:var(--bg);color:var(--ink);font-size:13px;font-weight:600}
 </style>
 <link rel="stylesheet" href="/group.css">
 <link rel="stylesheet" href="/globalchat.css">
@@ -645,6 +666,7 @@ header .pfp,header .who{cursor:pointer}
   <div id="sbar"><input id="sq" type="search" placeholder="Cari di obrolan" autocomplete="off" enterkeyhint="search" aria-label="Cari di obrolan"><span id="scnt"></span><button id="sprev" type="button" aria-label="Hasil sebelumnya" disabled><svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button><button id="snext" type="button" aria-label="Hasil berikutnya" disabled><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button><button id="sclose" type="button" aria-label="Tutup pencarian"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
   <main id="chat"></main>
   <footer>
+    <div id="qrrow" class="hide" role="listbox" aria-label="Saran balasan cepat"></div>
     <textarea id="inp" rows="1" placeholder="Ketik pesan" enterkeyhint="enter" autocapitalize="sentences"></textarea>
     <button id="plusbtn" type="button" class="hide" title="Tambah" aria-label="Menu tambahan: inventory dan skenario skrip" aria-haspopup="menu" aria-expanded="false"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
     <button id="scnbtn" type="button" class="hide" title="Skenario Skrip" aria-label="Skenario Skrip"><svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="10.5" rx="1.6"/><path d="M4.8 10L4 6.3a1.6 1.6 0 011.2-1.9l12.3-2.9a1.6 1.6 0 011.9 1.2l.8 3.6"/><path d="M8.6 8.9L7.4 5.4M12.7 8l-1.2-3.5M16.8 7l-1.2-3.5"/></svg></button>
@@ -1136,7 +1158,10 @@ const ph = n => 'data:image/svg+xml,' + encodeURIComponent(`<svg xmlns="http://w
 function img(c, cls){ const i=new Image(); i.className=cls||''; i.alt=c.name; i.onerror=()=>{i.onerror=null;i.src=ph(c.name)}; i.src=c.avatar||ph(c.name); return i; }
 
 async function post(url, body, headers){
-  const r = await fetch(url,{method:'POST',headers:{'Content-Type':'application/json',...headers},body:JSON.stringify(body)});
+  /* token akun ikut dikirim kalau ada: dipakai server untuk mencatat progres misi harian/piala di /api/chat (tanpa token = tamu, tidak tercatat) */
+  const hd={'Content-Type':'application/json',...headers};
+  try{ if(typeof atok==='string'&&atok&&!(hd&&hd.Authorization)) hd.Authorization='Bearer '+atok; }catch{}
+  const r = await fetch(url,{method:'POST',headers:hd,body:JSON.stringify(body)});
   if(!r.ok){ const j=await r.json().catch(()=>({})); const e=new Error(j.error||'Gagal terhubung'); e.status=r.status; e.scn=!!j.scn; throw e; }
   return r;
 }
@@ -1243,7 +1268,7 @@ async function submit(opt){
   }
   try{
     const hist=loadHist(ch.id);
-    const r=await (await post('/api/chat',{clientId:cid,char:ch.id,message:text,userName:uname,history:hist,voice:{on:useVoice,lang},memory:memUse(chId).list,rel:relPayload(chId),...engPayload(),...(rpOn()?{rp:true}:{}),...(vd?{vision:vd}:{}),...(gf?{gift:{items:gf.items,...(gf.say?{text:gf.say}:{})}}:{}),...(window.SCN?SCN.body(chId):{})},window.SCN?SCN.headers():{})).json();
+    const r=await (await post('/api/chat',{clientId:cid,char:ch.id,message:text,userName:uname,history:hist,voice:{on:useVoice,lang},memory:memUse(chId).list,rel:relPayload(chId),qr:true,...engPayload(),...(rpOn()?{rp:true}:{}),...(vd?{vision:vd}:{}),...(gf?{gift:{items:gf.items,...(gf.say?{text:gf.say}:{})}}:{}),...(window.SCN?SCN.body(chId):{})},window.SCN?SCN.headers():{})).json();
     saveHist(chId,[...loadHist(chId),['user',vf?('[mengirim gambar: '+vd.slice(0,350)+']'+(text?' '+text:'')):gf?gf.hist:text],['char',r.id]]); okReply=true; lastReply=r.id;
     relNote=gf?(gf.note||''):relApply(chId,r.dExp!=null?r.dExp:(Math.round(Number(r.dRel))||0)*3,r.dMood); /* hadiah: EXP/mood sudah dihitung server (shop.js), angka penilaian AI diabaikan supaya tidak dobel */ /* hubungan & mood: angka dari balasan AI (sudah di-clamp server) */ /* baca ulang h: karena peringkasan di latar bisa saja baru membuang bagian lamanya */
     if(!useVoice){ t.remove(); showThem(chId,r.id); }
@@ -1252,9 +1277,11 @@ async function submit(opt){
       await speakReply(chId,r,lang,t);
     }
   }catch(e){ t.remove(); toast(e.message); if(window.SCN&&SCN.onErr) SCN.onErr(e); }
-  setStatus('online',false); busy=false; refresh();
+  setStatus(idleStat(),false); busy=false; refresh();
   if(relNote) toast(relNote);
   if(okReply){
+    if(Array.isArray(r.qr)&&ch&&ch.id===chId) qrPaint(r.qr); else qrPaint(); /* chip saran balasan (hanya kalau masih di chat yang sama) */
+    if(Array.isArray(r.nq)) r.nq.forEach((t,i)=>setTimeout(()=>toast(t),600+i*2300)); /* misi selesai / piala baru */
     maybeMemorize(chId);
     if(window.SCENE&&SCENE.auto) SCENE.auto(chId,lastReply); /* Scene Capture otomatis: AI menilai setelah balasan tampil (public/scene.js). Maks satu per giliran. */
   }
@@ -1427,7 +1454,7 @@ function openChat(c,avEl){
   } else if(!inline){ moving=true; setTimeout(()=>moving=false,DUR); }
   if(window.GX) GX.reset(); /* keluar dari mode grup (tombol titik tiga grup, placeholder, dll) */
   ch=c; closeSearch(); if(current) current.stop(); openSub=null; urls.forEach(u=>URL.revokeObjectURL(u)); urls=[]; clearTimeout(clrT); clrT=0;
-  chat.innerHTML=''; lastDay=''; ready=false; const tok=++openTok; setStatus('online',false);
+  chat.innerHTML=''; lastDay=''; ready=false; const tok=++openTok; setStatus(idleStat(),false); qrPaint();
   clearTimeout(draftT); inp.value=store.get('draft:'+c.id)||''; grow(); refresh(); /* draft pesan karakter ini */
   $('vmore').classList.toggle('hide',charVoices(c.id).length<2);
   $('hname').textContent=dispName(c); $('hpfp').replaceWith(Object.assign(img(c,'pfp'),{id:'hpfp'}));
@@ -1638,14 +1665,15 @@ async function goOn(){
   const chId=ch.id, useVoice=voiceOn&&!!vcode, lang=voiceLang;
   let t=thinkBubble(ch.name), relNote='';
   try{
-    const r=await (await post('/api/chat',{clientId:cid,char:chId,message:'',cont:true,userName:uname,history:loadHist(chId),voice:{on:useVoice,lang},memory:memUse(chId).list,rel:relPayload(chId),...engPayload(),...(rpOn()?{rp:true}:{})})).json();
+    const r=await (await post('/api/chat',{clientId:cid,char:chId,message:'',cont:true,userName:uname,history:loadHist(chId),voice:{on:useVoice,lang},memory:memUse(chId).list,rel:relPayload(chId),qr:true,...engPayload(),...(rpOn()?{rp:true}:{})})).json();
     saveHist(chId,[...loadHist(chId),['char',r.id]]); /* tidak ada pesan user: riwayat hanya bertambah giliran karakter */
     relNote=relApply(chId,r.dExp!=null?r.dExp:(Math.round(Number(r.dRel))||0)*3,r.dMood);
     if(!useVoice){ t.remove(); showThem(chId,r.id); }
     else{ t.remove(); t=typingBubble(); setStatus('merekam suara',true); await speakReply(chId,r,lang,t); }
   }catch(e){ t.remove(); toast(e.message); }
-  setStatus('online',false); busy=false; refresh();
+  setStatus(idleStat(),false); busy=false; refresh();
   if(relNote) toast(relNote);
+  if(Array.isArray(r.nq)) r.nq.forEach((t,i)=>setTimeout(()=>toast(t),600+i*2300)); /* misi selesai / piala baru */
   maybeMemorize(chId);
   placeGoon();
 }
@@ -2489,8 +2517,97 @@ fetch('/api/chars').then(r=>r.json()).then(cs=>{
   $('allcount').textContent=cs.length+' karakter';
   renderList(); renderCont();
   if(window.GX) GX.paintAll();
+  proArm(); /* pesan proaktif: mulai mencari kandidat setelah karakter termuat */
 }).catch(()=>{ $('alllist').textContent='Gagal memuat karakter'; $('alllist').removeAttribute('aria-busy'); });
 window.addEventListener('shell:tab',e=>{ if(e.detail==='home') renderCont(); }); /* selesai ngobrol lalu balik ke Beranda: strip ikut segar */
+
+
+/* ===== Ritme hidup: tiap karakter punya jam tidur sendiri (jadwal `sleep` dari /api/chars, dihitung server dari id karakter).
+   Status di header chat ikut keadaannya: karakter yang tidur balas dengan gaya orang baru terbangun (diatur server lewat prompt). ===== */
+const hourNow=()=>{const d=new Date();return d.getHours()+d.getMinutes()/60};
+const lifeIn=(h,s,e)=>s<=e?(h>=s&&h<e):(h>=s||h<e); /* rentang tidur bisa melewati tengah malam */
+function lifeOf(c){
+  if(!c||!Array.isArray(c.sleep)||!Number.isFinite(c.sleep[0])||!Number.isFinite(c.sleep[1])) return 'bangun';
+  const h=hourNow(),sv=c.sleep[0],ev=c.sleep[1];
+  if(lifeIn(h,sv,ev)) return 'tidur';
+  if(lifeIn(h,ev,(ev+0.75)%24)) return 'baru bangun';
+  if(lifeIn(h,(sv-0.75+24)%24,sv)) return 'ngantuk';
+  return 'bangun';
+}
+const LIFE_LABEL={bangun:'online','tidur':'tidur · zzz','baru bangun':'baru bangun…','ngantuk':'ngantuk…'};
+const idleStat=()=>{ try{ return ch?LIFE_LABEL[lifeOf(ch)]||'online':'online' }catch{ return 'online' } };
+setInterval(()=>{ if(ch&&!busy&&!status.classList.contains('typing')) setStatus(idleStat(),false) },60000); /* status menyegarkan tiap menit (jam berubah) */
+
+/* ===== Quick replies: usulan balasan singkat dari AI (blok <qr> di /api/chat, lihat lib/sessions.js).
+   Tampil sebagai chip di atas kolom ketik; ketuk untuk mengisi kolom ketik (bisa diedit dulu sebelum dikirim). ===== */
+const qrrow=$('qrrow');
+function qrPaint(list){
+  qrrow.textContent='';
+  if(!Array.isArray(list)||!list.length||!ch){ qrrow.classList.add('hide'); return; }
+  for(const t of list.slice(0,3)){
+    const b=document.createElement('button'); b.type='button'; b.className='qr-chip'; b.setAttribute('role','option');
+    b.textContent=t;
+    b.onclick=()=>{ inp.value=t; grow(); refresh(); try{ inp.focus({preventScroll:true}) }catch{} };
+    qrrow.append(b);
+  }
+  qrrow.classList.remove('hide');
+}
+
+/* ===== Pesan proaktif: karakter yang pernah diajak ngobrol menyapa duluan kalau user sudah lama tidak membalas.
+   Kandidat dipilih di browser (riwayat lokal), isinya dibuat server lewat /api/proactive; server membatasi 1 pesan per 6 jam
+   per perangkat, dan karakter yang sedang TIDUR (ritme hidup) tidak dibangunkan. ===== */
+const PRO={minH:4,maxH:168,coolH:6};
+let proT=0,proBusy=false,proAt=0;
+const proLast=()=>{ try{ const o=JSON.parse(store.get('lastPro')||'null'); return o&&Number.isFinite(o.t)?o:null }catch{ return null } };
+function proNotify(c,text){
+  let n=$('pronote');
+  if(!n){
+    n=document.createElement('div'); n.id='pronote'; n.setAttribute('role','status');
+    n.innerHTML='<img alt=""><div class="pn-t"><b></b><span></span></div><button type="button">Balas</button>';
+    n.querySelector('button').onclick=()=>{ n.classList.remove('show'); const cc=allChars.find(x=>x.id===n.dataset.id); if(cc) openChat(cc); };
+    app.append(n);
+  }
+  n.dataset.id=c.id;
+  n.querySelector('img').src=c.avatar||ph(c.name); n.querySelector('img').alt=c.name;
+  n.querySelector('b').textContent=dispName(c)+' menyapa';
+  n.querySelector('span').textContent=String(text).slice(0,90);
+  clearTimeout(proT); n.classList.add('show');
+  proT=setTimeout(()=>n.classList.remove('show'),12000);
+}
+async function proCheck(){
+  if(proBusy||Date.now()-proAt<600000) return; proAt=Date.now(); /* cek maksimal sekali per 10 menit (guard 6 jam tetap di proLast/server) */
+  try{
+    if(!allChars.length) return;
+    const last=proLast();
+    if(last&&Date.now()-last.t<PRO.coolH*3600e3) return; /* maks satu sapaan per 6 jam di perangkat ini (server juga menjaga) */
+    const cand=[];
+    for(const c of allChars){
+      const l=loadLog(c.id); if(!l.length) continue;
+      const lt=Number(l[l.length-1]&&l[l.length-1].t)||0; if(!lt) continue;
+      const hrs=(Date.now()-lt)/3600e3; if(hrs<PRO.minH||hrs>PRO.maxH) continue; /* 4 jam - 7 hari tanpa balasan */
+      if(lvOf(relLoad(c.id).r)<6) continue; /* minimal tahap Teman: yang belum akrab tidak menyapa duluan */
+      if(lifeOf(c)==='tidur') continue; /* jam tidurnya: tidak dibangunkan */
+      cand.push({c,hrs});
+    }
+    if(!cand.length) return;
+    cand.sort((a,b)=>b.hrs-a.hrs); /* yang paling lama ditinggal lebih dulu, sedikit diacak */
+    const pick=cand[Math.floor(Math.random()*Math.min(3,cand.length))];
+    proBusy=true;
+    const r=await (await post('/api/proactive',{clientId:cid,char:pick.c.id,userName:uname,history:loadHist(pick.c.id),memory:memUse(pick.c.id).list,rel:relPayload(pick.c.id),hours:Math.round(pick.hrs)})).json();
+    store.set('lastPro',JSON.stringify({t:Date.now(),id:pick.c.id}));
+    if(r&&r.id){
+      const pid=pick.c.id;
+      record(pid,{r:'them',x:r.id});
+      saveHist(pid,[...loadHist(pid),['char',r.id]]); /* masuk konteks: obrolan nyambung saat dibalas */
+      if(ch&&ch.id===pid&&app.classList.contains('open')&&!(window.GX&&GX.cur)){ addThem(r.id); scroll(); } /* lagi buka chatnya: langsung tampil */
+      else { renderList(); proNotify(pick.c,r.id); } /* di layar lain: daftar obrolan menampilkan pesan baru + notifikasi */
+    }
+  }catch(e){ /* gagal = tidak ada sapaan, coba lagi nanti */ }
+  proBusy=false;
+}
+/* cek pertama: 45-105 detik setelah karakter termuat (tidak langsung begitu app dibuka); setelah itu tiap tab kembali aktif */
+const proArm=()=>{ setTimeout(proCheck,45000+Math.random()*60000) };
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden) setTimeout(proCheck,8000) });
 
 /* ===== Indikator online: heartbeat ke /api/online tiap 60 dtk selama tab kelihatan. Kalau server belum mendukung (enabled:false), pill tetap tersembunyi. ===== */
 (()=>{

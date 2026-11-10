@@ -237,6 +237,7 @@ async function send(userText) { // dipanggil submit() saat ada lampiran
   giving = false;
   if (!r || !r.ok) { refresh(); return; }
   S = r; lastAt = Date.now(); saveWallet(r);
+  if (Array.isArray(r.nq)) r.nq.forEach((t, i) => setTimeout(() => toast(t), 900 + i * 2300)); /* misi selesai / piala baru (lib/quests.js) */
   att = null; renderAtt();
   const note = relApply(chId, r.exp, r.mood, true); /* EXP hadiah tidak kena batas harian obrolan: sudah dibayar pakai coin */
   const expTxt = '+' + nf.format(r.exp) + ' EXP';

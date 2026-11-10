@@ -265,15 +265,16 @@ function render() {
 }
 
 /* ---------- Server ---------- */
+const nqToast = r => { if (r && Array.isArray(r.nq)) r.nq.forEach((t, i) => setTimeout(() => toast(t), 500 + i * 2300)); }; // misi selesai / piala baru (lib/quests.js)
 async function call(path, data) {
   const r = await aApi(path, data);
-  if (r && r.ok) { st = r; failed = ''; saveWallet(r); return true; }
+  if (r && r.ok) { st = r; failed = ''; saveWallet(r); nqToast(r); return true; }
   return false;
 }
 let picFail = '';
 async function callP(path, data) {
   const r = await aApi(path, data);
-  if (r && r.ok) { ps = r; picFail = ''; saveWallet(r); return true; }
+  if (r && r.ok) { ps = r; picFail = ''; saveWallet(r); nqToast(r); return true; }
   return false;
 }
 async function fetchPic() {
@@ -282,7 +283,7 @@ async function fetchPic() {
 }
 async function callC(path, data) {
   const r = await aApi(path, data);
-  if (r && r.ok) { cs = r; csFail = ''; saveWallet(r); return true; }
+  if (r && r.ok) { cs = r; csFail = ''; saveWallet(r); nqToast(r); return true; }
   return false;
 }
 async function fetchChess() {
