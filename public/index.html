@@ -1288,7 +1288,7 @@ async function submit(opt){
   if(!gf&&text&&ch&&ch.id==='reze'&&(tryDev(text)||tryMedia(text)||tryChess(text))){ inp.value=''; grow(); refresh(); clearTimeout(draftT); store.set('draft:'+ch.id,null); return; } /* kode rahasia (mode dev / fitur gambar): dicegat di browser, tidak dikirim dan tidak dicatat */
   if(!gf&&text&&ch&&window.GX&&GX.trySecret(text)){ inp.value=''; grow(); refresh(); clearTimeout(draftT); store.set('draft:'+ch.id,null); return; }
   if(busy||(!text&&!gf&&!vf)||!ch||!ready||selOn){ inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake'); if(vf)VISION.untake(vf); return; }
-  busy=true; hideGoon(); if(!gf){ inp.value=''; grow(); } refresh();
+  busy=true; hideGoon(); if(!gf){ inp.value=''; grow(); } refresh(); qrPaint(); /* pesan terkirim: usulan balasan lama hangus (yang baru datang bersama balasan AI) */
   if(!vf) addText(text); /* pesan gambar: bubble-nya menunggu deskripsi berhasil supaya bisa dibatalkan bersih */
   const chId=ch.id; if(!vf) record(chId,{r:'me',x:text}); if(!gf){ clearTimeout(draftT); store.set('draft:'+chId,null); }
   /* Jeda cerdas (cuma teks biasa, tanpa hadiah/gambar/skenario aktif): pesan masuk antrean — AI menjawab
@@ -1337,7 +1337,7 @@ async function submit(opt){
   placeGoon();
 }
 
-function refresh(){ sendB.disabled=busy||(!inp.value.trim()&&!(window.SHOP&&SHOP.has())&&!(window.SCENE&&SCENE.has())&&!(window.VISION&&VISION.has())); } /* ada lampiran hadiah/shop.js, ilustrasi/scene.js, atau gambar/vision.js = boleh kirim walau teks kosong */
+function refresh(){ sendB.disabled=busy||(!inp.value.trim()&&!(window.SHOP&&SHOP.has())&&!(window.SCENE&&SCENE.has())&&!(window.VISION&&VISION.has())); qrVis(); } /* ada lampiran hadiah/shop.js, ilustrasi/scene.js, atau gambar/vision.js = boleh kirim walau teks kosong; qrVis: chip saran balasan cuma tampil selama kolom ketik kosong */
 /* kolom ketik membesar sesuai isi (maks ±5 baris) */
 /* Saat layar chat tersembunyi (display:none, mis. tab Beranda di desktop) scrollHeight = 0; jangan dikunci jadi 0px, kembalikan ke tinggi CSS (44px) */
 function grow(){ inp.style.height='auto'; const h=inp.scrollHeight; inp.style.height=h?Math.min(Math.max(h,44),136)+'px':''; }
@@ -1713,9 +1713,9 @@ async function goOn(){
   if(window.SCN&&SCN.activeFor&&SCN.activeFor(ch.id)) return;
   busy=true; refresh(); hideGoon();
   const chId=ch.id, useVoice=voiceOn&&!!vcode, lang=voiceLang;
-  let t=thinkBubble(ch.name), relNote='';
+  let t=thinkBubble(ch.name), relNote='', r=null; /* r diangkat keluar try: masih dipakai setelahnya (dulu r.nq di luar try = ReferenceError, placeGoon tak pernah jalan) */
   try{
-    const r=await (await post('/api/chat',{clientId:cid,char:chId,message:'',cont:true,userName:uname,history:loadHist(chId),voice:{on:useVoice,lang},memory:memUse(chId).list,rel:relPayload(chId),qr:true,...engPayload(),...(rpOn()?{rp:true}:{})})).json();
+    r=await (await post('/api/chat',{clientId:cid,char:chId,message:'',cont:true,userName:uname,history:loadHist(chId),voice:{on:useVoice,lang},memory:memUse(chId).list,rel:relPayload(chId),qr:true,...engPayload(),...(rpOn()?{rp:true}:{})})).json();
     saveHist(chId,[...loadHist(chId),['char',r.id]]); /* tidak ada pesan user: riwayat hanya bertambah giliran karakter */
     relNote=relApply(chId,r.dExp!=null?r.dExp:(Math.round(Number(r.dRel))||0)*3,r.dMood);
     if(!useVoice){ t.remove(); showThem(chId,r.id); }
@@ -1723,8 +1723,9 @@ async function goOn(){
   }catch(e){ t.remove(); toast(e.message); }
   setStatus(idleStat(),false); busy=false; refresh();
   if(relNote) toast(relNote);
-  if(Array.isArray(r.nq)) r.nq.forEach((t,i)=>setTimeout(()=>toast(t),600+i*2300)); /* misi selesai / piala baru */
+  if(r&&Array.isArray(r.nq)) r.nq.forEach((t,i)=>setTimeout(()=>toast(t),600+i*2300)); /* misi selesai / piala baru */
   maybeMemorize(chId);
+  if(r&&Array.isArray(r.qr)&&stillHere(chId)) qrPaint(r.qr); /* chip saran balasan ikut diperbarui: balasan 'lanjut ngobrol' juga membawa <qr> (dulu usulannya terbuang) */
   placeGoon();
 }
 
@@ -2623,19 +2624,27 @@ const idleStat=()=>{ try{ return ch?LIFE_LABEL[lifeOf(ch)]||'online':'online' }c
 setInterval(()=>{ if(ch&&!busy&&!status.classList.contains('typing')) setStatus(idleStat(),false) },60000); /* status menyegarkan tiap menit (jam berubah) */
 
 /* ===== Quick replies: usulan balasan singkat dari AI (blok <qr> di /api/chat, lihat lib/sessions.js).
-   Tampil sebagai chip di atas kolom ketik; ketuk untuk mengisi kolom ketik (bisa diedit dulu sebelum dikirim). ===== */
+   Tampil sebagai chip di atas kolom ketik; ketuk untuk mengisi kolom ketik (bisa diedit dulu sebelum dikirim).
+   Baris chip hanya tampil selama kolom ketik KOSONG: langsung tutup begitu chip dipilih / user mulai mengetik
+   / kolom ketik diisi lewat jalur lain (draft, dsb.), dan muncul lagi kalau semua teksnya dihapus.
+   Visibilitas digerakkan qrVis() yang dipanggil dari refresh() — jadi semua titik yang mengubah isi kolom
+   ketik (event input, kirim pesan, muat draft, lampiran shop/scene) otomatis ikut. Usulan terakhir disimpan
+   di qrList supaya bisa dimunculkan lagi; qrPaint() tanpa argumen = buang. ===== */
 const qrrow=$('qrrow');
+let qrList=null;
 function qrPaint(list){
+  qrList=Array.isArray(list)&&list.length?list.slice(0,3):null;
   qrrow.textContent='';
-  if(!Array.isArray(list)||!list.length||!ch){ qrrow.classList.add('hide'); return; }
-  for(const t of list.slice(0,3)){
+  for(const t of qrList||[]){
     const b=document.createElement('button'); b.type='button'; b.className='qr-chip'; b.setAttribute('role','option');
     b.textContent=t;
-    b.onclick=()=>{ inp.value=t; grow(); refresh(); try{ inp.focus({preventScroll:true}) }catch{} };
+    b.onclick=()=>{ inp.value=t; grow(); refresh(); try{ inp.focus({preventScroll:true}) }catch{} }; /* refresh() -> qrVis(): baris chip langsung tutup */
     qrrow.append(b);
   }
-  qrrow.classList.remove('hide');
+  qrVis();
 }
+/* chip tampil hanya di chat 1-lawan-1 (bukan grup) dan hanya kalau kolom ketik kosong */
+function qrVis(){ qrrow.classList.toggle('hide',!qrList||!ch||!!inp.value.trim()||!!(window.GX&&GX.cur)); }
 
 /* ===== Pesan proaktif: karakter yang pernah diajak ngobrol menyapa duluan kalau user sudah lama tidak membalas.
    Kandidat dipilih di browser (riwayat lokal), isinya dibuat server lewat /api/proactive; server membatasi 1 pesan per 6 jam

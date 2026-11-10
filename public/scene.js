@@ -149,7 +149,7 @@
     if (!store.get('authtok')) { toast('Masuk dulu untuk memakai Scene Capture'); return }
     const id = ch.id
     drop() /* lepas lampiran + kembalikan placeholder */
-    inp.value = ''; grow(); refresh(); clearTimeout(draftT); store.set('draft:' + id, null) /* prompt terpakai, kotak ketik dikosongkan */
+    inp.value = ''; grow(); refresh(); clearTimeout(draftT); store.set('draft:' + id, null); qrPaint() /* prompt terpakai, kotak ketik dikosongkan; ilustrasi terkirim = usulan balasan lama dibuang (index.html) */
     pending = { char: id }
     const load = loadBubble()
     try {
