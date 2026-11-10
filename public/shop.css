@@ -75,9 +75,13 @@
 .inv-sec:first-child{margin-top:12px}
 .inv-row.fav{box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--rec) 45%,transparent)}
 .inv-row.ring .sh-ic{background:radial-gradient(circle at 50% 40%,color-mix(in srgb,#ffd25e 22%,var(--bg)),var(--bg))}
+.inv-ringtag{display:inline-block;margin-left:6px;padding:2px 8px;border-radius:99px;vertical-align:1px;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;background:color-mix(in srgb,#c9930a 18%,var(--bg));color:#b8860b;box-shadow:inset 0 0 0 1px color-mix(in srgb,#c9930a 35%,transparent)}
+.inv-row.ring.sel{box-shadow:inset 0 0 0 1.5px color-mix(in srgb,#e6b422 60%,transparent);background:color-mix(in srgb,#ffd25e 7%,var(--surface))}
 .inv-favtag{display:inline-flex;align-items:center;color:var(--rec);font-weight:600}
+.inv-favtag.gold{color:#b8860b}
 .inv-favb{display:block;margin-top:3px;font-size:11.5px;line-height:1.35;color:var(--rec);font-weight:600}
 .att-chip.fav{box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--rec) 45%,transparent)}
+.att-chip.ring{box-shadow:inset 0 0 0 1.5px color-mix(in srgb,#e6b422 60%,transparent);background:color-mix(in srgb,#ffd25e 8%,var(--surface))}
 
 /* ---------- Tab Toko ---------- */
 #shop{display:none;overflow-y:auto;overscroll-behavior:contain;background:var(--bg);scrollbar-width:none;min-width:0}

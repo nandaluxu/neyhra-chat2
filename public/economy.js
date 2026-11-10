@@ -61,33 +61,63 @@ function render() {
 /* ================= GACHA ================= */
 let stage = null; // { mode, results, order:[idx kartu -> idx hasil], opened:Set, all:boolean }
 
+/* kelas warna dari tag kelangkaan (tag dikonfigurasi di GACHA.rings, server) */
+const rarityCls = t => t === 'Legendaris' ? 'leg' : t === 'Epik' ? 'epic' : 'rare';
+const ringTag = id => ((E && E.rings) || []).find(r => r.id === id)?.tag || 'Langka';
+const ringExp = id => ((E && E.rings) || []).find(r => r.id === id)?.exp || 0;
+
+/* partikel bintang kecil di banner (posisi acak tiap render, transform/opacity saja) */
+const sparks = n => Array.from({ length: n }, (_, i) =>
+  '<i class="gc-spark" style="--x:' + (6 + 88 * Math.random()).toFixed(1) + '%;--y:' + (8 + 74 * Math.random()).toFixed(1) + '%;--d:' + (i * 0.9).toFixed(1) + 's;--s:' + (0.6 + Math.random() * 0.9).toFixed(2) + '"></i>').join('');
+
 function renderGacha() {
-  const g = E.gacha || {}, p = E.pity || { now: 0, max: 60 }, rings = E.rings || [];
+  const g = E.gacha || {}, p = E.pity || { now: 0, max: 60 };
+  /* urutkan dari nilai hadiah terbesar (proxy kelangkaan: exp makin besar makin langka) supaya banner memimpin cincin terbaik */
+  const rings = (E.rings || []).slice().sort((a, b) => (b.exp || 0) - (a.exp || 0));
   const left = Math.max(0, (p.max || 60) - (p.now || 0));
+  const pct = Math.min(100, Math.round(100 * (p.now || 0) / (p.max || 60)));
   const singleOk = E.tickets >= g.single.tickets, multiOk = E.tickets >= g.multi.tickets;
+  const pullsLeft = Math.floor((E.tickets || 0) / (g.single ? g.single.tickets : 1));
+  const minT = g.single ? g.single.tickets : 1;
   body.innerHTML =
-    '<div class="gc-hero">' +
-      '<div class="gc-hero-cards">' + rings.map((r, i) => '<img src="' + icon(r.id) + '" alt="" class="gc-hero-r' + (rings.length - i) + '" draggable="false">').join('') + '</div>' +
-      '<h2>Gacha Cincin</h2>' +
-      '<p>Gunakan tiket untuk menarik kartu. Dapat <b>Cincin</b> = hadiah utama masuk Inventory. Tidak dapat? <b>Gems-mu kembali</b> (' + nf.format(g.refundGems) + ' per kartu).</p>' +
+    '<div class="gc-hero">' + sparks(9) +
+      '<i class="gc-hero-glow" aria-hidden="true"></i>' +
+      '<div class="gc-hero-cards">' +
+        rings.slice(1).map((r, i) => '<img src="' + icon(r.id) + '" alt="" class="gc-hero-side s' + (i + 1) + '" draggable="false">').join('') +
+        (rings[0] ? '<img src="' + icon(rings[0].id) + '" alt="" class="gc-hero-main" draggable="false"><i class="gc-hero-halo" aria-hidden="true"></i>' : '') +
+      '</div>' +
+      '<h2>Gacha <em>Cincin</em></h2>' +
+      '<p>Tukar tiket jadi tarikan kartu. Dapat <b>Cincin</b> — hadiah utama yang bisa kamu berikan ke karakter untuk EXP hubungan besar. Tidak dapat? <b>Gems-mu kembali</b>.</p>' +
+      '<div class="gc-hero-bal">' + TICK + '<b>' + nf.format(E.tickets) + '</b><span>tiket</span>' +
+        (pullsLeft >= 1 ? '<small>cukup untuk ' + pullsLeft + ' single pull</small>' : '<button type="button" data-act="gotukar">Beli tiket ▸</button>') + '</div>' +
     '</div>' +
-    '<div class="gc-stats">' +
-      '<div class="gc-pity"><div class="gc-pity-t"><span>Jaminan Cincin</span><b>' + left + ' pull lagi</b></div>' +
-        '<div class="gc-bar"><i style="width:' + Math.min(100, Math.round(100 * (p.now || 0) / (p.max || 60))) + '%"></i></div>' +
-        '<small>Tanpa cincin ' + nf.format(p.max) + ' pull berturut-turut, pull berikutnya pasti cincin.</small></div>' +
-      '<div class="gc-inv">' + (rings.map(r => '<span class="gc-ring' + (invRing(r.id) ? '' : ' zero') + '"><img src="' + icon(r.id) + '" alt="" draggable="false"><b>' + nf.format(invRing(r.id)) + '</b></span>').join('')) + '</div>' +
+    '<div class="gc-prizes">' +
+      '<div class="gc-prizes-t"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.2 5.2L19.5 6l-2.7 4.8 4.7 2.4-5.2 1.1 1.4 5-4.2-2.6-2.5 4.4-1.3-5.1-5.2 1.6 3-4.3L3 11.5l5-1.9L6 4.6l5.1 1.9z"/></svg> Hadiah utama</div>' +
+      '<div class="gc-prizes-g">' + rings.map(r =>
+        '<button type="button" class="gc-prize ' + rarityCls(r.tag) + (invRing(r.id) ? '' : ' zero') + '" data-act="ringinfo" data-id="' + esc(r.id) + '" aria-label="' + esc(r.name) + '">' +
+          '<span class="gc-prize-ic"><img src="' + icon(r.id) + '" alt="" draggable="false"></span>' +
+          '<b>' + esc(r.name) + '</b>' +
+          '<span class="gc-prize-tag">' + esc(r.tag || '') + '</span>' +
+          '<small>+' + nf.format(r.exp || 0) + ' EXP kalau diberikan</small>' +
+          '<span class="gc-prize-own">Dimiliki ' + nf.format(invRing(r.id)) + '</span>' +
+        '</button>').join('') + '</div>' +
+    '</div>' +
+    '<div class="gc-pitybox">' +
+      '<div class="gc-pity-t"><span class="gc-pity-l"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.2 5.2L19.5 6l-2.7 4.8 4.7 2.4-5.2 1.1 1.4 5-4.2-2.6-2.5 4.4-1.3-5.1-5.2 1.6 3-4.3L3 11.5l5-1.9L6 4.6l5.1 1.9z"/></svg> Jaminan Cincin</span><b>' + nf.format(left) + ' pull lagi</b></div>' +
+      '<div class="gc-bar' + (pct >= 80 ? ' hot' : '') + '" role="progressbar" aria-valuenow="' + pct + '" aria-valuemin="0" aria-valuemax="100" aria-label="Progres jaminan cincin"><i style="width:' + pct + '%"></i></div>' +
+      '<small>Tanpa cincin ' + nf.format(p.max) + ' pull berturut-turut, pull berikutnya pasti cincin — total ' + nf.format(p.tot || 0) + ' pull · ' + nf.format(p.rings || 0) + ' cincin didapat.</small>' +
     '</div>' +
     '<div class="gc-pull">' +
       '<button type="button" class="gc-btn" data-act="pull" data-id="single"' + (!singleOk || busy ? ' disabled' : '') + '><b>Single Pull</b><span>' + TICK + ' ' + nf.format(g.single.tickets) + '</span></button>' +
       '<button type="button" class="gc-btn main" data-act="pull" data-id="multi"' + (!multiOk || busy ? ' disabled' : '') + '><b>Multi Pull ×10</b><span>' + TICK + ' ' + nf.format(g.multi.tickets) + ' <em>hemat 1</em></span></button>' +
     '</div>' +
-    (E.tickets < (g.single ? g.single.tickets : 1) ? '<div class="bn-msg">Tiket habis. Beli di bagian <button type="button" class="lnk" data-act="gotukar">Tukar</button> pakai Gems atau Coin.</div>' : '') +
-    '<div class="gc-rates"><table><caption>Peluang &amp; nilai</caption>' +
-      '<tr><td>Peluang Cincin</td><td>' + nf.format(g.ringChance * 100) + '% per kartu</td></tr>' +
-      '<tr><td>Refund bila tidak dapat</td><td>' + GEM + ' +' + nf.format(g.refundGems) + ' Gems</td></tr>' +
-      '<tr><td>Multi Pull ×10</td><td>' + nf.format(g.multi.tickets) + ' tiket (hemat 1)</td></tr>' +
-      '<tr><td>Total tarikanmu</td><td>' + nf.format(p.tot) + ' pull · ' + nf.format(p.rings) + ' cincin</td></tr>' +
-    '</table></div>';
+    ((E.tickets || 0) < minT ? '<div class="bn-msg">Tiket habis. Beli di bagian <button type="button" class="lnk" data-act="gotukar">Tukar</button> pakai Gems atau Coin.</div>' : '') +
+    '<div class="gc-rates">' +
+      '<div><span>Peluang cincin</span><b>' + nf.format((g.ringChance || 0) * 100) + '% <small>/kartu</small></b></div>' +
+      '<div><span>Refund bila lolos</span><b>' + GEM + ' +' + nf.format(g.refundGems) + '</b></div>' +
+      '<div><span>Multi ×10</span><b>' + nf.format(g.multi.tickets) + ' tiket</b></div>' +
+      '<div><span>Tarikanmu</span><b>' + nf.format(p.tot || 0) + ' pull</b></div>' +
+    '</div>';
 }
 const invRing = id => (E && E.inv && E.inv[id]) | 0;
 
@@ -124,30 +154,44 @@ function renderStage() {
     const r = st.mode === 'multi' ? res[st.order[i]] : res[0]; // single: semua kartu berisi hasil yang sama
     const open = st.mode === 'multi' ? st.opened.has(st.order[i]) : st.opened.has(i);
     const front = r.t === 'ring'
-      ? '<span class="gc-face front ring"><img src="' + icon(r.id) + '" alt="" draggable="false"><b>' + esc(r.name) + '</b><i class="gc-shine"></i></span>'
-      : '<span class="gc-face front gems"><img src="/gems.png" alt="" draggable="false"><b>+' + nf.format(r.n) + ' Gems</b><i class="gc-shine"></i></span>';
-    return '<button type="button" class="gc-card' + (open ? ' flip' : '') + (st.mode !== 'multi' && st.opened.size && !open ? ' dead' : '') + '" data-gc="' + i + '" aria-label="Kartu tertutup"' + (open ? ' disabled' : '') + '>' +
-      '<span class="gc-face back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.2 5.2L19.5 6l-2.7 4.8 4.7 2.4-5.2 1.1 1.4 5-4.2-2.6-2.5 4.4-1.3-5.1-5.2 1.6 3-4.3L3 11.5l5-1.9L6 4.6l5.1 1.9z"/></svg></span>' + front + '</button>';
+      ? '<span class="gc-face front ring ' + rarityCls(ringTag(r.id)) + '"><i class="gc-rays" aria-hidden="true"></i><img src="' + icon(r.id) + '" alt="" draggable="false"><b>' + esc(r.name) + '</b><i class="gc-shine"></i></span>'
+      : '<span class="gc-face front gems"><img src="/gems.png" alt="" draggable="false"><b>+' + nf.format(r.n) + '</b><i class="gc-shine"></i></span>';
+    return '<button type="button" class="gc-card' + (open ? ' flip' : '') + (st.mode !== 'multi' && st.opened.size && !open ? ' dead' : '') + '" data-gc="' + i + '" style="--i:' + i + '" aria-label="Kartu tertutup"' + (open ? ' disabled' : '') + '>' +
+      '<span class="gc-face back"><i class="gc-back-gem" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3l2.2 5.2L19.5 6l-2.7 4.8 4.7 2.4-5.2 1.1 1.4 5-4.2-2.6-2.5 4.4-1.3-5.1-5.2 1.6 3-4.3L3 11.5l5-1.9L6 4.6l5.1 1.9z"/></svg></i></span>' + front + '</button>';
   }).join('');
   const doneAll = st.mode === 'multi' ? st.opened.size >= 10 : st.opened.size >= 1;
   body.innerHTML =
     '<div class="gc-stage' + (st.mode === 'multi' ? ' multi' : '') + '">' +
-      '<p class="gc-stage-t">' + (st.mode === 'multi' ? 'Pilih kartu untuk membuka — atau buka semuanya' : 'Pilih salah satu kartu') + '</p>' +
+      '<i class="gc-flash" aria-hidden="true"></i>' +
+      '<p class="gc-stage-t">' + (st.mode === 'multi' ? 'Pilih kartu untuk membuka <b>' + st.opened.size + '/10</b> — atau buka semuanya' : 'Pilih salah satu kartu') + '</p>' +
       '<div class="gc-cards">' + cards + '</div>' +
       (doneAll ? '' : '<div class="gc-tools">' +
         (st.mode === 'multi' ? '<button type="button" data-act="gcall">Buka Semua</button><button type="button" data-act="gcskip">Lewati ▸</button>' : '') +
       '</div>') +
       (doneAll ? summaryHTML(st) : '') +
     '</div>';
+  /* panggung (awal) dan ringkasan (selesai) digulir ke area terlihat supaya tidak ketutup tepi layar / bottom nav */
+  const shop = document.getElementById('shop'), target = doneAll ? body.querySelector('.gc-sum') : body.querySelector('.gc-stage');
+  if (shop && target) {
+    const rel = target.getBoundingClientRect().top - shop.getBoundingClientRect().top + shop.scrollTop;
+    const y = doneAll ? Math.max(0, rel - Math.max(0, (shop.clientHeight - target.offsetHeight) / 2)) : Math.max(0, rel - 10);
+    shop.scrollTo({ top: y, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  }
 }
 function summaryHTML(st) {
   const res = st.results, rings = res.filter(r => r.t === 'ring'), refund = res.reduce((s, r) => s + (r.t === 'gems' ? r.n : 0), 0);
   const g = E.gacha;
   const singleOk = E.tickets >= g.single.tickets, multiOk = E.tickets >= g.multi.tickets;
-  return '<div class="gc-sum">' +
+  const top = rings[0];
+  return '<div class="gc-sum' + (rings.length ? ' win' : '') + '">' +
     (rings.length
-      ? '<div class="gc-sum-hero ring"><img src="' + icon(rings[0].id) + '" alt="" draggable="false"><div><b>' + rings.length + '× ' + esc(rings[0].name) + (rings.length > 1 ? ' dll.' : '') + '</b><small>Cincin masuk ke Inventory-mu 🎉</small></div></div>'
+      ? '<div class="gc-sum-hero ring"><span class="gc-sum-rays" aria-hidden="true"></span><img src="' + icon(top.id) + '" alt="" draggable="false"><div><span class="gc-sum-tag ' + rarityCls(ringTag(top.id)) + '">' + esc(ringTag(top.id)) + '</span>' +
+          '<b>' + (rings.length > 1 ? rings.length + '× CINCIN!' : esc(top.name) + '!') + '</b>' +
+          '<small>Cincin masuk Inventory — berikan ke karakter untuk +' + nf.format(ringExp(top.id)) + ' EXP</small></div></div>'
       : '<div class="gc-sum-hero gems"><img src="/gems.png" alt="" draggable="false"><div><b>+' + nf.format(refund) + ' Gems</b><small>Tidak ada cincin kali ini — gems kembali ke saldomu</small></div></div>') +
+    ((st.mode === 'multi' || rings.length > 1) ? '<div class="gc-sum-grid">' + res.map(r => r.t === 'ring'
+      ? '<span class="gc-mini ring"><img src="' + icon(r.id) + '" alt="" draggable="false"></span>'
+      : '<span class="gc-mini gems"><img src="/gems.png" alt="" draggable="false"><b>+' + r.n + '</b></span>').join('') + '</div>' : '') +
     (rings.length && refund ? '<div class="gc-sum-sub">+' + nf.format(refund) + ' Gems dari kartu tanpa cincin</div>' : '') +
     '<div class="gc-sum-bal">' + COIN + nf.format(E.coins) + '<span>Coin</span>' + GEM + nf.format(E.gems) + '<span>Gems</span>' + TICK + nf.format(E.tickets) + '<span>Tiket</span></div>' +
     '<div class="gc-sum-btns">' +
@@ -163,27 +207,33 @@ function flipCard(i, instant) {
   const key = st.mode === 'multi' ? st.order[i] : i;
   if (st.opened.has(key)) return;
   const el = body.querySelector('[data-gc="' + i + '"]');
+  const r = st.mode === 'multi' ? st.results[key] : st.results[0];
   if (el) {
     if (instant) el.classList.add('noanim');
     el.classList.add('flip'); el.disabled = true;
-    const r = st.mode === 'multi' ? st.results[key] : st.results[0];
-    if (r && r.t === 'ring') burst(el); // efek partikel cahaya untuk cincin
+    if (r && r.t === 'ring') { burst(el, 14, 'gold'); flashStage(); } /* momen cincin: kilatan panggung + partikel emas */
+    else if (r) burst(el, 5, 'gems');
   }
   st.opened.add(key);
   const doneAll = st.mode === 'multi' ? st.opened.size >= 10 : true;
-  if (doneAll) setTimeout(() => { if (stage === st) renderStage(); }, instant || !matchMedia('(prefers-reduced-motion: reduce)').matches ? 620 : 0);
+  if (doneAll) setTimeout(() => { if (stage === st) renderStage(); }, instant || !matchMedia('(prefers-reduced-motion: reduce)').matches ? 700 : 0);
 }
-/* partikel cahaya tipis saat kartu cincin terbuka (transform-only, hemat performa) */
-function burst(el) {
+/* kilatan lembut di panggung saat cincin terbuka */
+function flashStage() {
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  const n = el.classList.contains('flip') ? 9 : 0;
+  const f = body.querySelector('.gc-flash'); if (!f) return;
+  f.classList.remove('go'); void f.offsetWidth; f.classList.add('go');
+}
+/* partikel cahaya saat kartu terbuka (transform-only, hemat performa): emas untuk cincin, hijau untuk gems */
+function burst(el, n, kind) {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   for (let i = 0; i < n; i++) {
     const p = document.createElement('i');
-    p.className = 'gc-pt';
-    const a = (Math.PI * 2 * i) / n + Math.random() * .6, d = 46 + Math.random() * 40;
+    p.className = 'gc-pt' + (kind === 'gems' ? ' g' : '');
+    const a = (Math.PI * 2 * i) / n + Math.random() * .6, d = 40 + Math.random() * 46;
     p.style.setProperty('--tx', Math.cos(a) * d + 'px');
     p.style.setProperty('--ty', Math.sin(a) * d + 'px');
-    p.style.animationDelay = (Math.random() * 120) + 'ms';
+    p.style.animationDelay = (Math.random() * 140) + 'ms';
     el.append(p);
     setTimeout(() => p.remove(), 1100);
   }
@@ -191,7 +241,7 @@ function burst(el) {
 function openAll(instant) {
   const st = stage; if (!st) return;
   const rest = [...Array(st.n)].map((_, i) => i).filter(i => { const k = st.mode === 'multi' ? st.order[i] : i; return !st.opened.has(k); });
-  rest.forEach((i, j) => setTimeout(() => flipCard(i, instant), instant ? 0 : j * 150));
+  rest.forEach((i, j) => setTimeout(() => flipCard(i, instant), instant ? 0 : j * 170));
 }
 
 /* ================= TUKAR CURRENCY ================= */
@@ -310,6 +360,7 @@ body.addEventListener('click', e => {
   else if (a === 'gcskip') openAll(true);
   else if (a === 'gcdone') { stage = null; render(); }
   else if (a === 'gotukar') SHP.set('tukar');
+  else if (a === 'ringinfo') { const rr = ((E && E.rings) || []).find(x => x.id === id); if (rr) toast(rr.name + ' (' + rr.tag + ') · +' + nf.format(rr.exp) + ' EXP kalau diberikan · ' + rr.desc); }
   else if (a === 'chip') { exCoin = +id; const inp = $('excoin'); if (inp) { inp.value = exCoin; } renderEx(); }
   else if (a === 'xq+' || a === 'xq-') { const k = id; exQty[k] = Math.max(1, Math.min(99, exQty[k] + (a === 'xq+' ? 1 : -1))); renderEx(); }
   else if (a === 'ex') confirmExchange(id);

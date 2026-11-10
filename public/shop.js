@@ -7,7 +7,7 @@
      3. Menu "+" di kolom ketik (#plusbtn): Inventory dan Skenario Skrip.
      4. Inventory (#invmodal): pilih jenis + jumlah, "Lampirkan ke chat" -> hadiah jadi lampiran di kotak ketik (#attbar);
         saat kirim: EXP hubungan naik (bonus x1,5 / Mood x2 kalau barang favorit karakternya), ada bubble roleplay + balasan AI.
-        Cincin hasil gacha tampil di sini sebagai koleksi (tidak bisa diberikan).
+        Cincin hasil gacha juga bisa diberikan (hadiah istimewa, EXP/mood besar dari GACHA.rings di server).
    Memakai global index.html: atok, aOn, aApi, saveWallet, loadWallet, paintWallet, ch, allChars, ready, busy, selOn, inp,
    sendB, grow, refresh, draftT, submit, relApply, shortName, toast, GX, store, openLogin, rpOn, Shell. */
 (() => {
@@ -65,6 +65,10 @@ $('shnav').addEventListener('click', e => {
 let place = 'home'; // 'home' | 'cat:<id>' | 'item:<id>'
 const itemsOf = () => (S && S.items) || [];
 const catsOf = () => (S && S.cats) || [];
+/* pool hadiah di client: barang toko + cincin gacha (S.rings dari server, exp/mood/tag dari GACHA.rings).
+   Hanya untuk pratinjau EXP/mood — angka final tetap keputusan server (lib/shop.js). */
+const giftPool = () => [...itemsOf(), ...((S && S.rings) || [])];
+const isRingId = id => ((S && S.rings) || []).some(r => r.id === id);
 const invN = id => Math.max(0, (S && S.inv && S.inv[id]) | 0);
 const invTotal = () => itemsOf().reduce((s, i) => s + invN(i.id), 0);
 const ringIds = () => ((S && S.rings) || []).map(r => r.id);
@@ -105,7 +109,7 @@ function render() {
       '<span class="sh-cat-t"><b>' + esc(cat.name) + '</b><small>' + its.length + ' barang · ' + esc(cat.desc) + '</small></span>' +
       '<svg viewBox="0 0 24 24" class="sh-cat-go"><path d="M9 6l6 6-6 6"/></svg></button>';
   }).join('') + '</div>' +
-    (ringTotal() ? '<div class="sh-ringrow" data-act="rings"><span class="sh-ringics">' + ringIds().filter(id => invN(id)).map(id => '<img src="' + icon(id) + '" alt="">').join('') + '</span><span>Kamu punya <b>' + ringTotal() + ' cincin</b> dari gacha<span class="mut"> · lihat di Inventory (tombol + di kolom chat)</span></span></div>' : '');
+    (ringTotal() ? '<div class="sh-ringrow" data-act="rings"><span class="sh-ringics">' + ringIds().filter(id => invN(id)).map(id => '<img src="' + icon(id) + '" alt="">').join('') + '</span><span>Kamu punya <b>' + ringTotal() + ' cincin</b> dari gacha<span class="mut"> · hadiah istimewa, berikan lewat Inventory (tombol + di kolom chat)</span></span></div>' : '');
   refocus(focus);
 }
 function renderCat(catId) {
@@ -205,7 +209,7 @@ body.addEventListener('click', e => {
   }
   else if (a === 'login') openLogin();
   else if (a === 'retry') load(true);
-  else if (a === 'rings') toast('Cincin gacha ada di Inventory: buka chat mana pun, lalu tombol + di kolom ketik.');
+  else if (a === 'rings') toast('Cincin bisa kamu berikan ke karakter: buka chat mana pun, tombol + di kolom ketik, pilih cincinnya di Inventory.');
 });
 
 /* ---------- Menu "+" di kolom ketik ---------- */
@@ -282,22 +286,26 @@ function renderInv() {
   const favId = (S.fav && ch && S.fav[ch.id]) || null;
   const favMult = S.favMult || { exp: 1.5, mood: 2 };
   if (!invTotal() && !rings.length) { ibody.innerHTML = empty('Inventory kosong', 'Beli hadiah di Toko dulu, lalu berikan ke karakter. Cincin bisa didapat dari Gacha.', '<button class="bn-go" type="button" data-act="shop">Ke Toko</button>'); return; }
-  for (const i of itemsOf()) if ((gsel[i.id] | 0) > invN(i.id)) gsel[i.id] = invN(i.id);
+  for (const i of giftPool()) if ((gsel[i.id] | 0) > invN(i.id)) gsel[i.id] = invN(i.id);
   ibody.innerHTML =
-    (rings.length ? '<div class="inv-sec">Hadiah istimewa · koleksi gacha</div>' + rings.map(r =>
-      '<div class="inv-row ring"><div class="sh-ic"><img src="' + icon(r.id) + '" alt="" draggable="false"></div>' +
-      '<div class="inv-info"><b>' + esc(r.name) + '</b><small>Punya ' + nf.format(invN(r.id)) + ' · tidak bisa diberikan</small></div></div>'
-    ).join('') + (invTotal() ? '<div class="inv-sec">Hadiah untuk diberikan</div>' : '') : '') +
+    (rings.length ? '<div class="inv-sec">Cincin gacha · hadiah istimewa</div>' + rings.map(r => { /* cincin BISA diberikan: EXP/mood besar, tanpa bonus favorit */
+      const have = invN(r.id), n = gsel[r.id] | 0;
+      return '<div class="inv-row ring' + (n ? ' sel' : '') + '"><div class="sh-ic"><img src="' + icon(r.id) + '" alt="" draggable="false"></div>' +
+        '<div class="inv-info"><b>' + esc(r.name) + '</b><span class="inv-ringtag">' + esc(r.tag || 'Langka') + '</span>' +
+        '<small>Punya ' + nf.format(have) + ' · +' + nf.format(r.exp) + ' EXP · hadiah istimewa</small></div>' +
+        stepper('g', r.id, n, 0, have) + '</div>';
+    }).join('') + (invTotal() ? '<div class="inv-sec">Hadiah untuk diberikan</div>' : '') : '') +
     itemsOf().filter(it => invN(it.id) > 0).map(it => { /* barang yang tidak dipunya tidak ditampilkan */
       const have = invN(it.id), n = gsel[it.id] | 0, fav = favId === it.id;
       return '<div class="inv-row' + (fav ? ' fav' : '') + '"><div class="sh-ic"><img src="' + icon(it.id) + '" alt="" draggable="false"></div>' +
         '<div class="inv-info"><b>' + esc(it.name) + '</b><small>Punya ' + nf.format(have) + ' · +' + nf.format(it.exp) + ' EXP' + (fav ? ' <span class="inv-favtag">❤ ×' + String(favMult.exp).replace('.', ',') + '</span>' : '') + '</small>' +
         (fav ? '<span class="inv-favb">❤ Favorit ' + esc(shortName(ch)) + ' — EXP ×' + String(favMult.exp).replace('.', ',') + ', Mood ×' + favMult.mood + '</span>' : '') + '</div>' + stepper('g', it.id, n, 0, have) + '</div>';
     }).join('');
-  /* ringkasan: EXP/Mood dihitung dengan multiplier favorit (server yang memutuskan angka final) */
-  let exp = 0, moodRaw = 0, favHit = false;
-  for (const it of itemsOf()) {
+  /* ringkasan: EXP/Mood dihitung dengan multiplier favorit (cincin tidak berbonus favorit; server yang memutuskan angka final) */
+  let exp = 0, moodRaw = 0, favHit = false, ringHit = false;
+  for (const it of giftPool()) {
     const n = gsel[it.id] | 0; if (!n) continue;
+    if (isRingId(it.id)) { ringHit = true; exp += it.exp * n; moodRaw += it.mood * n; continue; }
     const fav = favId === it.id;
     if (fav) favHit = true;
     exp += it.exp * n * (fav ? favMult.exp : 1);
@@ -306,7 +314,7 @@ function renderInv() {
   const cnt = Object.values(gsel).reduce((s, n) => s + (n | 0), 0);
   foot.classList.remove('hide');
   $('invsum').innerHTML = cnt
-    ? cnt + ' barang · +' + nf.format(Math.round(exp)) + ' EXP' + (favHit ? ' <span class="inv-favtag">❤ bonus favorit</span>' : '')
+    ? cnt + ' barang · +' + nf.format(Math.round(exp)) + ' EXP' + (ringHit ? ' <span class="inv-favtag gold">💍 hadiah istimewa</span>' : '') + (favHit ? ' <span class="inv-favtag">❤ bonus favorit</span>' : '')
     : 'Pilih barang yang mau diberikan';
   const go = $('invgo'); go.disabled = !cnt || giving; go.textContent = 'Lampirkan ke chat';
   if (focus) { const [a, id] = focus.split('|'); const el = ibody.querySelector('[data-act="' + a + '"][data-id="' + id + '"]'); if (el && !el.disabled) el.focus({ preventScroll: true }); }
@@ -337,13 +345,13 @@ function renderAtt() {
   attbar.textContent = '';
   attbar.classList.toggle('hide', !att);
   if (!att) { if (typeof refresh === 'function') refresh(); return; }
-  const chip = document.createElement('div'); chip.className = 'att-chip' + (att.fav ? ' fav' : '');
+  const chip = document.createElement('div'); chip.className = 'att-chip' + (att.ring ? ' ring' : '') + (att.fav ? ' fav' : '');
   const ics = document.createElement('span'); ics.className = 'att-ic';
   att.parts.slice(0, 3).forEach(p => { const im = new Image(); im.src = icon(p.id); im.alt = ''; im.draggable = false; ics.append(im); });
   const tx = document.createElement('span'); tx.className = 'att-tx';
   const t1 = document.createElement('b'), t2 = document.createElement('small');
   t1.textContent = att.parts.map(p => p.n + ' ' + p.name.toLowerCase()).join(', ');
-  t2.textContent = 'Hadiah · +' + nf.format(att.exp) + ' EXP' + (att.fav ? ' · ❤ bonus favorit' : '');
+  t2.textContent = att.ring ? '💍 Hadiah istimewa · +' + nf.format(att.exp) + ' EXP' : 'Hadiah · +' + nf.format(att.exp) + ' EXP' + (att.fav ? ' · ❤ bonus favorit' : '');
   chip.title = 'Hadiah ini terkirim bersama pesanmu';
   tx.append(t1, t2);
   const x = document.createElement('button'); x.type = 'button'; x.className = 'att-x'; x.title = 'Lepas hadiah'; x.setAttribute('aria-label', 'Lepas hadiah dari kotak ketik');
@@ -356,16 +364,20 @@ function renderAtt() {
 new MutationObserver(renderAtt).observe($('hname'), { childList: true, characterData: true, subtree: true });
 window.addEventListener('acct', () => { if (!atok) { att = null; renderAtt(); } });
 
-function attach() { // tombol di Inventory: siapkan hadiah di kotak ketik, belum dikirim
+function attach() { // tombol di Inventory: siapkan hadiah di kotak ketik, belum dikirim (boleh campur barang + cincin)
   if (giving || !S || !ch || (window.GX && GX.cur)) return;
   const items = {}; let cnt = 0;
-  for (const i of itemsOf()) if ((gsel[i.id] | 0) > 0) { items[i.id] = gsel[i.id] | 0; cnt += items[i.id]; }
+  for (const i of giftPool()) if ((gsel[i.id] | 0) > 0) { items[i.id] = gsel[i.id] | 0; cnt += items[i.id]; }
   if (!cnt) return;
   const favId = (S.fav && S.fav[ch.id]) || null, favMult = S.favMult || { exp: 1.5, mood: 2 };
-  const parts = itemsOf().filter(i => items[i.id]).map(i => ({ id: i.id, name: i.name, n: items[i.id] }));
-  let exp = 0, favHit = false;
-  for (const i of itemsOf()) { const n = items[i.id]; if (!n) continue; const fav = favId === i.id; if (fav) favHit = true; exp += i.exp * n * (fav ? favMult.exp : 1); }
-  att = { char: ch.id, items, parts, what: parts.map(p => p.n + ' ' + p.name.toLowerCase()).join(', '), exp: Math.round(exp), fav: favHit };
+  const parts = giftPool().filter(i => items[i.id]).map(i => ({ id: i.id, name: i.name, n: items[i.id], ring: isRingId(i.id) }));
+  let exp = 0, favHit = false, ringHit = false;
+  for (const i of giftPool()) {
+    const n = items[i.id]; if (!n) continue;
+    if (isRingId(i.id)) { ringHit = true; exp += i.exp * n; continue; } /* cincin: tanpa bonus favorit, sudah istimewa */
+    const fav = favId === i.id; if (fav) favHit = true; exp += i.exp * n * (fav ? favMult.exp : 1);
+  }
+  att = { char: ch.id, items, parts, what: parts.map(p => p.n + ' ' + p.name.toLowerCase()).join(', '), exp: Math.round(exp), fav: favHit, ring: ringHit };
   for (const k in gsel) delete gsel[k];
   closeInv(); renderAtt();
   inp.focus({ preventScroll: true });
@@ -386,11 +398,13 @@ async function send(userText) { // dipanggil submit() saat ada lampiran
   att = null; renderAtt();
   const note = relApply(chId, r.exp, r.mood, true); /* EXP hadiah tidak kena batas harian obrolan: sudah dibayar pakai coin */
   const expTxt = '+' + nf.format(r.exp) + ' EXP';
+  const ringHit = !!(r.ringHit || a.ring);
   if (r.favHit) setTimeout(() => toast('❤ ' + name + ' benar-benar suka hadiahmu! Bonus favorit: EXP ×' + String(r.favHit.exp).replace('.', ',') + ' · Mood ×' + r.favHit.mood), 500);
+  if (ringHit) setTimeout(() => toast('💍 ' + name + ' menerima cincinmu — hadiah istimewa!'), r.favHit ? 2600 : 500);
   if (!ch || ch.id !== chId || (window.GX && GX.cur)) { toast('Hadiah terkirim ke ' + name + ' · ' + expTxt + (note ? ' · ' + note : '')); return; } /* chat sudah pindah: EXP tetap masuk ke karakter yang benar */
   inp.value = ''; grow(); refresh(); clearTimeout(draftT); store.set('draft:' + chId, null); // ketikan ikut terkirim, kotak ketik dikosongkan
   toast('Kamu memberikan ' + a.what + ' ke ' + name + ' · ' + expTxt);
-  submit({ gift: true, items: a.items, say, text: '🎁 *memberikan ' + a.what + '*' + (r.favHit ? ' *(barang favoritnya!)*' : '') + (say ? '\n' + say : ''), hist: '*memberikan ' + a.what + ' kepadamu*' + (r.favHit ? ' (barang favoritnya!)' : '') + (say ? ' sambil bilang: ' + say : ''), note });
+  submit({ gift: true, items: a.items, say, text: (ringHit ? '💍 ' : '🎁 ') + '*memberikan ' + a.what + '*' + (ringHit ? ' *(hadiah istimewa!)*' : '') + (r.favHit ? ' *(barang favoritnya!)*' : '') + (say ? '\n' + say : ''), hist: '*memberikan ' + a.what + ' kepadamu*' + (ringHit ? ' (hadiah istimewa!)' : '') + (r.favHit ? ' (barang favoritnya!)' : '') + (say ? ' sambil bilang: ' + say : ''), note });
 }
 window.SHOP = { has: hasAtt, send };
 
