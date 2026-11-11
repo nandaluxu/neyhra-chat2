@@ -1,10 +1,8 @@
 /* ===== Fruit Slot — mesin slot buah 3x3 (layar 'slot' di tab Minigame) =====
-   Konsep: kabinet arcade berwarna berry, dengan jendela gulungan TERANG supaya buahnya yang jadi bintang.
-   Satu-satunya aksen keras = lime (tombol spin, angka kemenangan, combo). Pink = kalah / combo panas / stop.
-   Layar ini dunia visualnya sendiri, tidak ikut tema app. Semua kelas berprefix sl- dan hanya hidup di
-   dalam #slroot / .sl-*. */
+   Kabinet arcade berwarna berry, jendela gulungan TERANG supaya buahnya jadi bintang.
+   Satu-satunya aksen keras = lime (spin, angka menang, combo). Pink = kalah / combo panas / stop.
+   Semua kelas berprefix sl- dan hanya hidup di dalam #slroot / .sl-*. */
 
-/* layar aktif: seluruh tab Minigame jadi panggung gelap (kelas dipasang slot.js) */
 #games.slot-on{background:radial-gradient(120% 50% at 50% 0,#3a1245 0,#25092f 52%,#1a0824 100%)}
 #games.slot-on .gm-top{display:none}
 #games.slot-on .gm-panel{background:#2c0d37;border:1px solid rgba(255,255,255,.1)}
@@ -21,7 +19,7 @@
   --glass1:#faf6ff;--glass2:#ece4f7;--berry-ink:#5b1a52;
   max-width:560px;margin:0 auto;padding:0 0 34px;color:var(--ink)}
 
-/* ---------- bar atas: saldo + tombol ---------- */
+/* ---------- bar atas ---------- */
 .sl-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:10px}
 .sl-bal{display:flex;align-items:center;gap:12px;min-width:0}
 .sl-vpic,.sl-bal>img{width:42px;height:42px;flex:none;filter:drop-shadow(0 3px 8px rgba(0,0,0,.35))}
@@ -43,8 +41,8 @@
   box-shadow:0 20px 44px rgba(10,0,20,.5),inset 0 1px 0 rgba(255,255,255,.16),inset 0 -3px 0 rgba(0,0,0,.18)}
 
 /* meter combo (baris atas kabinet; ditutup banner hasil sebentar tiap putaran) */
-.sl-combo{display:flex;align-items:center;gap:12px;height:34px;margin-bottom:10px;padding:0 4px}
-.sl-combo-l{font-size:13px;font-weight:700;color:var(--dim)}
+.sl-combo{display:flex;align-items:center;gap:12px;height:34px;margin-bottom:10px;padding:0 12px;border-radius:12px;background:rgba(0,0,0,.22)}
+.sl-combo-l{font-size:12px;font-weight:800;letter-spacing:.04em;color:var(--dim)}
 .sl-combo-dots{display:flex;gap:5px;flex:1}
 .sl-combo-dots i{flex:1;height:8px;border-radius:99px;background:rgba(255,255,255,.13);transition:background .25s,box-shadow .25s}
 .sl-combo-dots i.on{background:var(--lime);box-shadow:0 0 10px rgba(198,244,50,.45)}
@@ -54,8 +52,8 @@
 .sl-combo.hot .sl-combo-n{color:var(--pink)}
 @keyframes slpulse{50%{opacity:.62}}
 
-/* banner hasil: menimpa baris combo, jadi tidak pernah menutupi gulungan */
-.sl-banner{position:absolute;left:14px;right:14px;top:14px;height:34px;z-index:3;display:flex;align-items:center;justify-content:center;gap:8px;
+/* banner hasil: menimpa baris combo, tidak pernah menutupi gulungan */
+.sl-banner{position:absolute;left:14px;right:14px;top:14px;height:34px;z-index:5;display:flex;align-items:center;justify-content:center;gap:8px;
   border-radius:12px;background:#2a0d35;border:1px solid rgba(255,255,255,.12);pointer-events:none;white-space:nowrap;
   opacity:0;transform:translateY(5px);transition:opacity .18s,transform .22s cubic-bezier(.2,1.3,.4,1)}
 .sl-banner.show{opacity:1;transform:none}
@@ -68,6 +66,7 @@
 .sl-banner.dim b{font-size:14px;font-weight:600;color:var(--dim)}
 
 /* jendela gulungan: kaca terang dalam bingkai gelap. Tanpa gap, jadi garis pemenang (viewBox 300x300) pas di tengah sel */
+.sl-stage{position:relative}
 .sl-reels{position:relative;display:grid;grid-template-columns:repeat(3,1fr);border:4px solid var(--deep);border-radius:20px;
   background:linear-gradient(180deg,var(--glass1),var(--glass2));cursor:pointer;
   box-shadow:0 0 0 1px rgba(255,255,255,.12),inset 0 2px 6px rgba(40,8,55,.25)}
@@ -90,14 +89,14 @@
 .sl-cab.flash .sl-reels{animation:slflash .5s ease-out 2}
 @keyframes slflash{30%{box-shadow:0 0 0 1px var(--lime),0 0 30px rgba(198,244,50,.55)}}
 
-/* garis pemenang */
-.sl-lines{position:absolute;inset:0;width:100%;height:100%;z-index:1;pointer-events:none}
+/* garis pemenang: menutupi persis isi jendela gulungan (di dalam bingkai 4px) */
+.sl-lines{position:absolute;inset:4px;width:calc(100% - 8px);height:calc(100% - 8px);z-index:3;pointer-events:none}
 .sl-lines polyline{fill:none;stroke-width:4;vector-effect:non-scaling-stroke;stroke-linecap:round;stroke-linejoin:round;opacity:.9;
   filter:drop-shadow(0 1px 2px rgba(255,255,255,.8));animation:slline .35s ease-out}
 @keyframes slline{from{opacity:0}}
 
 /* percikan */
-.sl-spark{position:absolute;width:7px;height:7px;border-radius:50%;background:var(--pink);pointer-events:none;z-index:4;
+.sl-spark{position:absolute;width:7px;height:7px;border-radius:50%;background:var(--pink);pointer-events:none;z-index:6;
   animation:slspark .9s ease-out forwards}
 .sl-spark.gold{background:var(--lime);box-shadow:0 0 8px rgba(198,244,50,.8)}
 @keyframes slspark{to{transform:translate(var(--dx),var(--dy)) scale(.15);opacity:0}}
@@ -105,7 +104,7 @@
 /* pengingat durasi main */
 .sl-remind{position:absolute;left:50%;bottom:14px;transform:translate(-50%,8px);max-width:88%;padding:8px 14px;border-radius:12px;
   background:rgba(32,11,44,.95);border:1px solid rgba(198,244,50,.4);color:#e4fa93;font-size:12px;line-height:1.4;text-align:center;
-  opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;z-index:5}
+  opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;z-index:7}
 .sl-remind.show{opacity:1;transform:translate(-50%,0)}
 
 /* ---------- kendali ---------- */
@@ -125,12 +124,14 @@
 .sl-max:disabled{opacity:.35}
 @media(hover:hover){.sl-max:not(:disabled):hover{background:rgba(198,244,50,.2)}}
 
-.sl-countrow{display:grid;grid-template-columns:repeat(3,1fr) auto;gap:8px}
+.sl-countrow{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .sl-seg,.sl-turbo button{height:42px;border-radius:14px;border:1px solid var(--line);background:var(--surf);color:rgba(253,242,255,.82);
   font-size:14px;font-weight:700;transition:background .2s,border-color .2s,color .2s}
 .sl-seg.on,.sl-turbo.on button{background:rgba(198,244,50,.13);border-color:rgba(198,244,50,.5);color:var(--lime)}
 .sl-seg:disabled{opacity:.5}
-.sl-turbo button{display:inline-flex;align-items:center;gap:6px;padding:0 15px;font-size:13px}
+.sl-turbo{display:flex;align-items:center;gap:10px}
+.sl-turbo span{min-width:0;font-size:11.5px;line-height:1.35;color:var(--dim)}
+.sl-turbo button{flex:none;display:inline-flex;align-items:center;gap:6px;padding:0 15px;font-size:13px}
 .sl-turbo button svg{width:14px;height:14px;fill:currentColor}
 
 /* tombol spin: tombol arcade yang bisa "ditekan" */
@@ -148,11 +149,11 @@
 /* statistik */
 .sl-stat{display:grid;grid-template-columns:repeat(3,1fr);margin-top:14px;padding:12px 0;border-radius:18px;background:rgba(255,255,255,.04);
   text-align:center;font-size:11.5px;color:var(--dim)}
-.sl-stat span{display:block;min-width:0}
+.sl-stat span{display:block;min-width:0;padding:0 6px}
 .sl-stat span+span{border-left:1px solid rgba(255,255,255,.09)}
 .sl-stat b{display:block;margin-bottom:2px;font-size:18px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums}
 
-/* ---------- saldo habis: isi ulang ---------- */
+/* ---------- saldo habis ---------- */
 .sl-broke{margin-top:14px;padding:18px;border-radius:20px;text-align:center;background:rgba(255,107,142,.08);border:1px dashed rgba(255,107,142,.5)}
 .sl-broke b{font-size:15px;font-weight:800}
 .sl-broke p{margin:7px auto 12px;max-width:340px;font-size:12.5px;line-height:1.5;color:var(--dim)}
@@ -260,7 +261,7 @@
 .sl-hrow{display:flex;align-items:center;gap:10px;padding:8px 11px;border-radius:12px;background:rgba(0,0,0,.2);font-size:12.5px}
 .sl-hrow .sl-ht{flex:none;color:var(--dim);font-variant-numeric:tabular-nums}
 .sl-hrow b{flex:none;min-width:56px;font-weight:800;color:var(--pink);font-variant-numeric:tabular-nums}
-.sl-hrow.win b{color:var(--lime)}
+.sl-hrow.win b,.sl-hrow b.sl-hb{color:var(--lime)}
 .sl-hrow span{flex:1;min-width:0;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* ---------- fokus & aksesibilitas ---------- */
@@ -280,7 +281,7 @@
   .sl-turbo button{padding:0 12px}
 }
 
-/* layar pendek (mis. iPhone SE): rapatkan vertikal supaya tombol spin terlihat tanpa scroll */
+/* layar pendek */
 @media(max-height:760px){
   .sl-root{padding-bottom:22px}
   .sl-top{margin-top:6px}
@@ -295,7 +296,7 @@
   .sl-step{width:42px}
 }
 
-/* desktop: mesin utuh muat di viewport 800px tanpa scroll */
+/* desktop */
 @media(min-width:800px){
   .sl-cell{height:clamp(66px,12vw,88px)}
 }

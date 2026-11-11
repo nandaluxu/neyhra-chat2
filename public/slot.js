@@ -155,16 +155,14 @@ function gameHtml() {
       '</div>' +
     '</div>' +
 
-    '<div class="sl-stat"><span><b>' + nf.format(st.spins || 0) + '</b>putaran</span><span><b>' + nf.format(st.wins || 0) + '</b>menang</span><span><b id="slbest">' + nf.format(st.best || 0) + '</b>menang terbesar</span></div>' +
-
-    '<div class="sl-combo' + ((st.combo || 0) >= 4 ? ' hot' : '') + '" id="slcombo" data-c="' + (st.combo || 0) + '" aria-label="Combo ' + (st.combo || 0) + ' dari ' + cfg.comboMax + '">' +
-      '<span class="sl-combo-l">COMBO</span><span class="sl-combo-dots">' + dots + '</span><b class="sl-combo-n">x' + (st.combo || 0) + '</b>' +
-    '</div>' +
-
     '<div class="sl-cab">' +
-      '<i class="sl-cab-glow" aria-hidden="true"></i>' +
-      '<div class="sl-reels" data-act="sl-quick" role="grid" aria-label="Gulungan buah">' + fillers + '</div>' +
-      '<svg class="sl-lines" viewBox="0 0 300 300" aria-hidden="true"></svg>' +
+      '<div class="sl-combo' + ((st.combo || 0) >= 4 ? ' hot' : '') + '" id="slcombo" data-c="' + (st.combo || 0) + '" aria-label="Combo ' + (st.combo || 0) + ' dari ' + cfg.comboMax + '">' +
+        '<span class="sl-combo-l">COMBO</span><span class="sl-combo-dots">' + dots + '</span><b class="sl-combo-n">x' + (st.combo || 0) + '</b>' +
+      '</div>' +
+      '<div class="sl-stage">' +
+        '<div class="sl-reels" data-act="sl-quick" role="grid" aria-label="Gulungan buah">' + fillers + '</div>' +
+        '<svg class="sl-lines" viewBox="0 0 300 300" preserveAspectRatio="none" aria-hidden="true"></svg>' +
+      '</div>' +
       '<div class="sl-banner" aria-live="polite"></div>' +
       '<div class="sl-remind" role="status"></div>' +
     '</div>' +
@@ -182,6 +180,7 @@ function gameHtml() {
       '<button type="button" class="sl-spin' + (busy ? ' stop' : '') + '" data-act="sl-spin">' + (busy ? 'STOP' : 'SPIN <em>' + nf.format(bet) + ' VP</em>') + '</button>' +
       '<div class="sl-turbo' + (turbo ? ' on' : '') + '"><button type="button" data-act="sl-turbo" aria-pressed="' + turbo + '">' + IC.bolt + 'Turbo</button><span>animasi cepat — hasil tetap sama</span></div>' +
     '</div>' +
+    '<div class="sl-stat"><span><b>' + nf.format(st.spins || 0) + '</b>putaran</span><span><b>' + nf.format(st.wins || 0) + '</b>menang</span><span><b id="slbest">' + nf.format(st.best || 0) + '</b>menang terbesar</span></div>' +
   '</div>';
 }
 
