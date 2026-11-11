@@ -57,6 +57,23 @@ let turbo = false, sfxVol = .8, sfxMute = false;
 try { turbo = store.get('slturbo') === 1; const v = Number(store.get('slvol')); if (Number.isFinite(v) && v >= 0 && v <= 1) sfxVol = v; sfxMute = store.get('slmute') === 1; } catch { }
 let remT0 = 0, remNext = 30 * 60e3, remIv = 0;   // pengingat durasi bermain
 let refillIv = 0;
+let balShown = null, balRaf = 0;   // saldo yang tampil (untuk animasi hitung naik/turun)
+function tickBal(el, to) {          // angka saldo berjalan ke nilai baru; naik = inversi sebentar
+  if (!Number.isFinite(to)) return;
+  const from = balShown;
+  balShown = to;
+  if (from === null || from === to || reduceMo()) { el.textContent = nf.format(to); return; }
+  cancelAnimationFrame(balRaf);
+  if (to > from) { el.classList.add('up'); setTimeout(() => el.classList.remove('up'), 900); }
+  const t0 = performance.now(), dur = Math.min(900, 350 + Math.abs(to - from) / 8);
+  const step = now => {
+    if (!el.isConnected) return;
+    const k = Math.min(1, (now - t0) / dur);
+    el.textContent = nf.format(Math.round(from + (to - from) * (1 - Math.pow(1 - k, 3))));
+    if (k < 1) balRaf = requestAnimationFrame(step);
+  };
+  balRaf = requestAnimationFrame(step);
+}
 
 /* ---------- SFX: preload semua, satu oneshot pada satu waktu, spin looping terpisah ---------- */
 const SFX = (() => {
@@ -112,7 +129,7 @@ function render() {
 function paintLive() { // bagian yang boleh diperbarui tanpa membangun ulang layar
   const b = host(); if (!b) return;
   const bal = b.querySelector('#slbal'), cb = b.querySelector('#slcombo'), bn = b.querySelector('#slbest');
-  if (st && bal) bal.textContent = nf.format(st.bal);
+  if (st && bal) tickBal(bal, st.bal);
   if (st && cb) {
     const c = st.combo || 0;
     cb.dataset.c = c; cb.classList.toggle('hot', c >= 4);
