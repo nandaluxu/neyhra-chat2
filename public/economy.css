@@ -6,248 +6,252 @@
    Animasi hanya transform/opacity (ringan), dan dimatikan lewat prefers-reduced-motion. */
 
 /* ---------- Gacha: banner ---------- */
-.gc-hero{position:relative;overflow:hidden;margin-top:18px;padding:32px 20px 24px;border-radius:26px;text-align:center;color:#fff;
+.gx-hero{position:relative;overflow:hidden;margin-top:18px;padding:32px 20px 24px;border-radius:26px;text-align:center;color:#fff;
   background:linear-gradient(172deg,#171838 0%,#241b52 46%,#3a2170 78%,#4a2a78 100%)}
-.gc-hero::before{content:"";position:absolute;inset:0;pointer-events:none;
+.gx-hero::before{content:"";position:absolute;inset:0;pointer-events:none;
   background:radial-gradient(38% 42% at 50% 30%,rgba(255,214,120,.15),transparent 70%),radial-gradient(52% 60% at 16% 92%,rgba(142,111,232,.3),transparent 70%),radial-gradient(46% 56% at 86% 82%,rgba(96,64,205,.26),transparent 70%)}
-.gc-hero>*{position:relative}
-.gc-hero h2{font-size:29px;font-weight:800;letter-spacing:-.02em;text-shadow:0 2px 14px rgba(0,0,0,.35)}
-.gc-hero h2 em{font-style:normal;background:linear-gradient(94deg,#ffe9a8,#ffc94d 45%,#ffedbc);-webkit-background-clip:text;background-clip:text;color:transparent}
-.gc-hero p{margin:9px auto 0;max-width:460px;font-size:13.5px;line-height:1.55;color:rgba(255,255,255,.72)}
-.gc-hero p b{color:#ffd25e}
+.gx-hero>*{position:relative}
+.gx-hero h2{font-size:29px;font-weight:800;letter-spacing:-.02em;text-shadow:0 2px 14px rgba(0,0,0,.35)}
+.gx-hero h2 em{font-style:normal;background:linear-gradient(94deg,#ffe9a8,#ffc94d 45%,#ffedbc);-webkit-background-clip:text;background-clip:text;color:transparent}
+.gx-hero p{margin:9px auto 0;max-width:460px;font-size:13.5px;line-height:1.55;color:rgba(255,255,255,.72)}
+.gx-hero p b{color:#ffd25e}
 
 /* cincin unggulan besar + pendamping + halo berputar */
-.gc-hero-cards{position:relative;display:flex;justify-content:center;align-items:center;height:152px;margin-bottom:4px}
-.gc-hero-main{width:118px;height:118px;object-fit:contain;position:relative;z-index:2;filter:drop-shadow(0 10px 26px rgba(255,200,80,.45))}
-.gc-hero-halo{position:absolute;left:50%;top:50%;width:150px;height:150px;margin:-75px 0 0 -75px;border-radius:50%;z-index:1;
+.gx-hero-cards{position:relative;display:flex;justify-content:center;align-items:center;height:152px;margin-bottom:4px}
+.gx-hero-main{width:118px;height:118px;object-fit:contain;position:relative;z-index:2;filter:drop-shadow(0 10px 26px rgba(255,200,80,.45))}
+.gx-hero-halo{position:absolute;left:50%;top:50%;width:150px;height:150px;margin:-75px 0 0 -75px;border-radius:50%;z-index:1;
   border:1.5px dashed rgba(255,214,120,.42);box-shadow:0 0 0 10px rgba(255,214,120,.05),inset 0 0 30px rgba(255,214,120,.12)}
-.gc-hero-side{width:54px;height:54px;object-fit:contain;opacity:.85;filter:drop-shadow(0 6px 14px rgba(0,0,0,.35))}
-.gc-hero-side.s1{transform:translateX(-82px) rotate(-16deg) translateY(10px)}
-.gc-hero-side.s2{transform:translateX(82px) rotate(16deg) translateY(10px)}
-.gc-hero-side.s3,.gc-hero-side.s4{display:none}
+.gx-hero-side{position:absolute;left:50%;top:50%;width:54px;height:54px;margin:-27px 0 0 -27px;object-fit:contain;opacity:.85;filter:drop-shadow(0 6px 14px rgba(0,0,0,.35))}
+.gx-hero-side.s1{transform:translate(-88px,12px) rotate(-16deg)}
+.gx-hero-side.s2{transform:translate(88px,12px) rotate(16deg)}
+.gx-hero-side.s3,.gx-hero-side.s4{display:none}
 @media(prefers-reduced-motion:no-preference){
-  .gc-hero-main{animation:gcfloat 3.6s ease-in-out infinite}
-  .gc-hero-halo{animation:gcspin 26s linear infinite}
-  .gc-hero-side.s1{animation:gcsidelft 4.1s ease-in-out infinite}
-  .gc-hero-side.s2{animation:gcsidergt 4.1s .3s ease-in-out infinite}
-  @keyframes gcfloat{50%{transform:translateY(-8px)}}
-  @keyframes gcspin{to{transform:rotate(360deg)}}
-  @keyframes gcsidelft{50%{transform:translateX(-82px) rotate(-16deg) translateY(0)}}
-  @keyframes gcsidergt{50%{transform:translateX(82px) rotate(16deg) translateY(0)}}
+  .gx-hero-main{animation:gxfloat 3.6s ease-in-out infinite}
+  .gx-hero-halo{animation:gxspin 26s linear infinite}
+  .gx-hero-side.s1{animation:gxsidelft 4.1s ease-in-out infinite}
+  .gx-hero-side.s2{animation:gxsidergt 4.1s .3s ease-in-out infinite}
+  @keyframes gxfloat{50%{transform:translateY(-8px)}}
+  @keyframes gxspin{to{transform:rotate(360deg)}}
+  @keyframes gxsidelft{50%{transform:translate(-88px,4px) rotate(-16deg)}}
+  @keyframes gxsidergt{50%{transform:translate(88px,4px) rotate(16deg)}}
 }
 
 /* bintang kecil berkelip di banner */
-.gc-spark{position:absolute;left:var(--x);top:var(--y);width:4px;height:4px;border-radius:50%;background:#ffe9b0;opacity:0;
+.gx-spark{position:absolute;left:var(--x);top:var(--y);width:4px;height:4px;border-radius:50%;background:#ffe9b0;opacity:0;
   box-shadow:0 0 8px 1px rgba(255,220,130,.8);pointer-events:none}
 @media(prefers-reduced-motion:no-preference){
-  .gc-spark{animation:gcspark 3.2s var(--d) ease-in-out infinite}
-  @keyframes gcspark{0%,100%{opacity:0;transform:scale(.4)}50%{opacity:.9;transform:scale(1)}}
+  .gx-spark{animation:gxspark 3.2s var(--d) ease-in-out infinite}
+  @keyframes gxspark{0%,100%{opacity:0;transform:scale(.4)}50%{opacity:.9;transform:scale(1)}}
 }
-@media(prefers-reduced-motion:reduce){.gc-spark{display:none}}
+@media(prefers-reduced-motion:reduce){.gx-spark{display:none}}
 
 /* saldo tiket di banner */
-.gc-hero-bal{display:inline-flex;align-items:center;gap:7px;margin-top:13px;padding:8px 16px;border-radius:99px;
+.gx-hero-bal{display:inline-flex;align-items:center;gap:7px;margin-top:13px;padding:8px 16px;border-radius:99px;
   background:rgba(10,8,30,.42);box-shadow:inset 0 0 0 1px rgba(255,255,255,.14);font-size:14px}
-.gc-hero-bal img{width:17px;height:17px}
-.gc-hero-bal b{font-size:16px;font-variant-numeric:tabular-nums}
-.gc-hero-bal span{color:rgba(255,255,255,.65);font-size:12.5px}
-.gc-hero-bal small{color:rgba(255,255,255,.55);font-size:11.5px;margin-left:4px}
-.gc-hero-bal button{margin-left:8px;padding:5px 12px;border-radius:99px;background:#ffd25e;color:#3d2a00;font-size:12px;font-weight:700}
-.gc-hero-bal button:focus-visible{outline:2px solid #ffd25e;outline-offset:2px}
+.gx-hero-bal img{width:17px;height:17px}
+.gx-hero-bal b{font-size:16px;font-variant-numeric:tabular-nums}
+.gx-hero-bal span{color:rgba(255,255,255,.65);font-size:12.5px}
+.gx-hero-bal small{color:rgba(255,255,255,.55);font-size:11.5px;margin-left:4px}
+.gx-hero-bal button{margin-left:8px;padding:5px 12px;border-radius:99px;background:#ffd25e;color:#3d2a00;font-size:12px;font-weight:700}
+.gx-hero-bal button:focus-visible{outline:2px solid #ffd25e;outline-offset:2px}
 
 /* ---------- Hadiah utama: 3 kartu cincin + kelangkaan ---------- */
-.gc-prizes{margin-top:12px}
-.gc-prizes-t{display:flex;align-items:center;gap:7px;margin:2px 2px 9px;font-size:11.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--mut)}
-.gc-prizes-t svg{width:14px;height:14px;fill:#ffd25e;flex:none}
-.gc-prizes-g{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-.gc-prize{position:relative;display:flex;flex-direction:column;align-items:center;gap:3px;padding:13px 8px 11px;border-radius:18px;overflow:hidden;
+.gx-prizes{margin-top:12px}
+.gx-prizes-t{display:flex;align-items:center;gap:7px;margin:2px 2px 9px;font-size:11.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--mut)}
+.gx-prizes-t svg{width:14px;height:14px;fill:#ffd25e;flex:none}
+.gx-prizes-g{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.gx-prize{position:relative;display:flex;flex-direction:column;align-items:center;gap:3px;padding:13px 8px 11px;border-radius:18px;overflow:hidden;
   color:#fff;background:linear-gradient(172deg,#1d1e44,#2b2058 60%,#332467);
   box-shadow:inset 0 0 0 1px rgba(255,255,255,.09),0 6px 16px rgba(20,14,60,.28);transition:transform .15s}
-.gc-prize::before{content:"";position:absolute;inset:0;pointer-events:none}
-.gc-prize.rare::before{background:radial-gradient(60% 46% at 50% 0%,rgba(106,183,255,.22),transparent 75%)}
-.gc-prize.epic::before{background:radial-gradient(60% 46% at 50% 0%,rgba(255,122,158,.22),transparent 75%)}
-.gc-prize.leg::before{background:radial-gradient(60% 46% at 50% 0%,rgba(255,210,94,.28),transparent 75%)}
-.gc-prize-ic{height:62px;display:grid;place-items:center}
-.gc-prize-ic img{width:56px;height:56px;object-fit:contain;filter:drop-shadow(0 6px 14px rgba(0,0,0,.4))}
-.gc-prize b{font-size:13.5px;font-weight:700}
-.gc-prize-tag{padding:2px 9px;border-radius:99px;font-size:9.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
-.gc-prize.rare .gc-prize-tag{background:rgba(106,183,255,.16);color:#9ed2ff;box-shadow:inset 0 0 0 1px rgba(106,183,255,.4)}
-.gc-prize.epic .gc-prize-tag{background:rgba(255,122,158,.14);color:#ffa8bf;box-shadow:inset 0 0 0 1px rgba(255,122,158,.4)}
-.gc-prize.leg .gc-prize-tag{background:rgba(255,210,94,.15);color:#ffd25e;box-shadow:inset 0 0 0 1px rgba(255,210,94,.45)}
-.gc-prize small{font-size:10.5px;color:rgba(255,255,255,.6);font-variant-numeric:tabular-nums}
-.gc-prize-own{font-size:10.5px;color:rgba(255,255,255,.45);font-variant-numeric:tabular-nums}
-.gc-prize.zero{opacity:.6}
-.gc-prize.zero .gc-prize-ic img{filter:grayscale(.55) drop-shadow(0 4px 10px rgba(0,0,0,.35))}
-.gc-prize:focus-visible{outline:2px solid #ffd25e;outline-offset:2px}
-@media(hover:hover){.gc-prize:hover{transform:translateY(-3px)}}
-@media(max-width:560px){.gc-prizes-g{gap:7px}.gc-prize{padding:10px 5px 9px;border-radius:15px}.gc-prize-ic{height:48px}.gc-prize-ic img{width:42px;height:42px}.gc-prize b{font-size:12px}.gc-prize small{display:none}}
+.gx-prize::before{content:"";position:absolute;inset:0;pointer-events:none}
+.gx-prize.rare::before{background:radial-gradient(60% 46% at 50% 0%,rgba(106,183,255,.22),transparent 75%)}
+.gx-prize.epic::before{background:radial-gradient(60% 46% at 50% 0%,rgba(255,122,158,.22),transparent 75%)}
+.gx-prize.leg::before{background:radial-gradient(60% 46% at 50% 0%,rgba(255,210,94,.28),transparent 75%)}
+.gx-prize-ic{height:62px;display:grid;place-items:center}
+.gx-prize-ic img{width:56px;height:56px;object-fit:contain;filter:drop-shadow(0 6px 14px rgba(0,0,0,.4))}
+.gx-prize b{font-size:13.5px;font-weight:700}
+.gx-prize-tag{padding:2px 9px;border-radius:99px;font-size:9.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+.gx-prize.rare .gx-prize-tag{background:rgba(106,183,255,.16);color:#9ed2ff;box-shadow:inset 0 0 0 1px rgba(106,183,255,.4)}
+.gx-prize.epic .gx-prize-tag{background:rgba(255,122,158,.14);color:#ffa8bf;box-shadow:inset 0 0 0 1px rgba(255,122,158,.4)}
+.gx-prize.leg .gx-prize-tag{background:rgba(255,210,94,.15);color:#ffd25e;box-shadow:inset 0 0 0 1px rgba(255,210,94,.45)}
+.gx-prize small{font-size:10.5px;color:rgba(255,255,255,.6);font-variant-numeric:tabular-nums}
+.gx-prize-own{font-size:10.5px;color:rgba(255,255,255,.45);font-variant-numeric:tabular-nums}
+.gx-prize.zero .gx-prize-ic{opacity:.6}
+.gx-prize.zero .gx-prize-ic img{filter:grayscale(.45) drop-shadow(0 4px 10px rgba(0,0,0,.35))}
+.gx-prize:focus-visible{outline:2px solid #ffd25e;outline-offset:2px}
+@media(hover:hover){.gx-prize:hover{transform:translateY(-3px)}}
+@media(max-width:560px){.gx-prizes-g{gap:7px}.gx-prize{padding:10px 5px 9px;border-radius:15px}.gx-prize-ic{height:48px}.gx-prize-ic img{width:42px;height:42px}.gx-prize b{font-size:12px}.gx-prize small{display:none}}
 
 /* ---------- Pity ---------- */
-.gc-pitybox{margin-top:12px;padding:14px 16px;border-radius:20px;background:var(--surface)}
-.gc-pity-t{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px}
-.gc-pity-l{display:inline-flex;align-items:center;gap:6px;color:var(--mut);font-weight:600}
-.gc-pity-l svg{width:14px;height:14px;fill:#ffd25e;flex:none}
-.gc-pity-t b{font-variant-numeric:tabular-nums}
-.gc-bar{height:10px;margin-top:9px;border-radius:99px;background:var(--bg);overflow:hidden}
-.gc-bar i{position:relative;display:block;height:100%;border-radius:99px;overflow:hidden;background:linear-gradient(90deg,#8e6fe8,#c9a7ff 55%,#ffd25e);transition:width .5s cubic-bezier(.2,.8,.3,1)}
-.gc-bar.hot i{background:linear-gradient(90deg,#ffb64d,#ffd25e 50%,#fff3c9)}
-.gc-pitybox small{display:block;margin-top:7px;font-size:11.5px;line-height:1.45;color:var(--mut)}
+.gx-pitybox{margin-top:12px;padding:14px 16px;border-radius:20px;background:var(--surface)}
+.gx-pity-t{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px}
+.gx-pity-l{display:inline-flex;align-items:center;gap:6px;color:var(--mut);font-weight:600}
+.gx-pity-l svg{width:14px;height:14px;fill:#ffd25e;flex:none}
+.gx-pity-t b{font-variant-numeric:tabular-nums}
+.gx-bar{height:10px;margin-top:9px;border-radius:99px;background:var(--bg);overflow:hidden}
+.gx-bar i{position:relative;display:block;height:100%;border-radius:99px;overflow:hidden;background:linear-gradient(90deg,#8e6fe8,#c9a7ff 55%,#ffd25e);transition:width .5s cubic-bezier(.2,.8,.3,1)}
+.gx-bar.hot i{background:linear-gradient(90deg,#ffb64d,#ffd25e 50%,#fff3c9)}
+.gx-pitybox small{display:block;margin-top:7px;font-size:11.5px;line-height:1.45;color:var(--mut)}
 @media(prefers-reduced-motion:no-preference){
-  .gc-bar i::after{content:"";position:absolute;inset:0;transform:translateX(-100%);
-    background:linear-gradient(100deg,transparent 30%,rgba(255,255,255,.5) 50%,transparent 70%);animation:gcshimmer 2.4s ease-in-out infinite}
-  @keyframes gcshimmer{60%,100%{transform:translateX(100%)}}
+  .gx-bar i::after{content:"";position:absolute;inset:0;transform:translateX(-100%);
+    background:linear-gradient(100deg,transparent 30%,rgba(255,255,255,.5) 50%,transparent 70%);animation:gxshimmer 2.4s ease-in-out infinite}
+  @keyframes gxshimmer{60%,100%{transform:translateX(100%)}}
 }
 
 /* ---------- Tombol pull ---------- */
-.gc-pull{display:grid;grid-template-columns:1fr 1.25fr;gap:12px;margin-top:14px}
-.gc-btn{position:relative;display:flex;flex-direction:column;align-items:center;gap:5px;padding:16px 12px;border-radius:20px;overflow:hidden;
+.gx-pull{display:grid;grid-template-columns:1fr 1.25fr;gap:12px;margin-top:14px}
+.gx-btn{position:relative;display:flex;flex-direction:column;align-items:center;gap:5px;padding:16px 12px;border-radius:20px;overflow:hidden;
   color:#fff;background:linear-gradient(172deg,#1d1e44,#2b2058 62%,#332467);
   box-shadow:inset 0 0 0 1px rgba(255,255,255,.12),0 8px 20px rgba(20,14,60,.3);transition:transform .15s,box-shadow .15s}
-.gc-btn:active{transform:scale(.97)}
-.gc-btn.main{background:linear-gradient(165deg,#8e6fe8,#6d4bd8 55%,#5b3ec4);box-shadow:inset 0 0 0 1px rgba(255,255,255,.22),0 10px 26px rgba(109,75,216,.45)}
-.gc-btn b{font-size:16px;font-weight:800;letter-spacing:-.01em}
-.gc-btn span{display:inline-flex;align-items:center;gap:5px;font-size:13px;color:rgba(255,255,255,.82);font-variant-numeric:tabular-nums}
-.gc-btn span img{width:15px;height:15px}
-.gc-btn span em{font-style:normal;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.18)}
-.gc-btn:disabled{opacity:.4;cursor:default;transform:none}
-.gc-btn:focus-visible{outline:2px solid #ffd25e;outline-offset:2px}
+.gx-btn:active{transform:scale(.97)}
+.gx-btn.main{background:linear-gradient(165deg,#8e6fe8,#6d4bd8 55%,#5b3ec4);box-shadow:inset 0 0 0 1px rgba(255,255,255,.22),0 10px 26px rgba(109,75,216,.45)}
+.gx-btn b{font-size:16px;font-weight:800;letter-spacing:-.01em}
+.gx-btn span{display:inline-flex;align-items:center;gap:5px;font-size:13px;color:rgba(255,255,255,.82);font-variant-numeric:tabular-nums}
+.gx-btn span img{width:15px;height:15px}
+.gx-btn span em{font-style:normal;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.18)}
+.gx-btn:disabled{opacity:.4;cursor:default;transform:none}
+.gx-btn:focus-visible{outline:2px solid #ffd25e;outline-offset:2px}
 @media(prefers-reduced-motion:no-preference){
-  .gc-btn.main::after{content:"";position:absolute;top:-60%;left:-35%;width:40%;height:220%;transform:rotate(20deg);
-    background:linear-gradient(90deg,transparent,rgba(255,255,255,.35),transparent);animation:gcsweep 3.2s ease-in-out infinite}
-  @keyframes gcsweep{0%,55%{left:-35%}85%,100%{left:120%}}
+  .gx-btn.main::after{content:"";position:absolute;top:-60%;left:-35%;width:40%;height:220%;transform:rotate(20deg);
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,.35),transparent);animation:gxsweep 3.2s ease-in-out infinite}
+  @keyframes gxsweep{0%,55%{left:-35%}85%,100%{left:120%}}
 }
-@media(hover:hover){.gc-btn:not(:disabled):hover{transform:translateY(-2px);box-shadow:inset 0 0 0 1px rgba(255,214,120,.5),0 10px 24px rgba(20,14,60,.4)}}
-@media(max-width:560px){.gc-pull{grid-template-columns:1fr}}
+@media(hover:hover){.gx-btn:not(:disabled):hover{transform:translateY(-2px);box-shadow:inset 0 0 0 1px rgba(255,214,120,.5),0 10px 24px rgba(20,14,60,.4)}}
+@media(max-width:560px){.gx-pull{grid-template-columns:1fr}}
 
 /* ---------- Statistik ringkas ---------- */
-.gc-rates{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}
-.gc-rates>div{display:flex;flex-direction:column;gap:2px;padding:10px 12px;border-radius:16px;background:var(--surface)}
-.gc-rates span{font-size:10.5px;color:var(--mut)}
-.gc-rates b{display:inline-flex;align-items:center;gap:4px;font-size:13.5px;font-variant-numeric:tabular-nums}
-.gc-rates b img{width:14px;height:14px}
-.gc-rates b small{font-size:10px;color:var(--mut);font-weight:500}
-@media(max-width:640px){.gc-rates{grid-template-columns:repeat(2,1fr)}}
+.gx-rates{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}
+.gx-rates>div{display:flex;flex-direction:column;gap:2px;padding:10px 12px;border-radius:16px;background:var(--surface)}
+.gx-rates span{font-size:10.5px;color:var(--mut)}
+.gx-rates b{display:inline-flex;align-items:center;gap:4px;font-size:13.5px;font-variant-numeric:tabular-nums}
+.gx-rates b img{width:14px;height:14px}
+.gx-rates b small{font-size:10px;color:var(--mut);font-weight:500}
+@media(max-width:640px){.gx-rates{grid-template-columns:repeat(2,1fr)}}
 
 /* ---------- Panggung kartu (setelah server menentukan hasil) ---------- */
-.gc-stage{position:relative;margin-top:18px}
-.gc-stage-t{text-align:center;font-size:13.5px;color:var(--mut)}
-.gc-stage-t b{color:var(--ink);font-variant-numeric:tabular-nums}
-.gc-flash{position:absolute;inset:-30px;border-radius:40px;pointer-events:none;opacity:0;z-index:4;
+.gx-stage{position:relative;margin-top:18px}
+.gx-stage-t{text-align:center;font-size:13.5px;color:var(--mut)}
+.gx-stage-t b{color:var(--ink);font-variant-numeric:tabular-nums}
+.gx-flash{position:absolute;inset:-12px;border-radius:32px;pointer-events:none;opacity:0;z-index:4;
   background:radial-gradient(circle,rgba(255,224,140,.5),transparent 65%)}
 @media(prefers-reduced-motion:no-preference){
-  .gc-flash.go{animation:gcflash .7s ease-out}
-  @keyframes gcflash{0%{opacity:0}18%{opacity:1}100%{opacity:0}}
+  .gx-flash.go{animation:gxflash .7s ease-out}
+  @keyframes gxflash{0%{opacity:0}18%{opacity:1}100%{opacity:0}}
 }
-.gc-cards{display:grid;gap:10px;grid-template-columns:repeat(3,minmax(0,1fr));max-width:430px;margin:18px auto 0;perspective:1300px}
-.gc-stage.multi .gc-cards{grid-template-columns:repeat(5,minmax(0,1fr));max-width:660px;gap:9px}
-@media(max-width:560px){.gc-stage.multi .gc-cards{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.gx-cards{display:grid;gap:10px;grid-template-columns:repeat(var(--cols,3),minmax(0,1fr));max-width:min(100%,calc(var(--cols,3)*124px));margin:18px auto 0;perspective:1300px}
+.gx-stage.multi .gx-cards{gap:9px}
+@media(max-width:560px){.gx-cards,.gx-stage.multi .gx-cards{gap:7px}.gx-card,.gx-face,.gx-shine{border-radius:12px}.gx-face.back::before{inset:6px;border-radius:7px}}
 
 /* kartu: masuk staggered (deal-in), flip 3D springy */
-.gc-card{position:relative;aspect-ratio:5/7;min-width:0;padding:0;border-radius:16px;transform-style:preserve-3d;
+.gx-card{position:relative;aspect-ratio:5/7;min-width:0;padding:0;border-radius:16px;transform-style:preserve-3d;
   transition:transform .6s cubic-bezier(.25,1.1,.3,1),opacity .35s;cursor:pointer;-webkit-tap-highlight-color:transparent}
-.gc-card.noanim{transition:opacity .35s}
-.gc-card.dead{opacity:.25;pointer-events:none}
-.gc-card.flip{transform:rotateY(180deg);cursor:default}
-.gc-card:focus-visible{outline:2px solid #ffd25e;outline-offset:3px}
+.gx-card.noanim{transition:opacity .35s}
+.gx-card.dead{opacity:.25;pointer-events:none}
+.gx-card.flip{transform:rotateY(180deg);cursor:default}
+.gx-card:focus-visible{outline:2px solid #ffd25e;outline-offset:3px}
 @media(prefers-reduced-motion:no-preference){
-  .gc-card{animation:gcdeal .5s cubic-bezier(.2,.9,.3,1.15) backwards;animation-delay:calc(var(--i)*70ms)}
-  @keyframes gcdeal{from{opacity:0;transform:translateY(26px) scale(.86) rotate(2deg)}}
-  .gc-card.flip{animation:none} /* kartu yang sudah terbuka TIDAK mengulang animasi deal saat panggung dirender ulang (ringkasan muncul) */
+  .gx-card{animation:gxdeal .5s cubic-bezier(.2,.9,.3,1.15) backwards;animation-delay:calc(var(--i)*70ms)}
+  @keyframes gxdeal{from{opacity:0;transform:translateY(26px) scale(.86) rotate(2deg)}}
+  .gx-card.flip{animation:none} /* kartu yang sudah terbuka TIDAK mengulang animasi deal saat panggung dirender ulang (ringkasan muncul) */
 }
-@media(hover:hover){.gc-card:not(.flip):not(.dead):hover{transform:translateY(-5px) rotate(-1.5deg)}}
+@media(hover:hover){.gx-card:not(.flip):not(.dead):hover{transform:translateY(-5px) rotate(-1.5deg)}}
 
 /* punggung kartu: TCG mewah (border emas ganda + pola halus + permata berdenyut) */
-.gc-face{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+.gx-face{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
   border-radius:16px;backface-visibility:hidden;-webkit-backface-visibility:hidden;overflow:visible}
-.gc-face.back{background:linear-gradient(168deg,#232457,#38256b 52%,#4b2b80);
+.gx-face.back{background:linear-gradient(168deg,#232457,#38256b 52%,#4b2b80);
   box-shadow:inset 0 0 0 1.5px rgba(255,214,120,.34),inset 0 0 0 5px rgba(255,255,255,.05),0 8px 20px rgba(24,16,66,.4)}
-.gc-face.back::before{content:"";position:absolute;inset:8px;border-radius:10px;border:1.5px dashed rgba(255,214,120,.42)}
-.gc-face.back::after{content:"";position:absolute;inset:0;border-radius:16px;opacity:.5;
-  background:repeating-linear-gradient(45deg,rgba(255,255,255,.035) 0 2px,transparent 2px 7px)}
-.gc-back-gem{position:relative;z-index:1;width:40%;height:40%;display:grid;place-items:center}
-.gc-back-gem svg{width:100%;height:100%;fill:#ffd25e;filter:drop-shadow(0 3px 10px rgba(255,200,80,.5))}
-@media(prefers-reduced-motion:no-preference){.gc-back-gem{animation:gcgem 2.6s ease-in-out infinite}@keyframes gcgem{50%{transform:scale(1.08)}}}
+.gx-face.back::before{content:"";position:absolute;inset:8px;border-radius:10px;border:1.5px dashed rgba(255,214,120,.42)}
+.gx-face.back::after{content:"";position:absolute;inset:0;border-radius:inherit;opacity:.6;
+  background:repeating-linear-gradient(45deg,rgba(255,255,255,.04) 0 1.5px,transparent 1.5px 9px),repeating-linear-gradient(-45deg,rgba(255,255,255,.04) 0 1.5px,transparent 1.5px 9px)}
+.gx-back-gem{position:relative;z-index:1;width:52%;aspect-ratio:1;border-radius:50%;display:grid;place-items:center;
+  background:radial-gradient(circle,rgba(255,214,120,.2),rgba(255,214,120,.04) 70%);box-shadow:inset 0 0 0 1.5px rgba(255,214,120,.5),0 0 0 4px rgba(255,214,120,.1)}
+.gx-back-gem svg{width:58%;height:58%;fill:#ffd25e;filter:drop-shadow(0 3px 10px rgba(255,200,80,.5))}
+@media(prefers-reduced-motion:no-preference){.gx-back-gem{animation:gxgem 2.6s ease-in-out infinite}@keyframes gxgem{50%{transform:scale(1.08)}}}
 
 /* muka depan: cincin per kelangkaan (legendaris paling meriah) / gems */
-.gc-face.front{transform:rotateY(180deg);background:var(--surface);border:1.5px solid var(--line);box-shadow:0 8px 20px rgba(0,0,0,.16)}
-.gc-face.front img{width:56%;height:auto;max-height:56%;object-fit:contain;position:relative;z-index:1}
-.gc-face.front b{position:relative;z-index:1;font-size:clamp(9px,2.6vw,12.5px);font-weight:700;letter-spacing:-.01em;padding:0 4px;text-align:center}
-.gc-face.front.ring.leg{border-color:#ffd25e;background:radial-gradient(circle at 50% 30%,#ffedb8,var(--surface) 76%);box-shadow:0 8px 22px rgba(255,200,80,.35)}
-.gc-face.front.ring.epic{border-color:#ff9dbb;background:radial-gradient(circle at 50% 30%,color-mix(in srgb,#ff9dbb 24%,var(--surface)),var(--surface) 74%)}
-.gc-face.front.ring.rare{border-color:#6ab7ff;background:radial-gradient(circle at 50% 30%,color-mix(in srgb,#6ab7ff 24%,var(--surface)),var(--surface) 74%)}
-.gc-face.front.gems{border-color:color-mix(in srgb,#30a46c 55%,var(--line));background:radial-gradient(circle at 50% 32%,color-mix(in srgb,#30a46c 14%,var(--surface)),var(--surface) 74%)}
-.gc-face.front.gems img{filter:drop-shadow(0 3px 8px rgba(48,163,108,.35))}
-.gc-face.front.gems b{color:var(--ok)}
+.gx-face.front{transform:rotateY(180deg);background:var(--surface);border:1.5px solid var(--line);box-shadow:0 8px 20px rgba(0,0,0,.16)}
+.gx-face.front img{width:56%;height:auto;max-height:56%;object-fit:contain;position:relative;z-index:1}
+.gx-face.front b{position:relative;z-index:1;font-size:clamp(9px,2.6vw,12.5px);font-weight:700;letter-spacing:-.01em;padding:0 4px;text-align:center}
+.gx-face.front.ring.leg{border-color:#ffd25e;background:radial-gradient(circle at 50% 30%,#ffedb8,var(--surface) 76%);box-shadow:0 8px 22px rgba(255,200,80,.35)}
+.gx-face.front.ring.epic{border-color:#ff9dbb;background:radial-gradient(circle at 50% 30%,color-mix(in srgb,#ff9dbb 24%,var(--surface)),var(--surface) 74%)}
+.gx-face.front.ring.rare{border-color:#6ab7ff;background:radial-gradient(circle at 50% 30%,color-mix(in srgb,#6ab7ff 24%,var(--surface)),var(--surface) 74%)}
+.gx-face.front.gems{border-color:color-mix(in srgb,#30a46c 55%,var(--line));background:radial-gradient(circle at 50% 32%,color-mix(in srgb,#30a46c 14%,var(--surface)),var(--surface) 74%)}
+.gx-face.front.gems img{filter:drop-shadow(0 3px 8px rgba(48,163,108,.35))}
+.gx-face.front.gems b{color:var(--ok)}
 
 /* sinar berputar di belakang cincin */
-.gc-rays{position:absolute;inset:-8%;z-index:0;pointer-events:none;border-radius:50%;opacity:.8;
+.gx-rays{position:absolute;inset:-8%;z-index:0;pointer-events:none;border-radius:50%;opacity:.8;
   background:repeating-conic-gradient(from 0deg,rgba(255,214,120,.32) 0 7deg,transparent 7deg 30deg);
   -webkit-mask-image:radial-gradient(circle,#000 0 28%,transparent 66%);mask-image:radial-gradient(circle,#000 0 28%,transparent 66%)}
-.gc-face.front.ring.epic .gc-rays{background:repeating-conic-gradient(from 0deg,rgba(255,140,175,.3) 0 7deg,transparent 7deg 30deg)}
-.gc-face.front.ring.rare .gc-rays{background:repeating-conic-gradient(from 0deg,rgba(110,185,255,.3) 0 7deg,transparent 7deg 30deg)}
-@media(prefers-reduced-motion:no-preference){.gc-rays{animation:gcrays 9s linear infinite}}
-@keyframes gcrays{to{transform:rotate(360deg)}}
+.gx-face.front.ring.epic .gx-rays{background:repeating-conic-gradient(from 0deg,rgba(255,140,175,.3) 0 7deg,transparent 7deg 30deg)}
+.gx-face.front.ring.rare .gx-rays{background:repeating-conic-gradient(from 0deg,rgba(110,185,255,.3) 0 7deg,transparent 7deg 30deg)}
+@media(prefers-reduced-motion:no-preference){.gx-rays{animation:gxrays 9s linear infinite}}
+@keyframes gxrays{to{transform:rotate(360deg)}}
 
 /* kilau lembut di kartu terbuka + pop cincin */
-.gc-shine{position:absolute;inset:0;border-radius:16px;overflow:hidden;pointer-events:none}
-.gc-shine::after{content:"";position:absolute;top:-60%;left:-30%;width:55%;height:220%;transform:rotate(22deg);
+.gx-shine{position:absolute;inset:0;border-radius:16px;overflow:hidden;pointer-events:none}
+.gx-shine::after{content:"";position:absolute;top:-60%;left:-30%;width:55%;height:220%;transform:rotate(22deg);
   background:linear-gradient(90deg,transparent,rgba(255,255,255,.34),transparent)}
 @media(prefers-reduced-motion:no-preference){
-  .gc-face.front .gc-shine::after{animation:gcshine 1.15s .18s ease-out}
-  @keyframes gcshine{to{left:110%}}
-  .gc-card.flip .gc-face.front.ring img{animation:gcpop .65s .08s cubic-bezier(.2,1.5,.3,1)}
-  @keyframes gcpop{0%{transform:scale(.35)}55%{transform:scale(1.14)}100%{transform:scale(1)}}
-  .gc-card.flip .gc-face.front.ring{animation:gcpulse 1s .1s ease-out}
-  @keyframes gcpulse{0%{box-shadow:0 0 0 0 rgba(255,210,94,.55)}100%{box-shadow:0 0 0 18px rgba(255,210,94,0)}}
+  .gx-face.front .gx-shine::after{animation:gxshine 1.15s .18s ease-out}
+  @keyframes gxshine{to{left:110%}}
+  .gx-card.flip .gx-face.front.ring img{animation:gxpop .65s .08s cubic-bezier(.2,1.5,.3,1)}
+  @keyframes gxpop{0%{transform:scale(.35)}55%{transform:scale(1.14)}100%{transform:scale(1)}}
+  .gx-card.flip .gx-face.front.ring{animation:gxpulse 1s .1s ease-out}
+  @keyframes gxpulse{0%{box-shadow:0 0 0 0 rgba(255,210,94,.55)}100%{box-shadow:0 0 0 18px rgba(255,210,94,0)}}
 }
 
 /* partikel cahaya (dibuat economy.js, transform-only): emas utk cincin, hijau utk gems */
-.gc-pt{position:absolute;left:50%;top:50%;width:7px;height:7px;margin:-3.5px;border-radius:50%;pointer-events:none;z-index:3;
+.gx-pt{position:absolute;left:50%;top:50%;width:7px;height:7px;margin:-3.5px;border-radius:50%;pointer-events:none;z-index:3;
   background:radial-gradient(circle,#fff6d8,#ffd25e 60%,transparent 75%);
-  animation:gcpt .95s cubic-bezier(.2,.7,.3,1) forwards}
-.gc-pt.g{width:6px;height:6px;margin:-3px;background:radial-gradient(circle,#e2ffe9,#57c98a 60%,transparent 75%)}
-@keyframes gcpt{from{opacity:1;transform:translate(0,0) scale(.7)}to{opacity:0;transform:translate(var(--tx),var(--ty)) scale(1.25)}}
-@media(prefers-reduced-motion:reduce){.gc-pt{display:none}}
+  animation:gxpt .95s cubic-bezier(.2,.7,.3,1) forwards}
+.gx-pt.g{width:6px;height:6px;margin:-3px;background:radial-gradient(circle,#e2ffe9,#57c98a 60%,transparent 75%)}
+@keyframes gxpt{from{opacity:1;transform:translate(0,0) scale(.7)}to{opacity:0;transform:translate(var(--tx),var(--ty)) scale(1.25)}}
+@media(prefers-reduced-motion:reduce){.gx-pt{display:none}}
 
 /* alat panggung: Buka Semua / Lewati */
-.gc-tools{display:flex;justify-content:center;gap:10px;margin-top:20px}
-.gc-tools button{padding:11px 22px;border-radius:99px;background:var(--surface);font-size:14px;font-weight:600;color:var(--ink)}
-.gc-tools button:last-child{background:transparent;color:var(--mut)}
-.gc-tools button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
-@media(hover:hover){.gc-tools button:hover{background:var(--line)}}
+.gx-tools{display:flex;justify-content:center;gap:10px;margin-top:20px}
+.gx-tools button{padding:11px 22px;border-radius:99px;background:var(--surface);font-size:14px;font-weight:600;color:var(--ink)}
+.gx-tools button:last-child{background:transparent;color:var(--mut)}
+.gx-tools button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+@media(hover:hover){.gx-tools button:hover{background:var(--line)}}
 
 /* ---------- Ringkasan hasil ---------- */
-.gc-sum{position:relative;max-width:440px;margin:22px auto 0;padding:22px;border-radius:24px;text-align:center;background:var(--surface);animation:nin .32s cubic-bezier(.2,.9,.3,1.2)}
-.gc-sum.win{background:linear-gradient(172deg,color-mix(in srgb,#ffd25e 12%,var(--surface)),var(--surface) 60%)}
-.gc-sum-hero{position:relative;display:flex;align-items:center;gap:15px;text-align:left}
-.gc-sum-hero>img{width:72px;height:72px;object-fit:contain;flex:none;position:relative;z-index:1}
-.gc-sum-hero.ring img{filter:drop-shadow(0 6px 16px rgba(255,210,94,.6))}
-.gc-sum-hero b{display:block;font-size:19px;font-weight:800;letter-spacing:-.01em}
-.gc-sum-hero small{display:block;margin-top:3px;font-size:12.5px;color:var(--mut);line-height:1.45}
-.gc-sum-tag{display:inline-block;margin-bottom:4px;padding:2px 9px;border-radius:99px;font-size:9.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
-.gc-sum-tag.leg{background:rgba(255,210,94,.16);color:#b8860b;box-shadow:inset 0 0 0 1px rgba(230,180,34,.45)}
-.gc-sum-tag.epic{background:rgba(255,122,158,.13);color:#d84a76;box-shadow:inset 0 0 0 1px rgba(255,122,158,.4)}
-.gc-sum-tag.rare{background:rgba(106,183,255,.15);color:#2b7fd4;box-shadow:inset 0 0 0 1px rgba(106,183,255,.4)}
-.gc-sum-rays{position:absolute;left:2px;top:50%;width:124px;height:124px;margin-top:-62px;pointer-events:none;z-index:0;border-radius:50%;
+.gx-sum{position:relative;max-width:440px;margin:22px auto 0;padding:22px;border-radius:24px;text-align:center;background:var(--surface);animation:nin .32s cubic-bezier(.2,.9,.3,1.2)}
+.gx-sum.win{background:linear-gradient(172deg,color-mix(in srgb,#ffd25e 12%,var(--surface)),var(--surface) 60%)}
+.gx-sum-hero{position:relative;display:flex;align-items:center;gap:15px;text-align:left}
+.gx-sum-hero>img{width:72px;height:72px;object-fit:contain;flex:none;position:relative;z-index:1}
+.gx-sum-hero.ring img{filter:drop-shadow(0 6px 16px rgba(255,210,94,.6))}
+.gx-sum-hero b{display:block;font-size:19px;font-weight:800;letter-spacing:-.01em}
+.gx-sum-hero small{display:block;margin-top:3px;font-size:12.5px;color:var(--mut);line-height:1.45}
+.gx-sum-tag{display:inline-block;margin-bottom:4px;padding:2px 9px;border-radius:99px;font-size:9.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+.gx-sum-tag.leg{background:rgba(255,210,94,.16);color:#b8860b;box-shadow:inset 0 0 0 1px rgba(230,180,34,.45)}
+.gx-sum-tag.epic{background:rgba(255,122,158,.13);color:#d84a76;box-shadow:inset 0 0 0 1px rgba(255,122,158,.4)}
+.gx-sum-tag.rare{background:rgba(106,183,255,.15);color:#2b7fd4;box-shadow:inset 0 0 0 1px rgba(106,183,255,.4)}
+.gx-sum-rays{position:absolute;left:2px;top:50%;width:124px;height:124px;margin-top:-62px;pointer-events:none;z-index:0;border-radius:50%;
   background:repeating-conic-gradient(from 0deg,rgba(255,214,120,.38) 0 7deg,transparent 7deg 30deg);
   -webkit-mask-image:radial-gradient(circle,#000 0 24%,transparent 62%);mask-image:radial-gradient(circle,#000 0 24%,transparent 62%)}
-@media(prefers-reduced-motion:no-preference){.gc-sum-rays{animation:gcrays 10s linear infinite}}
+@media(prefers-reduced-motion:no-preference){.gx-sum-rays{animation:gxrays 10s linear infinite}}
 /* rincian per kartu (multi / lebih dari satu hasil) */
-.gc-sum-grid{display:flex;flex-wrap:wrap;justify-content:center;gap:7px;margin-top:16px}
-.gc-mini{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-width:47px;height:46px;padding:0 9px;border-radius:13px;background:var(--bg);font-size:12px;font-weight:700;font-variant-numeric:tabular-nums}
-.gc-mini img{width:26px;height:26px;object-fit:contain}
-.gc-mini.ring{background:radial-gradient(circle at 50% 36%,color-mix(in srgb,#ffd25e 22%,var(--bg)),var(--bg));box-shadow:inset 0 0 0 1px color-mix(in srgb,#e6b422 45%,transparent)}
-.gc-mini.gems img{filter:drop-shadow(0 2px 5px rgba(48,163,108,.3))}
-.gc-mini.gems b{color:var(--ok)}
-.gc-sum-sub{margin-top:10px;font-size:12.5px;color:var(--mut);font-variant-numeric:tabular-nums}
-.gc-sum-bal{display:flex;align-items:center;justify-content:center;gap:16px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line);font-size:14px;font-weight:700;font-variant-numeric:tabular-nums}
-.gc-sum-bal img{width:16px;height:16px;vertical-align:-2px;margin-right:3px}
-.gc-sum-bal span{font-size:11px;font-weight:500;color:var(--mut);margin-left:2px}
-.gc-sum-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px}
-.gc-sum-btns .gc-btn{padding:12px 8px;border-radius:16px}
-.gc-sum-btns>button:last-child{grid-column:1/-1;padding:12px;border-radius:16px;background:transparent;color:var(--mut);font-size:14px;font-weight:600}
-.gc-sum-btns>button:last-child:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
-@media(prefers-reduced-motion:reduce){.gc-sum{animation:none}}
+.gx-sum-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px;margin-top:16px}
+.gx-mini{display:inline-flex;align-items:center;justify-content:center;gap:4px;min-width:0;height:46px;padding:0 4px;border-radius:13px;background:var(--bg);font-size:12px;font-weight:700;font-variant-numeric:tabular-nums}
+.gx-mini img{width:26px;height:26px;object-fit:contain}
+.gx-mini.ring{background:radial-gradient(circle at 50% 36%,color-mix(in srgb,#ffd25e 22%,var(--bg)),var(--bg));box-shadow:inset 0 0 0 1px color-mix(in srgb,#e6b422 45%,transparent)}
+.gx-mini.gems img{filter:drop-shadow(0 2px 5px rgba(48,163,108,.3))}
+.gx-mini.gems b{color:var(--ok)}
+.gx-sum-sub{margin-top:10px;font-size:12.5px;color:var(--mut);font-variant-numeric:tabular-nums}
+.gx-sum-bal{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+.gx-sum-bal>div{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:0;font-size:14px;font-weight:700;font-variant-numeric:tabular-nums}
+.gx-sum-bal>div+div{border-left:1px solid var(--line)}
+.gx-sum-bal b{display:inline-flex;align-items:center;gap:5px}
+.gx-sum-bal img{width:16px;height:16px}
+.gx-sum-bal small{font-size:11px;font-weight:500;color:var(--mut)}
+.gx-sum-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px}
+.gx-sum-btns .gx-btn{padding:12px 8px;border-radius:16px}
+.gx-sum-btns>button:last-child{grid-column:1/-1;padding:12px;border-radius:16px;background:transparent;color:var(--mut);font-size:14px;font-weight:600}
+.gx-sum-btns>button:last-child:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+@media(prefers-reduced-motion:reduce){.gx-sum{animation:none}}
 
 /* ---------- Tukar Currency ---------- */
 .ex-card{margin-top:16px;padding:18px;border-radius:22px;background:var(--surface)}
@@ -303,3 +307,16 @@
 
 /* tautan kecil di pesan (mis. "Tukar" saat tiket habis) */
 .bn-msg .lnk{padding:0;font-size:inherit;font-weight:600;color:var(--ink);text-decoration:underline;text-underline-offset:2px}
+
+/* ikon bintang: svg global di index.html memberi stroke currentColor (garis hitam); gacha memakai isian emas saja */
+.gx-back-gem svg,.gx-prizes-t svg,.gx-pity-l svg{stroke:none}
+.gx-face.front{overflow:hidden}
+/* ornamen sudut punggung kartu */
+.gx-pip{position:absolute;z-index:1;width:7px;height:7px;background:#ffd25e;opacity:.75;transform:rotate(45deg);border-radius:1px}
+.gx-pip.tl{left:13px;top:13px}.gx-pip.br{right:13px;bottom:13px}.gx-pip.tr{right:13px;top:13px}.gx-pip.bl{left:13px;bottom:13px}
+@media(max-width:560px){.gx-pip{width:5px;height:5px}.gx-pip.tl{left:9px;top:9px}.gx-pip.br{right:9px;bottom:9px}.gx-pip.tr{right:9px;top:9px}.gx-pip.bl{left:9px;bottom:9px}}
+/* muka depan cincin: pita warna kelangkaan di atas + papan nama di bawah */
+.gx-face.front.ring::before{content:"";position:absolute;left:0;right:0;top:0;height:30%;border-radius:inherit;pointer-events:none;background:linear-gradient(180deg,var(--rc,rgba(255,210,94,.35)),transparent)}
+.gx-face.front.ring.leg{--rc:rgba(255,210,94,.5)}.gx-face.front.ring.epic{--rc:rgba(255,122,158,.4)}.gx-face.front.ring.rare{--rc:rgba(106,183,255,.4)}
+.gx-face.front b{margin-top:auto;width:100%;padding:6px 3px 7px;background:linear-gradient(0deg,rgba(0,0,0,.08),transparent)}
+.gx-face.front img{margin-top:auto}
