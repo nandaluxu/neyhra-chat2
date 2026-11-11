@@ -16,7 +16,7 @@
   --cab1:#561a52;--cab2:#35103f;--deep:#200b2c;
   --surf:rgba(255,255,255,.07);--line:rgba(255,255,255,.11);
   --lime:#c6f432;--lime-ink:#1d2c03;--pink:#ff6b8e;
-  --ch:clamp(70px,23vw,100px);--glass1:#faf6ff;--glass2:#ece4f7;--berry-ink:#5b1a52;
+  --chmax:92px;--ch:min(calc((100cqw - 8px) / 3),var(--chmax));--fs:calc(var(--ch)*.56);--glass1:#faf6ff;--glass2:#ece4f7;--berry-ink:#5b1a52;
   max-width:560px;margin:0 auto;padding:0 0 34px;color:var(--ink)}
 
 /* ---------- bar atas ---------- */
@@ -36,7 +36,7 @@
 @media(hover:hover){.sl-tbtn:hover{background:rgba(255,255,255,.13)}}
 
 /* ---------- kabinet ---------- */
-.sl-cab{position:relative;margin-top:14px;padding:14px 14px 16px;border-radius:28px;
+.sl-cab{container-type:inline-size;position:relative;margin-top:14px;padding:14px 14px 16px;border-radius:28px;
   background:linear-gradient(180deg,var(--cab1),var(--cab2));border:1px solid rgba(255,255,255,.12);
   box-shadow:0 20px 44px rgba(10,0,20,.5),inset 0 1px 0 rgba(255,255,255,.16),inset 0 -3px 0 rgba(0,0,0,.18)}
 
@@ -66,7 +66,7 @@
 .sl-banner.dim b{font-size:14px;font-weight:600;color:var(--dim)}
 
 /* jendela gulungan: kaca terang dalam bingkai gelap. Tanpa gap, jadi garis pemenang (viewBox 300x300) pas di tengah sel */
-.sl-stage{position:relative}
+.sl-stage{position:relative;width:calc(var(--ch)*3 + 8px);margin:0 auto}
 .sl-reels{position:relative;display:grid;grid-template-columns:repeat(3,1fr);border:4px solid var(--deep);border-radius:20px;
   background:linear-gradient(180deg,var(--glass1),var(--glass2));cursor:pointer;
   box-shadow:0 0 0 1px rgba(255,255,255,.12),inset 0 2px 6px rgba(40,8,55,.25)}
@@ -78,12 +78,12 @@
 .sl-reel:nth-child(3){border-radius:0 16px 16px 0}
 .sl-strip{position:absolute;left:0;right:0;top:0;will-change:transform}
 .sl-strip.fast{filter:blur(1.1px)}
-.sl-cell{height:var(--ch);display:grid;place-items:center}
-.sl-cell img{width:74%;height:74%;object-fit:contain;user-select:none;-webkit-user-drag:none;
+.sl-cell{position:relative;height:var(--ch);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.sl-cell img{position:relative;flex:none;width:var(--fs);height:var(--fs);object-fit:contain;user-select:none;-webkit-user-drag:none;
   filter:drop-shadow(0 4px 5px rgba(60,16,70,.28))}
 .sl-reel.land{animation:slland .24s ease-out}
 @keyframes slland{35%{transform:scaleY(.96) scaleX(1.012)}}
-.sl-cell.win{background:rgba(255,107,142,.16);box-shadow:inset 0 0 0 2px rgba(255,107,142,.55)}
+.sl-cell.win::before{content:"";position:absolute;inset:5px;border-radius:14px;background:rgba(255,107,142,.16);box-shadow:inset 0 0 0 2px rgba(255,107,142,.55)}
 .sl-cell.win img{animation:slwin .9s ease-in-out infinite}
 @keyframes slwin{50%{transform:scale(1.1)}}
 .sl-cab.flash .sl-reels{animation:slflash .5s ease-out 2}
@@ -199,7 +199,7 @@
   background:linear-gradient(180deg,var(--glass1),var(--glass2));box-shadow:inset 0 2px 6px rgba(40,8,55,.25)}
 .sl-bmini{display:flex;justify-content:center;gap:12px}
 .sl-bm{width:clamp(54px,17vw,72px);height:clamp(54px,17vw,72px);display:grid;place-items:center;border-radius:14px;background:rgba(91,26,82,.07)}
-.sl-bm img{width:72%;height:72%;object-fit:contain;filter:drop-shadow(0 3px 4px rgba(60,16,70,.28))}
+.sl-bm img{width:60%;height:60%;object-fit:contain;filter:drop-shadow(0 3px 4px rgba(60,16,70,.28))}
 .sl-bm.hit{animation:slhit .5s cubic-bezier(.2,1.6,.4,1)}
 @keyframes slhit{0%{transform:scale(.6)}55%{transform:scale(1.12)}}
 .sl-breward{display:block;margin-top:10px;min-height:28px;font-size:24px;font-weight:900;color:var(--berry-ink);font-variant-numeric:tabular-nums}
@@ -288,7 +288,7 @@
   .sl-bal>img,.sl-vpic{width:34px;height:34px}
   .sl-bal b{font-size:25px}
   .sl-cab{margin-top:10px}
-  .sl-root{--ch:clamp(58px,19vw,80px)}
+  .sl-root{--chmax:78px}
   .sl-ctrl{margin-top:10px;gap:8px}
   .sl-stat{margin-top:10px;padding:9px 0}
   .sl-spin{font-size:22px;padding:9px 0 10px}
@@ -298,5 +298,10 @@
 
 /* desktop */
 @media(min-width:800px){
-  .sl-root{--ch:clamp(66px,12vw,88px)}
+  .sl-root{--chmax:96px}
+}
+
+/* fallback browser lama tanpa container query units */
+@supports not (width:1cqw){
+  .sl-root{--ch:clamp(60px,21vw,92px)}
 }
