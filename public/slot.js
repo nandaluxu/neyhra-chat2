@@ -7,7 +7,12 @@
    Dipanggil games.js: SLOT.enter() (buka layar, ambil keadaan, SFX start), SLOT.render(body) (gambar
    ulang; NO-OP kalau animasi berjalan supaya innerHTML tidak mematikan gulungan), SLOT.leave() (pulang
    ke hub: hentikan SFX & timer). Semua kelas CSS berprefix sl-, semua aksi data-act berprefix sl-
-   (handler klik games.js mengabaikannya). Global index.html yang dipakai: atok, aOn, aApi, toast, store.
+   (handler klik games.js mengabaikannya). Global index.html yang dipakai: atok, aOn, aApi, toast, store,
+   saveWallet (dompet Coin/Chip).
+
+   MODE DEMO / PAID (st.mode, keputusan server): Demo = virtual point gratis (isi ulang gratis saat
+   bangkrut). Paid = beneran bayar pakai Chip (beli/jual lewat tombol Chip -> /api/auth/economy,
+   5 Coin = 1 Chip dua arah), kemenangan dibayar x1,1 (cfg.paid.winMult), tanpa isi ulang gratis.
 
    SFX (public/sounds/slot/): start (masuk layar), spin (looping selama gulungan berputar), lose
    (kalah, TIDAK dimainkan kalau pemain menekan STOP), combo1-6 (sesuai level combo), combo7 (transisi
@@ -33,6 +38,13 @@ const IC = { // ikon garis tipis (stroke currentColor), 24x24
   star: '<svg viewBox="0 0 24 24"><path d="M12 3l2.2 5.2 5.3-.9-2.7 4.8 4.7 2.4-5.2 1.1 1.4 5-4.2-2.6-2.5 4.4-1.3-5.1-5.2 1.6 3-4.3L3 11.5l5-1.9L6 4.6l5.1 1.9z"/></svg>'
 };
 const VP = '<img src="/slot/vp.svg" alt="" draggable="false" class="sl-vpic">';
+const CHIP = '<img src="/chip.svg" alt="" draggable="false" class="sl-vpic">';
+const paid = () => st && st.mode === 'paid';
+const curIcon = () => paid() ? CHIP : VP;
+const curName = () => paid() ? 'Chip' : 'Virtual Point';
+const curShort = () => paid() ? 'Chip' : 'VP';
+const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : 'id' + Date.now() + Math.random().toString(36).slice(2));
+let chipBuy = 1000, chipSell = 250, chipBusy = false;   // modal Chip: jumlah Coin (beli) / Chip (jual)
 const symImg = (id, cls) => '<img src="/slot/' + esc(id) + '.svg" alt="" draggable="false"' + (cls ? ' class="' + cls + '"' : '') + '>';
 
 // garis bayaran (sama dengan LINE_CELLS lib/slot.js): 3 baris + 2 diagonal, index = baris*3+kolom
@@ -138,7 +150,7 @@ function paintLive() { // bagian yang boleh diperbarui tanpa membangun ulang lay
     if (dots) dots.innerHTML = Array.from({ length: cfg ? cfg.comboMax : 7 }, (_, i) => '<i' + (i < c ? ' class="on"' : '') + '></i>').join('');
   }
   if (st && bn && Number.isFinite(st.best)) bn.textContent = nf.format(st.best);
-  const sp = b.querySelector('[data-act="sl-spin"]'); if (sp) sp.innerHTML = busy ? 'STOP' : 'SPIN <em>' + nf.format((cfg ? cfg.bets[betIx] : 0)) + ' VP</em>';
+  const sp = b.querySelector('[data-act="sl-spin"]'); if (sp) sp.innerHTML = busy ? 'STOP' : 'SPIN <em>' + nf.format((cfg ? cfg.bets[betIx] : 0)) + ' ' + curShort() + '</em>';
   setBusyUi();
 }
 
@@ -155,21 +167,29 @@ function shellHtml() {
 
 function gameHtml() {
   const bet = cfg.bets[betIx], minBet = cfg.bets[0], broke = st.bal < minBet;
+  const P = paid();
   const counts = COUNTS.map((n, i) => '<button type="button" class="sl-seg' + (i === countIx ? ' on' : '') + '" data-act="sl-count" data-i="' + i + '"' + (busy ? ' disabled' : '') + '>' + n + 'x</button>').join('');
   const dots = Array.from({ length: cfg.comboMax }, (_, i) => '<i' + (i < (st.combo || 0) ? ' class="on"' : '') + '></i>').join('');
   // gulungan diam memakai grid terakhir yang sudah berhenti (bukan pola default) supaya render ulang tidak mengubah isi layar
   const settled = lastGrid ? colsOf(lastGrid) : [0, 1, 2].map(c => [cfg.symbols[(c * 3) % cfg.symbols.length].id, cfg.symbols[(c * 3 + 1) % cfg.symbols.length].id, cfg.symbols[(c * 3 + 2) % cfg.symbols.length].id]);
   const fillers = settled.map((col, c) => '<div class="sl-reel" data-c="' + c + '"><div class="sl-strip">' +
     col.map(id => '<div class="sl-cell">' + symImg(id) + '</div>').join('') + '</div></div>').join('');
-  return '<div class="sl-root" id="slroot">' +
+  const modeBtn = (m, t, s) => '<button type="button" class="sl-mode' + (st.mode === m ? ' on' : '') + '" data-act="sl-mode" data-id="' + m + '" aria-pressed="' + (st.mode === m) + '"' + (busy ? ' disabled' : '') + '><b>' + t + '</b><span>' + s + '</span></button>';
+  return '<div class="sl-root" id="slroot" data-m="' + st.mode + '">' +
     '<button class="gm-back" type="button" data-act="hub">' + IC.back + 'Semua game</button>' +
 
     '<div class="sl-top">' +
-      '<div class="sl-bal"' + (broke ? ' data-broke="1"' : '') + '>' + VP + '<div><b id="slbal">' + nf.format(st.bal) + '</b><span>Virtual Point</span></div></div>' +
+      '<div class="sl-bal"' + (broke ? ' data-broke="1"' : '') + '>' + curIcon() + '<div><b id="slbal">' + nf.format(st.bal) + '</b><span>' + curName() + '</span></div></div>' +
       '<div class="sl-tbtns">' +
-        '<button type="button" class="sl-tbtn" data-act="sl-pay">' + IC.table + 'Paytable</button>' +
+        '<button type="button" class="sl-tbtn" data-act="sl-chip" aria-label="Beli / jual Chip"><img src="/chip.svg" alt="" draggable="false" class="sl-tic"><span class="sl-tl">Chip</span></button>' +
+        '<button type="button" class="sl-tbtn" data-act="sl-pay">' + IC.table + '<span class="sl-tl">Paytable</span></button>' +
         '<button type="button" class="sl-tbtn" data-act="sl-set" aria-label="Pengaturan">' + IC.gear + '</button>' +
       '</div>' +
+    '</div>' +
+
+    '<div class="sl-modes" role="group" aria-label="Mode permainan">' +
+      modeBtn('demo', 'DEMO', 'virtual point gratis') +
+      modeBtn('paid', 'PAID', 'beneran bayar') +
     '</div>' +
 
     '<div class="sl-cab">' +
@@ -184,20 +204,20 @@ function gameHtml() {
       '<div class="sl-remind" role="status"></div>' +
     '</div>' +
 
-    (broke ? brokeHtml() : '') +
+    (P && broke ? brokePaidHtml() : (!P && broke ? brokeHtml() : '')) +
 
     '<div class="sl-ctrl">' +
       '<div class="sl-betrow">' +
         '<button type="button" class="sl-step" data-act="sl-betm" aria-label="Kurangi taruhan"' + (busy || betIx <= 0 ? ' disabled' : '') + '>&minus;</button>' +
-        '<div class="sl-bet"><b>' + nf.format(bet) + '</b><span>VP / putaran</span></div>' +
+        '<div class="sl-bet"><b>' + nf.format(bet) + '</b><span>' + curShort() + ' / putaran</span></div>' +
         '<button type="button" class="sl-step" data-act="sl-betp" aria-label="Tambah taruhan"' + (busy || betIx >= cfg.bets.length - 1 ? ' disabled' : '') + '>+</button>' +
         '<button type="button" class="sl-max" data-act="sl-max"' + (busy ? ' disabled' : '') + '>MAX</button>' +
       '</div>' +
       '<div class="sl-countrow" role="group" aria-label="Jumlah putaran">' + counts + '</div>' +
-      '<button type="button" class="sl-spin' + (busy ? ' stop' : '') + '" data-act="sl-spin">' + (busy ? 'STOP' : 'SPIN <em>' + nf.format(bet) + ' VP</em>') + '</button>' +
+      '<button type="button" class="sl-spin' + (busy ? ' stop' : '') + '" data-act="sl-spin">' + (busy ? 'STOP' : 'SPIN <em>' + nf.format(bet) + ' ' + curShort() + '</em>') + '</button>' +
       '<div class="sl-turbo' + (turbo ? ' on' : '') + '"><button type="button" data-act="sl-turbo" aria-pressed="' + turbo + '">' + IC.bolt + 'Turbo</button><span>animasi cepat — hasil tetap sama</span></div>' +
     '</div>' +
-    '<div class="sl-stat"><span><b>' + nf.format(st.spins || 0) + '</b>putaran</span><span><b>' + nf.format(st.wins || 0) + '</b>menang</span><span><b id="slbest">' + nf.format(st.best || 0) + '</b>menang terbesar</span></div>' +
+    '<div class="sl-stat"><span><b>' + nf.format(st.spins || 0) + '</b>putaran</span><span><b>' + nf.format(st.wins || 0) + '</b>menang</span><span><b id="slbest">' + nf.format(st.best || 0) + '</b>menang terbesar</span>' + (P ? '<span class="sl-stat-paid">mode Paid</span>' : '') + '</div>' +
   '</div>';
 }
 
@@ -208,6 +228,12 @@ function brokeHtml() { // saldo di bawah taruhan terkecil: panel isi ulang grati
     '<button type="button" class="sl-refill" data-act="sl-refill"' + (ready ? '' : ' disabled') + '>' +
       (ready ? 'Isi ulang gratis ' + nf.format(cfg.refill.amount) + ' VP' : 'Isi ulang tersedia dalam ' + left + ' menit') + '</button></div>';
 }
+function brokePaidHtml() { // chip habis di mode Paid: tidak ada isi ulang gratis — arahkan beli Chip pakai Coin
+  const rate = (cfg.paid && cfg.paid.coinPerChip) || 5;
+  return '<div class="sl-broke"><b>Chip habis</b>' +
+    '<p>Mode Paid tidak ada isi ulang gratis. Beli Chip pakai Coin (' + nf.format(rate) + ' Coin = 1 Chip), bisa dijual balik kapan saja.</p>' +
+    '<button type="button" class="sl-topup" data-act="sl-chip">Beli Chip pakai Coin</button></div>';
+}
 
 /* ---------- Bonus Session ---------- */
 function bonusHtml() {
@@ -217,46 +243,47 @@ function bonusHtml() {
     return '<div class="sl-bcard' + (i < b.r ? ' done' : i === b.r ? ' now' : '') + '"><span>RONDE ' + (i + 1) + '</span>' +
       (got ? '<b>+' + nf.format(b.log[i]) + '</b>' : '<i>' + (i === b.r ? 'siap' : '·') + '</i>') + '</div>';
   }).join('');
-  return '<div class="sl-root" id="slroot">' +
+  return '<div class="sl-root" id="slroot" data-m="' + st.mode + '">' +
     '<button class="gm-back" type="button" data-act="hub">' + IC.back + 'Semua game</button>' +
-    '<div class="sl-top"><div class="sl-bal">' + VP + '<div><b id="slbal">' + nf.format(st.bal) + '</b><span>Virtual Point</span></div></div>' +
-      '<div class="sl-tbtns"><button type="button" class="sl-tbtn" data-act="sl-pay">' + IC.table + 'Paytable</button><button type="button" class="sl-tbtn" data-act="sl-set" aria-label="Pengaturan">' + IC.gear + '</button></div></div>' +
+    '<div class="sl-top"><div class="sl-bal">' + curIcon() + '<div><b id="slbal">' + nf.format(st.bal) + '</b><span>' + curName() + '</span></div></div>' +
+      '<div class="sl-tbtns"><button type="button" class="sl-tbtn" data-act="sl-chip" aria-label="Beli / jual Chip"><img src="/chip.svg" alt="" draggable="false" class="sl-tic"><span class="sl-tl">Chip</span></button><button type="button" class="sl-tbtn" data-act="sl-pay">' + IC.table + '<span class="sl-tl">Paytable</span></button><button type="button" class="sl-tbtn" data-act="sl-set" aria-label="Pengaturan">' + IC.gear + '</button></div></div>' +
     '<div class="sl-bov">' +
       (bonusPh === 'intro' ? introHtml() : '') +
       '<div class="sl-bhead"><span class="sl-btag">' + IC.star + 'BONUS SESSION</span>' +
         '<div class="sl-bprog"><span>RONDE ' + r + '/' + cfg.bonusRounds + '</span><div class="sl-bdots">' +
           Array.from({ length: cfg.bonusRounds }, (_, i) => '<i' + (i < b.r ? ' class="on"' : '') + '></i>').join('') + '</div></div>' +
-        '<div class="sl-btot"><span>Terkumpul</span><b>' + nf.format(b.total || 0) + ' VP</b></div></div>' +
+        '<div class="sl-btot"><span>Terkumpul</span><b>' + nf.format(b.total || 0) + ' ' + curShort() + '</b></div></div>' +
       '<div class="sl-bcards">' + cards + '</div>' +
       '<div class="sl-bstage"><div class="sl-bmini" aria-hidden="true">' +
         Array.from({ length: 3 }, () => '<span class="sl-bm">' + symImg('seven') + '</span>').join('') + '</div>' +
         '<b class="sl-breward" aria-live="polite"></b></div>' +
       '<button type="button" class="sl-bgo" data-act="sl-bgo">PUTAR RONDE ' + r + '</button>' +
-      '<p class="sl-bnote">Tanpa biaya VP. Hasil tiap ronde ditentukan server; total masuk saldo sekali setelah ronde ' + cfg.bonusRounds + '.</p>' +
+      '<p class="sl-bnote">Tanpa biaya ' + curShort() + '. Hasil tiap ronde ditentukan server; total masuk saldo sekali setelah ronde ' + cfg.bonusRounds + '.</p>' +
     '</div></div>';
 }
 function introHtml() {
   return '<div class="sl-bintro" aria-hidden="true"><b>COMBO x7</b><i>BONUS SESSION</i></div>';
 }
 function bonusSummaryHtml(b) { // ronde 3 selesai (termasuk saat halaman dimuat ulang tepat setelahnya)
-  return '<div class="sl-root" id="slroot">' +
+  return '<div class="sl-root" id="slroot" data-m="' + st.mode + '">' +
     '<button class="gm-back" type="button" data-act="hub">' + IC.back + 'Semua game</button>' +
-    '<div class="sl-top"><div class="sl-bal">' + VP + '<div><b id="slbal">' + nf.format(st.bal) + '</b><span>Virtual Point</span></div></div></div>' +
+    '<div class="sl-top"><div class="sl-bal">' + curIcon() + '<div><b id="slbal">' + nf.format(st.bal) + '</b><span>' + curName() + '</span></div></div></div>' +
     '<div class="sl-bov">' +
       '<div class="sl-bhead"><span class="sl-btag">' + IC.star + 'BONUS SELESAI</span></div>' +
       '<div class="sl-bcards">' + (b.log || []).map((v, i) => '<div class="sl-bcard done"><span>RONDE ' + (i + 1) + '</span><b>+' + nf.format(v) + '</b></div>').join('') + '</div>' +
-      '<div class="sl-btotal"><span>Total bonus masuk saldo</span><b>+' + nf.format(b.total || 0) + ' VP</b></div>' +
+      '<div class="sl-btotal"><span>Total bonus masuk saldo</span><b>+' + nf.format(b.total || 0) + ' ' + curShort() + '</b></div>' +
       '<button type="button" class="sl-bgo" data-act="sl-bdone">Kembali bermain</button>' +
     '</div></div>';
 }
 
-/* ---------- Modal: Paytable & Pengaturan ---------- */
+/* ---------- Modal: Paytable, Chip, & Pengaturan ---------- */
 function payHtml() {
   const bet = cfg.bets[betIx], lb = bet / cfg.lines;
+  const mult = paid() ? ((cfg.paid && cfg.paid.winMult) || 1) : 1;
   const rows = [...cfg.symbols].sort((a, b) => (b.pay3 || 0) - (a.pay3 || 0)).map(s =>
     '<div class="sl-prow">' +
       '<span class="sl-psym">' + symImg(s.id) + symImg(s.id) + symImg(s.id) + '</span>' +
-      '<b>' + esc(s.name) + '</b><i>3 sejenis</i><em>+' + nf.format(s.pay3 * lb) + ' VP</em>' +
+      '<b>' + esc(s.name) + '</b><i>3 sejenis</i><em>+' + nf.format(Math.round(s.pay3 * lb * mult)) + ' ' + curShort() + '</em>' +
     '</div>').join('');
   const cherry = cfg.symbols.find(s => s.id === 'cherry');
   const lineDots = LINES.map((cells, li) => '<div class="sl-pline" aria-label="Garis ' + (li + 1) + '">' +
@@ -264,22 +291,73 @@ function payHtml() {
   return '<div class="sl-modal" data-act="sl-mclose" role="dialog" aria-modal="true" aria-label="Paytable">' +
     '<div class="sl-mbox" data-stop="1">' +
       '<div class="sl-mhead"><h3>Paytable</h3><button type="button" class="sl-mx" data-act="sl-mclose" aria-label="Tutup">&times;</button></div>' +
-      '<p class="sl-msub">Taruhan <b>' + nf.format(bet) + ' VP</b> = ' + cfg.lines + ' garis &times; ' + nf.format(lb) + ' VP. Semua angka mengikuti taruhanmu sekarang.</p>' +
+      '<p class="sl-msub">Taruhan <b>' + nf.format(bet) + ' ' + curShort() + '</b> = ' + cfg.lines + ' garis &times; ' + nf.format(lb) + ' ' + curShort() + '. Semua angka mengikuti taruhanmu sekarang.' + (mult > 1 ? ' <b>Mode Paid: kemenangan &times;' + String(mult).replace('.', ',') + '</b>.' : '') + '</p>' +
       '<div class="sl-prows">' + rows + '</div>' +
-      (cherry && cherry.pay2 ? '<div class="sl-prow cherry"><span class="sl-psym">' + symImg('cherry') + symImg('cherry') + '</span><b>Ceri</b><i>2 di satu garis</i><em>+' + nf.format(cherry.pay2 * lb) + ' VP</em></div>' : '') +
+      (cherry && cherry.pay2 ? '<div class="sl-prow cherry"><span class="sl-psym">' + symImg('cherry') + symImg('cherry') + '</span><b>Ceri</b><i>2 di satu garis</i><em>+' + nf.format(Math.round(cherry.pay2 * lb * mult)) + ' ' + curShort() + '</em></div>' : '') +
       '<h4>Garis bayaran</h4><div class="sl-plines">' + lineDots + '</div>' +
       '<h4>Combo &amp; Bonus Session</h4>' +
-      '<p class="sl-mnote">Menang menaikkan combo +1, kalah me-reset. <b>Combo x' + cfg.comboMax + '</b> membuka Bonus Session: ' + cfg.bonusRounds + ' ronde tanpa biaya VP, reward dari pool khusus, totalnya masuk saldo sekali setelah ronde terakhir.</p>' +
+      '<p class="sl-mnote">Menang menaikkan combo +1, kalah me-reset. <b>Combo x' + cfg.comboMax + '</b> membuka Bonus Session: ' + cfg.bonusRounds + ' ronde tanpa biaya ' + curShort() + ', reward dari pool khusus, totalnya masuk saldo sekali setelah ronde terakhir.</p>' +
     '</div></div>';
+}
+
+/* ---------- Modal Chip: beli (Coin -> Chip) & jual (Chip -> Coin) lewat /api/auth/economy ---------- */
+function chipHtml() {
+  const r = (cfg.paid || {}), rate = r.coinPerChip || 5, back = r.chipPerCoin || 5;
+  const coins = (st.bals && st.bals.coins) || 0, chips = (st.bals && st.bals.paid) || 0;
+  const buyChips = Math.floor(chipBuy / rate), sellCoins = Math.floor(chipSell / back);
+  const buyOk = chipBuy >= rate && buyChips >= 1 && chipBuy <= coins;
+  const sellOk = chipSell >= back && sellCoins >= 1 && chipSell <= chips;
+  const quick = (act, arr, cur) => '<div class="sl-chquick">' + arr.map(v => '<button type="button" class="sl-seg' + (cur === v ? ' on' : '') + '" data-act="' + act + '" data-id="' + v + '">' + (v >= 1000 ? nf.format(v) : v) + '</button>').join('') + '</div>';
+  return '<div class="sl-modal" data-act="sl-mclose" role="dialog" aria-modal="true" aria-label="Chip">' +
+    '<div class="sl-mbox" data-stop="1">' +
+      '<div class="sl-mhead"><h3><img src="/chip.svg" alt="" draggable="false" class="sl-tic"> Chip</h3><button type="button" class="sl-mx" data-act="sl-mclose" aria-label="Tutup">&times;</button></div>' +
+      '<p class="sl-msub">Chip = uang mode <b>Paid</b>. 1 Chip = <b>' + nf.format(rate) + ' Coin</b>, jual pun sama (<b>' + nf.format(back) + ' Chip</b> = 1 Coin) — bebas bolak-balik, tanpa potongan. Kemenangan mode Paid dibayar <b>&times;' + String((r.winMult || 1)).replace('.', ',') + '</b>.</p>' +
+      '<div class="sl-chbal"><span>Saldo Coin</span><b>' + nf.format(coins) + '</b><span>Saldo Chip</span><b>' + nf.format(chips) + '</b></div>' +
+      '<h4>Beli Chip (Coin &rarr; Chip)</h4>' +
+      '<div class="sl-chin"><input id="slchbuy" type="number" inputmode="numeric" min="' + rate + '" step="' + rate + '" value="' + chipBuy + '" aria-label="Jumlah Coin yang ditukar"><span class="sl-chunit">Coin</span></div>' +
+      quick('sl-chb', [250, 1000, 5000, 20000], chipBuy) +
+      '<div class="sl-chprev"><span>' + nf.format(chipBuy) + ' Coin</span><i>&rarr;</i><b>+' + nf.format(buyChips) + ' Chip</b></div>' +
+      '<button type="button" class="sl-chgo" data-act="sl-chgo" data-id="c2ch"' + (!buyOk || chipBusy ? ' disabled' : '') + '>' + (chipBusy ? 'Memproses…' : 'Beli ' + nf.format(buyChips) + ' Chip') + '</button>' +
+      '<h4>Jual Chip (Chip &rarr; Coin)</h4>' +
+      '<div class="sl-chin"><input id="slchsell" type="number" inputmode="numeric" min="' + back + '" step="' + back + '" value="' + chipSell + '" aria-label="Jumlah Chip yang dijual"><span class="sl-chunit">Chip</span></div>' +
+      quick('sl-chs', [50, 250, 1000, 5000], chipSell) +
+      '<div class="sl-chprev"><span>' + nf.format(chipSell) + ' Chip</span><i>&rarr;</i><b>+' + nf.format(sellCoins) + ' Coin</b></div>' +
+      '<button type="button" class="sl-chgo" data-act="sl-chgo" data-id="ch2c"' + (!sellOk || chipBusy ? ' disabled' : '') + '>' + (chipBusy ? 'Memproses…' : 'Jual ' + nf.format(chipSell) + ' Chip') + '</button>' +
+      '<p class="sl-mnote">Diproses server (transaksi atomik + anti-dobel). Saldo Coin & Chip ikut terbarui di dompet dan tab Tukar.</p>' +
+    '</div></div>';
+}
+async function chipGo(kind) {
+  if (chipBusy || !st || !cfg) return;
+  const amount = kind === 'c2ch' ? chipBuy : chipSell;
+  chipBusy = true; paintModalOnly();
+  try {
+    const r = await aApi('economy/exchange', { kind, amount, idem: uuid() });
+    if (r && r.ok) {
+      saveWallet(r);                       // dompet global (index.html) ikut terbarui
+      toast((r.done && r.done.txt) || 'Transaksi berhasil.');
+      try { await api(''); } catch { }      // sinkronkan ulang keadaan slot (saldo per mode)
+      modal = '';                           // sukses: tutup modal supaya langsung bisa main
+    } else { throw new Error(r && r.error || 'Transaksi gagal.'); }
+  } catch (e) { toast(e.message || 'Transaksi gagal.'); }
+  chipBusy = false;
+  render(); if (modal) paintWithModal();
+}
+function paintModalOnly() { // segarkan isi modal tanpa membangun ulang layar permainan
+  const mb = host().querySelector('.sl-modal');
+  if (mb && modal) mb.outerHTML = modalNow();
 }
 function setHtml() {
   const hists = (st.hist || []).map(h => {
     const bonus = h.g === 'bonus';
     const t = h.at ? new Date(h.at) : null;
+    const u = h.m === 'paid' ? 'Chip' : 'VP';
     return '<div class="sl-hrow' + (h.win > 0 ? ' win' : '') + '"><span class="sl-ht">' + (t ? String(t.getHours()).padStart(2, '0') + '.' + String(t.getMinutes()).padStart(2, '0') : '') + '</span>' +
       (bonus ? '<b class="sl-hb">BONUS</b>' : '<b>' + (h.win > 0 ? '+' : '') + nf.format(h.win - (bonus ? 0 : h.bet)) + '</b>') +
-      '<span>' + (bonus ? 'ronde bonus' : 'taruhan ' + nf.format(h.bet) + ' · ' + (h.win > 0 ? 'menang ' + nf.format(h.win) : 'kalah')) + '</span></div>';
+      '<span>' + (bonus ? 'ronde bonus' + (h.m === 'paid' ? ' (Chip)' : '') : 'taruhan ' + nf.format(h.bet) + ' ' + u + ' · ' + (h.win > 0 ? 'menang ' + nf.format(h.win) + ' ' + u : 'kalah')) + '</span></div>';
   }).join('');
+  const note = paid()
+    ? 'Mode Paid: taruhan & kemenangan pakai Chip (dibeli dari Coin, bisa dijual balik di tab Tukar / tombol Chip). Kemenangan dibayar ×' + String((cfg.paid && cfg.paid.winMult) || 1).replace('.', ',') + '.'
+    : 'Virtual point hanya untuk permainan: tidak bisa dibeli dan tidak bisa ditukar menjadi coin, gems, atau uang. Mau beneran bayar? Coba mode Paid.';
   return '<div class="sl-modal" data-act="sl-mclose" role="dialog" aria-modal="true" aria-label="Pengaturan">' +
     '<div class="sl-mbox" data-stop="1">' +
       '<div class="sl-mhead"><h3>Pengaturan</h3><button type="button" class="sl-mx" data-act="sl-mclose" aria-label="Tutup">&times;</button></div>' +
@@ -291,7 +369,7 @@ function setHtml() {
         '<button type="button" class="sl-sw' + (turbo ? ' on' : '') + '" data-act="sl-turbo" role="switch" aria-checked="' + turbo + '"><i></i></button></div>' +
       '<h4>Riwayat putaran</h4>' +
       '<div class="sl-hists">' + (hists || '<p class="sl-mnote">Belum ada putaran.</p>') + '</div>' +
-      '<p class="sl-mnote">Virtual point hanya untuk permainan: tidak bisa dibeli dan tidak bisa ditukar menjadi coin, gems, atau uang.</p>' +
+      '<p class="sl-mnote">' + note + '</p>' +
     '</div></div>';
 }
 
@@ -401,7 +479,7 @@ const colsOf = grid => [0, 1, 2].map(c => [grid[c], grid[3 + c], grid[6 + c]]); 
 function setBusyUi() {
   const root = host().querySelector('.sl-root'); if (!root) return;
   root.classList.toggle('busy', busy);
-  root.querySelectorAll('.sl-step,.sl-max,.sl-seg').forEach(b => { b.disabled = busy; });
+  root.querySelectorAll('.sl-step,.sl-max,.sl-seg,.sl-mode').forEach(b => { b.disabled = busy; });
 }
 
 async function doSpin() {
@@ -411,12 +489,12 @@ async function doSpin() {
     return;
   }
   const bet = cfg.bets[betIx];
-  if (st.bal < bet) { banner('Saldo VP tidak cukup', 'dim'); render(); return; }
+  if (st.bal < bet) { banner(paid() ? 'Chip tidak cukup — beli lewat tombol Chip' : 'Saldo VP tidak cukup', 'dim'); render(); return; }
   busy = true; stopReq = false; quicked = false; paintLive(); SFX.warm();
   let left = COUNTS[countIx];
   try {
     while (left > 0 && !stopReq) {
-      if ((st.bal || 0) < bet) { banner('Saldo VP tidak cukup', 'dim'); break; } // auto-spin berhenti saat saldo kurang
+      if ((st.bal || 0) < bet) { banner(paid() ? 'Chip tidak cukup — beli lewat tombol Chip' : 'Saldo VP tidak cukup', 'dim'); break; } // auto-spin berhenti saat saldo kurang
       let r;
       try { r = await api('spin', { bet }); }
       catch (e) {
@@ -531,6 +609,17 @@ async function bonusDone() { // ringkasan ditutup pemain: bersihkan bonus di ser
   render();
 }
 
+/* ================= MODE DEMO <-> PAID ================= */
+async function setMode(m) {
+  if (busy || !st || st.mode === m) return;
+  try {
+    await api('', { mode: m });        // server yang memutuskan (blokir kalau Bonus Session berjalan)
+    lastGrid = null; balShown = null;  // papan & angka mulai bersih (mata uang beda)
+    render(); paintWithModal();
+    toast(m === 'paid' ? 'Mode Paid: taruhan pakai Chip beneran.' : 'Mode Demo: virtual point gratis.');
+  } catch (e) { toast(e.message || 'Gagal pindah mode.'); }
+}
+
 /* ================= INTERAKSI ================= */
 host().addEventListener('click', e => {
   const b = e.target.closest('[data-act]');
@@ -543,6 +632,11 @@ host().addEventListener('click', e => {
   else if (a === 'sl-betp') { if (!busy && betIx < cfg.bets.length - 1) { betIx++; render(); } }
   else if (a === 'sl-max') { if (!busy && cfg) { let ix = 0; cfg.bets.forEach((v, i) => { if (v <= (st.bal || 0)) ix = i; }); betIx = ix; render(); } }
   else if (a === 'sl-count') { if (!busy) { countIx = Number(b.dataset.i) || 0; render(); } }
+  else if (a === 'sl-mode') setMode(b.dataset.id);
+  else if (a === 'sl-chip') { modal = 'chip'; paintWithModal(); }
+  else if (a === 'sl-chb') { chipBuy = Number(b.dataset.id) || chipBuy; paintModalOnly(); }
+  else if (a === 'sl-chs') { chipSell = Number(b.dataset.id) || chipSell; paintModalOnly(); }
+  else if (a === 'sl-chgo') chipGo(b.dataset.id);
   else if (a === 'sl-turbo') { turbo = !turbo; try { store.set('slturbo', turbo ? 1 : 0); } catch { } paintWithModal(); }
   else if (a === 'sl-pay') { modal = 'pay'; paintWithModal(); }
   else if (a === 'sl-set') { modal = 'set'; paintWithModal(); }
@@ -558,7 +652,8 @@ host().addEventListener('input', e => {
     sfxVol = Number(e.target.value) / 100;
     try { store.set('slvol', sfxVol); } catch { }
     SFX.setVol(sfxVol, sfxMute);
-  }
+  } else if (e.target.id === 'slchbuy') { chipBuy = Math.max(0, Math.floor(Number(e.target.value) || 0)); paintModalOnly(); }
+  else if (e.target.id === 'slchsell') { chipSell = Math.max(0, Math.floor(Number(e.target.value) || 0)); paintModalOnly(); }
 });
 document.addEventListener('keydown', e => {
   if (!on || modal || e.repeat) return;
@@ -578,7 +673,7 @@ async function refill(btn) {
 }
 
 /* ================= SIKLUS LAYAR ================= */
-function modalNow() { return modal ? (modal === 'pay' ? payHtml() : setHtml()) : ''; }
+function modalNow() { return modal ? (modal === 'pay' ? payHtml() : modal === 'chip' ? chipHtml() : setHtml()) : ''; }
 
 function paintWithModal() { render(); const b = host(); if (b && modal) b.insertAdjacentHTML('beforeend', modalNow()); }
 
@@ -622,9 +717,9 @@ function remindMaybe(force) {
   setTimeout(() => box.classList.remove('show'), 8000);
 }
 
-/* ---------- Isi ulang: label hitung menang terbaru ---------- */
+/* ---------- Isi ulang: label hitung menang terbaru (hanya mode Demo — mode Paid pakai tombol Chip) ---------- */
 setInterval(() => {
-  if (!on || busy || bonusPh || !st || !cfg || !host().querySelector('.sl-refill')) return;
+  if (!on || busy || bonusPh || !st || !cfg || paid() || !host().querySelector('.sl-refill')) return;
   if ((st.bal || 0) >= cfg.bets[0]) return;
   const left = Math.max(0, Math.ceil(((st.refillAt || 0) - Date.now()) / 60e3));
   const btn = host().querySelector('.sl-refill');

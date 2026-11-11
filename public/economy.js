@@ -1,8 +1,9 @@
-/* ===== Ekonomi: Gacha (Card Flip / Deck Reveal) + Tukar Currency =====
+/* ===== Ekonomi: Gacha (Card Flip / Deck Reveal) + Tukar Currency (Coin/Gems/Tiket/Chip) =====
    Dimuat setelah shop.js. Tab Toko punya 3 bagian (#shnav): "Belanja" dirender shop.js, "Gacha" dan "Tukar"
-   dirender file ini lewat window.ECON.show(). Semua aturan (rasio tukar, bonus bertingkat, harga tiket, peluang
-   Ring, pity, refund) dijaga server (lib/economy.js) dan dikirim lewat /api/auth/economy — di sini hanya
-   menampilkan pratinjau dari config yang sama dan memanggil endpoint transaksinya.
+   dirender file ini lewat window.ECON.show(). Semua aturan (rasio tukar, bonus bertingkat, harga tiket,
+   peluang Ring, pity, refund, kurs Chip) dijaga server (lib/economy.js) dan dikirim lewat
+   /api/auth/economy — di sini hanya menampilkan pratinjau dari config yang sama dan memanggil
+   endpoint transaksinya. Chip = uang mode Paid Fruit Slot (beli Coin->Chip, jual balik Chip->Coin).
 
    Alur gacha: hasil DITENTUKAN SERVER dulu (/api/auth/economy/gacha, RNG di server), baru animasi jalan.
    Pemilihan kartu hanya visual (posisi diacak di client, isi tiap kartu sudah dipatok server) — client
@@ -23,6 +24,7 @@ const icon = id => '/shop/' + encodeURIComponent(id) + '.svg';
 const COIN = '<img src="/coin.svg" alt="" draggable="false">';
 const GEM = '<img src="/gems.png" alt="" draggable="false">';
 const TICK = '<img src="/ticket.svg" alt="" draggable="false">';
+const CHIP = '<img src="/chip.svg" alt="" draggable="false">';
 
 let E = null;                 // jawaban /api/auth/economy
 let view = 'gacha';           // 'gacha' | 'tukar'
@@ -296,10 +298,12 @@ function openAll(instant) {
 }
 
 /* ================= TUKAR CURRENCY ================= */
-let exQty = { c2t: 1, g2t: 1 }, exCoin = 200;
+let exQty = { c2t: 1, g2t: 1 }, exCoin = 200, exChipCoin = 1000, exChipSell = 250;
 
 function renderEx() {
   const r = E.rates || {}, T = E.hist || [];
+  const chipRate = r.coinPerChip || 5, backRate = r.chipPerCoin || 5;
+  const buyChips = Math.floor(exChipCoin / chipRate), sellCoins = Math.floor(exChipSell / backRate);
   body.innerHTML =
     '<div class="ex-card main">' +
       '<h2><img src="/coin.svg" alt="" draggable="false"> Coin → Gems' + GEM + '</h2>' +
@@ -323,10 +327,28 @@ function renderEx() {
         '<button type="button" class="bn-btn" data-act="ex" data-id="c2t"' + (exQty.c2t * r.coinPerTicket > E.coins ? ' disabled' : '') + '>Beli Tiket</button>' +
       '</div>' +
     '</div>' +
-    '<div class="ex-note">Konversi hanya satu arah: Gems tidak bisa kembali ke Coin, dan Tiket tidak bisa ditukar ke currency lain.</div>' +
+    '<div class="ex-two">' +
+      '<div class="ex-card">' +
+        '<h2>' + CHIP + ' Coin → Chip</h2><p class="ex-rate">' + nf.format(chipRate) + ' Coin = 1 Chip — uang <b>mode Paid Fruit Slot</b>.</p>' +
+        '<div class="ex-row"><input id="exchip" type="number" inputmode="numeric" min="' + chipRate + '" step="' + chipRate + '" value="' + exChipCoin + '" aria-label="Jumlah Coin yang ditukar jadi Chip">' +
+          '<div class="ex-chips">' + [250, 1000, 5000, 20000].map(v => '<button type="button" data-act="chq" data-id="' + v + '"' + (exChipCoin === v ? ' class="on"' : '') + '>' + (v >= 1000 ? nf.format(v) : v) + '</button>').join('') + '</div></div>' +
+        '<div class="ex-prev" id="exchipperv"></div>' +
+        '<button type="button" class="bn-btn" data-act="ex" data-id="c2ch"' + (buyChips < 1 ? ' disabled' : '') + '>Beli ' + nf.format(buyChips) + ' Chip</button>' +
+      '</div>' +
+      '<div class="ex-card">' +
+        '<h2>' + CHIP + ' Chip → Coin</h2><p class="ex-rate">' + nf.format(backRate) + ' Chip = 1 Coin — <b>jual balik</b> kapan saja, rasio sama.</p>' +
+        '<div class="ex-row"><input id="exchipsell" type="number" inputmode="numeric" min="' + backRate + '" step="' + backRate + '" value="' + exChipSell + '" aria-label="Jumlah Chip yang dijual">' +
+          '<div class="ex-chips">' + [50, 250, 1000, 5000].map(v => '<button type="button" data-act="chs" data-id="' + v + '"' + (exChipSell === v ? ' class="on"' : '') + '>' + (v >= 1000 ? nf.format(v) : v) + '</button>').join('') + '</div></div>' +
+        '<div class="ex-prev" id="exchsellperv"></div>' +
+        '<button type="button" class="bn-btn" data-act="ex" data-id="ch2c">Jual Chip</button>' +
+      '</div>' +
+    '</div>' +
+    '<div class="ex-note">Konversi Gems &amp; Tiket hanya satu arah. Chip <b>dua arah</b>: ' + nf.format(chipRate) + ' Coin = 1 Chip, jual balik ' + nf.format(backRate) + ' Chip = 1 Coin — dipakai di mode Paid Fruit Slot (kemenangan dibayar lebih besar).</div>' +
     (T.length ? '<div class="ex-hist"><h3>Riwayat transaksi</h3>' + T.map(h =>
       '<div class="ex-hrow"><span class="ex-hic ' + esc(h.kind) + '">' + histIcon(h.kind) + '</span><span class="ex-htx">' + esc(h.txt || h.kind) + '<small>' + fmtTime(h.at) + '</small></span></div>').join('') + '</div>' : '');
   paintPrev();
+  paintChipPrev();
+  paintChipSellPrev();
 }
 const exStep = (k, n) =>
   '<div class="sh-step" role="group" aria-label="Jumlah tiket"><button type="button" data-act="xq-" data-id="' + k + '" aria-label="Kurangi"' + (n <= 1 ? ' disabled' : '') + '>−</button>' +
@@ -352,8 +374,39 @@ function paintPrev() {
   const btn = body.querySelector('[data-act="ex"][data-id="c2g"]');
   if (btn) btn.disabled = coins < r.coinPerGem || used > E.coins;
 }
-const histIcon = k => ({ c2g: '⇄', c2t: '🎟', g2t: '🎟', gacha: '✦', buy: '🛍' }[k] || '•');
+const histIcon = k => ({ c2g: '⇄', c2t: '🎟', g2t: '🎟', c2ch: '🎰', ch2c: '🎰', gacha: '✦', buy: '🛍' }[k] || '•');
 const fmtTime = at => { const d = new Date(at); return isNaN(d) ? '' : d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) + ' ' + d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }); };
+
+/* pratinjau Coin->Chip: rasio datar, tanpa bonus (jual-baliknya adil — rasio sama) */
+function paintChipPrev() {
+  const el = $('exchipperv'); if (!el || !E) return;
+  const r = E.rates, input = $('exchip');
+  const coins = Math.max(0, Math.floor(Number(input && input.value) || 0));
+  const chips = Math.floor(coins / (r.coinPerChip || 5)), used = chips * (r.coinPerChip || 5);
+  el.innerHTML = coins < (r.coinPerChip || 5)
+    ? '<span class="bad">Masukkan minimal ' + nf.format(r.coinPerChip || 5) + ' Coin.</span>'
+    : '<div class="ex-prev-r"><span>Coin terpakai</span><b>' + nf.format(used) + (used !== coins ? ' <small>(dari ' + nf.format(coins) + ')</small>' : '') + '</b></div>' +
+      '<div class="ex-prev-r tot"><span>Chip diterima</span><b>' + CHIP + ' ' + nf.format(chips) + '</b></div>' +
+      (used > E.coins ? '<span class="bad">Coin kamu belum cukup (saldo ' + nf.format(E.coins) + ')</span>' : '');
+  const btn = body.querySelector('[data-act="ex"][data-id="c2ch"]');
+  if (btn) { btn.disabled = chips < 1 || used > E.coins; btn.textContent = 'Beli ' + nf.format(chips) + ' Chip'; }
+}
+
+/* pratinjau Chip->Coin (jual): segarkan tanpa membangun ulang supaya ketik tidak kehilangan fokus */
+function paintChipSellPrev() {
+  const el = $('exchsellperv'); if (!el || !E) return;
+  const r = E.rates, input = $('exchipsell');
+  const chips = Math.max(0, Math.floor(Number(input && input.value) || 0));
+  const back = r.chipPerCoin || 5;
+  const coins = Math.floor(chips / back), used = coins * back;
+  el.innerHTML = chips < back
+    ? '<span class="bad">Minimal ' + back + ' Chip untuk 1 Coin.</span>'
+    : '<div class="ex-prev-r"><span>Chip terjual</span><b>' + nf.format(used) + (used !== chips ? ' <small>(dari ' + nf.format(chips) + ')</small>' : '') + '</b></div>' +
+      '<div class="ex-prev-r tot"><span>Coin diterima</span><b>' + COIN + ' ' + nf.format(coins) + '</b></div>' +
+      (used > (E.chips || 0) ? '<span class="bad">Chip kamu belum cukup (saldo ' + nf.format(E.chips || 0) + ')</span>' : '');
+  const btn = body.querySelector('[data-act="ex"][data-id="ch2c"]');
+  if (btn) { btn.disabled = coins < 1 || used > (E.chips || 0); btn.textContent = 'Jual ' + nf.format(used) + ' Chip'; }
+}
 
 /* ---- modal konfirmasi tukar (pola yang sama dengan #shqmodal di shop.js) ---- */
 const qm = document.createElement('div');
@@ -391,6 +444,20 @@ function confirmExchange(kind) {
     askEx('<div class="qitem"><img src="/coin.svg" alt=""><div><b>' + nf.format(used) + ' Coin → ' + nf.format(base + bonus) + ' Gems</b>' +
       '<small>Gems dasar ' + nf.format(base) + (bonus ? ' · bonus +' + nf.format(bonus) : ' · tanpa bonus') + '</small>' +
       '<small>Saldo coin jadi ' + nf.format(E.coins - used) + '</small></div></div>', () => doExchange('c2g', coins));
+  } else if (kind === 'c2ch') {
+    const coins = Math.max(0, Math.floor(Number($('exchip') && $('exchip').value) || 0));
+    const chips = Math.floor(coins / (r.coinPerChip || 5)), used = chips * (r.coinPerChip || 5);
+    if (chips < 1 || used > E.coins) return;
+    askEx('<div class="qitem"><img src="/chip.svg" alt=""><div><b>' + nf.format(used) + ' Coin → ' + nf.format(chips) + ' Chip</b>' +
+      '<small>Uang mode Paid di Fruit Slot</small>' +
+      '<small>Saldo coin jadi ' + nf.format(E.coins - used) + ' · chip jadi ' + nf.format((E.chips || 0) + chips) + '</small></div></div>', () => doExchange('c2ch', coins));
+  } else if (kind === 'ch2c') {
+    const chips = Math.max(0, Math.floor(Number($('exchipsell') && $('exchipsell').value) || 0));
+    const coins = Math.floor(chips / (r.chipPerCoin || 5)), used = coins * (r.chipPerCoin || 5);
+    if (coins < 1 || used > (E.chips || 0)) return;
+    askEx('<div class="qitem"><img src="/chip.svg" alt=""><div><b>' + nf.format(used) + ' Chip → ' + nf.format(coins) + ' Coin</b>' +
+      '<small>Jual balik, tanpa potongan</small>' +
+      '<small>Saldo chip jadi ' + nf.format((E.chips || 0) - used) + ' · coin jadi ' + nf.format(E.coins + coins) + '</small></div></div>', () => doExchange('ch2c', chips));
   } else {
     const n = exQty[kind], cost = n * (kind === 'g2t' ? r.gemPerTicket : r.coinPerTicket);
     const cur = kind === 'g2t' ? 'Gems' : 'Coin', ico = kind === 'g2t' ? GEM : COIN;
@@ -401,7 +468,11 @@ function confirmExchange(kind) {
 }
 
 /* ---------- Interaksi (delegasi; render() menimpa isi #shbody, listener tetap satu) ---------- */
-body.addEventListener('input', e => { if (e.target.id === 'excoin') { exCoin = Math.max(0, Math.floor(Number(e.target.value) || 0)); paintPrev(); } });
+body.addEventListener('input', e => {
+  if (e.target.id === 'excoin') { exCoin = Math.max(0, Math.floor(Number(e.target.value) || 0)); paintPrev(); }
+  else if (e.target.id === 'exchip') { exChipCoin = Math.max(0, Math.floor(Number(e.target.value) || 0)); paintChipPrev(); }
+  else if (e.target.id === 'exchipsell') { exChipSell = Math.max(0, Math.floor(Number(e.target.value) || 0)); paintChipSellPrev(); }
+});
 body.addEventListener('click', e => {
   const b = e.target.closest('[data-act],[data-gx]'); if (!b || b.disabled) return;
   if (b.dataset.gx !== undefined) { flipCard(+b.dataset.gx); return; }
@@ -413,6 +484,8 @@ body.addEventListener('click', e => {
   else if (a === 'gotukar') SHP.set('tukar');
   else if (a === 'ringinfo') { const rr = ((E && E.rings) || []).find(x => x.id === id); if (rr) toast(rr.name + ' (' + rr.tag + ') · +' + nf.format(rr.exp) + ' EXP kalau diberikan · ' + rr.desc); }
   else if (a === 'chip') { exCoin = +id; const inp = $('excoin'); if (inp) { inp.value = exCoin; } renderEx(); }
+  else if (a === 'chq') { exChipCoin = +id; const inp = $('exchip'); if (inp) { inp.value = exChipCoin; } paintChipPrev(); }
+  else if (a === 'chs') { exChipSell = +id; const inp = $('exchipsell'); if (inp) { inp.value = exChipSell; } paintChipSellPrev(); }
   else if (a === 'xq+' || a === 'xq-') { const k = id; exQty[k] = Math.max(1, Math.min(99, exQty[k] + (a === 'xq+' ? 1 : -1))); renderEx(); }
   else if (a === 'ex') confirmExchange(id);
   else if (a === 'login') openLogin();

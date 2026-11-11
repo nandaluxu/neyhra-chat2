@@ -106,11 +106,11 @@ console.log('\n[2] Validasi spin')
   eq('taruhan di luar daftar -> 400', bad1.status, 400)
   const bad2 = await api('/api/auth/slot/spin', { token: T, body: {} })
   eq('tanpa taruhan -> 400', bad2.status, 400)
-  const poor = await users.updateOne({ _id: uid }, { $set: { 'slot.bal': 20 } })
+  const poor = await users.updateOne({ _id: uid }, { $set: { 'slot.demo.bal': 20 } })
   const bad3 = await api('/api/auth/slot/spin', { token: T, body: { bet: 50 } })
   eq('saldo kurang -> 409', bad3.status, 409)
   ok('pesan saldo kurang jelas', /belum cukup/i.test(bad3.j.error || ''), bad3.j.error)
-  await users.updateOne({ _id: uid }, { $set: { 'slot.bal': 1000 } })
+  await users.updateOne({ _id: uid }, { $set: { 'slot.demo.bal': 1000 } })
 }
 
 // ==== [3] spin + combo + riwayat ====
@@ -121,7 +121,7 @@ console.log('\n[3] Spin, combo, riwayat')
     if (i % 20 === 0) await wipeRL() // jangan kena pembatas laju uji
     let r = (await api('/api/auth/slot/spin', { token: T, body: { bet: 50 } })).j
     if (r && !r.ok && /belum cukup/i.test(r.error || '')) { // saldo habis = perilaku benar (RTP <100%): top up lalu ulangi
-      await users.updateOne({ _id: uid }, { $inc: { 'slot.bal': 1000 } })
+      await users.updateOne({ _id: uid }, { $inc: { 'slot.demo.bal': 1000 } })
       bal += 1000
       r = (await api('/api/auth/slot/spin', { token: T, body: { bet: 50 } })).j
     }
@@ -155,7 +155,7 @@ console.log('\n[4] Bonus Session (combo 7 -> 3 ronde -> kredit sekali)')
   // cari spin berikutnya yang MENANG supaya combo 6 -> 7
   let r = null
   for (let i = 0; i < 40 && !(r && r.bonusHit); i++) {
-    await users.updateOne({ _id: uid }, { $set: { 'slot.combo': 6, 'slot.bonus': null, 'slot.bal': 1000 } })
+    await users.updateOne({ _id: uid }, { $set: { 'slot.demo.combo': 6, 'slot.demo.bonus': null, 'slot.demo.bal': 1000 } })
     await wipeRL()
     r = (await api('/api/auth/slot/spin', { token: T, body: { bet: 100 } })).j
     if (!r.ok) { ok('spin pemicu bonus sukses', false, r); break }
@@ -194,10 +194,10 @@ console.log('\n[4] Bonus Session (combo 7 -> 3 ronde -> kredit sekali)')
       ok('spin lancar lagi setelah bonus', again.j.ok, again.j)
       eq('combo reset setelah bonus', again.j.combo, again.j.win > 0 ? 1 : 0)
       const state = await users.findOne({ _id: uid })
-      eq('persisten: saldo di DB = saldo respons', state.slot.bal, again.j.bal)
+      eq('persisten: saldo di DB = saldo respons', state.slot.demo.bal, again.j.bal)
     }
     // resume: bonus ronde 2 tersimpan, halaman dimuat ulang
-    await users.updateOne({ _id: uid }, { $set: { 'slot.bonus': { r: 1, total: 400, bet: 100, log: [400] } } })
+    await users.updateOne({ _id: uid }, { $set: { 'slot.demo.bonus': { r: 1, total: 400, bet: 100, log: [400] } } })
     const res2 = await api('/api/auth/slot', { token: T })
     eq('resume: ronde berjalan terlihat (r=1)', res2.j.bonus && res2.j.bonus.r, 1)
     eq('resume: total terlihat', res2.j.bonus.total, 400)
@@ -209,18 +209,18 @@ console.log('\n[4] Bonus Session (combo 7 -> 3 ronde -> kredit sekali)')
 // ==== [5] refill ====
 console.log('\n[5] Isi ulang gratis saat bangkrut')
 {
-  await users.updateOne({ _id: uid }, { $set: { 'slot.bal': 800, 'slot.refAt': 0 } })
+  await users.updateOne({ _id: uid }, { $set: { 'slot.demo.bal': 800, 'slot.demo.refAt': 0 } })
   const r1 = await api('/api/auth/slot/refill', { token: T })
   eq('saldo masih cukup -> ditolak', r1.status, 409)
-  await users.updateOne({ _id: uid }, { $set: { 'slot.bal': 5 } })
+  await users.updateOne({ _id: uid }, { $set: { 'slot.demo.bal': 5 } })
   const r2 = await api('/api/auth/slot/refill', { token: T })
   ok('bangkrut -> isi ulang sukses', r2.j.ok, r2.j)
   eq('saldo terisi 1000', r2.j.bal, 1000)
-  await users.updateOne({ _id: uid }, { $set: { 'slot.bal': 3 } })
+  await users.updateOne({ _id: uid }, { $set: { 'slot.demo.bal': 3 } })
   const r3 = await api('/api/auth/slot/refill', { token: T })
   eq('isi ulang kedua -> ditolak (masa tenang)', r3.status, 409)
   ok('pesan menyebut menit tunggu', /menit/i.test(r3.j.error || ''), r3.j.error)
-  await users.updateOne({ _id: uid }, { $set: { 'slot.refAt': Date.now() - 16 * 60e3, 'slot.bal': 2 } }) // 16 menit lalu
+  await users.updateOne({ _id: uid }, { $set: { 'slot.demo.refAt': Date.now() - 16 * 60e3, 'slot.demo.bal': 2 } }) // 16 menit lalu
   const r4 = await api('/api/auth/slot/refill', { token: T })
   ok('masa tenang lewat -> bisa lagi', r4.j.ok, r4.j)
   eq('refillReady di keadaan saat bangkrut + masa tenang lewat', r4.j.refillReady, false) // sudah terisi, saldo 1000
@@ -230,29 +230,29 @@ console.log('\n[5] Isi ulang gratis saat bangkrut')
 console.log('\n[6] Anti-race (spin & bonus paralel)')
 {
   await wipeRL()
-  await users.updateOne({ _id: uid }, { $set: { 'slot.bal': 240, 'slot.combo': 0, 'slot.bonus': null } })
+  await users.updateOne({ _id: uid }, { $set: { 'slot.demo.bal': 240, 'slot.demo.combo': 0, 'slot.demo.bonus': null } })
   // 20 spin paralel @50 dari saldo 240: maks 4 yang lolos (4x50=200), saldo tidak boleh minus
   const rs = await Promise.all(Array.from({ length: 20 }, () => api('/api/auth/slot/spin', { token: T, body: { bet: 50 } })))
   const succ = rs.filter(x => x.j.ok)
   const u = await users.findOne({ _id: uid })
-  ok('spin paralel: tidak ada saldo minus', u.slot.bal >= 0, u.slot.bal)
+  ok('spin paralel: tidak ada saldo minus', u.slot.demo.bal >= 0, u.slot.demo.bal)
   ok('spin paralel: hanya yang saldonya cukup yang lolos (' + succ.length + '/20)', succ.length >= 3 && succ.length <= 20, succ.length)
-  eq('saldo akhir = 240 - 50x yang lolos + menang', u.slot.bal, 240 - 50 * succ.length + succ.reduce((s, x) => s + (x.j.win || 0), 0))
+  eq('saldo akhir = 240 - 50x yang lolos + menang', u.slot.demo.bal, 240 - 50 * succ.length + succ.reduce((s, x) => s + (x.j.win || 0), 0))
   // bonus paralel: 8 panggilan bersamaan. Setiap ronde hanya bisa dimajukan SATU kali per rondenya
-  // (filter 'slot.bonus.r' == ronde yang dibaca), jadi paralel boleh menyelesaikan beberapa ronde
+  // (filter 'slot.demo.bonus.r' == ronde yang dibaca), jadi paralel boleh menyelesaikan beberapa ronde
   // berurutan (0->1->2->3) tetapi TIDAK BISA dobel di ronde yang sama / dobel kredit.
-  await users.updateOne({ _id: uid }, { $set: { 'slot.bonus': { r: 0, total: 0, bet: 50, log: [] }, 'slot.bal': 100 } })
+  await users.updateOne({ _id: uid }, { $set: { 'slot.demo.bonus': { r: 0, total: 0, bet: 50, log: [] }, 'slot.demo.bal': 100 } })
   const bs = await Promise.all(Array.from({ length: 8 }, () => api('/api/auth/slot/bonus', { token: T })))
   const bsOk = bs.filter(x => x.j.ok)
   const u2 = await users.findOne({ _id: uid })
-  eq('jumlah ronde maju = jumlah panggilan sukses', u2.slot.bonus.r, bsOk.length)
-  eq('log = satu entri per ronde', u2.slot.bonus.log.length, bsOk.length)
-  ok('reward tiap ronde dari pool (m x 50)', u2.slot.bonus.log.every(v => [100, 200, 300, 500, 750, 1250].includes(v)), u2.slot.bonus.log)
+  eq('jumlah ronde maju = jumlah panggilan sukses', u2.slot.demo.bonus.r, bsOk.length)
+  eq('log = satu entri per ronde', u2.slot.demo.bonus.log.length, bsOk.length)
+  ok('reward tiap ronde dari pool (m x 50)', u2.slot.demo.bonus.log.every(v => [100, 200, 300, 500, 750, 1250].includes(v)), u2.slot.demo.bonus.log)
   ok('paralel maksimal 3 ronde (bonus utuh selesai)', bsOk.length <= 3, bsOk.length)
-  if (u2.slot.bonus.done) {
-    eq('kredit terjadi tepat sekali di akhir', u2.slot.bal, 100 + u2.slot.bonus.total)
+  if (u2.slot.demo.bonus.done) {
+    eq('kredit terjadi tepat sekali di akhir', u2.slot.demo.bal, 100 + u2.slot.demo.bonus.total)
   } else {
-    eq('saldo belum berkredit selama bonus berjalan', u2.slot.bal, 100)
+    eq('saldo belum berkredit selama bonus berjalan', u2.slot.demo.bal, 100)
     // selesaikan sisanya satu-satu lalu cek kredit sekali
     let fin = null
     while (!(fin && fin.j.done)) fin = await api('/api/auth/slot/bonus', { token: T })
@@ -260,22 +260,22 @@ console.log('\n[6] Anti-race (spin & bonus paralel)')
   }
   // combo direset setelah bonus selesai (progression baru)
   const u2b = await users.findOne({ _id: uid })
-  eq('combo reset ke 0 setelah bonus selesai', u2b.slot.combo, 0)
+  eq('combo reset ke 0 setelah bonus selesai', u2b.slot.demo.combo, 0)
   // ronde terakhir paralel dari keadaan r=2: total dikredit TEPAT SEKALI
-  await users.updateOne({ _id: uid }, { $set: { 'slot.bonus': { r: 2, total: 300, bet: 50, log: [100, 200] }, 'slot.bal': 100 } })
+  await users.updateOne({ _id: uid }, { $set: { 'slot.demo.bonus': { r: 2, total: 300, bet: 50, log: [100, 200] }, 'slot.demo.bal': 100 } })
   const bs2 = await Promise.all(Array.from({ length: 8 }, () => api('/api/auth/slot/bonus', { token: T })))
   const bs2Ok = bs2.filter(x => x.j.ok)
   eq('ronde terakhir paralel: hanya 1 yang lolos (done mengunci)', bs2Ok.length, 1)
   const u3 = await users.findOne({ _id: uid })
-  eq('total dikredit sekali: saldo = 100 + 300 + reward ronde', u3.slot.bal, 100 + 300 + (bs2Ok[0].j.reward || 0))
-  ok('bonus selesai (done)', u3.slot.bonus.done === true)
+  eq('total dikredit sekali: saldo = 100 + 300 + reward ronde', u3.slot.demo.bal, 100 + 300 + (bs2Ok[0].j.reward || 0))
+  ok('bonus selesai (done)', u3.slot.demo.bonus.done === true)
   // combo race: dua spin paralel dari combo 3 -> combo hasil = salah satu jalur sah, bukan loncat
-  await users.updateOne({ _id: uid }, { $set: { 'slot.bonus': null, 'slot.combo': 3, 'slot.bal': 500 } })
+  await users.updateOne({ _id: uid }, { $set: { 'slot.demo.bonus': null, 'slot.demo.combo': 3, 'slot.demo.bal': 500 } })
   const cs = await Promise.all(Array.from({ length: 2 }, () => api('/api/auth/slot/spin', { token: T, body: { bet: 50 } })))
   const csOk = cs.filter(x => x.j.ok)
   const u4 = await users.findOne({ _id: uid })
   const sah = csOk.every(x => true) // combo akhir harus hasil urutan sah: max(3->4->5) atau reset
-  ok('combo paralel tetap sah (0 atau jalur berurutan)', sah && [0, 1, 4, 5].includes(u4.slot.combo), u4.slot.combo)
+  ok('combo paralel tetap sah (0 atau jalur berurutan)', sah && [0, 1, 4, 5].includes(u4.slot.demo.combo), u4.slot.demo.combo)
 }
 
 // ==== [7] persistensi & keadaan lintas sesi ====
@@ -283,8 +283,8 @@ console.log('\n[7] Persistensi')
 {
   const s1 = await api('/api/auth/slot', { token: T })
   const u = await users.findOne({ _id: uid })
-  eq('saldo respons = saldo DB', s1.j.bal, u.slot.bal)
-  eq('combo respons = combo DB', s1.j.combo, u.slot.combo)
+  eq('saldo respons = saldo DB', s1.j.bal, u.slot.demo.bal)
+  eq('combo respons = combo DB', s1.j.combo, u.slot.demo.combo)
   ok('riwayat di game_state', Array.isArray(s1.j.hist))
   const gs = await db.collection('game_state').findOne({ _id: uid + ':slot' })
   ok('dokumen riwayat ada (TTL 24 jam)', gs && Array.isArray(gs.hist) && gs.hist.length > 0)

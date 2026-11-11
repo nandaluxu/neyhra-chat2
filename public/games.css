@@ -10,7 +10,7 @@
 
 .gm-in{max-width:760px;margin:0 auto;padding:calc(24px + env(safe-area-inset-top,0px)) 18px 40px}
 @media(min-width:800px){.gm-in{padding:44px 40px 56px}}
-.gm-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.gm-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .gm-top h1{font-size:30px;font-weight:700;letter-spacing:-.03em;line-height:1.1}
 .gm-sub{margin-top:6px;font-size:14px;line-height:1.4;color:var(--mut)}
 .gm-wallet{display:flex;align-items:center;gap:12px;padding:7px 14px;border-radius:99px;background:var(--surface);flex:none;transition:opacity .2s}
@@ -217,3 +217,9 @@
 
 /* Catur: tombol putar suara manual (kalau autoplay diblokir browser) */
 .ch-play{margin-top:8px;padding:6px 12px;border-radius:99px;background:var(--ink);color:var(--bg);font-size:12px;font-weight:600}
+
+/* dompet 4 currency (coin/gems/chip) di layar sangat sempit: rapatkan supaya tidak terpotong */
+@media(max-width:340px){
+  .gm-wallet{gap:7px;padding:7px 10px}
+  .gm-wallet .w-cur img{width:15px;height:15px}
+}

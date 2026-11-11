@@ -26,7 +26,7 @@ const GAMES = [
   { id: 'guess', ready: true, icon: SVG.guess, title: 'Tebak Angka', desc: 'Tebak angka rahasia 1-100 dalam 7 kali tebakan. Makin cepat, makin banyak coin.' },
   { id: 'pic', ready: true, icon: SVG.pic, title: 'Tebak Gambar', desc: 'Tebak kata atau ungkapan dari gambar teka-teki. Makin sedikit salah, makin banyak coin.' },
   { id: 'chess', ready: true, icon: SVG.chess, title: 'Catur', desc: 'Lawan AI catur: mudah, sedang, atau sulit. Aturan lengkap: rokade, en passant, promosi.' },
-  { id: 'slot', ready: true, icon: SVG.slot, title: 'Fruit Slot', desc: 'Slot buah arcade 3x3: combo x7 membuka Bonus Session. Main pakai virtual point.' },
+  { id: 'slot', ready: true, icon: SVG.slot, title: 'Fruit Slot', desc: 'Slot buah arcade 3x3: combo x7 membuka Bonus Session. Mode Demo gratis pakai virtual point, mode Paid beneran bayar pakai Chip.' },
   { id: 'soon', ready: false, icon: SVG.soon, title: 'Segera hadir', desc: 'Minigame lain lagi disiapkan.' }
 ];
 

@@ -11,9 +11,10 @@ fs.writeFileSync('/tmp/slot-mongo-uri.txt', process.env.MONGODB_URI)
 const { default: app } = await import('../lib/app.js')
 const server = app.listen(4571, () => console.log('LIVE http://127.0.0.1:4571'))
 const reg = await fetch('http://127.0.0.1:4571/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'ujiui', password: 'rahasia123' }) }).then(r => r.json())
-// saldo slot besar (combo 6 dipasang script uji UI lewat DB saat butuh menguji Bonus Session)
+// saldo slot besar (combo 6 dipasang script uji UI lewat DB saat butuh menguji Bonus Session).
+// coins 25.000 + chips 0: untuk uji alur beli Chip -> spin mode Paid -> jual balik.
 const cl = new MongoClient(process.env.MONGODB_URI); await cl.connect()
-await cl.db().collection('users').updateOne({ _id: reg.uid }, { $set: { 'slot.bal': 50000 } })
+await cl.db().collection('users').updateOne({ _id: reg.uid }, { $set: { coins: 25000, chips: 0, 'slot.demo.bal': 50000, 'slot.mode': 'demo', 'slot.paid': { combo: 0, bonus: null, spins: 0, wins: 0, best: 0 } } })
 await cl.close()
 console.log('TOKEN=' + reg.token)
 process.on('SIGTERM', () => { server.close(); ms.stop().then(() => process.exit(0)) })

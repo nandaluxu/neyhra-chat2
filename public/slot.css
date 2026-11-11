@@ -155,9 +155,45 @@
 .sl-broke{margin:0;padding:18px 16px;text-align:center;background:var(--bg);border-bottom:1px solid var(--line)}
 .sl-broke b{font-size:11px;font-weight:800;letter-spacing:.16em;text-transform:uppercase}
 .sl-broke p{margin:8px auto 14px;max-width:340px;font-size:12.5px;line-height:1.55;color:var(--dim)}
-.sl-refill{padding:11px 22px;border-radius:0;border:1px solid var(--ink);background:var(--ink);color:var(--bg);font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}
-@media(hover:hover){.sl-refill:not(:disabled):hover{background:var(--bg);color:var(--ink)}}
-.sl-refill:disabled{opacity:.4}
+.sl-refill,.sl-topup{padding:11px 22px;border-radius:0;border:1px solid var(--ink);background:var(--ink);color:var(--bg);font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}
+@media(hover:hover){.sl-refill:not(:disabled):hover,.sl-topup:not(:disabled):hover{background:var(--bg);color:var(--ink)}}
+.sl-refill:disabled,.sl-topup:disabled{opacity:.4}
+
+/* ---------- mode Demo / Paid ---------- */
+.sl-modes{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid var(--line)}
+.sl-mode{display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:11px 16px;border:0;border-right:1px solid var(--line);
+  border-radius:0;background:transparent;color:var(--dim);cursor:pointer;text-align:left}
+.sl-mode:last-child{border-right:0}
+.sl-mode b{font-size:12px;font-weight:800;letter-spacing:.16em}
+.sl-mode span{font-size:9.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+.sl-mode.on{background:var(--ink);color:var(--bg)}
+.sl-mode.on span{color:var(--bg);opacity:.72}
+@media(hover:hover){.sl-mode:not(.on):not(:disabled):hover{color:var(--ink)}}
+.sl-mode:disabled{opacity:.55;cursor:default}
+.sl-tbtn .sl-tic{width:15px;height:15px;flex:none}
+.sl-mhead .sl-tic{width:16px;height:16px}
+.sl-stat-paid{grid-column:1/-1;border-left:0!important;border-top:1px solid var(--line);padding-top:10px!important;font-size:9.5px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--dim)}
+
+/* ---------- modal Chip (beli/jual Coin <-> Chip) ---------- */
+.sl-chbal{display:grid;grid-template-columns:1fr 1fr;gap:0;margin-top:14px;border:1px solid var(--line)}
+.sl-chbal span{display:block;padding:8px 12px;font-size:9.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);border-bottom:1px solid var(--line)}
+.sl-chbal b{display:block;padding:9px 12px 10px;font-family:var(--mono);font-size:17px;font-weight:800;font-variant-numeric:tabular-nums}
+.sl-chbal span:nth-child(3),.sl-chbal b:nth-child(4){border-left:1px solid var(--line)}
+.sl-chin{display:flex;align-items:stretch;gap:8px}
+.sl-chin input{flex:1;min-width:0;padding:10px 12px;border:1px solid var(--line);border-radius:0;background:var(--bg);color:var(--ink);
+  font-family:var(--mono);font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}
+.sl-chin input:focus-visible{outline:2px solid var(--ink);outline-offset:-1px}
+.sl-chunit{display:flex;align-items:center;padding:0 10px;border:1px solid var(--line);font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+.sl-chquick{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.sl-chquick .sl-seg{flex:1;min-width:52px;height:34px;font-size:11px;font-variant-numeric:tabular-nums}
+.sl-chprev{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;padding:10px 12px;border:1px solid var(--line);background:var(--bg);
+  font-family:var(--mono);font-size:13px;font-weight:700;font-variant-numeric:tabular-nums}
+.sl-chprev i{font-style:normal;color:var(--dim)}
+.sl-chprev b{color:var(--ink)}
+.sl-chgo{display:block;width:100%;margin-top:10px;padding:12px 0;border:1px solid var(--ink);border-radius:0;background:var(--ink);color:var(--bg);
+  font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}
+@media(hover:hover){.sl-chgo:not(:disabled):hover{background:var(--bg);color:var(--ink)}}
+.sl-chgo:disabled{opacity:.4}
 
 /* ---------- Bonus Session ---------- */
 .sl-bov{position:relative;margin:0;padding:16px 12px;overflow:hidden;background:var(--surf)}
@@ -261,11 +297,18 @@
   .sl-banner,.sl-bintro,.sl-mbox{transition:none;animation:none}
 }
 
-/* layar kecil */
+/* layar kecil: tombol atas jadi ikon saja supaya saldo besar tidak ketimpa tombol */
 @media(max-width:420px){
-  .sl-tbtn{padding:0 11px;font-size:10px}
+  .sl-tbtn{width:40px;padding:0}
+  .sl-tbtn .sl-tl{display:none}
   .sl-seg{font-size:12px}
   .sl-turbo button{padding:0 11px}
+}
+/* layar sangat sempit: rapatkan saldo (angka 6 digit tetap muat) */
+@media(max-width:360px){
+  .sl-bal>img,.sl-vpic{width:30px;height:30px}
+  .sl-bal b{font-size:24px}
+  .sl-bal span{margin-top:4px;font-size:9.5px}
 }
 
 /* layar pendek */
@@ -282,4 +325,12 @@
 /* fallback browser lama tanpa container query units */
 @supports not (width:1cqw){
   .sl-root{--ch:clamp(60px,21vw,96px)}
+}
+
+/* layar paling sempit (320px): saldo 6 digit + 3 tombol ikon tetap muat */
+@media(max-width:330px){
+  .sl-top{padding:10px 12px;gap:8px}
+  .sl-bal{gap:9px}
+  .sl-bal b{font-size:21px}
+  .sl-tbtns{gap:6px}
 }

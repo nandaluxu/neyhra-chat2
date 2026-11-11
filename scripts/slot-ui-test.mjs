@@ -136,7 +136,7 @@ console.log('\n[9] Bonus Session')
   const uri = readFileSync('/tmp/slot-mongo-uri.txt', 'utf8').trim()
   const cl = new MongoClient(uri); await cl.connect()
   const u = await cl.db().collection('users').findOne({ username: 'ujiui' })
-  const setCombo6 = () => cl.db().collection('users').updateOne({ _id: u._id }, { $set: { 'slot.combo': 6, 'slot.bonus': null, 'slot.bal': 50000 } })
+  const setCombo6 = () => cl.db().collection('users').updateOne({ _id: u._id }, { $set: { 'slot.mode': 'demo', 'slot.demo': { bal: 50000, combo: 6, bonus: null, spins: 0, wins: 0, best: 0, refAt: 0 }, 'slot.paid': { combo: 0, bonus: null, spins: 0, wins: 0, best: 0 } } })
   let bonusShown = false
   for (let i = 0; i < 14 && !bonusShown; i++) {
     await setCombo6()
