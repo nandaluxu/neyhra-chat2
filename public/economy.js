@@ -201,41 +201,88 @@ function summaryHTML(st) {
     '</div></div>';
 }
 
-/* buka kartu ke-i (klik / buka semua / lewati) */
+/* buka kartu ke-i (klik / buka semua / lewati).
+   Urutan: charge (kartu bergetar + aura kelangkaan) -> flip 3D -> gelombang kejut + partikel + kilatan panggung.
+   Cincin lebih lama & besar (legendaris paling meriah); gems singkat dan lembut. Hasilnya tetap dari server. */
+const reduceMo = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 function flipCard(i, instant) {
   const st = stage; if (!st) return;
   const key = st.mode === 'multi' ? st.order[i] : i;
   if (st.opened.has(key)) return;
   const el = body.querySelector('[data-gx="' + i + '"]');
   const r = st.mode === 'multi' ? st.results[key] : st.results[0];
-  if (el) {
-    if (instant) el.classList.add('noanim');
-    el.classList.add('flip'); el.disabled = true;
-    if (r && r.t === 'ring') { burst(el, 14, 'gold'); flashStage(); } /* momen cincin: kilatan panggung + partikel emas */
-    else if (r) burst(el, 5, 'gems');
-  }
+  const isRing = !!(r && r.t === 'ring'), rc = isRing ? rarityCls(ringTag(r.id)) : 'gem';
+  const quick = instant || reduceMo();
+  const wait = quick ? 0 : (isRing ? (rc === 'leg' ? 720 : 560) : 240); // lama "charge" sebelum kartu terbuka
   st.opened.add(key);
+  if (el) {
+    el.disabled = true;
+    if (instant) el.classList.add('noanim');
+    el.classList.add('r-' + rc);
+    if (wait) el.classList.add('charge');
+  }
+  const reveal = () => {
+    if (stage !== st) return;
+    if (el) {
+      el.classList.remove('charge');
+      el.classList.add('flip');
+      if (isRing) el.classList.add('big');
+      if (isRing) { burst(el, rc === 'leg' ? 30 : 22, 'gold', rc); wave(el, rc); flashStage(rc); hitStage(rc); }
+      else if (r) burst(el, 6, 'gems', rc);
+    }
+  };
+  wait ? setTimeout(reveal, wait) : reveal();
   const doneAll = st.mode === 'multi' ? st.opened.size >= 10 : true;
-  if (doneAll) setTimeout(() => { if (stage === st) renderStage(); }, instant || !matchMedia('(prefers-reduced-motion: reduce)').matches ? 700 : 0);
+  if (doneAll) setTimeout(() => { if (stage === st) renderStage(); }, wait + (quick ? (instant ? 700 : 0) : (isRing ? 1500 : 800)));
 }
-/* kilatan lembut di panggung saat cincin terbuka */
-function flashStage() {
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+/* kilatan di panggung saat cincin terbuka (warna ikut kelangkaan) */
+function flashStage(rc) {
+  if (reduceMo()) return;
   const f = body.querySelector('.gx-flash'); if (!f) return;
-  f.classList.remove('go'); void f.offsetWidth; f.classList.add('go');
+  f.className = 'gx-flash ' + (rc || '');
+  void f.offsetWidth; f.classList.add('go');
 }
-/* partikel cahaya saat kartu terbuka (transform-only, hemat performa): emas untuk cincin, hijau untuk gems */
-function burst(el, n, kind) {
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+/* panggung berguncang sebentar (epik & legendaris) */
+function hitStage(rc) {
+  if (reduceMo() || rc === 'rare') return;
+  const s = body.querySelector('.gx-stage'); if (!s) return;
+  s.classList.remove('hit'); void s.offsetWidth; s.classList.add('hit');
+  setTimeout(() => s.classList.remove('hit'), 520);
+}
+/* titik tengah kartu relatif ke panggung (efek ditaruh di panggung, bukan di kartu, supaya tidak ikut terputar 3D) */
+function cardCenter(el) {
+  const s = body.querySelector('.gx-stage');
+  return s ? { s, x: el.offsetLeft + el.offsetWidth / 2, y: el.offsetTop + el.offsetHeight / 2 } : null;
+}
+/* gelombang kejut: dua cincin cahaya melebar dari kartu */
+function wave(el, rc) {
+  if (reduceMo()) return;
+  const c = cardCenter(el); if (!c) return;
+  for (let k = 0; k < 2; k++) {
+    const w = document.createElement('i');
+    w.className = 'gx-wave ' + rc;
+    w.style.left = c.x + 'px'; w.style.top = c.y + 'px'; w.style.animationDelay = (k * 130) + 'ms';
+    c.s.append(w);
+    setTimeout(() => w.remove(), 1100);
+  }
+}
+/* partikel cahaya: cincin = emas/pink/biru berbagai ukuran + percikan memanjang; gems = hijau kecil. transform/opacity saja */
+function burst(el, n, kind, rc) {
+  if (reduceMo()) return;
+  const c = cardCenter(el); if (!c) return;
+  const far = kind === 'gems' ? 46 : 70;
   for (let i = 0; i < n; i++) {
     const p = document.createElement('i');
-    p.className = 'gx-pt' + (kind === 'gems' ? ' g' : '');
-    const a = (Math.PI * 2 * i) / n + Math.random() * .6, d = 40 + Math.random() * 46;
+    p.className = 'gx-pt' + (kind === 'gems' ? ' g' : ' ' + rc) + (kind !== 'gems' && i % 3 === 0 ? ' streak' : '');
+    const a = (Math.PI * 2 * i) / n + Math.random() * .5, d = far * .5 + Math.random() * far;
+    p.style.left = c.x + 'px'; p.style.top = c.y + 'px';
     p.style.setProperty('--tx', Math.cos(a) * d + 'px');
     p.style.setProperty('--ty', Math.sin(a) * d + 'px');
-    p.style.animationDelay = (Math.random() * 140) + 'ms';
-    el.append(p);
-    setTimeout(() => p.remove(), 1100);
+    p.style.setProperty('--rot', (a * 180 / Math.PI) + 'deg');
+    p.style.setProperty('--sz', (0.6 + Math.random() * 0.9).toFixed(2));
+    p.style.animationDelay = (Math.random() * 120) + 'ms';
+    c.s.append(p);
+    setTimeout(() => p.remove(), 1200);
   }
 }
 function openAll(instant) {

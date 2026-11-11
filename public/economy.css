@@ -199,7 +199,7 @@
   .gx-card.flip .gx-face.front.ring img{animation:gxpop .65s .08s cubic-bezier(.2,1.5,.3,1)}
   @keyframes gxpop{0%{transform:scale(.35)}55%{transform:scale(1.14)}100%{transform:scale(1)}}
   .gx-card.flip .gx-face.front.ring{animation:gxpulse 1s .1s ease-out}
-  @keyframes gxpulse{0%{box-shadow:0 0 0 0 rgba(255,210,94,.55)}100%{box-shadow:0 0 0 18px rgba(255,210,94,0)}}
+  @keyframes gxpulse{0%{box-shadow:0 0 0 0 var(--gl,rgba(255,210,94,.55))}100%{box-shadow:0 0 0 18px transparent}}
 }
 
 /* partikel cahaya (dibuat economy.js, transform-only): emas utk cincin, hijau utk gems */
@@ -320,3 +320,50 @@
 .gx-face.front.ring.leg{--rc:rgba(255,210,94,.5)}.gx-face.front.ring.epic{--rc:rgba(255,122,158,.4)}.gx-face.front.ring.rare{--rc:rgba(106,183,255,.4)}
 .gx-face.front b{margin-top:auto;width:100%;padding:6px 3px 7px;background:linear-gradient(0deg,rgba(0,0,0,.08),transparent)}
 .gx-face.front img{margin-top:auto}
+
+/* ===== Animasi buka kartu (charge -> flip -> reveal) ===== */
+.gx-card{--gl:rgba(255,210,94,.7)}
+.gx-card.r-rare{--gl:rgba(106,183,255,.75)}
+.gx-card.r-epic{--gl:rgba(255,122,158,.75)}
+.gx-card.r-leg{--gl:rgba(255,210,94,.9)}
+.gx-card.r-gem{--gl:rgba(87,201,138,.55)}
+/* aura di belakang kartu (z -2px; bukan filter, karena filter meratakan 3D dan merusak flip) */
+.gx-card::before{content:"";position:absolute;inset:-14%;border-radius:22px;pointer-events:none;opacity:0;transform:translateZ(-2px);
+  background:radial-gradient(closest-side,var(--gl),transparent 72%)}
+.gx-card.flip.big::before{opacity:.55}
+.gx-card.big{z-index:2}
+.gx-face.front b{overflow-wrap:anywhere}
+@media(prefers-reduced-motion:no-preference){
+  /* charge: getar makin kuat + aura menyala (kartu belum terbuka) */
+  .gx-card.charge{animation:gxcharge .56s ease-in forwards}
+  .gx-card.charge.r-leg{animation-duration:.74s}
+  .gx-card.charge::before{animation:gxaura .6s ease-in forwards}
+  .gx-card.charge.r-leg::before{animation-duration:.78s}
+  @keyframes gxcharge{0%{transform:none}12%{transform:translateY(-4px) rotate(-1.5deg)}26%{transform:translateY(-6px) rotate(2deg) scale(1.03)}40%{transform:translateY(-6px) rotate(-2.5deg) scale(1.05)}55%{transform:translateY(-8px) rotate(3deg) scale(1.06)}70%{transform:translateY(-8px) rotate(-3.5deg) scale(1.07)}85%{transform:translateY(-6px) rotate(2deg) scale(1.06)}100%{transform:translateY(-4px) scale(1.05)}}
+  @keyframes gxaura{0%{opacity:0;transform:translateZ(-2px) scale(.8)}100%{opacity:1;transform:translateZ(-2px) scale(1.12)}}
+  /* flip cincin: lebih lambat, sedikit membesar, lalu mendarat */
+  .gx-card.flip.big{transition:transform .95s cubic-bezier(.2,1.25,.3,1),opacity .35s;transform:rotateY(180deg) scale(1.09)}
+  /* nama & ikon masuk bertahap setelah kartu berbalik */
+  .gx-card.flip .gx-face.front b{animation:gxname .5s .5s backwards cubic-bezier(.2,.9,.3,1.2)}
+  @keyframes gxname{from{opacity:0;transform:translateY(8px)}}
+  .gx-card.flip.big .gx-face.front.ring img{animation:gxpop .8s .3s cubic-bezier(.2,1.5,.3,1) backwards}
+  /* panggung berguncang saat epik/legendaris */
+  .gx-stage.hit{animation:gxhit .5s ease-out}
+  @keyframes gxhit{0%,100%{transform:none}15%{transform:translate(-4px,2px)}30%{transform:translate(4px,-2px)}45%{transform:translate(-3px,1px)}60%{transform:translate(3px,-1px)}80%{transform:translate(-1px,0)}}
+  .gx-flash.go{animation:gxflash .8s ease-out}
+}
+.gx-flash.leg{background:radial-gradient(circle,rgba(255,224,140,.62),transparent 66%)}
+.gx-flash.epic{background:radial-gradient(circle,rgba(255,140,175,.5),transparent 66%)}
+.gx-flash.rare{background:radial-gradient(circle,rgba(130,195,255,.5),transparent 66%)}
+/* gelombang kejut */
+.gx-wave{position:absolute;z-index:4;width:70px;height:70px;margin:-35px 0 0 -35px;border-radius:50%;pointer-events:none;
+  border:2.5px solid #ffd25e;box-shadow:0 0 18px rgba(255,210,94,.7),inset 0 0 14px rgba(255,210,94,.4);opacity:0;animation:gxwave .85s cubic-bezier(.2,.7,.3,1) forwards}
+.gx-wave.epic{border-color:#ff9dbb;box-shadow:0 0 18px rgba(255,122,158,.7),inset 0 0 14px rgba(255,122,158,.4)}
+.gx-wave.rare{border-color:#7cc0ff;box-shadow:0 0 18px rgba(106,183,255,.7),inset 0 0 14px rgba(106,183,255,.4)}
+@keyframes gxwave{0%{opacity:.95;transform:scale(.3)}100%{opacity:0;transform:scale(3.6)}}
+/* partikel (kini di panggung): ukuran acak, percikan memanjang searah lontaran, warna ikut kelangkaan */
+.gx-pt{z-index:5;margin:-3.5px;transform-origin:center;width:calc(7px*var(--sz,1));height:calc(7px*var(--sz,1))}
+.gx-pt.epic{background:radial-gradient(circle,#fff0f4,#ff8fb0 60%,transparent 75%)}
+.gx-pt.rare{background:radial-gradient(circle,#eef7ff,#6ab7ff 60%,transparent 75%)}
+.gx-pt.streak{width:calc(16px*var(--sz,1));height:3px;border-radius:3px;margin:-1.5px 0 0 -8px;rotate:var(--rot)}
+@media(prefers-reduced-motion:reduce){.gx-wave{display:none}}
