@@ -252,7 +252,11 @@ function hitStage(rc) {
 /* titik tengah kartu relatif ke panggung (efek ditaruh di panggung, bukan di kartu, supaya tidak ikut terputar 3D) */
 function cardCenter(el) {
   const s = body.querySelector('.gx-stage');
-  return s ? { s, x: el.offsetLeft + el.offsetWidth / 2, y: el.offsetTop + el.offsetHeight / 2 } : null;
+  if (!s) return null;
+  /* posisi layout kartu TANPA transform (hover/charge/flip mengangkat & memutar kartu, jadi rect kartu meleset):
+     rect induk offset (tanpa transform) + offsetLeft/Top kartu, lalu dikonversi ke koordinat panggung */
+  const sr = s.getBoundingClientRect(), op = el.offsetParent || s, pr = op.getBoundingClientRect();
+  return { s, x: pr.left - sr.left + op.clientLeft + el.offsetLeft + el.offsetWidth / 2, y: pr.top - sr.top + op.clientTop + el.offsetTop + el.offsetHeight / 2 };
 }
 /* gelombang kejut: dua cincin cahaya melebar dari kartu */
 function wave(el, rc) {
