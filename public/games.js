@@ -18,6 +18,7 @@ const SVG = {
   guess: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 115 0c0 1.7-2.5 2-2.5 3.5M12 17h.01"/></svg>',
   pic: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="1.8"/><path d="M21 16l-5-5-8 8"/></svg>',
   chess: '<svg viewBox="0 0 24 24"><circle cx="12" cy="6.8" r="3.1"/><path d="M9.8 9.4C8.5 10.4 7.6 12 7.6 13.8c0 1.2.4 2.3 1.1 3.2l-1.5 2.5c-.2.4.1.9.5.9h8.6c.4 0 .7-.5.5-.9l-1.5-2.5c.7-.9 1.1-2 1.1-3.2 0-1.8-.9-3.4-2.2-4.4"/><path d="M5.5 21.5h13"/></svg>',
+  slot: '<svg viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="14" rx="3.5"/><path d="M6.5 9.5h3M6.5 12.5h3M6.5 15.5h3"/><circle cx="15.5" cy="10" r="1.6"/><circle cx="15.5" cy="15" r="1.6"/><path d="M6 19v1.8M18 19v1.8"/></svg>',
   soon: '<svg viewBox="0 0 24 24"><path d="M6 12h4M8 10v4M15 13h.01M18 11h.01"/><path d="M17.32 5H6.68a4 4 0 00-3.98 3.59C2.6 9.42 2 14.46 2 16a3 3 0 003 3c1 0 1.5-.5 2-1l1.41-1.41A2 2 0 019.83 16h4.34a2 2 0 011.41.59L17 18c.5.5 1 1 2 1a3 3 0 003-3c0-1.55-.6-6.58-.68-7.26A4 4 0 0017.32 5z"/></svg>'
 };
 // daftar game. ready:false = kartu "segera hadir" (belum bisa dibuka)
@@ -25,6 +26,7 @@ const GAMES = [
   { id: 'guess', ready: true, icon: SVG.guess, title: 'Tebak Angka', desc: 'Tebak angka rahasia 1-100 dalam 7 kali tebakan. Makin cepat, makin banyak coin.' },
   { id: 'pic', ready: true, icon: SVG.pic, title: 'Tebak Gambar', desc: 'Tebak kata atau ungkapan dari gambar teka-teki. Makin sedikit salah, makin banyak coin.' },
   { id: 'chess', ready: true, icon: SVG.chess, title: 'Catur', desc: 'Lawan AI catur: mudah, sedang, atau sulit. Aturan lengkap: rokade, en passant, promosi.' },
+  { id: 'slot', ready: true, icon: SVG.slot, title: 'Fruit Slot', desc: 'Slot buah arcade 3x3: combo x7 membuka Bonus Session. Main pakai virtual point.' },
   { id: 'soon', ready: false, icon: SVG.soon, title: 'Segera hadir', desc: 'Minigame lain lagi disiapkan.' }
 ];
 
@@ -255,6 +257,7 @@ function render() {
   if (!ready && !aOn) { body.innerHTML = empty('Memuat…'); return; }
   if (!aOn) { body.innerHTML = empty('Minigame belum tersedia', 'Fitur akun belum aktif di server ini, jadi coin hasil main belum bisa disimpan.'); return; }
   if (!atok) { body.innerHTML = empty('Masuk dulu ya', 'Coin hasil main tersimpan di akunmu, jadi kamu perlu masuk atau daftar dulu.', '<button class="gm-btn" type="button" data-act="login">Masuk / Daftar</button>'); return; }
+  if (screen === 'slot' && window.SLOT) { SLOT.render(body); return; } // Fruit Slot punya keadaan & pemuatan sendiri (public/slot.js)
   if (!st) { body.innerHTML = failed ? empty('Gagal memuat', failed, '<button class="gm-btn" type="button" data-act="retry">Coba lagi</button>') : empty('Memuat…'); return; }
   body.innerHTML = screen === 'guess' ? guessScreen() : screen === 'pic' ? picScreen() : screen === 'chess' ? chessScreen() : hub();
   if (chPlan) { const p = chPlan; chPlan = null; if (screen === 'chess' && body.querySelector('.ch-board')) chPlay(p); } // animasi langkah (dibuat di cmove)
@@ -603,8 +606,8 @@ function csq(i) {
 body.addEventListener('click', e => {
   const b = e.target.closest('[data-act]'); if (!b || b.disabled) return;
   const a = b.dataset.act;
-  if (a === 'open') { screen = b.dataset.g; intro = true; msg = ['', '']; chSel = -1; chPromo = null; render(); if (screen === 'pic' && (!ps || picFail)) fetchPic().then(render); if (screen === 'chess' && (!cs || csFail)) fetchChess().then(render); }
-  else if (a === 'hub') { screen = 'hub'; intro = true; msg = ['', '']; chSel = -1; chPromo = null; render(); }
+  if (a === 'open') { screen = b.dataset.g; intro = true; msg = ['', '']; chSel = -1; chPromo = null; render(); if (screen === 'pic' && (!ps || picFail)) fetchPic().then(render); if (screen === 'chess' && (!cs || csFail)) fetchChess().then(render); if (screen === 'slot' && window.SLOT) SLOT.enter(); }
+  else if (a === 'hub') { screen = 'hub'; intro = true; msg = ['', '']; chSel = -1; chPromo = null; if (window.SLOT) SLOT.leave(); render(); }
   else if (a === 'play') { intro = false; msg = ['', '']; render(); }
   else if (a === 'start') { intro = false; start(); }
   else if (a === 'guess') guess();
