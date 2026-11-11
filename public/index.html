@@ -1780,10 +1780,10 @@ const busyData=on=>$('sdata').classList.toggle('sbusy',on);
 /* Kumpulkan obrolan per karakter dari localStorage (tanpa audio — voice note tidak ikut sinkron). Dipakai sinkron akun. */
 async function collectChars(){
     const names=Object.fromEntries(allChars.map(c=>[c.id,c.name])), ids=[];
-    for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k.startsWith('log:')||k.startsWith('mem:')){ const i=k.slice(4); if(!ids.includes(i)) ids.push(i); } }
+    for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k.startsWith('log:')||k.startsWith('mem:')||k.startsWith('rel:')){ const i=k.slice(4); if(!ids.includes(i)) ids.push(i); } } /* rel: ikut discan: hubungan karakter yang obrolannya sudah dihapus tetap ikut tersimpan ke akun */
     const chars=[]; let nMsg=0;
     for(const id of ids){
-      const log=loadLog(id), mem=loadMem(id); if(!log.length&&!mem.length) continue;
+      const log=loadLog(id), mem=loadMem(id); if(!log.length&&!mem.length&&!store.get(relKey(id))) continue;
       nMsg+=log.length; chars.push({id,name:names[id]||id,n:loadCnt(id),log,hist:loadHist(id),...(mem.length?{mem}:{}),...(store.get(relKey(id))?{rel:relSan(relLoad(id))}:{})});
     }
   return {chars,nMsg};
@@ -1804,7 +1804,7 @@ function cleanEntry(e){ /* file impor itu data tak tepercaya: pastikan bentuknya
 }
 /* Gabungkan data cadangan ke perangkat ini (tidak menimpa yang sudah ada). Dipakai impor file JSON dan sinkron akun. */
 async function applyImport(data){
-    let added=0, chN=0, aud=0, memAdded=0;
+    let added=0, chN=0, aud=0, memAdded=0, relUp=0;
     { const n=Math.floor(Number(data.sent)); if(Number.isFinite(n)&&n>sentSaved()&&n<1e9) store.set('sent',String(n)); } /* total terkirim: ambil yang lebih besar */
     for(const c of data.chars){
       if(!c||typeof c.id!=='string'||!/^[\w-]{1,64}$/.test(c.id)||!Array.isArray(c.log)) continue;
@@ -1824,7 +1824,11 @@ async function applyImport(data){
       { const n=Math.floor(Number(c.n)); store.set(cntKey(c.id),String(Math.max(loadCnt(c.id),Number.isFinite(n)&&n>0&&n<1e9?n:0,cur.length))); } /* total per karakter: terbesar antara lokal, nilai cadangan (field n), dan hasil gabungan SEBELUM dipangkas 150 */
       trimLog(cur); store.set('log:'+c.id,JSON.stringify(cur));
       if(!store.get('h:'+c.id)&&Array.isArray(c.hist)&&c.hist.length) saveHist(c.id,c.hist.filter(h=>Array.isArray(h)&&typeof h[1]==='string'));
-      if(c.rel&&typeof c.rel==='object'&&!store.get(relKey(c.id))) relSave(c.id,relSan(c.rel)); /* hubungan: hanya diisi kalau di perangkat ini belum ada */
+      if(c.rel&&typeof c.rel==='object'){ /* hubungan: GABUNG, ambil salinan yang paling maju (EXP terbesar). Kalau cuma diisi waktu kosong, level dari perangkat lain (mis. hasil hadiah) tidak pernah pindah -> tampak "tidak sinkron" */
+        const rem=relSan(c.rel); let lok=null, ada=false;
+        try{ ada=!!store.get(relKey(c.id)); lok=relSan(JSON.parse(store.get(relKey(c.id))||'null')); }catch{}
+        if(!ada||!lok||rem.r>lok.r){ relSave(c.id,rem); relUp++; }
+      }
       if(Array.isArray(c.mem)&&c.mem.length){ /* memori digabung berdasarkan id, tidak menimpa */
         const cm=loadMem(c.id), seen=new Set(cm.map(x=>x.id)); let a=0;
         for(const raw of c.mem.slice(0,100)){ const e=cleanMemEntry(raw); if(e&&!seen.has(e.id)){ cm.push(e); seen.add(e.id); a++; } }
@@ -1834,7 +1838,7 @@ async function applyImport(data){
     }
     let gi=null; if(window.GX&&Array.isArray(data.groups)&&data.groups.length) gi=await GX.importData(data.groups); /* grup dari cadangan */
     if(gi){ added+=gi.msgs; aud+=gi.aud; }
-  return {added,chN,aud,memAdded,gi};
+  return {added,chN,aud,memAdded,relUp,gi};
 }
 async function importJSON(file){
   busyData(true); setStat('Membaca file…');
@@ -1842,8 +1846,8 @@ async function importJSON(file){
     if(file.size>300*1048576) throw 0;
     const data=JSON.parse(await file.text());
     if(!data||data.app!=='neyhra-chat'||!Array.isArray(data.chars)) throw 0;
-    const {added,chN,aud,memAdded,gi}=await applyImport(data);
-    setStat(added||aud||memAdded||(gi&&gi.groups)?'Impor selesai: '+added+' pesan baru dari '+chN+' karakter'+(gi&&gi.groups?' dan '+gi.groups+' grup':'')+', '+aud+' audio'+(memAdded?' dan '+memAdded+' memori':'')+' ditambahkan.':'Nggak ada yang baru, semua sudah ada di perangkat ini.');
+    const {added,chN,aud,memAdded,relUp,gi}=await applyImport(data);
+    setStat(added||aud||memAdded||(gi&&gi.groups)||relUp?'Impor selesai: '+added+' pesan baru dari '+chN+' karakter'+(gi&&gi.groups?' dan '+gi.groups+' grup':'')+', '+aud+' audio'+(memAdded?' dan '+memAdded+' memori':'')+' ditambahkan.'+(relUp?' Hubungan '+relUp+' karakter diperbarui (ambil yang paling maju).':''):'Nggak ada yang baru, semua sudah ada di perangkat ini.');
     refreshStorage();
   }catch{ setStat('File nggak valid. Pilih file JSON cadangan aplikasi ini.'); }
   busyData(false);
@@ -1934,11 +1938,11 @@ async function syncCloud(auto,opts){ /* mengembalikan true kalau akun & perangka
     if(me.uid&&ownerOf()&&ownerOf()!==me.uid){ aBusy=false; if(!auto){ sacct.classList.remove('sbusy'); setA('Obrolan di perangkat ini milik akun lain, jadi tidak digabung. Keluar lalu masuk lagi untuk membersihkannya.',true); } return false; } /* jangan pernah kirim data akun lain ke akun ini */
     const before=await collectChars(), localSig=sigOf(JSON.stringify(before.chars));
     if(auto&&cts===store.get('cloudts')&&localSig===store.get('cloudsig')){ try{ await pushStats(); }catch{} aLast=Date.now(); aBusy=false; return true; } /* tidak ada yang berubah di mana pun (statistik profil punya tanda perubahan sendiri) */
-    const pulled=await aApi('pull'); let added=0, memAdded=0;
-    if(pulled.data){ /* 1) gabungkan data akun ke perangkat ini (tidak menimpa) */
+    const pulled=await aApi('pull'); let added=0, memAdded=0, relUp=0;
+    if(pulled.data){ /* 1) gabungkan data akun ke perangkat ini (tidak menimpa; hubungan diambil yang paling maju) */
       const d=JSON.parse(pulled.data);
       if(d&&d.app==='neyhra-chat'&&Array.isArray(d.chars)){
-        ({added,memAdded}=await applyImport(d));
+        ({added,memAdded,relUp}=await applyImport(d));
       }
     }
     const {chars,nMsg}=await collectChars(); /* 2) simpan gabungan terbaru (kalau memang beda dengan isi akun) */
@@ -1955,8 +1959,9 @@ async function syncCloud(auto,opts){ /* mengembalikan true kalau akun & perangka
     paintAcct(ts?{size,updatedAt:ts}:null); aLast=Date.now(); refreshStorage(); ok=true;
     if(auto){
       if(added&&app.classList.contains('open')) toast('Ada pesan baru dari akunmu. Buka ulang chat untuk melihatnya.');
+      else if(relUp) toast('Hubungan '+relUp+' karakter diperbarui dari akunmu.');
     }else{
-      setA('Selesai: '+added+' pesan baru diambil'+(memAdded?', '+memAdded+' memori':'')+'; '+chars.length+' karakter ('+nMsg+' pesan) tersimpan di akun.');
+      setA('Selesai: '+added+' pesan baru diambil'+(memAdded?', '+memAdded+' memori':'')+(relUp?', hubungan '+relUp+' karakter diperbarui':'')+'; '+chars.length+' karakter ('+nMsg+' pesan) tersimpan di akun.');
       if(added&&!(opts&&opts.noReload)){ toast('Obrolan diperbarui, memuat ulang…'); setTimeout(()=>location.reload(),1300); }
     }
   }catch(e){ if(!auto) setA(e.status===401?'Sesi berakhir, masuk lagi.':(e.message||'Gagal sinkron.'),true); }
