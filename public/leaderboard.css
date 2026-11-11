@@ -1,0 +1,63 @@
+/* ===== Tab Peringkat: kategori + sub kategori + daftar. Logika di leaderboard.js. Memakai variabel tema: --bg --surface --ink --mut --line. ===== */
+#leaderboard{display:none;overflow-y:auto;overscroll-behavior:contain;background:var(--bg);scrollbar-width:none;min-width:0}
+#leaderboard::-webkit-scrollbar{display:none}
+#app[data-tab="leaderboard"] #leaderboard{display:block}
+#app[data-tab="leaderboard"] :is(#menu,#lpanel,#chatview,#cempty,#dpanel){display:none}
+@media(min-width:800px){#leaderboard{grid-column:2;grid-row:1}}
+@media(max-width:799px){#leaderboard{position:absolute;inset:0;padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))}}
+
+.lb-in{max-width:760px;margin:0 auto;padding:calc(24px + env(safe-area-inset-top,0px)) 18px 40px}
+@media(min-width:800px){.lb-in{padding:44px 40px 56px}}
+.lb-top h1{font-size:30px;font-weight:700;letter-spacing:-.03em;line-height:1.1}
+.lb-sub{margin-top:6px;font-size:14px;line-height:1.4;color:var(--mut)}
+
+.lb-cats{display:flex;gap:4px;margin-top:20px;padding:4px;border-radius:99px;background:var(--surface)}
+.lb-cats button{flex:1;height:38px;border:0;border-radius:99px;background:none;color:var(--mut);font-size:14px;font-weight:600;transition:background .2s,color .2s}
+.lb-cats button.sel{background:var(--ink);color:var(--bg)}
+.lb-chips{display:flex;gap:8px;margin-top:12px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.lb-chips::-webkit-scrollbar{display:none}
+.lb-chips button{flex:none;height:34px;padding:0 14px;border:1px solid var(--line);border-radius:99px;background:none;color:var(--ink);font-size:13px;font-weight:600;white-space:nowrap;transition:background .2s,border-color .2s,color .2s}
+.lb-chips button.sel{background:var(--surface);border-color:var(--ink)}
+.lb-chips.lb-m button{height:30px;padding:0 12px;font-size:12px;font-weight:500;color:var(--mut);border-color:transparent;background:var(--surface)}
+.lb-chips.lb-m button.sel{color:var(--bg);background:var(--ink);border-color:var(--ink)}
+.lb-cats button:focus-visible,.lb-chips button:focus-visible,.lb-row:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+
+.lb-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-top:22px}
+.lb-head h2{font-size:18px;font-weight:700;letter-spacing:-.01em}
+.lb-head span{font-size:13px;color:var(--mut)}
+
+.lb-me{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:12px;padding:14px 16px;border-radius:18px;background:var(--surface)}
+.lb-me small{display:block;font-size:12px;color:var(--mut)}
+.lb-me b{display:block;margin-top:2px;font-size:22px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.lb-me em,.lb-val small{font-style:normal;font-size:12px;font-weight:500;color:var(--mut)}
+.lb-mv{text-align:right}
+.lb-me.off{font-size:13px;line-height:1.45;color:var(--mut)}
+.lb-me.off button{flex:none;height:34px;padding:0 16px;border:0;border-radius:99px;background:var(--ink);color:var(--bg);font-size:13px;font-weight:600}
+
+.lb-list{list-style:none;margin:12px 0 0;padding:0;display:flex;flex-direction:column;gap:4px;transition:opacity .2s}
+.lb-list.dim{opacity:.5}
+.lb-row{display:flex;align-items:center;gap:12px;width:100%;padding:10px 12px;border:0;border-radius:16px;background:none;color:var(--ink);text-align:left;font:inherit;transition:background .15s}
+@media(hover:hover){.lb-row:hover{background:var(--surface)}}
+.lb-row.me{background:var(--surface);box-shadow:inset 0 0 0 1.5px var(--ink)}
+.lb-rank{flex:none;width:28px;font-size:14px;font-weight:700;text-align:center;color:var(--mut);font-variant-numeric:tabular-nums}
+.lb-t1 .lb-rank{color:#d4a017;font-size:18px}
+.lb-t2 .lb-rank{color:#8e8e93;font-size:17px}
+.lb-t3 .lb-rank{color:#b0723c;font-size:16px}
+.lb-t1{background:linear-gradient(90deg,rgba(212,160,23,.12),transparent 70%)}
+.lb-row img,.lb-ph{flex:none;width:40px;height:40px;border-radius:50%;object-fit:cover}
+.lb-ph{display:flex;align-items:center;justify-content:center;background:var(--surface);font-size:16px;font-weight:700;font-style:normal;color:var(--mut)}
+.lb-row.me .lb-ph{background:var(--bg)}
+.lb-who{flex:1;min-width:0}
+.lb-who b,.lb-who small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lb-who b{font-size:14.5px;font-weight:600}
+.lb-who small{margin-top:1px;font-size:12px;color:var(--mut)}
+.lb-who em{margin-left:4px;padding:1px 7px;border-radius:99px;background:var(--ink);color:var(--bg);font-size:10.5px;font-style:normal;font-weight:700;vertical-align:1px}
+.lb-val{flex:none;text-align:right}
+.lb-val b{display:block;font-size:16px;font-weight:800;font-variant-numeric:tabular-nums}
+
+.lb-state{display:flex;flex-direction:column;align-items:center;gap:10px;margin-top:28px;padding:30px 16px;border-radius:20px;background:var(--surface);text-align:center;font-size:13.5px;line-height:1.5;color:var(--mut)}
+.lb-state svg{width:34px;height:34px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.lb-state button{height:36px;padding:0 18px;border:0;border-radius:99px;background:var(--ink);color:var(--bg);font-size:13px;font-weight:600}
+.lb-skel{height:320px;margin-top:20px;border-radius:20px;background:linear-gradient(90deg,var(--surface),var(--line),var(--surface));background-size:200% 100%;animation:lbsk 1.2s ease-in-out infinite}
+@keyframes lbsk{to{background-position:-200% 0}}
+@media(prefers-reduced-motion:reduce){.lb-skel{animation:none}}

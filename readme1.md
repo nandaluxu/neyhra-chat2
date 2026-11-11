@@ -120,6 +120,12 @@ Index: `{username:1} unique`, `{refCode:1} unique sparse`, `{createdAt:-1}`.
 - `"<userId>:pic"` → `{id soal, hist:[{t}], hint, done, won, reward, exp}`
 - Angka rahasia, jawaban, dan penilaian **hanya di sini** (client tidak pernah menerima jawaban sebelum selesai). Index TTL `exp` **24 jam**.
 
+### 1.7b `lb_stats` — penghitung game untuk tab Peringkat
+`lib/leaderboard.js`. `{ _id: userId, c: { guessTries, guessPlayed, guessWon, picTries, picPlayed, picWon, chessPlayed, chessWon } }`.
+- Ditambah lewat `bump()` dari `lib/games.js` (tiap tebakan), `lib/picgame.js` (tiap jawaban), `lib/chess.js` (partai selesai/menyerah). Mulai dari 0 sejak fitur aktif.
+- Peringkat lain memakai data yang sudah ada: `achv.c.chat|quests|maxLv`, `users.coins`, `users.slot.{demo,paid}.{spins,wins}`, dan `gc_messages` (dihitung per `au`, cache 90 dtk). Pengguna `hideStats` tidak ditampilkan.
+- Endpoint: `POST /api/auth/lb` (token opsional). Dihapus bersama akun lewat `purgeLb()`.
+
 ### 1.8 `avatars` — foto profil (mode cadangan)
 `lib/profile.js`. `{ _id: userId, data: "<JPEG base64>", v }`.
 - HANYA dipakai kalau env R2 belum lengkap, dan untuk foto lama sebelum migrasi R2.

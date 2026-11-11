@@ -494,4 +494,5 @@ new MutationObserver(() => { if (active() && $('smodal').classList.contains('hid
 
 ready = aOn || !!window.__acctSeen; // __acctSeen: paintAcct sudah jalan sebelum file ini dimuat (event 'acct' terlewat)
 if (ready && atok && aOn) load(true); else render();
+window.PF = { open: u => { Shell.setTab('profile', { auto: false }); setTimeout(() => openUser(u), 0); } }; // dipakai tab Peringkat untuk membuka profil pemain
 })();

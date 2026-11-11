@@ -521,6 +521,7 @@ header .pfp,header .who{cursor:pointer}
 <link rel="stylesheet" href="/extras.css">
 <link rel="stylesheet" href="/shell.css">
 <link rel="stylesheet" href="/bonus.css">
+<link rel="stylesheet" href="/leaderboard.css">
 <link rel="stylesheet" href="/games.css">
 <link rel="stylesheet" href="/slot.css">
 <link rel="stylesheet" href="/shop.css">
@@ -560,6 +561,10 @@ header .pfp,header .who{cursor:pointer}
     <button class="r-item" id="rbonus" type="button" data-tab="bonus" title="Bonus">
       <svg viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13M5 12v8a1 1 0 001 1h12a1 1 0 001-1v-8M7.5 8a2.5 2.5 0 010-5C10 3 12 8 12 8s2-5 4.5-5a2.5 2.5 0 010 5"/></svg>
       <span class="r-label">Bonus</span>
+    </button>
+    <button class="r-item" id="rlb" type="button" data-tab="leaderboard" title="Peringkat">
+      <svg viewBox="0 0 24 24"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 01-10 0V4zM7 6H4a3 3 0 003 4M17 6h3a3 3 0 01-3 4"/></svg>
+      <span class="r-label">Peringkat</span>
     </button>
     <button class="r-item hide" id="rmusic" type="button" data-tab="music" title="Musik">
       <svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13M9 18a3 3 0 11-6 0 3 3 0 016 0zm12-2a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
@@ -652,6 +657,12 @@ header .pfp,header .who{cursor:pointer}
         <div class="bn-wallet" role="group" aria-label="Saldo" data-w title="Masuk untuk punya coin &amp; gems"><span class="w-cur" data-k="coins"><img src="/coin.svg" alt="" draggable="false"><b class="w-n">–</b><span class="w-l">Coin</span></span><span class="w-cur" data-k="gems"><img src="/gems.png" alt="" draggable="false"><b class="w-n">–</b><span class="w-l">Gems</span></span></div>
       </div>
       <div id="bnbody"></div>
+    </div>
+  </section>
+  <section id="leaderboard" aria-label="Peringkat">
+    <div class="lb-in">
+      <div class="lb-top"><h1>Peringkat</h1><p class="lb-sub">Siapa paling aktif ngobrol dan paling jago main game.</p></div>
+      <div id="lbbody"></div>
     </div>
   </section>
   <section id="music" aria-label="Musik">
@@ -2738,6 +2749,7 @@ document.addEventListener('visibilitychange',()=>{ if(!document.hidden) setTimeo
 <script src="/extras.js"></script>
 <script src="/shell.js"></script>
 <script src="/bonus.js"></script>
+<script src="/leaderboard.js"></script>
 <script src="/games.js"></script>
 <script src="/slot.js"></script>
 <script src="/scenario.js"></script>
