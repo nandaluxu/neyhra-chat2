@@ -110,6 +110,7 @@ function render() {
     const f = btn('pf-btn' + (p.isFollowing ? ' alt' : ''), p.isFollowing ? 'Mengikuti' : (p.followsMe ? 'Ikuti balik' : 'Ikuti'), 'follow');
     f.setAttribute('aria-pressed', String(!!p.isFollowing)); acts.append(f);
     if (window.WALLET && WALLET.has && WALLET.has('transfer')) acts.append(btn('pf-btn alt', 'Transfer', 'transfer')); // buka Dompet > Transfer dengan username terisi
+    if (window.WALLET && WALLET.has && WALLET.has('trade')) acts.append(btn('pf-btn alt', 'Ajak Trade', 'trade')); // buka Dompet > Perdagangan dengan form penawaran & username terisi
   }
   card.append(acts); body.append(card);
 
@@ -464,6 +465,7 @@ document.addEventListener('click', e => {
   else if (a === 'follow') { b.disabled = true; toggleFollow(view.username, b.getAttribute('aria-pressed') !== 'true', b.getAttribute('aria-pressed') === 'true').then(() => render()).catch(er => { toast(er.message || 'Gagal, coba lagi.'); b.disabled = false; }); }
   else if (a === 'rowfollow') followFromRow(b);
   else if (a === 'transfer') { if (window.WALLET && view) WALLET.open('transfer', { u: view.username, name: view.name || '', avatar: view.avatar || '' }); }
+  else if (a === 'trade') { if (window.WALLET && view) WALLET.open('trade', { u: view.username, name: view.name || '', avatar: view.avatar || '', compose: true }); }
   else if (a === 'pick') $('pffile').click();
   else if (a === 'rmpic') { editState.av = null; editState.preview = ''; paintEditPic(); }
   else if (a === 'cancel') closeModal();
