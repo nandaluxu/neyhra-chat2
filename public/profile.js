@@ -180,15 +180,16 @@ function panelSum(panel, own) {
 
 /* ---------- Tab Piala (achievements, data /api/auth/quests; hanya profil sendiri) ---------- */
 let cupsBusy = false, cupsAt = 0, cupsErr = '';
-async function loadCups(force) {
-  if (!atok || cupsBusy || (!force && cups && Date.now() - cupsAt < 15000)) return;
-  cupsBusy = true; cupsErr = '';
-  try { const r = await aApi('quests'); if (r && r.ok) { cups = r; cupsAt = Date.now(); } else cupsErr = (r && r.error) || 'Gagal memuat.'; }
+async function loadCups(force) { // true = baru selesai mengambil data (layar perlu digambar ulang), false = tidak ada yang berubah
+  if (!atok || cupsBusy || (!force && Date.now() - cupsAt < 15000)) return false; // cupsAt juga dicatat saat gagal: tidak mengulang fetch terus-menerus
+  cupsBusy = true; cupsErr = ''; cupsAt = Date.now();
+  try { const r = await aApi('quests'); if (r && r.ok) cups = r; else cupsErr = (r && r.error) || 'Gagal memuat.'; }
   catch (e) { cupsErr = (e && e.status === 401) ? '' : (e && e.message) || 'Gagal memuat.'; }
   cupsBusy = false;
+  return true;
 }
 function panelCups(panel) {
-  loadCups().then(() => { if (tabKey === 'cups') paintPanel(); }); // datang belakangan: gamar ulang tab ini
+  loadCups().then(fresh => { if (fresh && tabKey === 'cups') paintPanel(); }); // data baru datang belakangan: gambar ulang SEKALI (jangan tanpa syarat: itu memanggil panelCups lagi -> loop tak berujung)
   const head = h('div', 'pf-sec');
   const got = cups ? cups.ach.filter(a => a.got).length : 0, all = cups ? cups.ach.length : 0;
   head.append(h('h3', null, 'Piala ' + got + '/' + all));
