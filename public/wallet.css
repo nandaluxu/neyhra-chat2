@@ -1,0 +1,172 @@
+/* ===== Tab Dompet (/wallet): Transfer + Bank =====
+   Logika di wallet.js. Header/saldo memakai kelas bn-* (bonus.css); variabel tema: --bg --surface --ink --mut --line --ok --rec. */
+
+#wallet{display:none;overflow-y:auto;overscroll-behavior:contain;background:var(--bg);scrollbar-width:none;min-width:0;position:relative}
+#wallet::-webkit-scrollbar{display:none}
+#app[data-tab="wallet"] #wallet{display:block}
+#app[data-tab="wallet"] :is(#menu,#lpanel,#chatview,#cempty,#dpanel){display:none}
+@media(min-width:800px){#wallet{grid-column:2;grid-row:1}}
+@media(max-width:799px){#wallet{position:absolute;inset:0;padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))}}
+
+/* sub-navigasi: jumlah sub-tab bertambah nanti (Pencurian, Trade, Market, Kerja) -> bisa digeser */
+#wtnav{display:flex;gap:6px;margin-top:16px;overflow-x:auto;scrollbar-width:none}
+#wtnav::-webkit-scrollbar{display:none}
+#wtnav button{flex:1 0 auto;min-width:86px;font-size:13.5px}
+#wtbody{margin-top:16px}
+
+/* ---------- Dasar ---------- */
+.wl-grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:14px;align-items:start}
+@media(max-width:799px){.wl-grid{grid-template-columns:minmax(0,1fr)}}
+.wl-col{display:flex;flex-direction:column;gap:14px;min-width:0}
+.wl-card{padding:18px;border-radius:22px;background:var(--surface);min-width:0}
+.wl-card h3{font-size:16px;font-weight:600;letter-spacing:-.01em;margin-bottom:12px}
+.wl-sk{border-radius:22px;background:var(--surface);animation:wl-sk 1.3s ease-in-out infinite}
+@keyframes wl-sk{0%,100%{opacity:.55}50%{opacity:1}}
+
+.wl-gate{display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;padding:44px 20px;border-radius:22px;background:var(--surface)}
+.wl-gate h2{font-size:18px;font-weight:600}
+.wl-gate p{max-width:38ch;font-size:13.5px;line-height:1.5;color:var(--mut)}
+
+.wl-btn{display:block;width:100%;padding:13px 16px;border-radius:99px;background:var(--ink);color:var(--bg);font-size:14.5px;font-weight:600;text-align:center;transition:transform .15s,opacity .15s}
+.wl-btn:active{transform:scale(.98)}
+.wl-btn:disabled{background:var(--line);color:var(--mut);cursor:default;transform:none}
+.wl-btn.alt{background:var(--bg);color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--ink)}
+.wl-btn.alt:disabled{box-shadow:none;background:var(--line);color:var(--mut)}
+.wl-btn.busy{opacity:.7}
+.wl-gate .wl-btn{width:auto;padding:12px 26px;margin-top:6px}
+.wl-btn:focus-visible,.wl-q:focus-visible,.wl-resrow:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+
+.wl-msg{margin-top:10px;padding:10px 14px;border-radius:14px;font-size:13px;line-height:1.45;background:var(--bg)}
+.wl-msg.err{color:var(--rec)}
+.wl-msg.ok{color:var(--ok)}
+.wl-msg.hide,.wl-modal.hide{display:none}
+.wl-note{margin-top:12px;padding:10px 14px;border-radius:14px;background:var(--bg);font-size:12.5px;line-height:1.5;color:var(--mut)}
+.wl-note.warn{color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--rec)}
+.wl-small{margin-top:10px;font-size:12px;color:var(--mut)}
+.wl-why{min-height:18px;margin-top:10px;font-size:12.5px;line-height:1.4;color:var(--mut)}
+.wl-empty{padding:14px;text-align:center;font-size:13px;color:var(--mut)}
+
+/* ---------- Form ---------- */
+.wl-field{margin-top:14px}
+.wl-field:first-of-type{margin-top:0}
+.wl-field>label{display:block;margin-bottom:6px;font-size:12.5px;font-weight:600;color:var(--mut)}
+.wl-field input[type=text]{width:100%;padding:12px 14px;border-radius:14px;background:var(--bg);border:1.5px solid transparent;font-size:15px;color:var(--ink);transition:border-color .15s}
+.wl-field input[type=text]:focus{outline:none;border-color:var(--ink)}
+.wl-field input:disabled{opacity:.6}
+#wtcoin,#wbamt{font-size:20px!important;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+
+.wl-ac{position:relative}
+.wl-res{display:none;position:absolute;z-index:5;left:0;right:0;top:calc(100% + 6px);max-height:260px;overflow-y:auto;padding:6px;border-radius:16px;background:var(--bg);box-shadow:0 12px 32px rgba(0,0,0,.18),0 0 0 1px var(--line)}
+.wl-res.open{display:block}
+.wl-resrow{display:flex;align-items:center;gap:10px;width:100%;padding:8px;border-radius:12px;text-align:left}
+.wl-resrow:hover,.wl-resrow:focus-visible{background:var(--surface)}
+.wl-rt{display:flex;flex-direction:column;min-width:0}
+.wl-rt b,.wl-chip span{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wl-rt small,.wl-chip small{font-size:12px;color:var(--mut)}
+.wl-resmsg{padding:12px;font-size:13px;color:var(--mut);text-align:center}
+.wl-chip{display:flex;align-items:center;gap:10px;margin-top:8px;padding:6px 14px 6px 6px;border-radius:99px;background:var(--bg);width:fit-content;max-width:100%}
+.wl-av{position:relative;flex:none;width:34px;height:34px;border-radius:50%;background:var(--line);display:grid;place-items:center;font-size:14px;font-weight:600;color:var(--mut);overflow:hidden}
+.wl-av img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+
+.wl-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.wl-chips.scroll{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+.wl-chips.scroll::-webkit-scrollbar{display:none}
+.wl-q{flex:none;padding:8px 14px;border-radius:99px;background:var(--bg);font-size:13px;font-weight:500;transition:transform .15s}
+.wl-q:active{transform:scale(.95)}
+.wl-q:disabled{opacity:.5}
+.wl-preview{margin-top:12px;min-height:44px}
+.wl-preview small{display:block;font-size:12.5px;color:var(--mut)}
+.wl-net{display:flex;align-items:center;gap:8px;margin-bottom:2px}
+.wl-net img{width:22px;height:22px}
+.wl-net b{font-size:26px;font-weight:700;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.wl-net span{font-size:13px;color:var(--mut)}
+
+/* ---------- Barang ---------- */
+.wl-ihead{display:flex;align-items:center;justify-content:space-between;width:100%;padding:12px 14px;border-radius:14px;background:var(--bg);font-size:14px;font-weight:600;text-align:left}
+.wl-ihead:disabled{opacity:.6}
+.wl-chev{width:9px;height:9px;border-right:2px solid var(--mut);border-bottom:2px solid var(--mut);transform:rotate(45deg) translateY(-2px);transition:transform .2s}
+.wl-ihead[aria-expanded=true] .wl-chev{transform:rotate(-135deg) translateY(-2px)}
+.wl-ilist{display:none;flex-direction:column;gap:6px;margin-top:8px}
+.wl-ilist.open{display:flex}
+.wl-irow{display:flex;align-items:center;gap:12px;padding:10px;border-radius:16px;background:var(--bg);border:1.5px solid transparent}
+.wl-irow.on{border-color:var(--ink)}
+.wl-iic{flex:none;width:40px;height:40px;object-fit:contain}
+.wl-it{flex:1;min-width:0;display:flex;flex-direction:column}
+.wl-it b{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wl-it small{font-size:12px;color:var(--mut)}
+.wl-step{display:flex;align-items:center;gap:4px;flex:none}
+.wl-step button{width:44px;height:44px;border-radius:50%;background:var(--surface);font-size:20px;font-weight:500;line-height:1}
+.wl-step button:disabled{opacity:.35}
+.wl-field .wl-step input[type=text]{width:44px;height:44px;padding:0;border-radius:12px;background:transparent;border:0;text-align:center;font-size:15px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+.wl-field .wl-step input[type=text]:focus{outline:2px solid var(--ink)}
+
+.wl-send{margin-top:6px}
+
+/* ---------- Kartu samping ---------- */
+.wl-balmini .wl-balrow{display:flex;align-items:center;gap:12px}
+.wl-balrow img{width:30px;height:30px}
+.wl-balrow small{display:block;font-size:12px;color:var(--mut)}
+.wl-balrow b{font-size:22px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.wl-bar+.wl-bar{margin-top:12px}
+.wl-bartop{display:flex;justify-content:space-between;gap:8px;font-size:13px}
+.wl-bartop span{color:var(--mut)}
+.wl-track{height:8px;margin-top:6px;border-radius:99px;background:var(--bg);overflow:hidden}
+.wl-track i{display:block;height:100%;border-radius:99px;background:var(--ink);transition:width .4s}
+.wl-rules{margin:14px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:6px;font-size:12.5px;line-height:1.45;color:var(--mut)}
+
+.wl-done{display:flex;align-items:center;gap:12px;padding:14px 16px;box-shadow:inset 0 0 0 1.5px var(--ok);animation:wl-in .35s cubic-bezier(.2,.9,.3,1.2)}
+@keyframes wl-in{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+.wl-doneic{flex:none;width:30px;height:30px;color:var(--ok)}
+.wl-doneic svg,.wl-shield svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.wl-donet{flex:1;min-width:0}
+.wl-donet b{display:block;font-size:14.5px}
+.wl-donet small{display:block;margin-top:2px;font-size:12.5px;color:var(--mut)}
+.wl-x{flex:none;width:32px;height:32px;border-radius:50%;font-size:20px;color:var(--mut)}
+.wl-x:hover{background:var(--bg)}
+
+/* ---------- Modal konfirmasi (bottom-sheet di mobile) ---------- */
+.wl-modal{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(0,0,0,.45);opacity:0;transition:opacity .2s}
+.wl-modal.show{opacity:1}
+.wl-mbox{width:100%;max-width:400px;padding:22px 20px calc(20px + env(safe-area-inset-bottom,0px));border-radius:26px;background:var(--bg);transform:translateY(12px) scale(.98);transition:transform .25s cubic-bezier(.2,.9,.3,1.1)}
+.wl-modal.show .wl-mbox{transform:none}
+.wl-mbox h2{font-size:18px;font-weight:700;letter-spacing:-.02em}
+.wl-sum{margin:14px 0 0;display:flex;flex-direction:column;gap:2px}
+.wl-sum>div{display:flex;justify-content:space-between;gap:14px;padding:9px 0;border-bottom:1px solid var(--line);font-size:14px}
+.wl-sum>div:last-child{border-bottom:0}
+.wl-sum dt{color:var(--mut)}
+.wl-sum dd{margin:0;font-weight:600;text-align:right;min-width:0;overflow-wrap:anywhere}
+.wl-warn{margin-top:10px;font-size:12.5px;line-height:1.45;color:var(--mut)}
+.wl-mbtns{display:flex;gap:8px;margin-top:16px}
+.wl-mbtns button{flex:1;padding:13px 10px;border-radius:99px;font-size:14.5px;font-weight:600}
+.wl-no{background:var(--surface)}
+.wl-mbtns .wl-btn{width:auto}
+@media(max-width:799px){.wl-modal{align-items:flex-end;padding:0}.wl-mbox{max-width:none;border-radius:26px 26px 0 0;transform:translateY(100%)}}
+
+/* ---------- Bank ---------- */
+.wl-bals{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.wl-bal{padding:16px;border-radius:22px;background:var(--surface);min-width:0}
+.wl-bal.safe{box-shadow:inset 0 0 0 1.5px var(--ok)}
+.wl-bk{display:block;font-size:12.5px;font-weight:600;color:var(--mut)}
+.wl-bv{display:flex;align-items:center;gap:8px;margin:6px 0 4px}
+.wl-bv img{width:22px;height:22px;flex:none}
+.wl-bv b{font-size:24px;font-weight:700;letter-spacing:-.03em;font-variant-numeric:tabular-nums;min-width:0;overflow-wrap:anywhere;transition:color .3s}
+.wl-bv b.up{color:var(--ok)}
+.wl-bv b.down{color:var(--rec)}
+.wl-bal small{font-size:12px;color:var(--mut)}
+.wl-shield{flex:none;width:20px;height:20px;color:var(--ok);margin-left:auto}
+.wl-bempty{margin-top:12px;text-align:center}
+.wl-bempty b{display:block;font-size:15px}
+.wl-bempty p{margin-top:4px;font-size:13px;color:var(--mut)}
+.wl-bform,.wl-binfo{margin-top:14px}
+.wl-bbtns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px}
+.wl-binfo p{font-size:13px;line-height:1.5;color:var(--mut)}
+.wl-status{display:inline-flex;align-items:center;gap:8px;margin-top:10px;padding:6px 12px;border-radius:99px;background:var(--bg);font-size:12.5px;font-weight:500}
+.wl-status i{width:8px;height:8px;border-radius:50%;background:var(--mut)}
+.wl-status.ok i{background:var(--ok)}
+@media(max-width:380px){.wl-bv b{font-size:20px}}
+
+/* ---------- Toast ---------- */
+.wl-toast{position:sticky;bottom:24px;margin:0 auto;width:fit-content;max-width:calc(100% - 36px);padding:10px 18px;border-radius:99px;background:var(--ink);color:var(--bg);font-size:13.5px;font-weight:500;opacity:0;transform:translateY(10px);pointer-events:none;transition:opacity .2s,transform .2s;z-index:70}
+.wl-toast.show{opacity:1;transform:none}
+@media(max-width:799px){.wl-toast{bottom:calc(76px + env(safe-area-inset-bottom,0px))}}
+@media(prefers-reduced-motion:reduce){.wl-sk,.wl-done{animation:none}.wl-mbox,.wl-modal{transition:none}}

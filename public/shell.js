@@ -26,11 +26,11 @@ function say(t) {
 
 /* ---------- Tab ---------- */
 let mode = 'char'; // sub-tab daftar: 'char' | 'group'
-const rhome = $('rhome'), rrecent = $('rrecent'), rbonus = $('rbonus'), rlb = $('rlb'), rgames = $('rgames'), rshop = $('rshop'), rtools = $('rtools'), rprofile = $('rprofile'), rmusic = $('rmusic'), rlogo = $('rlogo');
+const rhome = $('rhome'), rrecent = $('rrecent'), rbonus = $('rbonus'), rlb = $('rlb'), rgames = $('rgames'), rshop = $('rshop'), rtools = $('rtools'), rprofile = $('rprofile'), rmusic = $('rmusic'), rwallet = $('rwallet'), rlogo = $('rlogo');
 
 function syncRail() {
   const t = tab(), home = t === 'home';
-  for (const [el, k] of [[rhome, 'home'], [rrecent, 'recent'], [rbonus, 'bonus'], [rlb, 'leaderboard'], [rgames, 'games'], [rshop, 'shop'], [rtools, 'tools'], [rprofile, 'profile'], [rmusic, 'music']]) {
+  for (const [el, k] of [[rhome, 'home'], [rrecent, 'recent'], [rbonus, 'bonus'], [rlb, 'leaderboard'], [rgames, 'games'], [rshop, 'shop'], [rtools, 'tools'], [rprofile, 'profile'], [rmusic, 'music'], [rwallet, 'wallet']]) {
     el.classList.toggle('on', t === k);
     if (t === k) el.setAttribute('aria-current', 'page'); else el.removeAttribute('aria-current');
   }
@@ -38,10 +38,10 @@ function syncRail() {
 }
 function setTab(t, opts) {
   if (t === 'music' && !(typeof devOn === 'function' && devOn())) t = 'home'; // Musik ditutup: tab hanya terbuka saat Mode dev aktif (index.html: devOn/paintMusic)
-  t = t === 'recent' || t === 'bonus' || t === 'leaderboard' || t === 'games' || t === 'shop' || t === 'tools' || t === 'profile' || t === 'music' ? t : 'home';
+  t = t === 'recent' || t === 'bonus' || t === 'leaderboard' || t === 'games' || t === 'shop' || t === 'tools' || t === 'profile' || t === 'music' || t === 'wallet' ? t : 'home';
   const auto = !opts || opts.auto !== false;
   app.dataset.tab = t; syncRail();
-  if (t === 'home' || t === 'bonus' || t === 'leaderboard' || t === 'games' || t === 'shop' || t === 'tools' || t === 'profile' || t === 'music') { // layar tanpa chat: Beranda, Bonus, Minigame, Toko, Tools, Musik, Profil
+  if (t === 'home' || t === 'bonus' || t === 'leaderboard' || t === 'games' || t === 'shop' || t === 'tools' || t === 'profile' || t === 'music' || t === 'wallet') { // layar tanpa chat: Beranda, Bonus, Minigame, Toko, Tools, Musik, Profil
     closeMenu();
     if (isOpen()) closeChat();
     detail(false, { keep: true });
@@ -367,7 +367,7 @@ rlogo.addEventListener('click', () => {
   store.set('rail', on ? '1' : null); syncRail();
 });
 /* ---------- Mobile (<800px): bar bawah cuma Beranda / Obrolan / Profil; sisanya (Minigame, Toko, Bonus, Tools, Pengaturan) di panel kiri seperti desktop ---------- */
-const MN_ITEMS = [[rgames, 'Minigame'], [rshop, 'Toko'], [rbonus, 'Bonus'], [rlb, 'Peringkat'], [rtools, 'Tools'], [$('setbtn'), 'Pengaturan']];
+const MN_ITEMS = [[rgames, 'Minigame'], [rshop, 'Toko'], [rwallet, 'Dompet'], [rbonus, 'Bonus'], [rlb, 'Peringkat'], [rtools, 'Tools'], [$('setbtn'), 'Pengaturan']];
 const mnav = document.createElement('aside'); mnav.id = 'mnav'; mnav.setAttribute('aria-label', 'Menu lainnya'); mnav.setAttribute('aria-hidden', 'true');
 mnav.innerHTML = '<div class="mn-head"><span class="m-logo"><img src="/icon.svg" alt="" draggable="false"></span><b>Neyhra Chat</b></div>';
 const mnBtns = MN_ITEMS.map(([src, label]) => {
@@ -393,6 +393,7 @@ rrecent.addEventListener('click', () => setTab('recent', { auto: true }));
 rbonus.addEventListener('click', () => setTab('bonus'));
 rlb.addEventListener('click', () => setTab('leaderboard'));
 rmusic.addEventListener('click', () => setTab('music'));
+rwallet.addEventListener('click', () => setTab('wallet'));
 rgames.addEventListener('click', () => setTab('games'));
 rshop.addEventListener('click', () => setTab('shop'));
 rtools.addEventListener('click', () => setTab('tools'));

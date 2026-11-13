@@ -26,6 +26,10 @@
       "destination": "/index.html"
     },
     {
+      "source": "/wallet",
+      "destination": "/index.html"
+    },
+    {
       "source": "/games",
       "destination": "/index.html"
     },

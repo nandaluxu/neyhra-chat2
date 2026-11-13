@@ -28,6 +28,7 @@
     if (appEl.dataset.tab === 'bonus') return '/bonus'
     if (appEl.dataset.tab === 'leaderboard') return '/leaderboard'
     if (appEl.dataset.tab === 'music') return '/music'
+    if (appEl.dataset.tab === 'wallet') return '/wallet'
     if (appEl.dataset.tab === 'games') return '/games'
     if (appEl.dataset.tab === 'shop') return '/shop'
     if (appEl.dataset.tab === 'tools') return window.Tools && Tools.path ? Tools.path() : '/tools'
@@ -68,6 +69,8 @@
         Shell.setTab('leaderboard', { auto: false })
       } else if (path === '/music') {
         Shell.setTab('music', { auto: false })
+      } else if (path === '/wallet') {
+        Shell.setTab('wallet', { auto: false })
       } else if (path === '/games') {
         Shell.setTab('games', { auto: false })
       } else if (tm) {
