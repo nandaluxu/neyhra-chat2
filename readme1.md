@@ -84,6 +84,8 @@ Index: `{username:1} unique`, `{refCode:1} unique sparse`, `{createdAt:-1}`.
 `lib/auth.js`. `{ _id: sha256(token), userId, createdAt }`.
 - Token asli (256-bit) HANYA dipegang browser (localStorage `authtok`); database cuma menyimpan hash-nya.
 - Index TTL `createdAt` **60 hari** → kedaluwarsa otomatis; index `{userId:1}` untuk hapus massal saat akun dihapus.
+- **Sesi geser:** `userFromReq` (`lib/auth.js`) memperbarui `createdAt` paling sering 1×/12 jam tiap sesi dipakai, jadi user yang aktif tidak ter-logout tepat 60 hari setelah login (hanya sesi yang menganggur 60 hari yang dihapus).
+- **Client tidak logout karena error sementara:** `initAcct()` (`public/index.html`) hanya membuang token kalau `/api/auth/me` menjawab **401**; 500/503/429/non-JSON dianggap gangguan sementara, token tetap.
 
 ### 1.3 `userdata` — sinkronisasi data obrolan antar perangkat
 `lib/auth.js`. `{ _id: userId, data: "<string JSON>", size, updatedAt }`.

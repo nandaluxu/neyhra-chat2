@@ -1921,8 +1921,11 @@ function paintAcct(cloud){
 }
 async function initAcct(){
   try{
-    const r=await (await fetch('/api/auth/me',{method:'POST',headers:{'Content-Type':'application/json',...(atok?{Authorization:'Bearer '+atok}:{})},body:JSON.stringify({clientId:cid})})).json().catch(()=>({}));
+    const resp=await fetch('/api/auth/me',{method:'POST',headers:{'Content-Type':'application/json',...(atok?{Authorization:'Bearer '+atok}:{})},body:JSON.stringify({clientId:cid})});
+    const r=await resp.json().catch(()=>({}));
     if(r.enabled===false){ aOn=false; paintAcct(); return; }
+    /* Error sementara (503 database lambat/cold start, 500, 429, respons bukan JSON) BUKAN tanda sesi berakhir: jangan logout. Token hanya dibuang kalau server menjawab 401. */
+    if(!r.ok&&resp.status!==401){ paintAcct(); return; }
     aOn=true;
     window.__gacct=r.ok?{linked:!!(r.google&&r.google.linked),email:(r.google&&r.google.email)||'',hasPassword:!!r.hasPassword,pendingName:!!r.pendingName,username:r.username||''}:null;
     if(r.ok){ store.set('authname',r.name); store.set('gid',r.gid||null); store.set('gu',r.username||null); store.set('gcids',Array.isArray(r.cids)?JSON.stringify(r.cids):null); if(r.uid&&!ownerOf()) store.set('dataowner',r.uid); saveWallet(r); paintAcct(r.cloud); }
