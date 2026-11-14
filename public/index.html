@@ -2515,10 +2515,10 @@ function paintDev(){ renderDevWallet(); $('sdevg').classList.toggle('hide',store
    tab Musik hanya muncul saat Mode dev aktif. Pagar UI seperti kode rahasia lain, bukan keamanan. */
 function paintMusic(){ $('rmusic').classList.toggle('hide',!devOn()); }
 paintMusic();
-let devCodeMem=null; /* kode dev hanya di memori (hilang saat muat ulang; nanti ditanya lagi lewat prompt) */
+let devCodeMem=store.get('devcode')||null; /* kode dev, persis seperti vcode (voice): sekali benar, tersimpan di browser ini (localStorage) jadi tidak perlu diketik ulang tiap muat ulang/login. Salah -> dihapus lagi, lihat catch 403 di bawah. */
 function tryDev(text){
   if(!window.GX||!GX.hash||GX.hash(text.trim().toLowerCase().replace(/\s+/g,''))!==DEV_SECRET) return false;
-  devCodeMem=text.trim();
+  devCodeMem=text.trim(); store.set('devcode',devCodeMem);
   const was=store.get('devu')==='1'; store.set('devu','1'); if(!was) store.set('dev','1');
   paintDev(); toast(was?'Mode dev sudah terbuka, atur di Pengaturan':'Mode dev terbuka dan aktif'); return true;
 }
@@ -2561,13 +2561,13 @@ function renderDevWallet(){
       btn.onclick=async()=>{
         const coins=Math.max(0,parseInt(ic.value)||0), gems=Math.max(0,parseInt(ig.value)||0);
         if(!coins&&!gems){ msg.textContent='Isi Coin atau Gems dulu.'; msg.classList.add('err'); return; }
-        if(!devCodeMem){ const c=prompt('Masukkan kode dev:'); if(!c||!c.trim()) return; devCodeMem=c.trim(); }
+        if(!devCodeMem){ const c=prompt('Masukkan kode dev:'); if(!c||!c.trim()) return; devCodeMem=c.trim(); store.set('devcode',devCodeMem); }
         btn.disabled=true; msg.classList.remove('err'); msg.textContent='Menambah…';
         try{
           const r=await aApi('dev/grant',{code:devCodeMem,coins,gems});
           if(r.ok){ saveWallet(r); ic.value=''; ig.value=''; msg.textContent='Berhasil. Saldo sekarang: '+nfW.format(r.coins)+' coin · '+nfW.format(r.gems)+' gems'; }
           else{ msg.textContent=r.error||'Gagal.'; msg.classList.add('err'); }
-        }catch(e){ if(e.status===403) devCodeMem=null; msg.textContent=(e.message||'Gagal menambah saldo.'); msg.classList.add('err'); }
+        }catch(e){ if(e.status===403){ devCodeMem=null; store.set('devcode',null); } msg.textContent=(e.message||'Gagal menambah saldo.'); msg.classList.add('err'); }
         btn.disabled=false;
       };
       row.append(ic,ig,btn,msg); box.appendChild(row);
@@ -2590,13 +2590,13 @@ function renderDevWallet(){
         if(!username){ msg2.textContent='Isi username target dulu.'; msg2.classList.add('err'); return; }
         if(!password||password.length<6){ msg2.textContent='Password baru minimal 6 karakter.'; msg2.classList.add('err'); return; }
         if(!confirm('Yakin ganti password akun "'+username+'"? Akun itu akan otomatis keluar dari semua sesi yang sedang login.')) return;
-        if(!devCodeMem){ const c=prompt('Masukkan kode dev:'); if(!c||!c.trim()) return; devCodeMem=c.trim(); }
+        if(!devCodeMem){ const c=prompt('Masukkan kode dev:'); if(!c||!c.trim()) return; devCodeMem=c.trim(); store.set('devcode',devCodeMem); }
         btn2.disabled=true; msg2.classList.remove('err'); msg2.textContent='Mengganti…';
         try{
           const r=await aApi('dev/resetpw',{code:devCodeMem,username,password});
           if(r.ok){ ip2.value=''; msg2.textContent='Berhasil. Password akun "'+r.username+'" sudah diganti.'; }
           else{ msg2.textContent=r.error||'Gagal.'; msg2.classList.add('err'); }
-        }catch(e){ if(e.status===403) devCodeMem=null; msg2.textContent=(e.message||'Gagal mengganti password.'); msg2.classList.add('err'); }
+        }catch(e){ if(e.status===403){ devCodeMem=null; store.set('devcode',null); } msg2.textContent=(e.message||'Gagal mengganti password.'); msg2.classList.add('err'); }
         btn2.disabled=false;
       };
       row2.append(iu,ip2,btn2,msg2); box.appendChild(row2);
