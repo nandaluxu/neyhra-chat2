@@ -526,6 +526,8 @@ header .pfp,header .who{cursor:pointer}
 <link rel="stylesheet" href="/slot.css">
 <link rel="stylesheet" href="/shop.css">
 <link rel="stylesheet" href="/wallet.css">
+<link rel="stylesheet" href="/market.css">
+<link rel="stylesheet" href="/job.css">
 <link rel="stylesheet" href="/economy.css">
 <link rel="stylesheet" href="/tools/tools.css">
 <link rel="stylesheet" href="/scenario.css">
@@ -1295,7 +1297,7 @@ async function pendFlush(keepBusy){ /* keepBusy=true: dipanggil dari jalur hadia
   const chId=b[0].chId, c=allChars.find(x=>x.id===chId); if(!c) return;
   const text=b.map(x=>String(x.x||'')).filter(Boolean).join('\n\n').slice(0,2000);
   const useVoice=voiceOn&&!!vcode, lang=voiceLang; let okReply=false, relNote='', lastReply='', r=null;
-  busy=true; if(stillHere(chId)) setStatus(idleStat(),false); refresh(); /* status cuma disentuh kalau masih di chat ini — chat lain yang sedang punya indikator sendiri jangan ikut kereset */
+  busy=true; setStatus(idleStat(),false); refresh();
   let t=stillHere(chId)?thinkBubble(c.name,false):null; /* sudah pindah chat: tidak perlu bubble mikir (balasannya tetap dicatat) */
   try{
     const hist=loadHist(chId);
@@ -1305,7 +1307,7 @@ async function pendFlush(keepBusy){ /* keepBusy=true: dipanggil dari jalur hadia
     if(!useVoice||!stillHere(chId)){ if(t)t.remove(); showThemSafe(chId,r.id); } /* pindah chat saat voice: teksnya saja yang dicatat */
     else{ t.remove(); t=typingBubble(); setStatus('merekam suara',true); await speakReply(chId,r,lang,t); }
   }catch(e){ if(t)t.remove(); toast(e.message); }
-  if(stillHere(chId)) setStatus(idleStat(),false); if(!keepBusy){ busy=false; refresh(); }
+  setStatus(idleStat(),false); if(!keepBusy){ busy=false; refresh(); }
   if(relNote) toast(relNote);
   if(okReply){
     if(Array.isArray(r.qr)&&stillHere(chId)) qrPaint(r.qr); else if(!pend.length) qrPaint(); /* chip saran balasan */
@@ -1366,7 +1368,7 @@ async function submit(opt){
       await speakReply(chId,r,lang,t);
     }
   }catch(e){ t.remove(); toast(e.message); if(window.SCN&&SCN.onErr) SCN.onErr(e); }
-  if(stillHere(chId)) setStatus(idleStat(),false); busy=false; refresh();
+  setStatus(idleStat(),false); busy=false; refresh();
   if(relNote) toast(relNote);
   if(okReply){
     if(Array.isArray(r.qr)&&ch&&ch.id===chId) qrPaint(r.qr); else qrPaint(); /* chip saran balasan (hanya kalau masih di chat yang sama) */
@@ -1758,10 +1760,10 @@ async function goOn(){
     r=await (await post('/api/chat',{clientId:cid,char:chId,message:'',cont:true,userName:uname,history:loadHist(chId),voice:{on:useVoice,lang},memory:memUse(chId).list,rel:relPayload(chId),qr:true,...engPayload(),...(rpOn()?{rp:true}:{})})).json();
     saveHist(chId,[...loadHist(chId),['char',r.id]]); /* tidak ada pesan user: riwayat hanya bertambah giliran karakter */
     relNote=relApply(chId,r.dExp!=null?r.dExp:(Math.round(Number(r.dRel))||0)*3,r.dMood);
-    if(!useVoice||!stillHere(chId)){ t.remove(); showThemSafe(chId,r.id); } /* pindah chat sebelum balasan datang: masuk log karakter aslinya, tidak nyasar ke layar sekarang */
+    if(!useVoice){ t.remove(); showThem(chId,r.id); }
     else{ t.remove(); t=typingBubble(); setStatus('merekam suara',true); await speakReply(chId,r,lang,t); }
   }catch(e){ t.remove(); toast(e.message); }
-  if(stillHere(chId)) setStatus(idleStat(),false); busy=false; refresh();
+  setStatus(idleStat(),false); busy=false; refresh();
   if(relNote) toast(relNote);
   if(r&&Array.isArray(r.nq)) r.nq.forEach((t,i)=>setTimeout(()=>toast(t),600+i*2300)); /* misi selesai / piala baru */
   maybeMemorize(chId);
@@ -2515,10 +2517,10 @@ function paintDev(){ renderDevWallet(); $('sdevg').classList.toggle('hide',store
    tab Musik hanya muncul saat Mode dev aktif. Pagar UI seperti kode rahasia lain, bukan keamanan. */
 function paintMusic(){ $('rmusic').classList.toggle('hide',!devOn()); }
 paintMusic();
-let devCodeMem=store.get('devcode')||null; /* kode dev, persis seperti vcode (voice): sekali benar, tersimpan di browser ini (localStorage) jadi tidak perlu diketik ulang tiap muat ulang/login. Salah -> dihapus lagi, lihat catch 403 di bawah. */
+let devCodeMem=null; /* kode dev hanya di memori (hilang saat muat ulang; nanti ditanya lagi lewat prompt) */
 function tryDev(text){
   if(!window.GX||!GX.hash||GX.hash(text.trim().toLowerCase().replace(/\s+/g,''))!==DEV_SECRET) return false;
-  devCodeMem=text.trim(); store.set('devcode',devCodeMem);
+  devCodeMem=text.trim();
   const was=store.get('devu')==='1'; store.set('devu','1'); if(!was) store.set('dev','1');
   paintDev(); toast(was?'Mode dev sudah terbuka, atur di Pengaturan':'Mode dev terbuka dan aktif'); return true;
 }
@@ -2561,45 +2563,16 @@ function renderDevWallet(){
       btn.onclick=async()=>{
         const coins=Math.max(0,parseInt(ic.value)||0), gems=Math.max(0,parseInt(ig.value)||0);
         if(!coins&&!gems){ msg.textContent='Isi Coin atau Gems dulu.'; msg.classList.add('err'); return; }
-        if(!devCodeMem){ const c=prompt('Masukkan kode dev:'); if(!c||!c.trim()) return; devCodeMem=c.trim(); store.set('devcode',devCodeMem); }
+        if(!devCodeMem){ const c=prompt('Masukkan kode dev:'); if(!c||!c.trim()) return; devCodeMem=c.trim(); }
         btn.disabled=true; msg.classList.remove('err'); msg.textContent='Menambah…';
         try{
           const r=await aApi('dev/grant',{code:devCodeMem,coins,gems});
           if(r.ok){ saveWallet(r); ic.value=''; ig.value=''; msg.textContent='Berhasil. Saldo sekarang: '+nfW.format(r.coins)+' coin · '+nfW.format(r.gems)+' gems'; }
           else{ msg.textContent=r.error||'Gagal.'; msg.classList.add('err'); }
-        }catch(e){ if(e.status===403){ devCodeMem=null; store.set('devcode',null); } msg.textContent=(e.message||'Gagal menambah saldo.'); msg.classList.add('err'); }
+        }catch(e){ if(e.status===403) devCodeMem=null; msg.textContent=(e.message||'Gagal menambah saldo.'); msg.classList.add('err'); }
         btn.disabled=false;
       };
       row.append(ic,ig,btn,msg); box.appendChild(row);
-    }
-  }
-  /* Dev: ganti password akun LAIN (divalidasi server lewat kode dev, lib/dev.js -> /api/auth/dev/resetpw)
-     Tidak perlu tahu password lama. Sesi login lama akun target otomatis dihapus (logout paksa). */
-  { const g4=document.createElement('span'); g4.className='vlab'; g4.textContent='Ganti password akun lain (uji)'; box.appendChild(g4);
-    const wh=document.createElement('p'); wh.className='mhelp';
-    wh.textContent=atok?'Mengganti password akun lain tanpa tahu password lamanya. Akun itu akan otomatis keluar dari semua sesi login yang sedang aktif. Hati-hati: ini mengambil alih akun orang lain.':'Masuk ke akun dulu untuk memakai fitur ini.';
-    wh.style.color='var(--err,#f87171)'; box.appendChild(wh);
-    if(atok){
-      const row2=document.createElement('div'); row2.className='mdrow'; row2.style.flexWrap='wrap'; row2.style.gap='6px';
-      const mk2=(ph,type)=>{ const i=document.createElement('input'); i.type=type||'text'; i.placeholder=ph; i.autocomplete='off'; i.style.cssText='width:140px;padding:6px 8px;border-radius:8px;border:1px solid var(--line,#444);background:transparent;color:inherit'; return i; };
-      const iu=mk2('username target'), ip2=mk2('password baru','text');
-      const btn2=document.createElement('button'); btn2.type='button'; btn2.className='mdel'; btn2.textContent='Ganti password';
-      const msg2=document.createElement('small'); msg2.style.cssText='display:block;width:100%';
-      btn2.onclick=async()=>{
-        const username=iu.value.trim().toLowerCase(), password=ip2.value;
-        if(!username){ msg2.textContent='Isi username target dulu.'; msg2.classList.add('err'); return; }
-        if(!password||password.length<6){ msg2.textContent='Password baru minimal 6 karakter.'; msg2.classList.add('err'); return; }
-        if(!confirm('Yakin ganti password akun "'+username+'"? Akun itu akan otomatis keluar dari semua sesi yang sedang login.')) return;
-        if(!devCodeMem){ const c=prompt('Masukkan kode dev:'); if(!c||!c.trim()) return; devCodeMem=c.trim(); store.set('devcode',devCodeMem); }
-        btn2.disabled=true; msg2.classList.remove('err'); msg2.textContent='Mengganti…';
-        try{
-          const r=await aApi('dev/resetpw',{code:devCodeMem,username,password});
-          if(r.ok){ ip2.value=''; msg2.textContent='Berhasil. Password akun "'+r.username+'" sudah diganti.'; }
-          else{ msg2.textContent=r.error||'Gagal.'; msg2.classList.add('err'); }
-        }catch(e){ if(e.status===403){ devCodeMem=null; store.set('devcode',null); } msg2.textContent=(e.message||'Gagal mengganti password.'); msg2.classList.add('err'); }
-        btn2.disabled=false;
-      };
-      row2.append(iu,ip2,btn2,msg2); box.appendChild(row2);
     }
   }
 }
@@ -2814,6 +2787,8 @@ document.addEventListener('visibilitychange',()=>{ if(!document.hidden) setTimeo
 <script src="/wallet.js"></script>
 <script src="/rob.js"></script>
 <script src="/trade.js"></script>
+<script src="/market.js"></script>
+<script src="/job.js"></script>
 <script src="/music.js"></script>
 <script src="/scene.js"></script>
 <script src="/vision.js"></script>

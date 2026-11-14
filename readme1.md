@@ -343,3 +343,10 @@ Skenario UI (`scenario.js/css`) dimuat sebagai modul terpisah, hanya aktif di la
 | `DEBUG_RAW` | log prompt/balasan AI mentah ke console server |
 
 *Tidak ada satu pun secret yang boleh dikirim ke browser; semua kunci hanya dibaca `process.env` di server.*
+
+
+## Frontend Market (sub-tab Dompet > Market)
+- `public/market.js` + `public/market.css` (dimuat setelah `trade.js` di `index.html`), spesifikasi `docs/frontend/marketplace.md`. Bagian: Jelajah (filter barang + riwayat harga), Tokoku (batalkan), Pembelianku. Beli lewat modal konfirmasi, pasang lot lewat form (bottom-sheet di mobile). `idem` baru tiap konfirmasi, 429 → tombol nonaktif ±10 dtk, fee hanya pratinjau (angka asli dari server).
+
+## Frontend Kerja (sub-tab Dompet > Kerja)
+- `public/job.js` + `public/job.css` (dimuat setelah `market.js`), spesifikasi `docs/frontend/job-system.md`. 4 kartu pekerjaan (countdown dari `cdLeft`, interval 1 dtk, tanpa polling), kartu kuota harian (reset 00.00 WIB dihitung lokal), riwayat 10 shift, panel hasil (gaji naik + efek "Shift bonus!" tanpa suara). 429 jeda dibuka sebagai countdown, 429 kuota → "Balik besok". Semua angka dari respons.
