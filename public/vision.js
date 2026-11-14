@@ -145,10 +145,11 @@
     const ts = document.createElement('div'); ts.className = 'ts'; ts.textContent = now(tt)
     bub.append(ts)
     row.append(bub); chat.appendChild(row); scroll()
+    return row /* dipakai submit() untuk mencabut bubble kalau pembacaan gambar gagal */
   }
 
   /* ---------- Dipakai restoreChat() di index.html untuk menampilkan lagi pesan gambar lama ---------- */
-  function render(e) { if (e && e.img) bubble({ img: e.img, text: e.x, t: e.t }) }
+  function render(e) { if (e && e.img) return bubble({ img: e.img, text: e.x, t: e.t }) }
 
   window.VISION = { pick, has, take, untake, render }
 })()

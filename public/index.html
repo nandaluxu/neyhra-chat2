@@ -1339,6 +1339,9 @@ async function submit(opt){
   }
   if(pend.length) await pendFlush(true); /* hadiah/gambar/skenario saat masih ada antrean teks: antreannya dikirim dulu */
   const useVoice=voiceOn&&!!vcode, lang=voiceLang; let okReply=false, relNote='', lastReply='';
+  /* Pesan gambar: bubble user (gambar + caption) langsung tampil SAAT DIKIRIM, tidak menunggu /api/vision selesai. Kalau pembacaan gagal, bubble dicabut lagi. Dicatat ke log setelah berhasil. */
+  const vt=Date.now(); let vrow=null;
+  if(vf&&ch&&ch.id===chId&&app.classList.contains('open')&&!(window.GX&&GX.cur)) vrow=VISION.render({img:vf.thumb,x:text,t:vt});
   let t=thinkBubble(ch.name,!!vf); /* fase 1 (vision): AI membaca gambar dulu; sisanya: ChatGPT lagi mikir */
   let vd=''; /* deskripsi gambar dari /api/vision -> jadi konteks di /api/chat */
   if(vf){
@@ -1347,12 +1350,10 @@ async function submit(opt){
       vd=String(vr&&vr.desc||'').slice(0,800);
       if(!vd) throw new Error('deskripsi kosong');
     }catch(e){ /* gagal membaca gambar: pesan batal, lampiran + ketikan dikembalikan */
-      t.remove(); toast('Gagal membaca gambar: '+(e.message||'coba lagi'));
+      t.remove(); if(vrow&&vrow.remove) vrow.remove(); toast('Gagal membaca gambar: '+(e.message||'coba lagi'));
       VISION.untake(vf); inp.value=text; grow(); busy=false; refresh(); return;
     }
-    const vt=Date.now(); /* deskripsi berhasil -> pesan user (gambar + caption) masuk chat + log */
-    if(ch&&ch.id===chId&&app.classList.contains('open')&&!(window.GX&&GX.cur)) VISION.render({img:vf.thumb,x:text,t:vt});
-    record(chId,{t:vt,r:'me',x:text,img:vf.thumb,vd});
+    record(chId,{t:vt,r:'me',x:text,img:vf.thumb,vd}); /* deskripsi berhasil -> masuk log (bubble sudah tampil dari awal) */
   }
   try{
     const hist=loadHist(ch.id);
