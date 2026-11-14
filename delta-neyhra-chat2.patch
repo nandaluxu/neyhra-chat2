@@ -1,0 +1,1671 @@
+diff -ruN orig/neyhra-chat2-main/lib/auth.js proj/neyhra-chat2-main/lib/auth.js
+--- orig/neyhra-chat2-main/lib/auth.js	2026-11-13 21:33:32.000000000 +0700
++++ proj/neyhra-chat2-main/lib/auth.js	2026-11-14 11:01:23.499442171 +0700
+@@ -39,6 +39,7 @@
+ 
+ const scrypt = promisify(crypto.scrypt)
+ const SESSION_DAYS = 60
++const SESSION_REFRESH_MS = 12 * 3600e3 // perpanjang umur sesi paling sering sekali per 12 jam
+ const MAX_DATA = 3.5 * 1024 * 1024 // Vercel membatasi body request ±4,5 MB
+ const USER_RE = /^[a-z0-9_.-]{3,20}$/
+ const START_COINS = 150, START_GEMS = 10, START_TICKETS = 3, START_CHIPS = 0 // saldo awal akun baru (3 tiket = bisa langsung coba gacha; chip = mode Paid slot, mulai dari 0)
+@@ -69,10 +70,15 @@
+ async function userFromReq(req) {
+   const m = /^Bearer ([\w-]{20,64})$/.exec(req.headers.authorization || '')
+   if (!m) return null
+-  const s = await (await col('auth_sessions')).findOne({ _id: sha(m[1]) })
++  const sessions = await col('auth_sessions')
++  const s = await sessions.findOne({ _id: sha(m[1]) })
+   if (!s) return null
+   const u = await (await col('users')).findOne({ _id: s.userId })
+-  return u ? { user: u, sid: s._id } : null
++  if (!u) return null
++  // Sesi "geser": TTL Mongo menghitung dari createdAt, jadi tanpa ini user pasti ter-logout 60 hari setelah login walau tiap hari aktif.
++  // Diperpanjang paling sering 1x/12 jam (best-effort, gagal diabaikan).
++  if (Date.now() - new Date(s.createdAt).getTime() > SESSION_REFRESH_MS) sessions.updateOne({ _id: s._id }, { $set: { createdAt: new Date() } }).catch(() => { })
++  return { user: u, sid: s._id }
+ }
+ 
+ async function startSession(userId) {
+diff -ruN orig/neyhra-chat2-main/lib/bonus.js proj/neyhra-chat2-main/lib/bonus.js
+--- orig/neyhra-chat2-main/lib/bonus.js	2026-11-13 21:33:32.000000000 +0700
++++ proj/neyhra-chat2-main/lib/bonus.js	2026-11-14 11:01:15.071441670 +0700
+@@ -93,11 +93,14 @@
+     const last = Number.isInteger(u.bonusDay) ? u.bonusDay : -99
+     const streak = last === today - 1 ? Math.max(1, Number.isInteger(u.streak) ? u.streak : 0) + 1 : 1
+     const streakBonus = Math.min(STREAK_MAX_BONUS, streak * 5)
+-    const bonus = { ...(streakBonus ? { c: streakBonus } : {}) } // digabung ke reward untuk pesan client
++    // PENTING: coins harus dijumlah (hadiah harian + bonus streak) dalam SATU key. Sebelumnya `coins` ditulis dua kali di objek $inc,
++    // sehingga key kedua (bonus streak, mis. 2 x 5 = 10) menimpa hadiah harian (mis. 75) dan user hanya menerima 10 coin.
++    const coinsTotal = (reward.c || 0) + streakBonus
++    const inc = { ...(coinsTotal ? { coins: coinsTotal } : {}), ...(reward.g ? { gems: reward.g } : {}) }
+     // $ne di filter = penjaga atomik: dua klaim bersamaan (dua tab/perangkat) hanya satu yang lolos
+     const nu = doc(await (await col('users')).findOneAndUpdate(
+       { _id: u._id, bonusDay: { $ne: today } },
+-      { $set: { bonusDay: today, bonusN: v.claimDay, streak, streakMax: Math.max(streak, Number.isInteger(u.streakMax) ? u.streakMax : 0) }, $inc: { coins: reward.c || 0, gems: reward.g || 0, ...(streakBonus ? { coins: streakBonus } : {}) } },
++      { $set: { bonusDay: today, bonusN: v.claimDay, streak, streakMax: Math.max(streak, Number.isInteger(u.streakMax) ? u.streakMax : 0) }, $inc: inc },
+       { returnDocument: 'after' }
+     ))
+     if (!nu) return res.status(409).json({ error: 'Hari ini sudah diklaim.' })
+diff -ruN orig/neyhra-chat2-main/lib/gc.js proj/neyhra-chat2-main/lib/gc.js
+--- orig/neyhra-chat2-main/lib/gc.js	2026-11-13 21:33:32.000000000 +0700
++++ proj/neyhra-chat2-main/lib/gc.js	2026-11-14 11:13:55.203818921 +0700
+@@ -1,7 +1,8 @@
+-import { Router } from 'express'
++import express, { Router } from 'express'
+ import crypto from 'node:crypto'
+ import * as store from './gcstore.js'
+-import { bearerUser, gcSenderId } from './auth.js'
++import { bearerUser, gcSenderId, allow as authAllow } from './auth.js'
++import { r2Enabled, r2Put, r2Delete, r2PublicUrl } from './r2.js'
+ import { col, ensureIndexes, mongoEnabled } from './mongo.js'
+ 
+ /* ===== Chat Global: API backend =====
+@@ -10,6 +11,7 @@
+      POST /api/gc/sync     heartbeat presence + pesan baru (feed Redis; ditambal dari Mongo kalau klien tertinggal) + tombstone
+      POST /api/gc/history  riwayat dari MongoDB, per halaman (kursor `before` = {ts, id}), terbaru dulu lalu mundur
+      POST /api/gc/send     kirim pesan: simpan ke MongoDB (penyimpanan utama), lalu taruh ke feed Redis (id & ts dibuat server; rate-limit)
++     POST /api/gc/upload   unggah 1 gambar (JPEG mentah, wajib login) ke Cloudflare R2 -> { key, img }; key dipakai di /send (imgKey)
+      POST /api/gc/delete   hapus pesan / semua (hanya kode dev yang sah): hapus di Mongo + tombstone di Redis
+ 
+    Pembagian tugas: MongoDB = seluruh riwayat (koleksi gc_messages). Redis = presence, rate-limit, dan feed 10 pesan terbaru untuk polling.
+@@ -56,7 +58,11 @@
+ // Koleksi riwayat: _id = id pesan (UUID buatan server). Index {ts,_id} menurun = urutan halaman riwayat.
+ // Dokumen: { _id, senderId, senderName, text, ts, replyTo (id pesan yang dibalas | null), au?, av? }
+ const msgCol = async () => { await ensureIndexes('gc_messages', [[{ ts: -1, _id: -1 }]]); return col('gc_messages') }
+-const pub = d => ({ id: d._id, senderId: d.senderId, senderName: d.senderName, text: d.text, ts: d.ts, replyTo: d.replyTo || null, ...(d.au ? { au: d.au, av: d.av } : {}) })
++// img = alamat publik gambar di R2 (+ iw/ih = ukuran untuk menyisakan ruang di bubble); imgKey (nama objek) TIDAK dikirim ke client.
++const pub = d => ({ id: d._id, senderId: d.senderId, senderName: d.senderName, text: d.text, ts: d.ts, replyTo: d.replyTo || null, ...(d.au ? { au: d.au, av: d.av } : {}), ...(d.img ? { img: d.img, ...(d.iw ? { iw: d.iw, ih: d.ih } : {}) } : {}) })
++const IMG_KEY = /^gc\/[0-9a-f]{24}\.jpg$/
++const IMG_MAX = 700 * 1024 // client mengecilkan ke <= ±1280 px JPEG; batas keras di server
++const dim = v => { const n = parseInt(v); return Number.isInteger(n) && n >= 1 && n <= 4096 ? n : 0 }
+ const PAGE_DEF = 30, PAGE_MAX = 50
+ const badId = id => typeof id !== 'string' || !CID.test(id)
+ 
+@@ -119,13 +125,38 @@
+   }
+ })
+ 
++/* ---------- POST /api/gc/upload ---------- */
++// Body = byte JPEG mentah (Content-Type: image/jpeg), BUKAN JSON (parser JSON global 50 KB tidak menyentuhnya). Wajib login (Bearer) + dibatasi laju,
++// supaya bucket R2 tidak bisa dipenuhi anonim. Hanya JPEG (dicek byte awal): client selalu mengubah gambar jadi JPEG lewat canvas.
++r.post('/api/gc/upload', noStore, express.raw({ type: 'image/jpeg', limit: IMG_MAX }), async (req, res) => {
++  if (!ready()) return disabled(res)
++  if (!r2Enabled()) return res.status(501).json({ error: 'Kirim gambar belum aktif di server (Cloudflare R2 belum diatur).', imgOff: true })
++  try {
++    let acct = null
++    try { acct = (await bearerUser(req))?.user || null } catch { acct = null }
++    if (!acct) return res.status(401).json({ error: 'Masuk dulu untuk mengirim gambar.' })
++    const buf = req.body
++    if (!Buffer.isBuffer(buf) || buf.length < 200 || buf.length > IMG_MAX || buf[0] !== 0xff || buf[1] !== 0xd8 || buf[2] !== 0xff) return res.status(400).json({ error: 'Gambar tidak valid (harus JPEG, maks 700 KB).' })
++    if (!(await authAllow('gcimg:' + acct._id, 8, 60))) return res.status(429).json({ error: 'Terlalu sering kirim gambar, tunggu sebentar.' })
++    const key = `gc/${crypto.randomBytes(12).toString('hex')}.jpg`
++    await r2Put(key, buf, 'image/jpeg')
++    res.json({ ok: true, key, img: r2PublicUrl(key) })
++  } catch (e) {
++    console.error('[gc:upload]', e.message)
++    res.status(e?.type === 'entity.too.large' ? 413 : 502).json({ error: e?.type === 'entity.too.large' ? 'Gambar terlalu besar.' : 'Gambar gagal diunggah' })
++  }
++})
++
+ /* ---------- POST /api/gc/send ---------- */
+ r.post('/api/gc/send', noStore, async (req, res) => {
+   if (!ready()) return disabled(res)
+-  const { clientId, name, text, replyTo } = req.body || {}
++  const { clientId, name, text, replyTo, imgKey, iw, ih } = req.body || {}
+   if (badId(clientId)) return res.status(400).json({ error: 'Request tidak valid' })
+   const t = cleanText(text)
+-  if (!t || textLen(t) > 256) return res.status(400).json({ error: 'Pesan tidak valid (1-256 karakter)' })
++  const key = typeof imgKey === 'string' && IMG_KEY.test(imgKey) ? imgKey : null // pesan gambar: teks (caption) boleh kosong
++  if ((!t && !key) || textLen(t) > 256) return res.status(400).json({ error: 'Pesan tidak valid (1-256 karakter)' })
++  if (imgKey != null && !key) return res.status(400).json({ error: 'Gambar tidak valid' })
++  if (key && !r2Enabled()) return res.status(501).json({ error: 'Kirim gambar belum aktif di server.', imgOff: true })
+   try {
+     // Kalau pengirim masuk akun (token Bearer sah): nama = nama profil, dan au/av = username + versi foto profil (client membuat alamat fotonya sendiri).
+     // Tanpa token / token tidak sah / Mongo mati: tetap bisa kirim sebagai tamu dengan nama dari body.
+@@ -140,9 +171,13 @@
+       replyTo: typeof replyTo === 'string' && MID.test(replyTo) ? replyTo : null // disiapkan untuk fitur balas pesan (belum ada UI); tidak dicek keberadaannya
+     }
+     if (acct && (acct.av || acct.avatarUrl)) { m.au = acct.username; m.av = acct.av || 1 }
++    if (key) {
++      if (!acct) return res.status(401).json({ error: 'Masuk dulu untuk mengirim gambar.' })
++      m.img = r2PublicUrl(key); if (dim(iw) && dim(ih)) { m.iw = dim(iw); m.ih = dim(ih) } // alamat dibangun server dari key tervalidasi, bukan URL dari client
++    }
+     if (!(await store.allow('send', m.senderId, m.ts))) return res.status(429).json({ error: 'Terlalu sering kirim pesan, tunggu sebentar' }) // sebelum menulis ke Mongo
+     const { id, ...rest } = m
+-    await (await msgCol()).insertOne({ _id: id, ...rest }) // penyimpanan utama; gagal -> pesan dianggap gagal terkirim
++    await (await msgCol()).insertOne({ _id: id, ...rest, ...(key ? { imgKey: key } : {}) }) // penyimpanan utama; gagal -> pesan dianggap gagal terkirim
+     try { await store.push(m, m.ts) } catch (e) { console.error('[gc:send:feed]', e.message) } // feed realtime; riwayat sudah aman di Mongo
+     res.json({ m })
+   } catch (e) {
+@@ -151,6 +186,12 @@
+   }
+ })
+ 
++// Hapus objek gambar di R2 (best-effort: gagal hanya dicatat, pesan di Mongo sudah terhapus). Bertahap 10 sekaligus.
++async function rmImgs(keys) {
++  const ks = (keys || []).filter(k => typeof k === 'string' && IMG_KEY.test(k))
++  for (let i = 0; i < ks.length; i += 10) await Promise.allSettled(ks.slice(i, i + 10).map(r2Delete))
++}
++
+ /* ---------- POST /api/gc/delete (Mode dev) ---------- */
+ // Hanya menerima kode dev yang hash-nya cocok (mekanisme yang sama dengan pembuka Mode dev di browser).
+ // Pesan dihapus dari MongoDB (jadi tidak muncul lagi di riwayat) + tombstone/watermark di Redis supaya klien yang
+@@ -162,14 +203,18 @@
+   try {
+     const now = Date.now(), c = await msgCol()
+     if (all) {
++      const withImg = await c.find({ ts: { $lte: now }, imgKey: { $exists: true } }, { projection: { imgKey: 1 } }).toArray().catch(() => [])
+       await c.deleteMany({ ts: { $lte: now } })
++      await rmImgs(withImg.map(d => d.imgKey)) // gambar di R2 ikut dihapus (best-effort)
+       // Watermark di Redis = koordinasi best-effort: Mongo (sumber kebenaran) sudah terhapus, jadi kegagalan Redis
+       // tidak membatalkan penghapusan. Klien yang online tetap diberi watermark supaya ikut membersihkan tampilannya.
+       try { await store.clear(now) } catch (e) { console.error('[gc:delete:clear]', e.message) }
+       return res.json({ ok: 1, wm: now })
+     }
+     if (typeof id !== 'string' || !ID_RE.test(id)) return res.status(400).json({ error: 'Request tidak valid' })
++    const one = await c.findOne({ _id: id }, { projection: { imgKey: 1 } }).catch(() => null)
+     await c.deleteOne({ _id: id })
++    if (one?.imgKey) await rmImgs([one.imgKey])
+     try { await store.tomb(id, now) } catch (e) { console.error('[gc:delete:tomb]', e.message) } // idem: best-effort
+     res.json({ ok: 1, tombs: [id] })
+   } catch (e) {
+diff -ruN orig/neyhra-chat2-main/public/globalchat.adapter.js proj/neyhra-chat2-main/public/globalchat.adapter.js
+--- orig/neyhra-chat2-main/public/globalchat.adapter.js	2026-11-13 21:33:32.000000000 +0700
++++ proj/neyhra-chat2-main/public/globalchat.adapter.js	2026-11-14 11:14:09.459600995 +0700
+@@ -22,13 +22,15 @@
+ const CID_RE = /^[\w-]{8,64}$/;
+ const MID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+ 
++const okImg = u => typeof u === 'string' && /^https:\/\/[^\s"'<>\\]{1,500}$/.test(u); // gambar hanya dari alamat https (dibuat server dari R2), tidak pernah data:/javascript:
+ const cmp = (a, b) => a.ts - b.ts || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+ const uid = () => Math.random().toString(36).slice(2, 10);
+ const okShape = m => m && typeof m === 'object' &&
+   typeof m.id === 'string' && MID_RE.test(m.id) &&
+   typeof m.senderId === 'string' && CID_RE.test(m.senderId) &&
+   typeof m.senderName === 'string' && m.senderName.length > 0 && m.senderName.length <= 24 &&
+-  typeof m.text === 'string' && m.text.length > 0 && [...m.text].length <= 256 &&
++  typeof m.text === 'string' && (m.text.length > 0 || okImg(m.img)) && [...m.text].length <= 256 &&
++  (m.img == null || okImg(m.img)) &&
+   Number.isInteger(m.ts) && m.ts > 1600000000000 && m.ts < 9e15 &&
+   (m.replyTo == null || (typeof m.replyTo === 'string' && MID_RE.test(m.replyTo)));
+ 
+@@ -41,6 +43,15 @@
+   } catch { return { ok: false, status: 0, json: null }; }
+ }
+ 
++// Unggah gambar (JPEG mentah) ke /api/gc/upload -> { key }. Token akun wajib.
++async function upload(blob) {
++  try {
++    const r = await fetch('/api/gc/upload', { method: 'POST', headers: { 'Content-Type': 'image/jpeg', ...(typeof atok === 'string' && atok ? { Authorization: 'Bearer ' + atok } : {}) }, body: blob });
++    let j = null; try { j = await r.json(); } catch {}
++    return { ok: r.ok, status: r.status, json: j };
++  } catch { return { ok: false, status: 0, json: null }; }
++}
++
+ /* ---------- state (kontrak view model UI) ---------- */
+ // more = masih ada riwayat lebih lama di server; loadingOlder = sedang mengambil halaman lama
+ const st = { status: 'offline', error: null, onlineCount: null, sync: null, rev: 0, messages: [], more: false, loadingOlder: false };
+@@ -216,14 +227,31 @@
+   return tmp;
+ }
+ async function deliver(text, tmp) {
+-  const t = setTimeout(() => { if (pending.some(x => x.id === tmp.id && x.status === 'sending')) failTmp(tmp); }, 15000);
+-  const r = await api('/api/gc/send', { clientId: meId(), name: getSelf().name, text, replyTo: tmp.replyTo });
++  const t = setTimeout(() => { if (pending.some(x => x.id === tmp.id && x.status === 'sending')) failTmp(tmp); }, tmp.blob ? 45000 : 15000);
++  // Pesan gambar: bubble sudah tampil dari awal (pratinjau lokal); unggah ke R2 dulu, baru kirim pesan dengan key-nya. Key disimpan di tmp supaya "Coba lagi" tidak mengunggah ulang.
++  if (tmp.blob && !tmp.imgKey) {
++    const u = await upload(tmp.blob);
++    if (!pending.some(x => x.id === tmp.id)) { clearTimeout(t); return; }
++    if (!(u.ok && u.json?.key)) { clearTimeout(t); return failTmp(tmp, u.json?.error || 'Gambar gagal diunggah'); }
++    tmp.imgKey = u.json.key;
++  }
++  const r = await api('/api/gc/send', { clientId: meId(), name: getSelf().name, text, replyTo: tmp.replyTo, ...(tmp.imgKey ? { imgKey: tmp.imgKey, iw: tmp.iw, ih: tmp.ih } : {}) });
+   clearTimeout(t);
+   if (!pending.some(x => x.id === tmp.id)) return; // sudah dibersihkan (mis. dicoba ulang)
+-  if (r.ok && r.json?.m) { dropTmp(tmp); ingest([r.json.m]); }
++  if (r.ok && r.json?.m) { dropTmp(tmp); ingest([r.json.m]); if (tmp.img && tmp.img.startsWith('blob:')) setTimeout(() => URL.revokeObjectURL(tmp.img), 4000); }
+   else failTmp(tmp, r.json?.error);
+ }
+ 
++// Kirim gambar: blob = JPEG hasil kecilan client, preview = object URL untuk bubble langsung (optimistis), caption boleh kosong.
++function sendImage(blob, preview, text, replyTo, iw, ih) {
++  if (!canSend() || !blob || !preview) return null;
++  const s = getSelf(), cap = typeof text === 'string' ? text.trim() : '';
++  const tmp = { id: 'tmp-' + uid(), senderId: s.aid || s.id, senderName: s.name, text: cap, img: preview, iw, ih, blob, ts: Date.now(), status: 'sending', replyTo: MID_RE.test(replyTo || '') ? replyTo : null };
++  pending.push(tmp); touch(); bump();
++  deliver(cap, tmp);
++  return tmp;
++}
++
+ function retry(id) {
+   const m = pending.find(x => x.id === id);
+   if (!m || m.status !== 'failed' || !canSend()) return;
+@@ -273,6 +301,7 @@
+     beat();
+   },
+   send,
++  sendImage,
+   retry,
+   loadOlder,
+   deleteMessage,
+diff -ruN orig/neyhra-chat2-main/public/globalchat.css proj/neyhra-chat2-main/public/globalchat.css
+--- orig/neyhra-chat2-main/public/globalchat.css	2026-11-13 21:33:32.000000000 +0700
++++ proj/neyhra-chat2-main/public/globalchat.css	2026-11-14 11:14:43.609062354 +0700
+@@ -190,3 +190,27 @@
+ #gc-list.swiping{-webkit-user-select:none;user-select:none;cursor:grabbing}
+ @media(pointer:coarse){.gc-re{display:none}} /* di layar sentuh balasnya lewat geser, tombol hover tidak dipakai */
+ @media(prefers-reduced-motion:reduce){.gc-msg.swb{transition:none}}
++
++/* ===== Gambar di Chat Global ===== */
++.gc-img{display:block;width:min(260px,64vw);max-width:100%;min-height:60px;margin:0 0 4px;border-radius:12px;overflow:hidden;background:color-mix(in srgb,var(--ink) 8%,var(--surface));cursor:zoom-in;position:relative}
++.gc-img img{display:block;width:100%;height:100%;object-fit:cover}
++.gc-img:not([style*="aspect-ratio"]) img{height:auto;max-height:340px}
++.gc-img.bad{cursor:default;display:grid;place-items:center;aspect-ratio:auto;min-height:60px;font-size:12px;color:var(--mut)}
++.gc-msg.sending .gc-img img{opacity:.6}
++.gc-att{display:flex;align-items:center;gap:10px;margin:0 6px 6px;padding:6px 8px 6px 6px;border-radius:12px;background:var(--surface);font-size:12px;color:var(--mut)}
++.gc-att.hide{display:none}
++.gc-att img{flex:none;width:44px;height:44px;border-radius:9px;object-fit:cover}
++.gc-att-c{min-width:0;flex:1}
++.gc-att-c b{display:block;font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
++.gc-att-c span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
++#gc-attx{flex:none;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;color:var(--mut)}
++#gc-attx svg{width:14px;height:14px}
++#gc-attx:focus-visible,#gc-pic:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
++#gc-pic{width:44px;height:44px;border-radius:50%;flex:none;display:grid;place-items:center;background:var(--surface);color:var(--ink);transition:transform .15s}
++#gc-pic svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
++#gc-pic:active{transform:scale(.92)}
++#gc-lb{position:absolute;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.88);cursor:zoom-out}
++#gc-lb.hide{display:none}
++#gc-lb img{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px}
++#gc-lb button{position:absolute;top:calc(12px + env(safe-area-inset-top,0px));right:12px;width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.16);color:#fff}
++#gc-lb button svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+diff -ruN orig/neyhra-chat2-main/public/globalchat.js proj/neyhra-chat2-main/public/globalchat.js
+--- orig/neyhra-chat2-main/public/globalchat.js	2026-11-13 21:33:32.000000000 +0700
++++ proj/neyhra-chat2-main/public/globalchat.js	2026-11-14 11:14:43.608630076 +0700
+@@ -48,8 +48,10 @@
+   offline: '<svg viewBox="0 0 24 24"><path d="M2 8.8a15 15 0 0 1 4-2.6M22 8.8a15 15 0 0 0-9-3.7M5 12.9a10 10 0 0 1 5-2.7M19 12.9a10 10 0 0 0-2.4-1.9M8.5 16.4a5 5 0 0 1 7 0M12 20h.01M3 3l18 18"/></svg>',
+   msg: '<svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg>',
+   chev: '<svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>',
+-  re: '<svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 016 6v1"/></svg>'
++  re: '<svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 016 6v1"/></svg>',
++  img: '<svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="3"/><circle cx="9" cy="10" r="1.6"/><path d="M4 17l5-5 4 4 2.5-2.5L20 16"/></svg>'
+ };
++const photoLabel = m => m.text || (m.img ? '📷 Foto' : ''); // pratinjau teks untuk balasan / notifikasi (pesan gambar tanpa caption)
+ 
+ /* ---------- Kerangka DOM ---------- */
+ app.insertAdjacentHTML('beforeend', `
+@@ -66,7 +68,10 @@
+   <div class="gc-foot">
+     <div class="gc-meta"><span class="gc-as" id="gc-as"></span><span class="gc-count" id="gc-count" title="Maksimal ${MAX} karakter">0/${MAX}</span></div>
+     <div class="gc-rp hide" id="gc-rp"><span class="gc-rp-i" aria-hidden="true">${I.re}</span><div class="gc-rp-c"><b></b><span></span></div><button id="gc-rpx" type="button" title="Batal balas" aria-label="Batal balas">${I.close}</button></div>
++    <div class="gc-att hide" id="gc-att"><img id="gc-att-i" alt="" draggable="false"><div class="gc-att-c"><b>Gambar siap dikirim</b><span id="gc-att-s"></span></div><button id="gc-attx" type="button" title="Lepas gambar" aria-label="Lepas gambar">${I.close}</button></div>
+     <div class="gc-row">
++      <button id="gc-pic" type="button" title="Kirim gambar" aria-label="Kirim gambar">${I.img}</button>
++      <input id="gc-file" type="file" accept="image/*" hidden>
+       <textarea id="gc-inp" rows="1" placeholder="Pesan untuk semua orang" aria-label="Pesan" aria-describedby="gc-count" autocomplete="off" autocapitalize="sentences"></textarea>
+       <button id="gc-send" type="button" title="Kirim" aria-label="Kirim pesan" disabled>${I.send}</button>
+     </div>
+@@ -79,7 +84,7 @@
+     <div class="shead"><h2 id="gc-info-t">Tentang Chat Global</h2><button id="gc-info-x" type="button" aria-label="Tutup">${I.close}</button></div>
+     <div class="sgroup">
+       <div class="gc-fact"><b>Satu ruang untuk semua</b><i>Semua pengguna bisa membaca dan mengirim pesan di sini.</i></div>
+-      <div class="gc-fact"><b>Teks saja</b><i>Maksimal ${MAX} karakter per pesan. Tidak ada gambar maupun file.</i></div>
++      <div class="gc-fact"><b>Teks dan gambar</b><i>Maksimal ${MAX} karakter per pesan. Kamu bisa mengirim gambar (JPEG, dikecilkan otomatis) dengan keterangan opsional; mengirim gambar butuh akun. Tidak ada file lain.</i></div>
+       <div class="gc-fact"><b>Riwayat tersimpan di server</b><i>Semua pesan disimpan di server dan dimuat bertahap: yang terbaru dulu, yang lama muncul saat kamu menggulir ke atas.</i></div>
+       <div class="gc-fact"><b>Pesan baru muncul otomatis</b><i>Pesan dari pengguna lain diambil otomatis setiap beberapa detik selama aplikasi terbuka.</i></div>
+     </div>
+@@ -179,10 +184,21 @@
+   q.setAttribute('role', 'button');
+   q.setAttribute('tabindex', '0');
+   q.title = src ? 'Lihat pesan yang dibalas' : 'Pesan asli tidak tersedia';
+-  q.append(el('b', null, src ? src.senderName : 'Pesan asli tidak tersedia'), el('span', null, src ? clip(src.text) : ''));
++  q.append(el('b', null, src ? src.senderName : 'Pesan asli tidak tersedia'), el('span', null, src ? clip(photoLabel(src)) : ''));
+   return q;
+ }
+ const canReply = m => m.status !== 'sending' && m.status !== 'failed' && !String(m.id).startsWith('tmp-');
++/* Gambar di bubble: alamat dari server (R2) atau pratinjau lokal (blob:) saat masih mengirim. iw/ih dari server dipakai untuk menyisakan ruang
++   (aspect-ratio) supaya daftar tidak melompat saat gambar selesai dimuat. Ketuk = lihat besar. */
++function imgNode(m) {
++  const w = el('div', 'gc-img');
++  if (Number.isInteger(m.iw) && Number.isInteger(m.ih) && m.iw > 0 && m.ih > 0) w.style.aspectRatio = m.iw + ' / ' + m.ih;
++  const im = new Image(); im.alt = 'Gambar'; im.decoding = 'async'; im.draggable = false; im.referrerPolicy = 'no-referrer';
++  if (!m.status) im.loading = 'lazy';
++  im.onerror = () => { w.classList.add('bad'); im.remove(); w.textContent = 'Gambar tidak bisa dimuat'; };
++  im.src = m.img; w.dataset.zoom = m.img; w.append(im);
++  return w;
++}
+ function bubble(m, o, find) {
+   const r = el('div', 'gc-msg ' + (o.mine ? 'me' : 'them') + (o.first ? ' first' : '') + (o.last ? ' last' : '') + (o.fresh ? ' new' : '') + (m.status === 'sending' ? ' sending' : '') + (m.status === 'failed' ? ' failed' : ''));
+   r.dataset.id = m.id;
+@@ -190,7 +206,9 @@
+   const b = el('div', 'gc-b');
+   if (!o.mine && o.first) b.append(el('div', 'gc-n', m.senderName));
+   if (m.replyTo) b.append(replyQuote(m, find));
+-  b.append(el('div', 'gc-t', m.text), meta(m, o.mine));
++  if (m.img) b.append(imgNode(m));
++  if (m.text) b.append(el('div', 'gc-t', m.text));
++  b.append(meta(m, o.mine));
+   const del = el('button', 'gc-del'); del.type = 'button'; del.dataset.del = m.id; del.title = 'Hapus pesan (dev)'; del.setAttribute('aria-label', 'Hapus pesan ini (dev)'); del.innerHTML = I.trash;
+   // Semua pesan bisa dibalas (tombol muncul saat hover/fokus di desktop; di layar sentuh pakai geser ke kanan). Pesan yang belum terkirim belum punya id server, jadi belum bisa dibalas.
+   if (canReply(m)) { const re = el('button', 'gc-re'); re.type = 'button'; re.dataset.reply = m.id; re.title = 'Balas'; re.setAttribute('aria-label', 'Balas pesan ' + (o.mine ? 'milikmu' : 'dari ' + m.senderName)); re.innerHTML = I.re; if (o.mine) r.append(del, re, b); else r.append(b, re, del); }
+@@ -256,7 +274,7 @@
+   s = s || A.getState();
+   const n = len(inp.value), can = canSend(s);
+   cnt.textContent = n + '/' + MAX; cnt.classList.toggle('warn', n >= MAX - 24 && n < MAX); cnt.classList.toggle('max', n >= MAX);
+-  sendB.disabled = !can || !inp.value.trim();
++  sendB.disabled = !can || (!inp.value.trim() && !att);
+   inp.placeholder = rp ? 'Balas ' + rp.name + '…' : can ? 'Pesan untuk semua orang' : s.status === 'connecting' ? 'Menghubungkan…' : 'Offline, pesan belum bisa dikirim';
+   paintAs();
+ }
+@@ -272,9 +290,71 @@
+ sendB.onclick = submit;
+ function submit() {
+   const s = A.getState(), text = inp.value.replace(/\n{3,}/g, '\n\n').trim();
+-  if (!text || !canSend(s) || len(text) > MAX) { shake(inp); return; }
+-  A.send(text, rp && rp.id); clearReply(); inp.value = ''; grow(); paintComposer();
++  if ((!text && !att) || !canSend(s) || len(text) > MAX) { shake(inp); return; }
++  if (att) { const a = att; att = null; paintAtt(); A.sendImage(a.blob, a.url, text, rp && rp.id, a.w, a.h); } // pratinjau (object URL) dipindah ke bubble yang sedang mengirim
++  else A.send(text, rp && rp.id);
++  clearReply(); inp.value = ''; grow(); paintComposer();
++}
++
++/* ---------- Lampiran gambar ----------
++   Tombol gambar -> pilih file -> dikecilkan di browser (JPEG, sisi terpanjang <= 1280 px, <= ~600 KB) -> muncul chip pratinjau di atas kotak ketik
++   (caption opsional). Saat dikirim, bubble langsung tampil dengan pratinjau lokal sementara unggahan ke server (R2) berjalan. Butuh akun. */
++let att = null; // { blob, url (object URL), w, h }
++const attBar = $('gc-att'), fileIn = $('gc-file');
++const kb = n => n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
++async function shrinkImg(file) {
++  let src;
++  try { src = await createImageBitmap(file); }
++  catch { src = await new Promise((ok, no) => { const u = URL.createObjectURL(file), im = new Image(); im.onload = () => { URL.revokeObjectURL(u); ok(im); }; im.onerror = () => { URL.revokeObjectURL(u); no(new Error('Format gambar tidak didukung')); }; im.src = u; }); }
++  try {
++    const w0 = src.width || src.naturalWidth, h0 = src.height || src.naturalHeight;
++    if (!w0 || !h0) throw new Error('Gambar tidak terbaca');
++    let max = 1280, q = 0.84;
++    for (let i = 0; i < 6; i++) {
++      const sc = Math.min(1, max / Math.max(w0, h0)), w = Math.max(1, Math.round(w0 * sc)), h = Math.max(1, Math.round(h0 * sc));
++      const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
++      const cx = cv.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, w, h); cx.drawImage(src, 0, 0, w, h); // PNG transparan -> dasar putih
++      const blob = await new Promise(r => cv.toBlob(r, 'image/jpeg', q));
++      if (blob && blob.size <= 600 * 1024) return { blob, w, h };
++      q = Math.max(0.6, q - 0.08); if (i >= 2) max = Math.round(max * 0.8); // belum muat: turunkan kualitas dulu, lalu ukuran
++    }
++    throw new Error('Gambar terlalu besar, coba yang lebih kecil');
++  } finally { if (src.close) try { src.close(); } catch {} }
++}
++function paintAtt() {
++  attBar.classList.toggle('hide', !att);
++  if (att) { $('gc-att-i').src = att.url; $('gc-att-s').textContent = att.w + '×' + att.h + ' · ' + kb(att.blob.size) + ' · tambah keterangan (opsional)'; }
++  else $('gc-att-i').removeAttribute('src');
++  paintComposer();
+ }
++function dropAtt(keepUrl) { if (att && !keepUrl) URL.revokeObjectURL(att.url); att = null; paintAtt(); }
++$('gc-attx').onclick = () => { dropAtt(); inp.focus({ preventScroll: true }); };
++$('gc-pic').addEventListener('pointerdown', e => e.preventDefault());
++$('gc-pic').onclick = () => {
++  if (typeof atok !== 'string' || !atok) { toast('Masuk dulu untuk mengirim gambar'); close(); openLogin(); return; }
++  if (!canSend(A.getState())) { toast('Belum terhubung'); return; }
++  fileIn.value = ''; fileIn.click();
++};
++fileIn.onchange = async () => {
++  const f = fileIn.files && fileIn.files[0]; fileIn.value = '';
++  if (!f) return;
++  if (!/^image\//.test(f.type)) { toast('Pilih file gambar'); return; }
++  if (f.size > 25 * 1024 * 1024) { toast('Gambar terlalu besar (maks 25 MB)'); return; }
++  try {
++    const r = await shrinkImg(f);
++    if (att) URL.revokeObjectURL(att.url);
++    att = { blob: r.blob, url: URL.createObjectURL(r.blob), w: r.w, h: r.h };
++    paintAtt(); inp.focus({ preventScroll: true });
++  } catch (e) { toast(e.message || 'Gambar tidak terbaca'); }
++};
++
++/* Lihat gambar besar (ketuk gambar di bubble) */
++const lb = document.createElement('div'); lb.id = 'gc-lb'; lb.className = 'hide'; lb.setAttribute('role', 'dialog'); lb.setAttribute('aria-label', 'Gambar');
++lb.innerHTML = '<img alt="Gambar" draggable="false"><button type="button" aria-label="Tutup">' + I.close + '</button>';
++gc.append(lb);
++lb.addEventListener('click', () => { lb.classList.add('hide'); lb.querySelector('img').removeAttribute('src'); });
++addEventListener('keydown', e => { if (e.key === 'Escape' && !lb.classList.contains('hide')) { e.stopPropagation(); lb.click(); } }, true);
++list.addEventListener('click', e => { const z = e.target.closest('.gc-img[data-zoom]'); if (!z || z.classList.contains('bad')) return; lb.querySelector('img').src = z.dataset.zoom; lb.classList.remove('hide'); });
+ 
+ /* ---------- Balas pesan ----------
+    Tombol balas ada di bubble terakhir tiap grup pesan. `rp` = pesan yang sedang dibalas (id + cuplikan untuk pratinjau);
+@@ -283,10 +363,10 @@
+ const rpBar = document.getElementById('gc-rp');
+ function setReply(m) {
+   if (!m || typeof m.id !== 'string') return;
+-  rp = { id: m.id, name: m.senderName, text: m.text };
++  rp = { id: m.id, name: m.senderName, text: photoLabel(m) };
+   rpBar.classList.remove('hide');
+   rpBar.querySelector('b').textContent = 'Membalas ' + m.senderName;
+-  rpBar.querySelector('.gc-rp-c span').textContent = clip(m.text); // bukan querySelector('span') polos: itu mengenai span ikon (.gc-rp-i) yang lebih dulu di DOM
++  rpBar.querySelector('.gc-rp-c span').textContent = clip(photoLabel(m)); // bukan querySelector('span') polos: itu mengenai span ikon (.gc-rp-i) yang lebih dulu di DOM
+   inp.placeholder = 'Balas ' + m.senderName + '…';
+   paintComposer();
+   if (matchMedia('(hover:hover)').matches) inp.focus({ preventScroll: true });
+@@ -403,7 +483,7 @@
+   syncDev(); primed = false; unread = 0; render(A.getState(), true);
+   if (matchMedia('(hover:hover)').matches) setTimeout(() => inp.focus({ preventScroll: true }), 300);
+ }
+-function close() { if (!isOpen) return; isOpen = false; gc.classList.remove('show'); gc.setAttribute('aria-hidden', 'true'); clearReply(); inp.blur(); }
++function close() { if (!isOpen) return; isOpen = false; gc.classList.remove('show'); gc.setAttribute('aria-hidden', 'true'); clearReply(); dropAtt(); lb.classList.add('hide'); inp.blur(); }
+ $('gcbtn').onclick = open;
+ $('gc-back').onclick = close;
+ document.addEventListener('keydown', e => {
+@@ -478,14 +558,14 @@
+   const last = nBatch[nBatch.length - 1], names = [...new Set(nBatch.map(m => m.senderName))];
+   const av = note.querySelector('.gcn-av'); av.style.setProperty('--h', hue(last.senderId)); av.textContent = [...last.senderName][0] || '?'; addPhoto(av, last);
+   note.querySelector('b').textContent = names.length === 1 ? names[0] + (nBatch.length > 1 ? ' · ' + nBatch.length + ' pesan' : '') : names[0] + ' +' + (names.length - 1) + ' lainnya · ' + nBatch.length + ' pesan';
+-  note.querySelector('.gcn-t span').textContent = last.text.replace(/\s+/g, ' ').slice(0, 90);
++  note.querySelector('.gcn-t span').textContent = photoLabel(last).replace(/\s+/g, ' ').slice(0, 90);
+   note.classList.add('show'); clearTimeout(nT); nT = setTimeout(hideNote, 5500);
+ }
+ function sysNote(fresh) { // tab di latar (Android/desktop): notifikasi sistem kalau sudah diizinkan
+   try {
+     if (!document.hidden || typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+     const m = fresh[fresh.length - 1];
+-    const n = new Notification('Chat Global · ' + m.senderName, { body: m.text.slice(0, 120), tag: 'neyhra-gc', renotify: true });
++    const n = new Notification('Chat Global · ' + m.senderName, { body: photoLabel(m).slice(0, 120), tag: 'neyhra-gc', renotify: true });
+     n.onclick = () => { window.focus(); n.close(); openFromNote(); };
+   } catch {}
+ }
+diff -ruN orig/neyhra-chat2-main/public/index.html proj/neyhra-chat2-main/public/index.html
+--- orig/neyhra-chat2-main/public/index.html	2026-11-13 21:33:32.000000000 +0700
++++ proj/neyhra-chat2-main/public/index.html	2026-11-14 18:41:39.891010170 +0700
+@@ -526,6 +526,8 @@
+ <link rel="stylesheet" href="/slot.css">
+ <link rel="stylesheet" href="/shop.css">
+ <link rel="stylesheet" href="/wallet.css">
++<link rel="stylesheet" href="/market.css">
++<link rel="stylesheet" href="/job.css">
+ <link rel="stylesheet" href="/economy.css">
+ <link rel="stylesheet" href="/tools/tools.css">
+ <link rel="stylesheet" href="/scenario.css">
+@@ -1255,23 +1257,27 @@
+ 
+ /* Voice note balasan karakter. Mode roleplay: server mengirim r.parts (satu ucapan = satu voice note, maks 3); selain itu satu voice note.
+    Dipakai chat biasa dan Skenario Skrip. `t` = bubble "merekam suara" yang sudah tampil. Kalau suara gagal, bagian yang belum jadi tampil sebagai teks. */
++/* `t` boleh null (chat sudah ditinggal sebelum suara mulai dibuat). Suara TETAP dibuat walau chat ditinggal: tampil di layar hanya kalau user masih di chat itu
++   (dicek tiap bagian, supaya tidak nyasar ke chat karakter lain), selain itu voice note langsung masuk log karakter aslinya dan muncul saat chat dibuka lagi. */
+ async function speakReply(chId,r,lang,t){
+   const parts=(r.parts&&r.parts.length>1)?r.parts:[{id:r.id,jp:r.jpText,vn:r.vn}];
+   let i=0;
+   try{
+     for(;i<parts.length;i++){
+       const p=parts[i];
+-      if(i>0) t=typingBubble();
++      if(i>0&&stillHere(chId)) t=typingBubble();
+       const ab=await (await post('/api/tts',{char:chId,text:p.vn,voice:voiceKeyOf(chId)},{'x-voice-code':vcode})).arrayBuffer();
+-      const pre=await decode(ab); t.remove();
++      const pre=await decode(ab); if(t) t.remove();
+       const tNow=Date.now(), k=newKey(); urls.push(pre.url);
+-      addVN({id:p.id,jp:p.jp,lang,vn:p.vn},[pre],tNow);
++      const here=stillHere(chId);
++      if(here) addVN({id:p.id,jp:p.jp,lang,vn:p.vn},[pre],tNow);
+       const saved=await idb.put(k,{ab,dur:pre.dur,bins:pre.bins}); /* audio disimpan lokal supaya voice note bisa diputar lagi nanti */
+       if(saved) pre.k=k;
+       record(chId,{t:tNow,r:'vn',x:p.id,jp:p.jp,lang,vn:p.vn,...(saved?{ks:[k],si:0}:{})});
++      if(!here) renderList(); /* chat ditinggal: daftar Obrolan Terakhir ikut diperbarui */
+     }
+   }catch(e){
+-    t.remove(); for(let j=i;j<parts.length;j++) showThem(chId,parts[j].id); /* suara gagal -> teksnya tetap tampil */
++    if(t) t.remove(); for(let j=i;j<parts.length;j++) showThemSafe(chId,parts[j].id); /* suara gagal -> teksnya tetap tampil (atau masuk log kalau chat ditinggal) */
+     if(e.status===403){ vcode=''; voiceOn=false; store.set('vcode',null); store.set('von','0'); paintVoice(); toast('Kode voice tidak valid, voice dimatikan'); }
+     else toast(e.message);
+   }
+@@ -1286,6 +1292,13 @@
+ let pend=[],pendT=0;
+ const PEND_MS=10000;
+ const stillHere=id=>!!ch&&ch.id===id&&app.classList.contains('open')&&!(window.GX&&GX.cur);
++/* Balasan bersuara: jangan dilewati cuma karena chat ditinggal (dulu jadi teks biasa). Bubble "merekam suara" hanya kalau masih di chat itu. */
++async function voiceReply(chId,r,lang,t){
++  if(t) t.remove();
++  const here=stillHere(chId);
++  if(here) setStatus('merekam suara',true); /* fase 2: masuk Fish Audio -> indikator voice */
++  await speakReply(chId,r,lang,here?typingBubble():null);
++}
+ function showThemSafe(id,text){ if(stillHere(id)) showThem(id,text); else { record(id,{r:'them',x:text}); renderList(); } } /* balasan datang setelah pindah chat: masuk log karakter aslinya, tidak nyasar ke layar sekarang */
+ function pendArm(){ clearTimeout(pendT); pendT=setTimeout(()=>{ pendT=0; pendFlush(false) },PEND_MS); setStatus('menunggu kamu selesai…',true); }
+ async function pendFlush(keepBusy){ /* keepBusy=true: dipanggil dari jalur hadiah/gambar yang memegang busy sendiri */
+@@ -1302,8 +1315,8 @@
+     r=await (await post('/api/chat',{clientId:cid,char:chId,message:text,userName:uname,history:hist,voice:{on:useVoice,lang},memory:memUse(chId).list,rel:relPayload(chId),qr:true,...engPayload(),...(rpOn()?{rp:true}:{})})).json();
+     saveHist(chId,[...loadHist(chId),['user',text],['char',r.id]]); okReply=true; lastReply=r.id;
+     relNote=relApply(chId,r.dExp!=null?r.dExp:(Math.round(Number(r.dRel))||0)*3,r.dMood);
+-    if(!useVoice||!stillHere(chId)){ if(t)t.remove(); showThemSafe(chId,r.id); } /* pindah chat saat voice: teksnya saja yang dicatat */
+-    else{ t.remove(); t=typingBubble(); setStatus('merekam suara',true); await speakReply(chId,r,lang,t); }
++    if(!useVoice){ if(t)t.remove(); showThemSafe(chId,r.id); }
++    else await voiceReply(chId,r,lang,t); /* pindah chat saat menunggu: suara tetap dibuat, masuk log karakter aslinya */
+   }catch(e){ if(t)t.remove(); toast(e.message); }
+   setStatus(idleStat(),false); if(!keepBusy){ busy=false; refresh(); }
+   if(relNote) toast(relNote);
+@@ -1339,6 +1352,9 @@
+   }
+   if(pend.length) await pendFlush(true); /* hadiah/gambar/skenario saat masih ada antrean teks: antreannya dikirim dulu */
+   const useVoice=voiceOn&&!!vcode, lang=voiceLang; let okReply=false, relNote='', lastReply='';
++  /* Pesan gambar: bubble user (gambar + caption) langsung tampil SAAT DIKIRIM, tidak menunggu /api/vision selesai. Kalau pembacaan gagal, bubble dicabut lagi. Dicatat ke log setelah berhasil. */
++  const vt=Date.now(); let vrow=null;
++  if(vf&&ch&&ch.id===chId&&app.classList.contains('open')&&!(window.GX&&GX.cur)) vrow=VISION.render({img:vf.thumb,x:text,t:vt});
+   let t=thinkBubble(ch.name,!!vf); /* fase 1 (vision): AI membaca gambar dulu; sisanya: ChatGPT lagi mikir */
+   let vd=''; /* deskripsi gambar dari /api/vision -> jadi konteks di /api/chat */
+   if(vf){
+@@ -1347,23 +1363,18 @@
+       vd=String(vr&&vr.desc||'').slice(0,800);
+       if(!vd) throw new Error('deskripsi kosong');
+     }catch(e){ /* gagal membaca gambar: pesan batal, lampiran + ketikan dikembalikan */
+-      t.remove(); toast('Gagal membaca gambar: '+(e.message||'coba lagi'));
++      t.remove(); if(vrow&&vrow.remove) vrow.remove(); toast('Gagal membaca gambar: '+(e.message||'coba lagi'));
+       VISION.untake(vf); inp.value=text; grow(); busy=false; refresh(); return;
+     }
+-    const vt=Date.now(); /* deskripsi berhasil -> pesan user (gambar + caption) masuk chat + log */
+-    if(ch&&ch.id===chId&&app.classList.contains('open')&&!(window.GX&&GX.cur)) VISION.render({img:vf.thumb,x:text,t:vt});
+-    record(chId,{t:vt,r:'me',x:text,img:vf.thumb,vd});
++    record(chId,{t:vt,r:'me',x:text,img:vf.thumb,vd}); /* deskripsi berhasil -> masuk log (bubble sudah tampil dari awal) */
+   }
+   try{
+     const hist=loadHist(ch.id);
+     const r=await (await post('/api/chat',{clientId:cid,char:ch.id,message:text,userName:uname,history:hist,voice:{on:useVoice,lang},memory:memUse(chId).list,rel:relPayload(chId),qr:true,...engPayload(),...(rpOn()?{rp:true}:{}),...(vd?{vision:vd}:{}),...(gf?{gift:{items:gf.items,...(gf.say?{text:gf.say}:{})}}:{}),...(window.SCN?SCN.body(chId):{})},window.SCN?SCN.headers():{})).json();
+     saveHist(chId,[...loadHist(chId),['user',vf?('[mengirim gambar: '+vd.slice(0,350)+']'+(text?' '+text:'')):gf?gf.hist:text],['char',r.id]]); okReply=true; lastReply=r.id;
+     relNote=gf?(gf.note||''):relApply(chId,r.dExp!=null?r.dExp:(Math.round(Number(r.dRel))||0)*3,r.dMood); /* hadiah: EXP/mood sudah dihitung server (shop.js), angka penilaian AI diabaikan supaya tidak dobel */ /* hubungan & mood: angka dari balasan AI (sudah di-clamp server) */ /* baca ulang h: karena peringkasan di latar bisa saja baru membuang bagian lamanya */
+-    if(!useVoice||!stillHere(chId)){ t.remove(); showThemSafe(chId,r.id); } /* pindah chat saat menunggu: balasan masuk log karakter aslinya, tidak nyasar */
+-    else{
+-      t.remove(); t=typingBubble(); setStatus('merekam suara',true); /* fase 2: masuk Fish Audio -> indikator voice */
+-      await speakReply(chId,r,lang,t);
+-    }
++    if(!useVoice){ t.remove(); showThemSafe(chId,r.id); } /* pindah chat saat menunggu: balasan masuk log karakter aslinya, tidak nyasar */
++    else await voiceReply(chId,r,lang,t); /* chat ditinggal: suara tetap dibuat dan dicatat ke log karakter itu */
+   }catch(e){ t.remove(); toast(e.message); if(window.SCN&&SCN.onErr) SCN.onErr(e); }
+   setStatus(idleStat(),false); busy=false; refresh();
+   if(relNote) toast(relNote);
+@@ -1757,8 +1768,8 @@
+     r=await (await post('/api/chat',{clientId:cid,char:chId,message:'',cont:true,userName:uname,history:loadHist(chId),voice:{on:useVoice,lang},memory:memUse(chId).list,rel:relPayload(chId),qr:true,...engPayload(),...(rpOn()?{rp:true}:{})})).json();
+     saveHist(chId,[...loadHist(chId),['char',r.id]]); /* tidak ada pesan user: riwayat hanya bertambah giliran karakter */
+     relNote=relApply(chId,r.dExp!=null?r.dExp:(Math.round(Number(r.dRel))||0)*3,r.dMood);
+-    if(!useVoice){ t.remove(); showThem(chId,r.id); }
+-    else{ t.remove(); t=typingBubble(); setStatus('merekam suara',true); await speakReply(chId,r,lang,t); }
++    if(!useVoice){ t.remove(); showThemSafe(chId,r.id); }
++    else await voiceReply(chId,r,lang,t);
+   }catch(e){ t.remove(); toast(e.message); }
+   setStatus(idleStat(),false); busy=false; refresh();
+   if(relNote) toast(relNote);
+@@ -1921,8 +1932,11 @@
+ }
+ async function initAcct(){
+   try{
+-    const r=await (await fetch('/api/auth/me',{method:'POST',headers:{'Content-Type':'application/json',...(atok?{Authorization:'Bearer '+atok}:{})},body:JSON.stringify({clientId:cid})})).json().catch(()=>({}));
++    const resp=await fetch('/api/auth/me',{method:'POST',headers:{'Content-Type':'application/json',...(atok?{Authorization:'Bearer '+atok}:{})},body:JSON.stringify({clientId:cid})});
++    const r=await resp.json().catch(()=>({}));
+     if(r.enabled===false){ aOn=false; paintAcct(); return; }
++    /* Error sementara (503 database lambat/cold start, 500, 429, respons bukan JSON) BUKAN tanda sesi berakhir: jangan logout. Token hanya dibuang kalau server menjawab 401. */
++    if(!r.ok&&resp.status!==401){ paintAcct(); return; }
+     aOn=true;
+     window.__gacct=r.ok?{linked:!!(r.google&&r.google.linked),email:(r.google&&r.google.email)||'',hasPassword:!!r.hasPassword,pendingName:!!r.pendingName,username:r.username||''}:null;
+     if(r.ok){ store.set('authname',r.name); store.set('gid',r.gid||null); store.set('gu',r.username||null); store.set('gcids',Array.isArray(r.cids)?JSON.stringify(r.cids):null); if(r.uid&&!ownerOf()) store.set('dataowner',r.uid); saveWallet(r); paintAcct(r.cloud); }
+@@ -2781,6 +2795,8 @@
+ <script src="/wallet.js"></script>
+ <script src="/rob.js"></script>
+ <script src="/trade.js"></script>
++<script src="/market.js"></script>
++<script src="/job.js"></script>
+ <script src="/music.js"></script>
+ <script src="/scene.js"></script>
+ <script src="/vision.js"></script>
+diff -ruN orig/neyhra-chat2-main/public/job.css proj/neyhra-chat2-main/public/job.css
+--- orig/neyhra-chat2-main/public/job.css	1970-01-01 07:00:00.000000000 +0700
++++ proj/neyhra-chat2-main/public/job.css	2026-11-14 17:55:40.625488720 +0700
+@@ -0,0 +1,77 @@
++/* ===== Sub-tab Dompet > Kerja (job.js) =====
++   Memakai ulang wl-* dan tr-spin dari wallet.css; variabel tema --bg --surface --ink --mut --line --ok --rec. */
++.jb-grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);grid-template-rows:auto 1fr;gap:14px;align-items:start}
++.jb-quota{grid-column:2;grid-row:1}
++.jb-main{grid-column:1;grid-row:1/span 2;display:flex;flex-direction:column;gap:14px;min-width:0}
++.jb-hist{grid-column:2;grid-row:2}
++@media(max-width:799px){
++  .jb-grid{grid-template-columns:minmax(0,1fr)}
++  .jb-quota,.jb-main,.jb-hist{grid-column:1;grid-row:auto}
++}
++
++/* kuota */
++.jb-quota{padding:16px 18px}
++.jb-qh{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
++.jb-qh h3{margin:0 0 8px}
++.jb-qn{font-size:22px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
++.jb-back{margin-top:12px;font-size:13px;line-height:1.5;color:var(--mut)}
++.jb-back b{color:var(--ink)}
++.jb-bonus{margin-top:8px;font-size:12.5px;color:var(--mut)}
++
++/* kartu pekerjaan */
++.jb-jobs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
++@media(max-width:799px){.jb-jobs{grid-template-columns:minmax(0,1fr)}}
++.jb-card{display:flex;flex-direction:column;gap:10px;min-width:0;padding:16px;border-radius:22px;background:var(--surface);border:1.5px solid transparent;transition:border-color .2s}
++.jb-card.ready{border-color:var(--ink)}
++.jb-head{display:flex;align-items:center;gap:12px;min-width:0;flex-wrap:wrap}
++.jb-ic{flex:none;width:44px;height:44px;border-radius:14px;background:var(--bg);display:grid;place-items:center}
++.jb-ic svg{width:24px;height:24px;fill:none;stroke:var(--ink);stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
++.jb-t{flex:1;min-width:0}
++.jb-t b{display:block;font-size:15px;font-weight:600;line-height:1.25;overflow-wrap:anywhere}
++.jb-t small{display:block;font-size:12px;color:var(--mut)}
++.jb-pay{display:flex;align-items:center;gap:6px;flex:none}
++.jb-pay img{width:18px;height:18px}
++.jb-pay b{font-size:16px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
++.jb-pay span{font-size:12px;color:var(--mut)}
++.jb-desc{margin:0;font-size:13px;line-height:1.5;color:var(--mut)}
++.jb-act{margin-top:auto;display:flex;flex-direction:column;gap:10px}
++.jb-go{width:100%}
++.jb-cd{display:flex;flex-direction:column;gap:6px}
++.jb-cdt{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
++.jb-cdl{font-size:12.5px;color:var(--mut)}
++.jb-cdn{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:24px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
++.jb-cd .wl-track{background:var(--bg)}
++.jb-sr{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
++.jb-card>.wl-msg{margin-top:0}
++.jb-go:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
++
++/* panel hasil */
++.jb-result{position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;padding:22px 18px;text-align:center;box-shadow:inset 0 0 0 1.5px var(--ok)}
++.jb-result.fresh{animation:jb-in .35s cubic-bezier(.2,.9,.3,1.1)}
++.jb-result.bonus{box-shadow:inset 0 0 0 2px var(--ink)}
++.jb-result .wl-x{position:absolute;top:8px;right:8px}
++.jb-rl{font-size:12.5px;font-weight:600;color:var(--mut)}
++.jb-amt{display:flex;align-items:center;gap:10px}
++.jb-amt img{width:30px;height:30px}
++.jb-amt b{font-size:40px;font-weight:700;letter-spacing:-.04em;font-variant-numeric:tabular-nums;color:var(--ok)}
++.jb-result.bonus .jb-amt b{color:var(--ink)}
++.jb-amt span{font-size:14px;color:var(--mut)}
++.jb-note{margin:0;font-size:12.5px;color:var(--mut)}
++.jb-spark{margin:2px 0 0;font-size:14px;font-weight:700;letter-spacing:.02em}
++.jb-result.fresh .jb-spark{animation:jb-pop .6s cubic-bezier(.2,1.4,.3,1) both}
++@keyframes jb-in{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
++@keyframes jb-pop{0%{opacity:0;transform:scale(.6)}60%{opacity:1;transform:scale(1.12)}100%{transform:scale(1)}}
++
++/* riwayat */
++.jb-hist{padding:16px 18px}
++.jb-hist h3{margin-bottom:6px}
++.jb-hl{list-style:none;margin:0;padding:0}
++.jb-hl li{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
++.jb-hl li:last-child{border-bottom:0}
++.jb-ht{flex:1;min-width:0}
++.jb-ht span{display:block;font-size:13.5px;line-height:1.35;overflow-wrap:anywhere}
++.jb-ht small{display:block;font-size:12px;color:var(--mut)}
++.jb-hc{flex:none;font-size:14px;font-weight:700;color:var(--ok);font-variant-numeric:tabular-nums}
++.jb-empty{margin:8px 0 0;font-size:13px;line-height:1.5;color:var(--mut)}
++
++@media(prefers-reduced-motion:reduce){.jb-result.fresh,.jb-result.fresh .jb-spark{animation:none}.jb-card{transition:none}}
+diff -ruN orig/neyhra-chat2-main/public/job.js proj/neyhra-chat2-main/public/job.js
+--- orig/neyhra-chat2-main/public/job.js	1970-01-01 07:00:00.000000000 +0700
++++ proj/neyhra-chat2-main/public/job.js	2026-11-14 17:55:14.879981100 +0700
+@@ -0,0 +1,272 @@
++/* ===== Sub-tab Dompet > Kerja (pekerjaan part-time) =====
++   Spesifikasi: docs/frontend/job-system.md (urutan README #7). Semua angka (gaji, jeda, kuota harian, peluang bonus) DIPUTUSKAN SERVER dan
++   ditampilkan dari respons; tidak ada angka hardcode di sini. Hasil gaji (dan 2x bila `bonus`) selalu dari respons `work`.
++   Endpoint (POST + Bearer, lewat aApi): jobs (daftar + kuota + riwayat), jobs/work { id }.
++   Dimuat SETELAH market.js (urutan sub-tab: ... Market | Kerja), sebelum router.js. Gaya: job.css (kelas jb-*) + kelas wl-* dan tr-* yang sudah ada.
++   Konvensi:
++     - Countdown dihitung di client dari `cdLeft` (interval 1 dtk), TANPA polling server; status asli divalidasi server saat klik.
++     - 429 jeda ("tunggu X menit lagi") dibuka sebagai countdown; 429 kuota -> kartu kuota "Balik besok".
++     - Tombol "Bekerja…" minimal ±600 ms (artifisial) sebelum hasil tampil. Tidak ada suara autoplay.
++     - Saldo header dari `coins` respons (pushWallet). Riwayat dimuat ulang bersama daftar tiap sub-tab dibuka. */
++(() => {
++'use strict';
++if (!window.WALLET || typeof WALLET.register !== 'function') return;
++const $ = id => document.getElementById(id);
++const app = $('app'), wallet = $('wallet');
++if (!app || !wallet) return;
++const nf = new Intl.NumberFormat('id-ID');
++const active = () => app.dataset.tab === 'wallet' && !!$('jbbody');
++const h = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
++const reduceMo = () => window.matchMedia && matchMedia('(prefers-reduced-motion:reduce)').matches;
++const poke = () => { try { window.NOTIF && NOTIF.poke(); } catch {} };
++const COIN = '<img src="/coin.svg" alt="" draggable="false">';
++const MIN_WORK_MS = 600; // spinner artifisial (spesifikasi): hasil server tampil setelahnya
++const DAY_MS = 86400e3, WIB_MS = 7 * 3600e3; // hari berganti 00.00 WIB (sama dengan dayNum di server)
++
++const ICONS = { // ikon dari `icon` respons; id tak dikenal -> koper generik
++  coffee: '<path d="M5 9h11v5a5 5 0 01-5 5H10a5 5 0 01-5-5V9z"/><path d="M16 11h1.5a2.5 2.5 0 010 5H16"/><path d="M8 3v3M12 3v3"/>',
++  box: '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/>',
++  shield: '<path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/>',
++  spark: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3z"/><path d="M18.5 16.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7.7-1.8z"/>',
++  _: '<rect x="4" y="8" width="16" height="11" rx="2.5"/><path d="M9 8V6.5A1.5 1.5 0 0110.5 5h3A1.5 1.5 0 0115 6.5V8M4 13h16"/>'
++};
++const icon = name => { const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('aria-hidden', 'true'); s.innerHTML = ICONS[name] || ICONS._; return s; };
++
++function pushCoins(r) { // saldo header dari respons, tanpa request `me` tambahan
++  try {
++    if (!r || !Number.isFinite(r.coins)) return;
++    const cur = (typeof loadWallet === 'function' && loadWallet()) || {};
++    const next = { ...cur, coins: r.coins };
++    if (Number.isFinite(next.coins) && Number.isFinite(next.gems)) saveWallet(next);
++    else if (typeof saveWallet === 'function' && Number.isFinite(next.coins)) saveWallet({ ...next, gems: next.gems || 0 });
++  } catch {}
++}
++let toastEl = null, toastT = 0;
++function say(t) {
++  if (!toastEl) { toastEl = wallet.querySelector('.wl-toast'); if (!toastEl) { toastEl = h('div', 'wl-toast'); toastEl.setAttribute('role', 'status'); toastEl.setAttribute('aria-live', 'polite'); wallet.append(toastEl); } }
++  toastEl.textContent = t; toastEl.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => toastEl.classList.remove('show'), 2600);
++}
++
++/* ---------- State ---------- */
++const J = {
++  view: null, loading: false, again: false, err: '', tok: '',
++  until: {},            // id pekerjaan -> timestamp (ms) siap lagi (dihitung dari cdLeft saat muat / setelah bekerja)
++  quotaFull: false,     // dari 429 kuota (sebelum muat ulang): semua tombol nonaktif
++  busy: '',             // id pekerjaan yang sedang dikerjakan (satu aksi pada satu waktu)
++  msgs: {},             // id -> { text } pesan inline di kartu
++  result: null          // panel hasil terakhir { name, pay, bonus, id }
++};
++const left = id => Math.max(0, (J.until[id] || 0) - Date.now());
++const used = () => (J.view && J.view.daily ? J.view.daily.used : 0);
++const maxQ = () => (J.view && J.view.daily ? J.view.daily.max : 0);
++const full = () => J.quotaFull || (maxQ() > 0 && used() >= maxQ());
++const resetMs = () => Math.max(0, (Math.floor((Date.now() + WIB_MS) / DAY_MS) + 1) * DAY_MS - WIB_MS - Date.now()); // sisa waktu ke 00.00 WIB
++
++/* ---------- Format ---------- */
++const mmss = ms => { const s = Math.ceil(ms / 1000), hh = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = s % 60; return (hh ? hh + ':' + String(m).padStart(2, '0') : String(m).padStart(2, '0')) + ':' + String(ss).padStart(2, '0'); };
++const words = ms => {
++  const m = Math.ceil(ms / 60e3);
++  if (m < 60) return m + ' menit';
++  const hh = Math.floor(m / 60), r = m % 60;
++  return hh + ' jam' + (r ? ' ' + r + ' menit' : '');
++};
++const rel = iso => {
++  const t = Date.parse(iso); if (!Number.isFinite(t)) return '';
++  const s = Math.max(0, Math.round((Date.now() - t) / 1000));
++  if (s < 60) return 'baru saja';
++  if (s < 3600) return Math.floor(s / 60) + ' mnt lalu';
++  if (s < 86400) return Math.floor(s / 3600) + ' jam lalu';
++  return Math.floor(s / 86400) + ' hari lalu';
++};
++const range = p => Array.isArray(p) ? (p[0] === p[1] ? nf.format(p[0]) : nf.format(p[0]) + '–' + nf.format(p[1])) : '';
++const skeleton = () => {
++  const g = h('div', 'jb-grid');
++  for (const hh of [96, 210, 210, 150]) { const s = h('div', 'wl-sk'); s.style.height = hh + 'px'; s.setAttribute('aria-hidden', 'true'); g.append(s); }
++  return g;
++};
++
++/* angka naik (panel hasil); tanpa animasi bila reduced-motion */
++function countUp(el, to) {
++  if (reduceMo() || !(to > 0)) { el.textContent = nf.format(to); return; }
++  const t0 = performance.now(), dur = 700;
++  const step = now => { const k = Math.min(1, (now - t0) / dur); el.textContent = nf.format(Math.round(to * (1 - Math.pow(1 - k, 3)))); if (k < 1 && el.isConnected) requestAnimationFrame(step); };
++  requestAnimationFrame(step);
++}
++
++/* ---------- Muat daftar ---------- */
++async function load(force) {
++  if (typeof atok !== 'string' || !atok) return;
++  if (J.loading) { if (force) J.again = true; return; }
++  J.loading = true; J.err = ''; if (active() && !J.view) render();
++  try {
++    const r = await aApi('jobs');
++    if (!r || !r.ok) throw new Error((r && r.error) || 'Gagal memuat pekerjaan.');
++    J.view = r; J.quotaFull = false; pushCoins(r);
++    const now = Date.now(); J.until = {};
++    for (const j of r.jobs || []) J.until[j.id] = now + Math.max(0, Number(j.cdLeft) || 0);
++  } catch (e) { if (!(e && e.status === 401)) J.err = (e && e.message) || 'Gagal memuat pekerjaan.'; }
++  J.loading = false;
++  if (active() && !J.busy) render();
++  if (J.again) { J.again = false; load(true); }
++}
++
++/* ---------- Render ---------- */
++function render() {
++  const box = $('jbbody'); if (!box) return;
++  const top = wallet.scrollTop;
++  box.textContent = '';
++  if (!J.view && !J.err) { box.append(skeleton()); return; }
++  if (J.err && !J.view) {
++    const g = h('div', 'wl-gate'); g.append(h('h2', null, 'Gagal memuat'), h('p', null, J.err));
++    const b = h('button', 'wl-btn', 'Coba lagi'); b.type = 'button'; b.addEventListener('click', () => load(true)); g.append(b); box.append(g); return;
++  }
++  const v = J.view, grid = h('div', 'jb-grid');
++
++  /* kuota harian */
++  const q = h('section', 'wl-card jb-quota'), qh = h('div', 'jb-qh');
++  qh.append(h('h3', null, 'Shift hari ini'), h('b', 'jb-qn', nf.format(used()) + '/' + nf.format(maxQ())));
++  q.append(qh);
++  const tr = h('div', 'wl-track'), fi = h('i'); fi.style.width = Math.max(0, Math.min(100, maxQ() ? used() / maxQ() * 100 : 0)) + '%'; tr.append(fi); q.append(tr);
++  if (full()) {
++    const bk = h('p', 'jb-back'); bk.append(h('b', null, 'Balik besok'), h('span', 'jb-reset', ' · reset 00.00 WIB, ' + words(resetMs()) + ' lagi')); q.append(bk);
++  } else {
++    q.append(h('p', 'wl-small', 'Sisa ' + nf.format(Math.max(0, maxQ() - used())) + ' shift. Kuota dipakai bersama semua pekerjaan dan reset 00.00 WIB.'));
++  }
++  const bc = v.daily && Number(v.daily.bonusChance);
++  if (bc > 0) q.append(h('p', 'jb-bonus', Math.round(bc * 100) + '% kesempatan gaji dobel tiap shift'));
++  grid.append(q);
++
++  /* kartu pekerjaan + panel hasil */
++  const main = h('div', 'jb-main');
++  if (J.result) main.append(resultEl(J.result));
++  const list = h('div', 'jb-jobs');
++  for (const j of v.jobs || []) list.append(jobCard(j));
++  main.append(list);
++  grid.append(main);
++
++  /* riwayat */
++  const hs = h('section', 'wl-card jb-hist'); hs.append(h('h3', null, 'Riwayat shift'));
++  if (!(v.hist || []).length) hs.append(h('p', 'jb-empty', 'Belum ada shift. Mulai dari ' + ((v.jobs || []).slice().sort((a, b) => a.cdMin - b.cdMin)[0] || { name: 'pekerjaan pertama' }).name + ' — paling cepat siap lagi.'));
++  else {
++    const ul = h('ul', 'jb-hl');
++    for (const x of v.hist) { const li = h('li'); const t = h('div', 'jb-ht'); t.append(h('span', null, x.txt || ''), h('small', null, rel(x.at))); li.append(t, h('b', 'jb-hc', '+' + nf.format(x.coins || 0))); ul.append(li); }
++    hs.append(ul);
++  }
++  grid.append(hs);
++
++  box.append(grid);
++  wallet.scrollTop = top;
++  tick();
++}
++
++function resultEl(r) {
++  const c = h('section', 'wl-card jb-result' + (r.bonus ? ' bonus' : '') + (r.shown ? '' : ' fresh')); /* animasi masuk hanya sekali, bukan tiap render ulang */ c.setAttribute('role', 'status'); c.setAttribute('aria-live', 'polite');
++  const x = h('button', 'wl-x', '×'); x.type = 'button'; x.dataset.a = 'dismiss'; x.setAttribute('aria-label', 'Tutup hasil shift');
++  c.append(x, h('small', 'jb-rl', 'Shift ' + r.name + ' selesai'));
++  const amt = h('div', 'jb-amt'); amt.innerHTML = COIN; const n = h('b', null, '0'); n.dataset.to = String(r.pay); amt.append(n, h('span', null, 'Coin')); c.append(amt);
++  if (r.bonus) c.append(h('p', 'jb-spark', '✦ Shift bonus! Gaji dobel ✦'));
++  else c.append(h('p', 'jb-note', 'Gaji masuk ke saldomu.'));
++  if (!r.shown) { r.shown = true; requestAnimationFrame(() => countUp(n, r.pay)); } else n.textContent = nf.format(r.pay);
++  return c;
++}
++
++function jobCard(j) {
++  const ms = left(j.id), ready = ms <= 0, blocked = full(), busy = J.busy === j.id;
++  const c = h('article', 'jb-card' + (ready && !blocked ? ' ready' : '')); c.dataset.id = j.id;
++  const head = h('div', 'jb-head'), ic = h('span', 'jb-ic'); ic.append(icon(j.icon)); head.append(ic);
++  const t = h('div', 'jb-t'); t.append(h('b', null, j.name), h('small', null, 'Jeda ' + nf.format(j.cdMin) + ' menit')); head.append(t);
++  const pay = h('div', 'jb-pay'); pay.innerHTML = COIN; pay.append(h('b', null, range(j.pay)), h('span', null, 'Coin')); head.append(pay);
++  c.append(head, h('p', 'jb-desc', j.desc || ''));
++
++  const act = h('div', 'jb-act');
++  if (!ready && !busy) { // countdown: bar + teks besar (mono) + padanan teks untuk pembaca layar
++    const cd = h('div', 'jb-cd'); cd.dataset.id = j.id;
++    const top = h('div', 'jb-cdt'); top.append(h('span', 'jb-cdl', 'Siap dalam'), h('b', 'jb-cdn', mmss(ms)));
++    const bar = h('div', 'wl-track'), fi = h('i'); fi.style.width = Math.max(0, Math.min(100, (1 - ms / (j.cdMin * 60e3)) * 100)) + '%'; bar.append(fi);
++    const sr = h('span', 'jb-sr', 'Siap dalam ' + words(ms)); cd.append(top, bar, sr); act.append(cd);
++  }
++  const b = h('button', 'wl-btn jb-go' + (!ready || blocked ? ' alt' : '')); b.type = 'button'; b.dataset.a = 'work'; b.dataset.id = j.id;
++  b.disabled = !!J.busy || !ready || blocked;
++  if (busy) { b.append(h('i', 'tr-spin'), document.createTextNode('Bekerja…')); b.setAttribute('aria-busy', 'true'); }
++  else b.textContent = blocked ? 'Kuota habis' : ready ? 'Kerjakan' : 'Belum siap';
++  act.append(b); c.append(act);
++  const m = J.msgs[j.id]; if (m) { const e = h('div', 'wl-msg err', m.text); e.setAttribute('role', 'alert'); c.append(e); }
++  return c;
++}
++
++/* ---------- Aksi: kerjakan ---------- */
++const wait = ms => new Promise(r => setTimeout(r, ms));
++async function work(id) {
++  if (J.busy || !J.view || left(id) > 0 || full()) return;
++  delete J.msgs[id]; J.busy = id; J.result = null; render();
++  let res = null, err = null;
++  const min = wait(reduceMo() ? 0 : MIN_WORK_MS);
++  try { res = await aApi('jobs/work', { id }); if (!res || !res.ok) throw new Error((res && res.error) || 'Gagal bekerja.'); }
++  catch (e) { err = e; }
++  await min;
++  J.busy = '';
++  if (res) {
++    pushCoins(res);
++    const j = (J.view.jobs || []).find(x => x.id === id);
++    if (j) J.until[id] = Date.now() + j.cdMin * 60e3; // jeda baru dihitung dari cdMin (respons work tidak memuat cdLeft)
++    if (res.daily) J.view.daily = { ...J.view.daily, used: res.daily.used, max: res.daily.max != null ? res.daily.max : J.view.daily.max };
++    J.result = { id, name: res.name || (j && j.name) || id, pay: res.pay, bonus: !!res.bonus };
++    if (res.bonus) say('Shift bonus! Gaji dobel');
++    poke(); render();
++    load(true); // sinkronkan riwayat + jeda asli dari server
++    return;
++  }
++  const msg = (err && err.message) || 'Gagal bekerja.', status = err && err.status;
++  if (status === 401) { render(); return; }
++  if (status === 429) {
++    const mm = /tunggu\s+(\d+)\s+menit/i.exec(msg);
++    if (mm) J.until[id] = Date.now() + Number(mm[1]) * 60e3; // 429 jeda -> jadi countdown (perkiraan; sinkron saat muat ulang)
++    else if (/kuota/i.test(msg)) J.quotaFull = true;
++  }
++  J.msgs[id] = { text: msg };
++  render();
++  if (status === 429 || status === 503) load(true);
++}
++
++$('wtbody').addEventListener('click', e => {
++  if (!$('jbbody')) return;
++  const b = e.target.closest('[data-a]'); if (!b || b.disabled) return;
++  if (b.dataset.a === 'work') work(b.dataset.id);
++  else if (b.dataset.a === 'dismiss') { J.result = null; render(); }
++});
++
++/* ---------- Countdown 1 dtk (client-side, tanpa polling server) ---------- */
++let lastWords = {};
++function tick() {
++  const box = $('jbbody'); if (!box || !J.view) return;
++  let redraw = false;
++  box.querySelectorAll('.jb-cd[data-id]').forEach(el => {
++    const id = el.dataset.id, ms = left(id), j = (J.view.jobs || []).find(x => x.id === id);
++    if (ms <= 0) { redraw = true; return; }
++    const n = el.querySelector('.jb-cdn'); if (n) n.textContent = mmss(ms);
++    const fi = el.querySelector('.wl-track i'); if (fi && j) fi.style.width = Math.max(0, Math.min(100, (1 - ms / (j.cdMin * 60e3)) * 100)) + '%';
++    const w = words(ms), sr = el.querySelector('.jb-sr'); if (sr && lastWords[id] !== w) { lastWords[id] = w; sr.textContent = 'Siap dalam ' + w; } // pembaca layar: teks berubah per menit, bukan per detik
++  });
++  const rs = box.querySelector('.jb-reset'); if (rs) { const m = resetMs(); if (m <= 0) { J.quotaFull = false; load(true); } else rs.textContent = ' · reset 00.00 WIB, ' + words(m) + ' lagi'; }
++  if (redraw && !J.busy) render();
++}
++setInterval(() => { if (!document.hidden && active()) tick(); }, 1000);
++
++/* =====================================================================================================
++   Daftarkan sub-tab + peristiwa
++   ===================================================================================================== */
++WALLET.register('job', {
++  label: 'Kerja', title: 'Kerja', sub: 'Shift pendek dibayar Coin. Tiap pekerjaan punya jeda sendiri, kuota harian dipakai bersama.',
++  onOpen() { J.msgs = {}; },
++  render(ctx) {
++    ctx.body.textContent = ''; const box = h('div'); box.id = 'jbbody'; ctx.body.append(box);
++    render();
++    load(true); // muat ulang daftar + riwayat tiap sub-tab dibuka
++  }
++});
++window.addEventListener('acct', () => { // ganti akun / keluar: bersihkan semuanya
++  const tok = typeof atok === 'string' ? atok : '';
++  if (J.tok !== tok) { J.tok = tok; J.view = null; J.until = {}; J.msgs = {}; J.result = null; J.busy = ''; J.quotaFull = false; lastWords = {}; }
++});
++document.addEventListener('visibilitychange', () => { if (!document.hidden && active() && !J.busy) load(true); });
++})();
+diff -ruN orig/neyhra-chat2-main/public/market.css proj/neyhra-chat2-main/public/market.css
+--- orig/neyhra-chat2-main/public/market.css	1970-01-01 07:00:00.000000000 +0700
++++ proj/neyhra-chat2-main/public/market.css	2026-11-14 17:51:29.359719028 +0700
+@@ -0,0 +1,68 @@
++/* ===== Sub-tab Dompet > Market (market.js) =====
++   Memakai ulang kelas wallet.css (wl-*, tr-tabs, tr-card, tr-modal, tr-mbox, wl-modal) dan variabel tema --bg --surface --ink --mut --line --ok --rec. */
++
++/* filter barang (chip yang bisa digeser) */
++.mk-filter{margin-top:2px;padding-bottom:2px}
++.mk-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 14px 6px 8px;white-space:nowrap}
++.mk-chip:first-child{padding-left:14px}
++.mk-chip.sel{background:var(--ink);color:var(--bg)}
++.mk-cic{width:22px;height:22px;object-fit:contain;flex:none}
++.mk-chip:focus-visible,.mk-pick:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
++
++/* riwayat harga */
++.mk-prices{padding:16px}
++.mk-p0{margin-top:0}
++.mk-plist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
++.mk-plist li{display:flex;align-items:baseline;gap:8px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13.5px}
++.mk-plist li:last-child{border-bottom:0}
++.mk-plist b{font-variant-numeric:tabular-nums}
++.mk-plist span{color:var(--mut)}
++.mk-plist small{margin-left:auto;font-size:12px;color:var(--mut);white-space:nowrap}
++
++/* kartu listing */
++.mk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
++.mk-card{display:flex;flex-direction:column;gap:8px;min-width:0;padding:16px;border-radius:22px;background:var(--surface)}
++.mk-card.st-cancel,.mk-card.st-expire{opacity:.78}
++.mk-card.st-sold{box-shadow:inset 0 0 0 1.5px var(--ok)}
++.mk-head{display:flex;align-items:center;gap:10px;min-width:0}
++.mk-ic{flex:none;width:44px;height:44px;object-fit:contain}
++.mk-t{flex:1;min-width:0}
++.mk-t b{display:block;font-size:14.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
++.mk-q{font-weight:700;color:var(--mut)}
++.mk-t small{display:block;font-size:12px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
++.mk-price{display:flex;align-items:center;gap:8px}
++.mk-price img{width:22px;height:22px;flex:none}
++.mk-price b{font-size:24px;font-weight:700;letter-spacing:-.03em;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
++.mk-price span{font-size:13px;color:var(--mut)}
++.mk-meta{font-size:12px;line-height:1.45;color:var(--mut)}
++.mk-card>.wl-msg{margin-top:0}
++.mk-buy{margin-top:auto}
++.mk-more{text-align:center}
++
++/* form pasang lot */
++.mk-fbox{max-width:520px}
++.mk-picks{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px;max-height:230px;overflow-y:auto;padding:2px}
++.mk-picks .wl-empty{grid-column:1/-1}
++.mk-pick{display:flex;flex-direction:column;align-items:center;gap:2px;padding:10px 6px;border-radius:16px;background:var(--surface);border:1.5px solid transparent;text-align:center;transition:transform .15s}
++.mk-pick:active{transform:scale(.97)}
++.mk-pick.on{border-color:var(--ink)}
++.mk-pic{width:38px;height:38px;object-fit:contain}
++.mk-pn{max-width:100%;font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
++.mk-pick small{font-size:11.5px;color:var(--mut)}
++.mk-qtyf .wl-step{margin-top:0}
++.mk-hint{display:block;margin-top:6px;font-size:12px;color:var(--mut)}
++.mk-form .wl-field input[type=text]{background:var(--surface)}
++.mk-form .wl-field .wl-step input[type=text]{background:transparent}
++.mk-prev .wl-sum{margin-top:0}
++.mk-prev .wl-sum>div{padding:7px 0;font-size:13.5px}
++
++@media(max-width:799px){
++  .mk-grid{grid-template-columns:1fr}
++  .mk-filter{margin-left:-2px}
++  /* bottom-sheet untuk form pasang lot */
++  .mk-form.tr-modal{align-items:flex-end;padding:0}
++  .mk-form .tr-mbox{max-width:none;max-height:92vh;border-radius:26px 26px 0 0;transform:translateY(100%)}
++  .mk-form.show .tr-mbox{transform:none}
++}
++@media(prefers-reduced-motion:reduce){.mk-pick{transition:none}}
++.mk-form .wl-chips .wl-q{background:var(--surface)}
+diff -ruN orig/neyhra-chat2-main/public/market.js proj/neyhra-chat2-main/public/market.js
+--- orig/neyhra-chat2-main/public/market.js	1970-01-01 07:00:00.000000000 +0700
++++ proj/neyhra-chat2-main/public/market.js	2026-11-14 11:22:35.019037356 +0700
+@@ -0,0 +1,541 @@
++/* ===== Sub-tab Dompet > Market (pasaran barang antar-player) =====
++   Spesifikasi: docs/frontend/marketplace.md (urutan README #6). Semua angka (fee, batas harga/qty, masa hangus, batas listing) DIPUTUSKAN
++   SERVER dan ditampilkan dari `rates`; client hanya validasi tampilan + pratinjau fee (floor(harga * rates.feePct)).
++   Endpoint (POST + Bearer, lewat aApi): market (jelajah + milik saya, body { item? }), market/list, market/buy, market/cancel.
++   Dimuat SETELAH wallet.js (mendaftar lewat WALLET.register), sebelum router.js. Gaya: market.css (kelas mk-*) + kelas wl-* dan tr-* yang sudah ada.
++   Tiga bagian: Jelajah | Tokoku (listing saya) | Pembelianku.
++   Aturan konvensi (docs/frontend/README.md):
++     - `idem` (UUID baru) dikirim di setiap konfirmasi beli/pasang. 409 "sudah diproses" ditampilkan apa adanya, TIDAK diulang otomatis.
++     - 429 -> pesan server tampil + tombol aksi nonaktif ±10 dtk (tidak ada Retry-After).
++     - Saldo header dari `coins` respons (pushWallet), bukan request `me` tambahan.
++   Pintu masuk lain: klik notifikasi `market` -> WALLET.open('market', meta) -> bagian Tokoku (listingku laku). */
++(() => {
++'use strict';
++if (!window.WALLET || typeof WALLET.register !== 'function') return;
++const $ = id => document.getElementById(id);
++const app = $('app'), wallet = $('wallet');
++if (!app || !wallet) return;
++const nf = new Intl.NumberFormat('id-ID');
++const active = () => app.dataset.tab === 'wallet' && !!$('mkbody');
++const h = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
++const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : 'id' + Date.now().toString(36) + Math.random().toString(36).slice(2, 12));
++const poke = () => { try { window.NOTIF && NOTIF.poke(); } catch {} };
++const toInt = v => { const n = Number(String(v).replace(/[^\d]/g, '')); return Number.isFinite(n) ? Math.floor(n) : 0; };
++const COIN = '<img src="/coin.svg" alt="" draggable="false">';
++const PLUS = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
++const CHECK = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg>';
++const itemIcon = id => '/shop/' + encodeURIComponent(id) + '.svg';
++const COOL_MS = 10000; // setelah 429: nonaktifkan tombol aksi sebentar (konvensi docs/frontend/README.md)
++
++function pushWallet(r) { // saldo header dari respons, tanpa request `me` tambahan
++  try {
++    if (!r || !Number.isFinite(r.coins)) return;
++    const cur = (typeof loadWallet === 'function' && loadWallet()) || {};
++    const next = { ...cur, coins: r.coins };
++    if (Number.isFinite(r.gems)) next.gems = r.gems;
++    if (Number.isFinite(next.coins) && Number.isFinite(next.gems)) saveWallet(next);
++  } catch {}
++}
++
++/* toast bersama tab Dompet */
++let toastEl = null, toastT = 0;
++function say(t) {
++  if (!toastEl) { toastEl = wallet.querySelector('.wl-toast'); if (!toastEl) { toastEl = h('div', 'wl-toast'); toastEl.setAttribute('role', 'status'); toastEl.setAttribute('aria-live', 'polite'); wallet.append(toastEl); } }
++  toastEl.textContent = t; toastEl.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => toastEl.classList.remove('show'), 2800);
++}
++
++/* ---------- State ---------- */
++const M = {
++  view: null, loading: false, again: false, err: '', at: 0, tok: '',
++  tab: 'browse',          // browse | mine | bought
++  item: '',               // filter barang di Jelajah ('' = semua)
++  busyId: '',             // listing yang sedang dibeli/dibatalkan (satu aksi pada satu waktu)
++  msgs: {},               // id listing -> { text, kind }
++  notice: null,           // { text, kind } di atas daftar
++  done: null,             // ringkasan pembelian terakhir { text }
++  cool: 0                 // sampai kapan tombol aksi dinonaktifkan (setelah 429)
++};
++const cooling = () => Date.now() < M.cool;
++function startCool() { M.cool = Date.now() + COOL_MS; setTimeout(() => { if (active() && !cooling()) render(); }, COOL_MS + 50); }
++
++/* ---------- Util tampilan ---------- */
++const itemOf = id => ((M.view && M.view.items) || []).find(i => i.id === id) || null;
++const nameOf = id => (itemOf(id) && itemOf(id).name) || String(id).replace(/-/g, ' ').replace(/^./, c => c.toUpperCase());
++const relTime = iso => {
++  const t = Date.parse(iso); if (!Number.isFinite(t)) return '';
++  const s = Math.max(0, Math.round((Date.now() - t) / 1000));
++  if (s < 60) return 'baru saja';
++  if (s < 3600) return Math.floor(s / 60) + ' mnt lalu';
++  if (s < 86400) return Math.floor(s / 3600) + ' jam lalu';
++  return Math.floor(s / 86400) + ' hari lalu';
++};
++const leftTxt = ms => {
++  if (ms <= 0) return 'Hangus';
++  const m = Math.ceil(ms / 60e3);
++  if (m < 60) return m + ' mnt lagi';
++  const j = Math.floor(m / 60);
++  return j < 24 ? j + ' jam lagi' : Math.floor(j / 24) + ' hari lagi';
++};
++const feeOf = (price, pct) => Math.floor(price * (pct || 0));
++const STATUS = { listed: ['Aktif', ''], lock: ['Diproses', ''], sold: ['Terjual', 'ok'], cancel: ['Dibatalkan', ''], expire: ['Hangus', 'bad'] };
++const isLive = l => l.status === 'listed' || l.status === 'lock';
++const mineIds = () => new Set(((M.view && M.view.mine) || []).map(l => l.id));
++const skeleton = () => {
++  const g = h('div', 'wl-grid tr-grid'), a = h('div', 'wl-col tr-aside'), m = h('div', 'wl-col tr-main');
++  for (const [c, hh] of [[a, 150], [m, 46], [m, 150], [m, 150]]) { const s = h('div', 'wl-sk'); s.style.height = hh + 'px'; s.setAttribute('aria-hidden', 'true'); c.append(s); }
++  g.append(a, m); return g;
++};
++function itemIconEl(id, cls) {
++  const im = new Image(); im.src = itemIcon(id); im.alt = ''; im.draggable = false; im.className = cls || 'mk-ic'; im.onerror = () => { im.style.visibility = 'hidden'; };
++  return im;
++}
++
++/* ---------- Muat data ---------- */
++async function load(force) {
++  if (typeof atok !== 'string' || !atok) return;
++  if (M.loading) { if (force) M.again = true; return; }
++  if (!force && M.view && Date.now() - M.at < 4000) return;
++  M.loading = true; M.err = ''; if (active() && !M.view) render();
++  try {
++    const r = await aApi('market', M.item ? { item: M.item } : {});
++    if (!r || !r.ok) throw new Error((r && r.error) || 'Gagal memuat market.');
++    M.view = r; M.at = Date.now(); pushWallet(r);
++    // pesan di kartu yang sudah tidak ada di daftar (mis. 409 "sudah terjual"): angkat ke atas daftar
++    const live = new Set([...(r.listings || []), ...(r.mine || [])].map(l => l.id));
++    for (const id of Object.keys(M.msgs)) if (!live.has(id)) { M.notice = M.msgs[id]; delete M.msgs[id]; }
++    if (M.item && !(r.items || []).some(i => i.id === M.item)) M.item = '';
++  } catch (e) { if (!(e && e.status === 401)) M.err = (e && e.message) || 'Gagal memuat market.'; }
++  M.loading = false;
++  if (active()) render();
++  if (M.again) { M.again = false; load(true); }
++}
++
++/* ---------- Render halaman ---------- */
++function render() {
++  const box = $('mkbody'); if (!box) return;
++  const top = wallet.scrollTop, chipsX = (box.querySelector('.mk-filter') || {}).scrollLeft || 0;
++  box.textContent = '';
++  if (!M.view && !M.err) { box.append(skeleton()); return; }
++  if (M.err && !M.view) {
++    const g = h('div', 'wl-gate'); g.append(h('h2', null, 'Gagal memuat'), h('p', null, M.err));
++    const b = h('button', 'wl-btn', 'Coba lagi'); b.type = 'button'; b.addEventListener('click', () => load(true)); g.append(b); box.append(g); return;
++  }
++  const v = M.view, r = v.rates, grid = h('div', 'wl-grid tr-grid'), main = h('div', 'wl-col tr-main'), aside = h('div', 'wl-col tr-aside');
++  const live = (v.mine || []).filter(isLive).length;
++
++  /* --- samping (di mobile paling atas): tombol pasang + batas + aturan --- */
++  const full = live >= r.pendingMax;
++  const cta = h('button', 'wl-btn tr-new'); cta.type = 'button'; cta.dataset.a = 'new'; cta.disabled = !v.trust || full || cooling();
++  cta.innerHTML = PLUS; cta.append(h('span', null, 'Pasang lot'));
++  const ctaBox = h('div', 'tr-ctabox'); ctaBox.append(cta);
++  if (!v.trust) ctaBox.append(h('div', 'wl-note warn', 'Akunmu belum cukup berumur, jadi belum bisa berjualan (anti akun cadangan). Membeli tetap bisa.'));
++  else if (full) ctaBox.append(h('p', 'wl-why', 'Kamu sudah punya ' + r.pendingMax + ' listing aktif. Batalkan satu atau tunggu ada yang laku.'));
++  aside.append(ctaBox);
++
++  const lim = h('section', 'wl-card tr-lim'); lim.append(h('h3', null, 'Batas listing'));
++  const bar = h('div', 'wl-bar'), bt = h('div', 'wl-bartop'); bt.append(h('span', null, 'Listing aktif'), h('b', null, live + ' dari ' + r.pendingMax));
++  const tr = h('div', 'wl-track'), fi = h('i'); fi.style.width = Math.max(0, Math.min(100, r.pendingMax ? live / r.pendingMax * 100 : 0)) + '%'; tr.append(fi);
++  bar.append(bt, tr); lim.append(bar);
++  lim.append(h('p', 'wl-small', 'Maksimal ' + r.rateMax + ' listing baru per jam.'));
++  const rules = h('ul', 'wl-rules tr-rules');
++  for (const t of [
++    'Satu lot = satu harga untuk seluruh jumlahnya; pembeli membeli lot penuh.',
++    'Barang langsung keluar dari inventaris saat dipasang (ditahan), dan kembali kalau dibatalkan atau hangus.',
++    'Penjual menerima harga dikurangi fee ' + Math.round(r.feePct * 100) + '%. Fee dibuang dari permainan.',
++    'Harga ' + nf.format(r.minPrice) + '–' + nf.format(r.maxPrice) + ' Coin per lot. Listing hangus otomatis dalam ' + Math.round(r.expHours / 24) + ' hari.'
++  ]) rules.append(h('li', null, t));
++  lim.append(rules); aside.append(lim);
++
++  /* --- utama --- */
++  if (M.done) {
++    const ok = h('section', 'wl-card wl-done'), ic = h('span', 'wl-doneic'); ic.innerHTML = CHECK;
++    const t = h('div', 'wl-donet'); t.append(h('b', null, M.done.title), h('small', null, M.done.sub));
++    const x = h('button', 'wl-x', '×'); x.type = 'button'; x.dataset.a = 'dismiss'; x.setAttribute('aria-label', 'Tutup');
++    ok.append(ic, t, x); main.append(ok);
++  }
++  if (M.notice) {
++    const n = h('div', 'wl-msg ' + (M.notice.kind || 'err') + ' tr-notice'); n.setAttribute('role', 'alert');
++    n.append(h('span', null, M.notice.text));
++    const x = h('button', 'wl-x', '×'); x.type = 'button'; x.dataset.a = 'dismissn'; x.setAttribute('aria-label', 'Tutup pesan'); n.append(x); main.append(n);
++  }
++  const tabs = h('div', 'tr-tabs'); tabs.setAttribute('role', 'tablist'); tabs.setAttribute('aria-label', 'Bagian market');
++  for (const [k, label, n] of [['browse', 'Jelajah', 0], ['mine', 'Tokoku', live], ['bought', 'Pembelianku', 0]]) {
++    const b = h('button', 'tr-tab' + (M.tab === k ? ' sel' : ''), label); b.type = 'button'; b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', String(M.tab === k)); b.dataset.a = 'tab'; b.dataset.k = k;
++    if (n > 0) b.append(h('span', 'tr-n', String(n)));
++    tabs.append(b);
++  }
++  main.append(tabs);
++  if (M.tab === 'browse') main.append(...browseEls(v));
++  else if (M.tab === 'mine') main.append(mineEl(v));
++  else main.append(boughtEl(v));
++
++  grid.append(aside, main); box.append(grid);
++  wallet.scrollTop = top;
++  const f = box.querySelector('.mk-filter'); if (f) f.scrollLeft = chipsX;
++}
++
++/* ---------- Jelajah ---------- */
++function browseEls(v) {
++  const out = [], r = v.rates;
++  // filter barang: chip "Semua" + tiap barang (daftar dari server, memuat harga toko sebagai patokan)
++  const fl = h('div', 'wl-chips scroll mk-filter'); fl.setAttribute('role', 'group'); fl.setAttribute('aria-label', 'Filter barang');
++  const all = h('button', 'wl-q mk-chip' + (!M.item ? ' sel' : ''), 'Semua'); all.type = 'button'; all.dataset.a = 'filter'; all.dataset.id = ''; all.setAttribute('aria-pressed', String(!M.item)); fl.append(all);
++  for (const i of v.items || []) {
++    const b = h('button', 'wl-q mk-chip' + (M.item === i.id ? ' sel' : '')); b.type = 'button'; b.dataset.a = 'filter'; b.dataset.id = i.id; b.setAttribute('aria-pressed', String(M.item === i.id));
++    b.append(itemIconEl(i.id, 'mk-cic'), h('span', null, i.name)); fl.append(b);
++  }
++  out.push(fl);
++
++  if (M.item) { // patokan harga: harga toko + 10 penjualan terakhir
++    const it = itemOf(M.item), p = h('section', 'wl-card mk-prices');
++    const head = h('div', 'tr-phead'); head.append(h('h3', null, 'Harga ' + (v.itemName || nameOf(M.item))), h('small', null, it && it.price > 0 ? 'Harga toko ' + nf.format(it.price) + ' Coin' : 'Cincin gacha: harga bebas'));
++    p.append(head);
++    if (!(v.prices || []).length) p.append(h('p', 'wl-small mk-p0', 'Belum ada penjualan untuk barang ini.'));
++    else {
++      const ul = h('ul', 'mk-plist');
++      for (const x of v.prices) {
++        const li = h('li'); li.append(h('b', null, nf.format(x.price) + ' Coin'), h('span', null, '×' + x.qty), h('small', null, (x.seller ? x.seller + ' · ' : '') + relTime(x.at)));
++        ul.append(li);
++      }
++      p.append(ul);
++    }
++    out.push(p);
++  }
++
++  const list = v.listings || [], mine = mineIds();
++  if (!list.length) out.push(h('section', 'wl-card tr-empty', M.item ? 'Belum ada yang menjual ' + (v.itemName || nameOf(M.item)) + '. Jadilah yang pertama!' : 'Belum ada yang jualan. Jadilah yang pertama!'));
++  else {
++    const g = h('div', 'mk-grid');
++    for (const l of list) g.append(listingCard(l, { mine: mine.has(l.id), buy: true }));
++    out.push(g);
++    if (list.length >= r.listLimit) out.push(h('p', 'wl-small mk-more', 'Menampilkan ' + r.listLimit + ' listing terbaru. Pakai filter barang untuk mempersempit.'));
++  }
++  return out;
++}
++
++/* kartu listing: dipakai Jelajah (tombol Beli), Tokoku (Batalkan/status), Pembelianku */
++function listingCard(l, o) {
++  const v = M.view, exp = isLive(l) && Date.parse(l.expAt) <= Date.now(), st = exp ? 'expire' : l.status;
++  const c = h('article', 'mk-card st-' + st); c.dataset.id = l.id; if (st === 'listed') c.dataset.exp = l.expAt;
++  const head = h('div', 'mk-head');
++  head.append(itemIconEl(l.item));
++  const t = h('div', 'mk-t');
++  const nm = h('b', null, nameOf(l.item)); nm.append(h('span', 'mk-q', ' ×' + l.qty)); t.append(nm);
++  let sub = '';
++  if (o.kind === 'bought') sub = 'Dari ' + l.seller + ' · ' + relTime(l.soldAt);
++  else if (o.kind === 'mine') sub = st === 'sold' ? 'Dibeli ' + (l.buyer || '?') + ' · ' + relTime(l.soldAt) : 'Dipasang ' + relTime(l.createdAt);
++  else sub = o.mine ? 'Listing milikmu' : 'Oleh ' + l.seller;
++  t.append(h('small', null, sub));
++  if (st === 'listed') t.append(h('small', 'mk-left', leftTxt(Date.parse(l.expAt) - Date.now())));
++  head.append(t);
++  if (o.kind === 'mine' || o.kind === 'bought') { const [lab, cls] = STATUS[st] || [st, '']; head.append(h('span', 'tr-st' + (cls ? ' ' + cls : ''), lab)); }
++  c.append(head);
++
++  const pr = h('div', 'mk-price'); pr.innerHTML = COIN; pr.append(h('b', null, nf.format(l.price)), h('span', null, 'Coin'));
++  c.append(pr);
++  const it = itemOf(l.item), shop = it && it.price > 0 ? it.price * l.qty : 0;
++  const meta = [];
++  if (o.kind === 'bought') meta.push('Harga toko ' + (shop ? nf.format(shop) : '—'));
++  else {
++    meta.push('Penjual terima ' + nf.format(l.proceeds) + ' (fee ' + nf.format(l.fee) + ')');
++    if (shop) meta.push('Harga toko ' + nf.format(shop));
++  }
++  c.append(h('small', 'mk-meta', meta.join(' · ')));
++
++  const m = M.msgs[l.id];
++  if (m) { const e = h('div', 'wl-msg ' + (m.kind || 'err'), m.text); e.setAttribute('role', 'alert'); c.append(e); }
++
++  const busy = M.busyId === l.id;
++  if (o.buy && st === 'listed') {
++    const lack = v.coins < l.price, b = h('button', 'wl-btn mk-buy' + (o.mine || lack ? ' alt' : '')); b.type = 'button'; b.dataset.a = 'buy'; b.dataset.id = l.id;
++    b.disabled = !!M.busyId || o.mine || lack || cooling();
++    if (busy) { b.append(h('i', 'tr-spin'), document.createTextNode('Memproses…')); b.setAttribute('aria-busy', 'true'); }
++    else b.textContent = o.mine ? 'Milikmu' : lack ? 'Coin kurang' : 'Beli lot';
++    c.append(b);
++  } else if (o.kind === 'mine' && st === 'listed') {
++    const b = h('button', 'wl-btn alt mk-buy'); b.type = 'button'; b.dataset.a = 'cancel'; b.dataset.id = l.id; b.disabled = !!M.busyId || cooling();
++    if (busy) { b.append(h('i', 'tr-spin'), document.createTextNode('Membatalkan…')); b.setAttribute('aria-busy', 'true'); }
++    else b.textContent = 'Batalkan';
++    c.append(b);
++  } else if (o.kind === 'mine' && st === 'lock') c.append(h('p', 'tr-need', 'Sedang diproses server. Daftar akan diperbarui sebentar lagi.'));
++  return c;
++}
++
++/* ---------- Tokoku & Pembelianku ---------- */
++function mineEl(v) {
++  const w = h('div', 'tr-list'), list = v.mine || [];
++  if (!list.length) { w.append(h('section', 'wl-card tr-empty', 'Pasang lot pertamamu.')); return w; }
++  const g = h('div', 'mk-grid');
++  for (const l of list) g.append(listingCard(l, { kind: 'mine' }));
++  w.append(g);
++  if (list.some(l => l.status === 'expire')) w.append(h('p', 'wl-small', 'Listing yang hangus: barangnya sudah kembali ke inventarismu.'));
++  return w;
++}
++function boughtEl(v) {
++  const w = h('div', 'tr-list'), list = v.bought || [];
++  if (!list.length) { w.append(h('section', 'wl-card tr-empty', 'Belum ada pembelian.')); return w; }
++  const g = h('div', 'mk-grid');
++  for (const l of list) g.append(listingCard(l, { kind: 'bought' }));
++  w.append(g);
++  return w;
++}
++
++/* =====================================================================================================
++   BELI (modal konfirmasi) + BATAL
++   ===================================================================================================== */
++const buyM = h('div', 'wl-modal hide'); buyM.setAttribute('role', 'dialog'); buyM.setAttribute('aria-modal', 'true'); buyM.setAttribute('aria-label', 'Konfirmasi pembelian');
++buyM.innerHTML = '<div class="wl-mbox"><h2>Beli lot ini?</h2><div class="wl-mbody"></div><div class="wl-mmsg wl-msg hide" role="alert"></div><div class="wl-mbtns"><button type="button" class="wl-no">Batal</button><button type="button" class="wl-btn wl-yes">Ya, beli</button></div></div>';
++wallet.append(buyM);
++let buyL = null, buyBusy = false;
++const bmMsg = (t) => { const m = buyM.querySelector('.wl-mmsg'); m.textContent = t || ''; m.className = 'wl-mmsg wl-msg' + (t ? ' err' : ' hide'); };
++function openBuy(id) {
++  const l = ((M.view && M.view.listings) || []).find(x => x.id === id); if (!l || M.busyId) return;
++  buyL = l; buyBusy = false; bmMsg('');
++  const v = M.view, box = buyM.querySelector('.wl-mbody'); box.textContent = '';
++  const rows = [['Barang', nameOf(l.item) + ' ×' + l.qty], ['Harga', nf.format(l.price) + ' Coin'], ['Penjual', l.seller], ['Penjual menerima', nf.format(l.proceeds) + ' Coin (fee ' + nf.format(l.fee) + ')'], ['Saldomu setelah beli', nf.format(Math.max(0, v.coins - l.price)) + ' Coin']];
++  const dl = h('dl', 'wl-sum'); for (const [k, val] of rows) { const r = h('div'); r.append(h('dt', null, k), h('dd', null, val)); dl.append(r); }
++  box.append(dl, h('p', 'wl-warn', 'Kamu membeli seluruh lot. Pembelian tidak bisa dibatalkan.'));
++  buyM.querySelector('.wl-yes').disabled = false; buyM.querySelector('.wl-no').disabled = false;
++  buyM.classList.remove('hide'); requestAnimationFrame(() => buyM.classList.add('show'));
++  buyM.querySelector('.wl-yes').focus({ preventScroll: true });
++}
++function closeBuy() {
++  if (buyBusy) return;
++  buyL = null; buyM.classList.remove('show'); setTimeout(() => { if (!buyM.classList.contains('show')) buyM.classList.add('hide'); }, 220);
++}
++async function confirmBuy() {
++  if (buyBusy || !buyL || M.busyId) return;
++  const l = buyL, yes = buyM.querySelector('.wl-yes'), no = buyM.querySelector('.wl-no');
++  if (M.view && M.view.coins < l.price) { bmMsg('Coin kamu belum cukup.'); return; }
++  buyBusy = true; yes.disabled = true; no.disabled = true; yes.textContent = 'Memproses…'; bmMsg('');
++  M.busyId = l.id; delete M.msgs[l.id]; M.notice = null;
++  let okRes = null, errText = '', errStatus = 0;
++  try {
++    const r = await aApi('market/buy', { id: l.id, idem: uuid() });
++    if (!r || !r.ok) throw new Error((r && r.error) || 'Gagal membeli.');
++    okRes = r;
++  } catch (e) { errText = (e && e.message) || 'Gagal membeli.'; errStatus = (e && e.status) || 0; if (e && e.status === 401) errText = ''; }
++  buyBusy = false; yes.textContent = 'Ya, beli'; yes.disabled = false; no.disabled = false; M.busyId = '';
++  if (okRes) {
++    pushWallet(okRes);
++    const got = okRes.got || { item: l.item, qty: l.qty };
++    M.done = { title: 'Dapat ' + got.qty + ' ' + nameOf(got.item), sub: 'Bayar ' + nf.format(okRes.paid != null ? okRes.paid : l.price) + ' Coin ke ' + l.seller };
++    say('Dapat ' + got.qty + ' ' + nameOf(got.item)); poke();
++    closeBuy();
++  } else if (errText) {
++    if (errStatus === 429) startCool();
++    M.msgs[l.id] = { text: errText, kind: 'err' }; // 409 (sudah terjual / coin kurang / simpanan penuh): kalimat server apa adanya
++    closeBuy();
++  } else closeBuy();
++  render(); await load(true);
++}
++buyM.addEventListener('click', e => {
++  if (e.target === buyM || e.target.closest('.wl-no')) { closeBuy(); return; }
++  if (e.target.closest('.wl-yes')) confirmBuy();
++});
++buyM.addEventListener('keydown', e => {
++  if (e.key === 'Escape') { e.stopPropagation(); closeBuy(); return; }
++  if (e.key === 'Tab') {
++    const f = [...buyM.querySelectorAll('button:not([disabled])')]; if (!f.length) return;
++    const first = f[0], last = f[f.length - 1];
++    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
++    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
++  }
++});
++
++async function cancel(id) {
++  if (M.busyId || !M.view) return;
++  delete M.msgs[id]; M.notice = null; M.busyId = id; render();
++  try {
++    const r = await aApi('market/cancel', { id });
++    if (!r || !r.ok) throw new Error((r && r.error) || 'Gagal membatalkan listing.');
++    say('Listing dibatalkan, barang kembali'); poke();
++  } catch (e) {
++    if (e && e.status === 429) startCool();
++    if (!(e && e.status === 401)) M.msgs[id] = { text: (e && e.message) || 'Gagal membatalkan listing.', kind: 'err' };
++  }
++  M.busyId = '';
++  render(); await load(true);
++}
++
++/* =====================================================================================================
++   FORM PASANG LOT (modal; bottom-sheet di mobile)
++   ===================================================================================================== */
++const F = { open: false, busy: false, item: '', qty: 1, price: '' };
++const fm = h('div', 'tr-modal hide mk-form'); fm.setAttribute('role', 'dialog'); fm.setAttribute('aria-modal', 'true'); fm.setAttribute('aria-label', 'Pasang lot');
++fm.innerHTML = '<div class="tr-mbox mk-fbox"><div class="tr-mhead"><div class="tr-mt"><h2>Pasang lot</h2></div><button type="button" class="wl-x" data-a="close" aria-label="Tutup">×</button></div>' +
++  '<div class="tr-mscroll"><div class="wl-field"><label>Barang dari inventarismu</label><div class="mk-picks" id="mkpicks"></div></div>' +
++  '<div class="wl-field mk-qtyf"><label for="mkqty">Jumlah</label><div class="wl-step"><button type="button" data-a="qm" aria-label="Kurangi jumlah">−</button><input type="text" id="mkqty" inputmode="numeric" autocomplete="off" aria-label="Jumlah barang"><button type="button" data-a="qp" aria-label="Tambah jumlah">+</button></div><small class="mk-hint" id="mkqh"></small></div>' +
++  '<div class="wl-field"><label for="mkprice">Harga untuk seluruh lot (Coin)</label><input type="text" id="mkprice" inputmode="numeric" autocomplete="off" placeholder="mis. 700"><div class="wl-chips" id="mkpq"></div></div>' +
++  '<div class="tr-preview mk-prev" id="mkprev"></div></div>' +
++  '<div class="tr-mfoot"><div class="wl-msg hide" id="mkfmsg" role="alert"></div><p class="wl-why" id="mkwhy"></p><div class="tr-btns"><button type="button" class="tr-no" data-a="close">Batal</button><button type="button" class="wl-btn" id="mkgo" data-a="go">Pasang lot</button></div></div></div>';
++wallet.append(fm);
++const fmsg = t => { const m = $('mkfmsg'); m.textContent = t || ''; m.className = 'wl-msg' + (t ? ' err' : ' hide'); };
++const stock = id => Math.max(0, ((M.view && M.view.inv && M.view.inv[id]) | 0));
++const ownedItems = () => ((M.view && M.view.items) || []).filter(i => stock(i.id) > 0);
++function openForm() {
++  const v = M.view; if (!v || F.open) return;
++  if (!v.trust) { say('Akunmu belum cukup berumur untuk berjualan'); return; }
++  const own = ownedItems();
++  F.open = true; F.busy = false; F.item = own.length ? own[0].id : ''; F.qty = 1; F.price = ''; fmsg('');
++  buildPicks(); paintForm();
++  fm.classList.remove('hide'); requestAnimationFrame(() => fm.classList.add('show'));
++  setTimeout(() => { const f = F.item ? $('mkprice') : fm.querySelector('[data-a="close"]'); if (f) f.focus({ preventScroll: true }); }, 60);
++}
++function closeForm(force) {
++  if (!F.open || (F.busy && !force)) return;
++  F.open = false; fm.classList.remove('show'); setTimeout(() => { if (!fm.classList.contains('show')) fm.classList.add('hide'); }, 220);
++  const c = document.querySelector('#mkbody .tr-new'); if (c) c.focus({ preventScroll: true });
++}
++function buildPicks() {
++  const box = $('mkpicks'); box.textContent = '';
++  const own = ownedItems();
++  if (!own.length) { box.append(h('p', 'wl-empty', 'Inventarismu kosong. Beli barang di Toko atau dapatkan dari gacha dulu.')); return; }
++  for (const i of own) {
++    const b = h('button', 'mk-pick' + (F.item === i.id ? ' on' : '')); b.type = 'button'; b.dataset.a = 'pick'; b.dataset.id = i.id; b.setAttribute('aria-pressed', String(F.item === i.id));
++    b.append(itemIconEl(i.id, 'mk-pic'), h('span', 'mk-pn', i.name), h('small', null, '×' + stock(i.id)));
++    box.append(b);
++  }
++}
++function paintForm() {
++  const v = M.view; if (!v) return;
++  const r = v.rates, st = stock(F.item), maxQ = Math.min(r.maxQty, st);
++  F.qty = Math.max(maxQ ? 1 : 0, Math.min(maxQ, F.qty | 0));
++  $('mkpicks').querySelectorAll('.mk-pick').forEach(b => { const on = b.dataset.id === F.item; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
++  const qi = $('mkqty'); if (document.activeElement !== qi) qi.value = F.item ? String(F.qty) : '';
++  qi.disabled = !F.item || F.busy;
++  fm.querySelector('[data-a="qm"]').disabled = !F.item || F.qty <= 1 || F.busy;
++  fm.querySelector('[data-a="qp"]').disabled = !F.item || F.qty >= maxQ || F.busy;
++  $('mkqh').textContent = F.item ? 'Stok ' + st + ', maksimal ' + r.maxQty + ' per lot' : '';
++  const pi = $('mkprice'); if (document.activeElement !== pi) pi.value = F.price; pi.disabled = !F.item || F.busy;
++  // pakai harga toko sebagai patokan cepat
++  const it = itemOf(F.item), q = $('mkpq'); q.textContent = '';
++  if (it && it.price > 0) {
++    const base = it.price * F.qty;
++    for (const [lab, val] of [['Harga toko ' + nf.format(base), base], ['−20%', Math.round(base * 0.8)], ['+20%', Math.round(base * 1.2)]]) {
++      const b = h('button', 'wl-q', lab); b.type = 'button'; b.dataset.a = 'pq'; b.dataset.v = String(Math.max(r.minPrice, Math.min(r.maxPrice, val))); b.disabled = F.busy; q.append(b);
++    }
++  } else if (F.item) q.append(h('small', 'mk-hint', 'Cincin gacha: harga bebas, pasar yang menentukan.'));
++  // pratinjau fee + penerimaan
++  const price = toInt(F.price), pv = $('mkprev'); pv.textContent = '';
++  pv.append(h('h3', null, 'Ringkasan'));
++  const fee = feeOf(price, r.feePct), rows = [['Lot', F.item ? nameOf(F.item) + ' ×' + F.qty : '—'], ['Harga', price ? nf.format(price) + ' Coin' : '—'], ['Fee ' + Math.round(r.feePct * 100) + '%', price ? '−' + nf.format(fee) : '—'], ['Kamu terima jika laku', price ? nf.format(price - fee) + ' Coin' : '—']];
++  const dl = h('dl', 'wl-sum'); for (const [k, val] of rows) { const rw = h('div'); rw.append(h('dt', null, k), h('dd', null, val)); dl.append(rw); }
++  pv.append(dl);
++  const why = problem(); $('mkwhy').textContent = why;
++  $('mkgo').disabled = !!why || F.busy || cooling();
++  $('mkgo').textContent = F.busy ? 'Memasang…' : 'Pasang lot';
++}
++function problem() {
++  const v = M.view, r = v.rates, price = toInt(F.price);
++  if (!F.item) return ownedItems().length ? 'Pilih barang yang mau dijual.' : 'Kamu belum punya barang untuk dijual.';
++  if (F.qty < 1 || F.qty > Math.min(r.maxQty, stock(F.item))) return 'Jumlah 1 sampai ' + Math.min(r.maxQty, stock(F.item)) + '.';
++  if (!price) return 'Isi harga untuk seluruh lot.';
++  if (price < r.minPrice || price > r.maxPrice) return 'Harga ' + nf.format(r.minPrice) + ' sampai ' + nf.format(r.maxPrice) + ' Coin per lot.';
++  if ((v.mine || []).filter(isLive).length >= r.pendingMax) return 'Listing aktifmu sudah penuh (' + r.pendingMax + ').';
++  return '';
++}
++async function submitList() {
++  if (F.busy || problem() || cooling()) return;
++  F.busy = true; fmsg(''); paintForm();
++  const body = { item: F.item, qty: F.qty, price: toInt(F.price), idem: uuid() };
++  try {
++    const r = await aApi('market/list', body);
++    if (!r || !r.ok) throw new Error((r && r.error) || 'Gagal memasang listing.');
++    pushWallet(r);
++    if (M.view && r.inv) M.view.inv = r.inv; // inventaris berkurang seketika (dari respons)
++    F.busy = false; closeForm(true);
++    M.tab = 'mine'; M.notice = null; M.done = { title: 'Lot terpasang', sub: body.qty + ' ' + nameOf(body.item) + ' dijual ' + nf.format(body.price) + ' Coin' };
++    say('Lot terpasang'); poke(); render(); await load(true); return;
++  } catch (e) {
++    F.busy = false;
++    if (e && e.status === 401) { closeForm(true); return; }
++    if (e && e.status === 429) startCool();
++    fmsg((e && e.message) || 'Gagal memasang listing.'); // 400/403/409: kalimat server apa adanya
++    if (e && e.status === 409) load(true); // stok berubah: segarkan inventaris
++  }
++  if (F.open) paintForm();
++}
++fm.addEventListener('click', e => {
++  if (e.target === fm) { closeForm(); return; }
++  const b = e.target.closest('[data-a]'); if (!b || b.disabled) return;
++  const a = b.dataset.a;
++  if (a === 'close') closeForm();
++  else if (a === 'pick') { F.item = b.dataset.id; F.qty = 1; F.price = ''; fmsg(''); paintForm(); }
++  else if (a === 'qm') { F.qty -= 1; paintForm(); }
++  else if (a === 'qp') { F.qty += 1; paintForm(); }
++  else if (a === 'pq') { F.price = b.dataset.v; fmsg(''); paintForm(); }
++  else if (a === 'go') submitList();
++});
++fm.addEventListener('input', e => {
++  const t = e.target;
++  if (t.id === 'mkqty') { F.qty = toInt(t.value); t.value = t.value.replace(/[^\d]/g, ''); paintForm(); }
++  else if (t.id === 'mkprice') {
++    const n = Math.min(toInt(t.value), M.view.rates.maxPrice); F.price = t.value.replace(/[^\d]/g, '') ? String(n) : ''; if (t.value !== F.price) t.value = F.price; fmsg(''); paintForm();
++  }
++});
++fm.addEventListener('keydown', e => {
++  if (e.key === 'Escape') { e.stopPropagation(); closeForm(); return; }
++  if (e.key === 'Enter' && (e.target.id === 'mkprice' || e.target.id === 'mkqty')) { e.preventDefault(); submitList(); return; }
++  if (e.key === 'Tab') {
++    const f = [...fm.querySelectorAll('button:not([disabled]),input:not([disabled])')].filter(x => x.offsetParent !== null); if (!f.length) return;
++    const first = f[0], last = f[f.length - 1];
++    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
++    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
++  }
++});
++
++/* ---------- Klik di halaman ---------- */
++$('wtbody').addEventListener('click', e => {
++  if (!$('mkbody')) return;
++  const b = e.target.closest('[data-a]'); if (!b || b.disabled) return;
++  const a = b.dataset.a;
++  if (a === 'tab') { M.tab = b.dataset.k; render(); if (M.tab === 'mine' || M.tab === 'bought') load(true); }
++  else if (a === 'filter') { M.item = b.dataset.id || ''; render(); load(true); } // muat ulang dengan filter: listing terfilter + riwayat harga
++  else if (a === 'new') openForm();
++  else if (a === 'buy') openBuy(b.dataset.id);
++  else if (a === 'cancel') cancel(b.dataset.id);
++  else if (a === 'dismiss') { M.done = null; render(); }
++  else if (a === 'dismissn') { M.notice = null; render(); }
++});
++
++/* sisa waktu listing dihitung lokal; yang lewat batas langsung "Hangus" (status asli dari server saat muat ulang) */
++setInterval(() => {
++  if (document.hidden || !active() || !M.view) return;
++  let redraw = false;
++  $('mkbody').querySelectorAll('.mk-card[data-exp]').forEach(c => {
++    const ms = Date.parse(c.dataset.exp) - Date.now();
++    if (ms <= 0) redraw = true; else { const l = c.querySelector('.mk-left'); if (l) l.textContent = leftTxt(ms); }
++  });
++  if (redraw) load(true);
++}, 30000);
++
++/* =====================================================================================================
++   Daftarkan sub-tab + peristiwa
++   ===================================================================================================== */
++WALLET.register('market', {
++  label: 'Market', title: 'Market', sub: 'Jual barangmu dengan harga Coin terbuka, atau beli dari pemain lain. Harga ditentukan pasar.',
++  onOpen(meta) {
++    if (meta && meta.u) M.tab = 'mine'; // dari notifikasi "listingmu laku"
++    M.done = null; M.notice = null;
++  },
++  render(ctx) {
++    ctx.body.textContent = ''; const box = h('div'); box.id = 'mkbody'; ctx.body.append(box);
++    render();
++    load(true);
++  }
++});
++window.addEventListener('acct', () => { // ganti akun / keluar: bersihkan semuanya
++  const tok = typeof atok === 'string' ? atok : '';
++  if (M.tok !== tok) {
++    M.tok = tok; M.view = null; M.msgs = {}; M.notice = null; M.done = null; M.busyId = ''; M.tab = 'browse'; M.item = ''; M.cool = 0;
++    if (F.open) { F.open = false; F.busy = false; fm.classList.remove('show'); fm.classList.add('hide'); }
++    if (buyL) { buyBusy = false; buyL = null; buyM.classList.remove('show'); buyM.classList.add('hide'); }
++  }
++});
++window.addEventListener('notif:new', e => { // listingku laku / pembelian tercatat saat layar terbuka: muat ulang
++  const types = (e.detail && e.detail.types) || [];
++  if (active() && !M.busyId && !F.busy && !buyBusy && types.includes('market')) load(true);
++});
++document.addEventListener('visibilitychange', () => { if (!document.hidden && active()) load(true); });
++})();
+diff -ruN orig/neyhra-chat2-main/public/scenario.js proj/neyhra-chat2-main/public/scenario.js
+--- orig/neyhra-chat2-main/public/scenario.js	2026-11-13 21:33:32.000000000 +0700
++++ proj/neyhra-chat2-main/public/scenario.js	2026-11-14 18:41:39.891882780 +0700
+@@ -405,11 +405,8 @@
+     const relNote = relApply(chId, r.dExp != null ? r.dExp : (Math.round(Number(r.dRel)) || 0) * 3, r.dMood)
+     saveHist(chId, [...loadHist(chId), ['char', r.id]])
+     const useVoice = voiceOn && !!vcode, lang = voiceLang
+-    if (!useVoice) showThem(chId, r.id)
+-    else {
+-      const t = typingBubble(); setStatus('merekam suara', true)
+-      await speakReply(chId, r, lang, t)
+-    }
++    if (!useVoice) showThemSafe(chId, r.id)
++    else await voiceReply(chId, r, lang, null) // suara tetap dibuat walau chat ditinggal (voiceReply memasang bubble hanya kalau masih di chat itu)
+     setStatus('online', false)
+     if (relNote) toast(relNote)
+     maybeMemorize(chId)
+diff -ruN orig/neyhra-chat2-main/public/vision.js proj/neyhra-chat2-main/public/vision.js
+--- orig/neyhra-chat2-main/public/vision.js	2026-11-13 21:33:32.000000000 +0700
++++ proj/neyhra-chat2-main/public/vision.js	2026-11-14 11:11:53.815423940 +0700
+@@ -145,10 +145,11 @@
+     const ts = document.createElement('div'); ts.className = 'ts'; ts.textContent = now(tt)
+     bub.append(ts)
+     row.append(bub); chat.appendChild(row); scroll()
++    return row /* dipakai submit() untuk mencabut bubble kalau pembacaan gambar gagal */
+   }
+ 
+   /* ---------- Dipakai restoreChat() di index.html untuk menampilkan lagi pesan gambar lama ---------- */
+-  function render(e) { if (e && e.img) bubble({ img: e.img, text: e.x, t: e.t }) }
++  function render(e) { if (e && e.img) return bubble({ img: e.img, text: e.x, t: e.t }) }
+ 
+   window.VISION = { pick, has, take, untake, render }
+ })()
+diff -ruN orig/neyhra-chat2-main/readme1.md proj/neyhra-chat2-main/readme1.md
+--- orig/neyhra-chat2-main/readme1.md	2026-11-13 21:33:32.000000000 +0700
++++ proj/neyhra-chat2-main/readme1.md	2026-11-14 18:43:08.240047761 +0700
+@@ -84,6 +84,8 @@
+ `lib/auth.js`. `{ _id: sha256(token), userId, createdAt }`.
+ - Token asli (256-bit) HANYA dipegang browser (localStorage `authtok`); database cuma menyimpan hash-nya.
+ - Index TTL `createdAt` **60 hari** → kedaluwarsa otomatis; index `{userId:1}` untuk hapus massal saat akun dihapus.
++- **Sesi geser:** `userFromReq` (`lib/auth.js`) memperbarui `createdAt` paling sering 1×/12 jam tiap sesi dipakai, jadi user yang aktif tidak ter-logout tepat 60 hari setelah login (hanya sesi yang menganggur 60 hari yang dihapus).
++- **Client tidak logout karena error sementara:** `initAcct()` (`public/index.html`) hanya membuang token kalau `/api/auth/me` menjawab **401**; 500/503/429/non-JSON dianggap gangguan sementara, token tetap.
+ 
+ ### 1.3 `userdata` — sinkronisasi data obrolan antar perangkat
+ `lib/auth.js`. `{ _id: userId, data: "<string JSON>", size, updatedAt }`.
+@@ -136,6 +138,7 @@
+ 
+ ### 1.10 `gc_messages` — riwayat Chat Global (penyimpanan utama)
+ `lib/gc.js`. `{ _id: <UUID pesan>, senderId, senderName, text, ts, replyTo, au?, av? }`.
++- **Gambar (opsional):** `img` (alamat publik R2, dibangun server), `iw`/`ih` (ukuran, untuk aspect-ratio bubble), `imgKey` (nama objek R2 `gc/<24-hex>.jpg`, TIDAK dikirim ke client; dipakai untuk menghapus objek saat pesan dihapus). `text` boleh kosong kalau ada gambar.
+ - `_id` = id pesan (UUID dibuat server), `ts` = waktu server (client tidak menentukan urutan), `replyTo` = id pesan yang dibalas (disiapkan untuk fitur balas; belum ada UI-nya).
+ - `au`/`av` = username + versi foto profil, hanya untuk pengirim yang masuk akun (alamat foto dibangun client dari pola tetap, bukan URL kiriman orang lain).
+ - Index `{ts:-1, _id:-1}` = urutan pagination riwayat (kursor `{ts, id}`, terbaru dulu lalu mundur, maks 30–50 per halaman).
+@@ -147,6 +150,7 @@
+ | `/api/gc/send` | validasi teks (1–256 codepoint, ditolak bukan dipangkas) → identitas: token Bearer sah = nama+foto profil akun, tanpa token = tamu (nama dari body) → rate-limit `rls` → **insert ke `gc_messages`** → push ke feed Redis (best-effort; gagal = warning saja, pesan tetap terkirim) → balas `{m}` |
+ | `/api/gc/history` | rate-limit `rlh` → baca watermark → query Mongo `ts < before.ts` ATAU (`ts == before.ts` DAN `_id < before.id`) (kursor `{ts,id}` stabil, tanpa skip/offset, index `{ts:-1,_id:-1}`) → 30–50 pesan urut naik + `more` + `t0` (titik awal tombstone client) |
+ | `/api/gc/sync` | heartbeat presence `live` (rate-limit `rlb`) → feed Redis: pesan dengan `ts > since` + watermark + tombstone baru → **gap-patch**: kalau pesan tertua di feed lebih baru dari `since` klien (pesan terdorong keluar LTRIM / push gagal / feed terisi sebagian), ambil dari Mongo urut naik (maks 50, `more` = masih sisa → klien polling cepat) |
++| `/api/gc/upload` | body = JPEG mentah (`Content-Type: image/jpeg`, ≤700 KB, cek byte awal) → **wajib login** + rate-limit 8/menit/akun → `r2Put('gc/<24-hex>.jpg')` → `{key, img}`. Tanpa env R2 → 501 `imgOff`. `send` lalu memakai `imgKey` (divalidasi regex; URL gambar dibangun server, bukan dari client) |
+ | `/api/gc/delete` | wajib kode dev (hash dicek server) → satu pesan: deleteOne Mongo + tombstone Redis; semua: deleteMany Mongo + watermark Redis → klien online membuang pesan lewat `sync`; Redis gagal = best-effort (Mongo sudah bersih, respons tetap `ok`) |
+ 
+ **Di browser TIDAK ada penyimpanan Chat Global** (`public/globalchat.adapter.js`): riwayat hanya di memori (maks 3000 pesan, yang terlama dibuang dan bisa dimuat lagi lewat `loadOlder`), dedup by id + tombstone/watermark. `loadOlder` menjaga posisi scroll; pesan lama tidak memicu notifikasi (baseline `nMax` saat pertama online).
+@@ -196,7 +200,7 @@
+ 
+ **Env (semua wajib agar R2 aktif):** `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_URL` (+ opsional `R2_ENDPOINT` untuk bucket EU).
+ 
+-- Objek: `pfp/<24-hex-acak>.jpg` — JPEG 256×256 ≤100 KB, header `Cache-Control: public, max-age=31536000, immutable`.
++- Objek: `gc/<24-hex-acak>.jpg` = gambar Chat Global (JPEG ≤700 KB; dihapus dari R2 saat pesan dihapus lewat Mode dev). Foto profil: `pfp/<24-hex-acak>.jpg` — JPEG 256×256 ≤100 KB, header `Cache-Control: public, max-age=31536000, immutable`.
+ - Nama objek (`avKey`) + alamat publik (`avatarUrl`) disimpan di koleksi `users`; foto lama dihapus dari bucket saat diganti / akun dihapus.
+ - **Fallback:** env R2 tidak lengkap → foto disimpan di MongoDB `avatars` (dikembalikan lewat `GET /api/auth/avatar/:username?v=`). Client selalu menerima satu field `avatar` (alamat lengkap) jadi tidak perlu tahu foto ada di mana.
+ - Avatar **karakter** (bukan user) TIDAK di R2 — lihat §5.
+@@ -339,3 +343,13 @@
+ | `DEBUG_RAW` | log prompt/balasan AI mentah ke console server |
+ 
+ *Tidak ada satu pun secret yang boleh dikirim ke browser; semua kunci hanya dibaca `process.env` di server.*
++
++
++## Frontend Market (sub-tab Dompet > Market)
++- `public/market.js` + `public/market.css` (dimuat setelah `trade.js` di `index.html`), spesifikasi `docs/frontend/marketplace.md`. Bagian: Jelajah (filter barang + riwayat harga), Tokoku (batalkan), Pembelianku. Beli lewat modal konfirmasi, pasang lot lewat form (bottom-sheet di mobile). `idem` baru tiap konfirmasi, 429 → tombol nonaktif ±10 dtk, fee hanya pratinjau (angka asli dari server).
++
++## Frontend Kerja (sub-tab Dompet > Kerja)
++- `public/job.js` + `public/job.css` (dimuat setelah `market.js`), spesifikasi `docs/frontend/job-system.md`. 4 kartu pekerjaan (countdown dari `cdLeft`, interval 1 dtk, tanpa polling), kartu kuota harian (reset 00.00 WIB dihitung lokal), riwayat 10 shift, panel hasil (gaji naik + efek "Shift bonus!" tanpa suara). 429 jeda dibuka sebagai countdown, 429 kuota → "Balik besok". Semua angka dari respons.
++
++## Voice saat chat ditinggal
++- `speakReply`/`voiceReply` (`public/index.html`): kalau user meninggalkan chat saat AI masih menjawab, suara TETAP dibuat (dulu dilewati dan hanya teks yang dicatat). Bubble hanya tampil kalau masih di chat itu (dicek tiap bagian voice note, jadi tidak nyasar ke chat karakter lain); selain itu voice note (beserta audio di IndexedDB) langsung masuk log karakter aslinya dan muncul saat chat dibuka lagi. Berlaku untuk chat biasa, hadiah/gambar, lanjut ngobrol, dan Skenario Skrip.

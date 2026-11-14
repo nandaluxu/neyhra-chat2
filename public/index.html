@@ -1257,23 +1257,27 @@ const setStatus=(t,typing)=>{ status.textContent=t; status.classList.toggle('typ
 
 /* Voice note balasan karakter. Mode roleplay: server mengirim r.parts (satu ucapan = satu voice note, maks 3); selain itu satu voice note.
    Dipakai chat biasa dan Skenario Skrip. `t` = bubble "merekam suara" yang sudah tampil. Kalau suara gagal, bagian yang belum jadi tampil sebagai teks. */
+/* `t` boleh null (chat sudah ditinggal sebelum suara mulai dibuat). Suara TETAP dibuat walau chat ditinggal: tampil di layar hanya kalau user masih di chat itu
+   (dicek tiap bagian, supaya tidak nyasar ke chat karakter lain), selain itu voice note langsung masuk log karakter aslinya dan muncul saat chat dibuka lagi. */
 async function speakReply(chId,r,lang,t){
   const parts=(r.parts&&r.parts.length>1)?r.parts:[{id:r.id,jp:r.jpText,vn:r.vn}];
   let i=0;
   try{
     for(;i<parts.length;i++){
       const p=parts[i];
-      if(i>0) t=typingBubble();
+      if(i>0&&stillHere(chId)) t=typingBubble();
       const ab=await (await post('/api/tts',{char:chId,text:p.vn,voice:voiceKeyOf(chId)},{'x-voice-code':vcode})).arrayBuffer();
-      const pre=await decode(ab); t.remove();
+      const pre=await decode(ab); if(t) t.remove();
       const tNow=Date.now(), k=newKey(); urls.push(pre.url);
-      addVN({id:p.id,jp:p.jp,lang,vn:p.vn},[pre],tNow);
+      const here=stillHere(chId);
+      if(here) addVN({id:p.id,jp:p.jp,lang,vn:p.vn},[pre],tNow);
       const saved=await idb.put(k,{ab,dur:pre.dur,bins:pre.bins}); /* audio disimpan lokal supaya voice note bisa diputar lagi nanti */
       if(saved) pre.k=k;
       record(chId,{t:tNow,r:'vn',x:p.id,jp:p.jp,lang,vn:p.vn,...(saved?{ks:[k],si:0}:{})});
+      if(!here) renderList(); /* chat ditinggal: daftar Obrolan Terakhir ikut diperbarui */
     }
   }catch(e){
-    t.remove(); for(let j=i;j<parts.length;j++) showThem(chId,parts[j].id); /* suara gagal -> teksnya tetap tampil */
+    if(t) t.remove(); for(let j=i;j<parts.length;j++) showThemSafe(chId,parts[j].id); /* suara gagal -> teksnya tetap tampil (atau masuk log kalau chat ditinggal) */
     if(e.status===403){ vcode=''; voiceOn=false; store.set('vcode',null); store.set('von','0'); paintVoice(); toast('Kode voice tidak valid, voice dimatikan'); }
     else toast(e.message);
   }
@@ -1288,6 +1292,13 @@ async function speakReply(chId,r,lang,t){
 let pend=[],pendT=0;
 const PEND_MS=10000;
 const stillHere=id=>!!ch&&ch.id===id&&app.classList.contains('open')&&!(window.GX&&GX.cur);
+/* Balasan bersuara: jangan dilewati cuma karena chat ditinggal (dulu jadi teks biasa). Bubble "merekam suara" hanya kalau masih di chat itu. */
+async function voiceReply(chId,r,lang,t){
+  if(t) t.remove();
+  const here=stillHere(chId);
+  if(here) setStatus('merekam suara',true); /* fase 2: masuk Fish Audio -> indikator voice */
+  await speakReply(chId,r,lang,here?typingBubble():null);
+}
 function showThemSafe(id,text){ if(stillHere(id)) showThem(id,text); else { record(id,{r:'them',x:text}); renderList(); } } /* balasan datang setelah pindah chat: masuk log karakter aslinya, tidak nyasar ke layar sekarang */
 function pendArm(){ clearTimeout(pendT); pendT=setTimeout(()=>{ pendT=0; pendFlush(false) },PEND_MS); setStatus('menunggu kamu selesai…',true); }
 async function pendFlush(keepBusy){ /* keepBusy=true: dipanggil dari jalur hadiah/gambar yang memegang busy sendiri */
@@ -1304,8 +1315,8 @@ async function pendFlush(keepBusy){ /* keepBusy=true: dipanggil dari jalur hadia
     r=await (await post('/api/chat',{clientId:cid,char:chId,message:text,userName:uname,history:hist,voice:{on:useVoice,lang},memory:memUse(chId).list,rel:relPayload(chId),qr:true,...engPayload(),...(rpOn()?{rp:true}:{})})).json();
     saveHist(chId,[...loadHist(chId),['user',text],['char',r.id]]); okReply=true; lastReply=r.id;
     relNote=relApply(chId,r.dExp!=null?r.dExp:(Math.round(Number(r.dRel))||0)*3,r.dMood);
-    if(!useVoice||!stillHere(chId)){ if(t)t.remove(); showThemSafe(chId,r.id); } /* pindah chat saat voice: teksnya saja yang dicatat */
-    else{ t.remove(); t=typingBubble(); setStatus('merekam suara',true); await speakReply(chId,r,lang,t); }
+    if(!useVoice){ if(t)t.remove(); showThemSafe(chId,r.id); }
+    else await voiceReply(chId,r,lang,t); /* pindah chat saat menunggu: suara tetap dibuat, masuk log karakter aslinya */
   }catch(e){ if(t)t.remove(); toast(e.message); }
   setStatus(idleStat(),false); if(!keepBusy){ busy=false; refresh(); }
   if(relNote) toast(relNote);
@@ -1362,11 +1373,8 @@ async function submit(opt){
     const r=await (await post('/api/chat',{clientId:cid,char:ch.id,message:text,userName:uname,history:hist,voice:{on:useVoice,lang},memory:memUse(chId).list,rel:relPayload(chId),qr:true,...engPayload(),...(rpOn()?{rp:true}:{}),...(vd?{vision:vd}:{}),...(gf?{gift:{items:gf.items,...(gf.say?{text:gf.say}:{})}}:{}),...(window.SCN?SCN.body(chId):{})},window.SCN?SCN.headers():{})).json();
     saveHist(chId,[...loadHist(chId),['user',vf?('[mengirim gambar: '+vd.slice(0,350)+']'+(text?' '+text:'')):gf?gf.hist:text],['char',r.id]]); okReply=true; lastReply=r.id;
     relNote=gf?(gf.note||''):relApply(chId,r.dExp!=null?r.dExp:(Math.round(Number(r.dRel))||0)*3,r.dMood); /* hadiah: EXP/mood sudah dihitung server (shop.js), angka penilaian AI diabaikan supaya tidak dobel */ /* hubungan & mood: angka dari balasan AI (sudah di-clamp server) */ /* baca ulang h: karena peringkasan di latar bisa saja baru membuang bagian lamanya */
-    if(!useVoice||!stillHere(chId)){ t.remove(); showThemSafe(chId,r.id); } /* pindah chat saat menunggu: balasan masuk log karakter aslinya, tidak nyasar */
-    else{
-      t.remove(); t=typingBubble(); setStatus('merekam suara',true); /* fase 2: masuk Fish Audio -> indikator voice */
-      await speakReply(chId,r,lang,t);
-    }
+    if(!useVoice){ t.remove(); showThemSafe(chId,r.id); } /* pindah chat saat menunggu: balasan masuk log karakter aslinya, tidak nyasar */
+    else await voiceReply(chId,r,lang,t); /* chat ditinggal: suara tetap dibuat dan dicatat ke log karakter itu */
   }catch(e){ t.remove(); toast(e.message); if(window.SCN&&SCN.onErr) SCN.onErr(e); }
   setStatus(idleStat(),false); busy=false; refresh();
   if(relNote) toast(relNote);
@@ -1760,8 +1768,8 @@ async function goOn(){
     r=await (await post('/api/chat',{clientId:cid,char:chId,message:'',cont:true,userName:uname,history:loadHist(chId),voice:{on:useVoice,lang},memory:memUse(chId).list,rel:relPayload(chId),qr:true,...engPayload(),...(rpOn()?{rp:true}:{})})).json();
     saveHist(chId,[...loadHist(chId),['char',r.id]]); /* tidak ada pesan user: riwayat hanya bertambah giliran karakter */
     relNote=relApply(chId,r.dExp!=null?r.dExp:(Math.round(Number(r.dRel))||0)*3,r.dMood);
-    if(!useVoice){ t.remove(); showThem(chId,r.id); }
-    else{ t.remove(); t=typingBubble(); setStatus('merekam suara',true); await speakReply(chId,r,lang,t); }
+    if(!useVoice){ t.remove(); showThemSafe(chId,r.id); }
+    else await voiceReply(chId,r,lang,t);
   }catch(e){ t.remove(); toast(e.message); }
   setStatus(idleStat(),false); busy=false; refresh();
   if(relNote) toast(relNote);

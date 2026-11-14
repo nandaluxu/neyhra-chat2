@@ -350,3 +350,6 @@ Skenario UI (`scenario.js/css`) dimuat sebagai modul terpisah, hanya aktif di la
 
 ## Frontend Kerja (sub-tab Dompet > Kerja)
 - `public/job.js` + `public/job.css` (dimuat setelah `market.js`), spesifikasi `docs/frontend/job-system.md`. 4 kartu pekerjaan (countdown dari `cdLeft`, interval 1 dtk, tanpa polling), kartu kuota harian (reset 00.00 WIB dihitung lokal), riwayat 10 shift, panel hasil (gaji naik + efek "Shift bonus!" tanpa suara). 429 jeda dibuka sebagai countdown, 429 kuota → "Balik besok". Semua angka dari respons.
+
+## Voice saat chat ditinggal
+- `speakReply`/`voiceReply` (`public/index.html`): kalau user meninggalkan chat saat AI masih menjawab, suara TETAP dibuat (dulu dilewati dan hanya teks yang dicatat). Bubble hanya tampil kalau masih di chat itu (dicek tiap bagian voice note, jadi tidak nyasar ke chat karakter lain); selain itu voice note (beserta audio di IndexedDB) langsung masuk log karakter aslinya dan muncul saat chat dibuka lagi. Berlaku untuk chat biasa, hadiah/gambar, lanjut ngobrol, dan Skenario Skrip.

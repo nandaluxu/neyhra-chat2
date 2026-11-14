@@ -405,11 +405,8 @@
     const relNote = relApply(chId, r.dExp != null ? r.dExp : (Math.round(Number(r.dRel)) || 0) * 3, r.dMood)
     saveHist(chId, [...loadHist(chId), ['char', r.id]])
     const useVoice = voiceOn && !!vcode, lang = voiceLang
-    if (!useVoice) showThem(chId, r.id)
-    else {
-      const t = typingBubble(); setStatus('merekam suara', true)
-      await speakReply(chId, r, lang, t)
-    }
+    if (!useVoice) showThemSafe(chId, r.id)
+    else await voiceReply(chId, r, lang, null) // suara tetap dibuat walau chat ditinggal (voiceReply memasang bubble hanya kalau masih di chat itu)
     setStatus('online', false)
     if (relNote) toast(relNote)
     maybeMemorize(chId)
