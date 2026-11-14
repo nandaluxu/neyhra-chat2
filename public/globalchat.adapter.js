@@ -22,13 +22,15 @@ const FAIL_N = 2;               // berapa kali poll gagal berturut-turut -> offl
 const CID_RE = /^[\w-]{8,64}$/;
 const MID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
+const okImg = u => typeof u === 'string' && /^https:\/\/[^\s"'<>\\]{1,500}$/.test(u); // gambar hanya dari alamat https (dibuat server dari R2), tidak pernah data:/javascript:
 const cmp = (a, b) => a.ts - b.ts || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 const uid = () => Math.random().toString(36).slice(2, 10);
 const okShape = m => m && typeof m === 'object' &&
   typeof m.id === 'string' && MID_RE.test(m.id) &&
   typeof m.senderId === 'string' && CID_RE.test(m.senderId) &&
   typeof m.senderName === 'string' && m.senderName.length > 0 && m.senderName.length <= 24 &&
-  typeof m.text === 'string' && m.text.length > 0 && [...m.text].length <= 256 &&
+  typeof m.text === 'string' && (m.text.length > 0 || okImg(m.img)) && [...m.text].length <= 256 &&
+  (m.img == null || okImg(m.img)) &&
   Number.isInteger(m.ts) && m.ts > 1600000000000 && m.ts < 9e15 &&
   (m.replyTo == null || (typeof m.replyTo === 'string' && MID_RE.test(m.replyTo)));
 
@@ -36,6 +38,15 @@ async function api(path, body) {
   try {
     const tok = path === '/api/gc/send' && typeof atok === 'string' && atok; // token akun: server memakai nama + foto profil sebagai identitas pengirim
     const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(tok ? { Authorization: 'Bearer ' + tok } : {}) }, body: JSON.stringify(body) });
+    let j = null; try { j = await r.json(); } catch {}
+    return { ok: r.ok, status: r.status, json: j };
+  } catch { return { ok: false, status: 0, json: null }; }
+}
+
+// Unggah gambar (JPEG mentah) ke /api/gc/upload -> { key }. Token akun wajib.
+async function upload(blob) {
+  try {
+    const r = await fetch('/api/gc/upload', { method: 'POST', headers: { 'Content-Type': 'image/jpeg', ...(typeof atok === 'string' && atok ? { Authorization: 'Bearer ' + atok } : {}) }, body: blob });
     let j = null; try { j = await r.json(); } catch {}
     return { ok: r.ok, status: r.status, json: j };
   } catch { return { ok: false, status: 0, json: null }; }
@@ -216,12 +227,29 @@ function send(text, replyTo) {
   return tmp;
 }
 async function deliver(text, tmp) {
-  const t = setTimeout(() => { if (pending.some(x => x.id === tmp.id && x.status === 'sending')) failTmp(tmp); }, 15000);
-  const r = await api('/api/gc/send', { clientId: meId(), name: getSelf().name, text, replyTo: tmp.replyTo });
+  const t = setTimeout(() => { if (pending.some(x => x.id === tmp.id && x.status === 'sending')) failTmp(tmp); }, tmp.blob ? 45000 : 15000);
+  // Pesan gambar: bubble sudah tampil dari awal (pratinjau lokal); unggah ke R2 dulu, baru kirim pesan dengan key-nya. Key disimpan di tmp supaya "Coba lagi" tidak mengunggah ulang.
+  if (tmp.blob && !tmp.imgKey) {
+    const u = await upload(tmp.blob);
+    if (!pending.some(x => x.id === tmp.id)) { clearTimeout(t); return; }
+    if (!(u.ok && u.json?.key)) { clearTimeout(t); return failTmp(tmp, u.json?.error || 'Gambar gagal diunggah'); }
+    tmp.imgKey = u.json.key;
+  }
+  const r = await api('/api/gc/send', { clientId: meId(), name: getSelf().name, text, replyTo: tmp.replyTo, ...(tmp.imgKey ? { imgKey: tmp.imgKey, iw: tmp.iw, ih: tmp.ih } : {}) });
   clearTimeout(t);
   if (!pending.some(x => x.id === tmp.id)) return; // sudah dibersihkan (mis. dicoba ulang)
-  if (r.ok && r.json?.m) { dropTmp(tmp); ingest([r.json.m]); }
+  if (r.ok && r.json?.m) { dropTmp(tmp); ingest([r.json.m]); if (tmp.img && tmp.img.startsWith('blob:')) setTimeout(() => URL.revokeObjectURL(tmp.img), 4000); }
   else failTmp(tmp, r.json?.error);
+}
+
+// Kirim gambar: blob = JPEG hasil kecilan client, preview = object URL untuk bubble langsung (optimistis), caption boleh kosong.
+function sendImage(blob, preview, text, replyTo, iw, ih) {
+  if (!canSend() || !blob || !preview) return null;
+  const s = getSelf(), cap = typeof text === 'string' ? text.trim() : '';
+  const tmp = { id: 'tmp-' + uid(), senderId: s.aid || s.id, senderName: s.name, text: cap, img: preview, iw, ih, blob, ts: Date.now(), status: 'sending', replyTo: MID_RE.test(replyTo || '') ? replyTo : null };
+  pending.push(tmp); touch(); bump();
+  deliver(cap, tmp);
+  return tmp;
 }
 
 function retry(id) {
@@ -273,6 +301,7 @@ const A = window.GlobalChatAdapter = {
     beat();
   },
   send,
+  sendImage,
   retry,
   loadOlder,
   deleteMessage,

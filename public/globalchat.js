@@ -48,8 +48,10 @@ const I = {
   offline: '<svg viewBox="0 0 24 24"><path d="M2 8.8a15 15 0 0 1 4-2.6M22 8.8a15 15 0 0 0-9-3.7M5 12.9a10 10 0 0 1 5-2.7M19 12.9a10 10 0 0 0-2.4-1.9M8.5 16.4a5 5 0 0 1 7 0M12 20h.01M3 3l18 18"/></svg>',
   msg: '<svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg>',
   chev: '<svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>',
-  re: '<svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 016 6v1"/></svg>'
+  re: '<svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 016 6v1"/></svg>',
+  img: '<svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="3"/><circle cx="9" cy="10" r="1.6"/><path d="M4 17l5-5 4 4 2.5-2.5L20 16"/></svg>'
 };
+const photoLabel = m => m.text || (m.img ? '📷 Foto' : ''); // pratinjau teks untuk balasan / notifikasi (pesan gambar tanpa caption)
 
 /* ---------- Kerangka DOM ---------- */
 app.insertAdjacentHTML('beforeend', `
@@ -66,7 +68,10 @@ app.insertAdjacentHTML('beforeend', `
   <div class="gc-foot">
     <div class="gc-meta"><span class="gc-as" id="gc-as"></span><span class="gc-count" id="gc-count" title="Maksimal ${MAX} karakter">0/${MAX}</span></div>
     <div class="gc-rp hide" id="gc-rp"><span class="gc-rp-i" aria-hidden="true">${I.re}</span><div class="gc-rp-c"><b></b><span></span></div><button id="gc-rpx" type="button" title="Batal balas" aria-label="Batal balas">${I.close}</button></div>
+    <div class="gc-att hide" id="gc-att"><img id="gc-att-i" alt="" draggable="false"><div class="gc-att-c"><b>Gambar siap dikirim</b><span id="gc-att-s"></span></div><button id="gc-attx" type="button" title="Lepas gambar" aria-label="Lepas gambar">${I.close}</button></div>
     <div class="gc-row">
+      <button id="gc-pic" type="button" title="Kirim gambar" aria-label="Kirim gambar">${I.img}</button>
+      <input id="gc-file" type="file" accept="image/*" hidden>
       <textarea id="gc-inp" rows="1" placeholder="Pesan untuk semua orang" aria-label="Pesan" aria-describedby="gc-count" autocomplete="off" autocapitalize="sentences"></textarea>
       <button id="gc-send" type="button" title="Kirim" aria-label="Kirim pesan" disabled>${I.send}</button>
     </div>
@@ -79,7 +84,7 @@ app.insertAdjacentHTML('beforeend', `
     <div class="shead"><h2 id="gc-info-t">Tentang Chat Global</h2><button id="gc-info-x" type="button" aria-label="Tutup">${I.close}</button></div>
     <div class="sgroup">
       <div class="gc-fact"><b>Satu ruang untuk semua</b><i>Semua pengguna bisa membaca dan mengirim pesan di sini.</i></div>
-      <div class="gc-fact"><b>Teks saja</b><i>Maksimal ${MAX} karakter per pesan. Tidak ada gambar maupun file.</i></div>
+      <div class="gc-fact"><b>Teks dan gambar</b><i>Maksimal ${MAX} karakter per pesan. Kamu bisa mengirim gambar (JPEG, dikecilkan otomatis) dengan keterangan opsional; mengirim gambar butuh akun. Tidak ada file lain.</i></div>
       <div class="gc-fact"><b>Riwayat tersimpan di server</b><i>Semua pesan disimpan di server dan dimuat bertahap: yang terbaru dulu, yang lama muncul saat kamu menggulir ke atas.</i></div>
       <div class="gc-fact"><b>Pesan baru muncul otomatis</b><i>Pesan dari pengguna lain diambil otomatis setiap beberapa detik selama aplikasi terbuka.</i></div>
     </div>
@@ -179,10 +184,21 @@ function replyQuote(m, find) {
   q.setAttribute('role', 'button');
   q.setAttribute('tabindex', '0');
   q.title = src ? 'Lihat pesan yang dibalas' : 'Pesan asli tidak tersedia';
-  q.append(el('b', null, src ? src.senderName : 'Pesan asli tidak tersedia'), el('span', null, src ? clip(src.text) : ''));
+  q.append(el('b', null, src ? src.senderName : 'Pesan asli tidak tersedia'), el('span', null, src ? clip(photoLabel(src)) : ''));
   return q;
 }
 const canReply = m => m.status !== 'sending' && m.status !== 'failed' && !String(m.id).startsWith('tmp-');
+/* Gambar di bubble: alamat dari server (R2) atau pratinjau lokal (blob:) saat masih mengirim. iw/ih dari server dipakai untuk menyisakan ruang
+   (aspect-ratio) supaya daftar tidak melompat saat gambar selesai dimuat. Ketuk = lihat besar. */
+function imgNode(m) {
+  const w = el('div', 'gc-img');
+  if (Number.isInteger(m.iw) && Number.isInteger(m.ih) && m.iw > 0 && m.ih > 0) w.style.aspectRatio = m.iw + ' / ' + m.ih;
+  const im = new Image(); im.alt = 'Gambar'; im.decoding = 'async'; im.draggable = false; im.referrerPolicy = 'no-referrer';
+  if (!m.status) im.loading = 'lazy';
+  im.onerror = () => { w.classList.add('bad'); im.remove(); w.textContent = 'Gambar tidak bisa dimuat'; };
+  im.src = m.img; w.dataset.zoom = m.img; w.append(im);
+  return w;
+}
 function bubble(m, o, find) {
   const r = el('div', 'gc-msg ' + (o.mine ? 'me' : 'them') + (o.first ? ' first' : '') + (o.last ? ' last' : '') + (o.fresh ? ' new' : '') + (m.status === 'sending' ? ' sending' : '') + (m.status === 'failed' ? ' failed' : ''));
   r.dataset.id = m.id;
@@ -190,7 +206,9 @@ function bubble(m, o, find) {
   const b = el('div', 'gc-b');
   if (!o.mine && o.first) b.append(el('div', 'gc-n', m.senderName));
   if (m.replyTo) b.append(replyQuote(m, find));
-  b.append(el('div', 'gc-t', m.text), meta(m, o.mine));
+  if (m.img) b.append(imgNode(m));
+  if (m.text) b.append(el('div', 'gc-t', m.text));
+  b.append(meta(m, o.mine));
   const del = el('button', 'gc-del'); del.type = 'button'; del.dataset.del = m.id; del.title = 'Hapus pesan (dev)'; del.setAttribute('aria-label', 'Hapus pesan ini (dev)'); del.innerHTML = I.trash;
   // Semua pesan bisa dibalas (tombol muncul saat hover/fokus di desktop; di layar sentuh pakai geser ke kanan). Pesan yang belum terkirim belum punya id server, jadi belum bisa dibalas.
   if (canReply(m)) { const re = el('button', 'gc-re'); re.type = 'button'; re.dataset.reply = m.id; re.title = 'Balas'; re.setAttribute('aria-label', 'Balas pesan ' + (o.mine ? 'milikmu' : 'dari ' + m.senderName)); re.innerHTML = I.re; if (o.mine) r.append(del, re, b); else r.append(b, re, del); }
@@ -256,7 +274,7 @@ function paintComposer(s) {
   s = s || A.getState();
   const n = len(inp.value), can = canSend(s);
   cnt.textContent = n + '/' + MAX; cnt.classList.toggle('warn', n >= MAX - 24 && n < MAX); cnt.classList.toggle('max', n >= MAX);
-  sendB.disabled = !can || !inp.value.trim();
+  sendB.disabled = !can || (!inp.value.trim() && !att);
   inp.placeholder = rp ? 'Balas ' + rp.name + '…' : can ? 'Pesan untuk semua orang' : s.status === 'connecting' ? 'Menghubungkan…' : 'Offline, pesan belum bisa dikirim';
   paintAs();
 }
@@ -272,9 +290,71 @@ sendB.addEventListener('pointerdown', e => e.preventDefault()); // tap kirim tid
 sendB.onclick = submit;
 function submit() {
   const s = A.getState(), text = inp.value.replace(/\n{3,}/g, '\n\n').trim();
-  if (!text || !canSend(s) || len(text) > MAX) { shake(inp); return; }
-  A.send(text, rp && rp.id); clearReply(); inp.value = ''; grow(); paintComposer();
+  if ((!text && !att) || !canSend(s) || len(text) > MAX) { shake(inp); return; }
+  if (att) { const a = att; att = null; paintAtt(); A.sendImage(a.blob, a.url, text, rp && rp.id, a.w, a.h); } // pratinjau (object URL) dipindah ke bubble yang sedang mengirim
+  else A.send(text, rp && rp.id);
+  clearReply(); inp.value = ''; grow(); paintComposer();
 }
+
+/* ---------- Lampiran gambar ----------
+   Tombol gambar -> pilih file -> dikecilkan di browser (JPEG, sisi terpanjang <= 1280 px, <= ~600 KB) -> muncul chip pratinjau di atas kotak ketik
+   (caption opsional). Saat dikirim, bubble langsung tampil dengan pratinjau lokal sementara unggahan ke server (R2) berjalan. Butuh akun. */
+let att = null; // { blob, url (object URL), w, h }
+const attBar = $('gc-att'), fileIn = $('gc-file');
+const kb = n => n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
+async function shrinkImg(file) {
+  let src;
+  try { src = await createImageBitmap(file); }
+  catch { src = await new Promise((ok, no) => { const u = URL.createObjectURL(file), im = new Image(); im.onload = () => { URL.revokeObjectURL(u); ok(im); }; im.onerror = () => { URL.revokeObjectURL(u); no(new Error('Format gambar tidak didukung')); }; im.src = u; }); }
+  try {
+    const w0 = src.width || src.naturalWidth, h0 = src.height || src.naturalHeight;
+    if (!w0 || !h0) throw new Error('Gambar tidak terbaca');
+    let max = 1280, q = 0.84;
+    for (let i = 0; i < 6; i++) {
+      const sc = Math.min(1, max / Math.max(w0, h0)), w = Math.max(1, Math.round(w0 * sc)), h = Math.max(1, Math.round(h0 * sc));
+      const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+      const cx = cv.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, w, h); cx.drawImage(src, 0, 0, w, h); // PNG transparan -> dasar putih
+      const blob = await new Promise(r => cv.toBlob(r, 'image/jpeg', q));
+      if (blob && blob.size <= 600 * 1024) return { blob, w, h };
+      q = Math.max(0.6, q - 0.08); if (i >= 2) max = Math.round(max * 0.8); // belum muat: turunkan kualitas dulu, lalu ukuran
+    }
+    throw new Error('Gambar terlalu besar, coba yang lebih kecil');
+  } finally { if (src.close) try { src.close(); } catch {} }
+}
+function paintAtt() {
+  attBar.classList.toggle('hide', !att);
+  if (att) { $('gc-att-i').src = att.url; $('gc-att-s').textContent = att.w + '×' + att.h + ' · ' + kb(att.blob.size) + ' · tambah keterangan (opsional)'; }
+  else $('gc-att-i').removeAttribute('src');
+  paintComposer();
+}
+function dropAtt(keepUrl) { if (att && !keepUrl) URL.revokeObjectURL(att.url); att = null; paintAtt(); }
+$('gc-attx').onclick = () => { dropAtt(); inp.focus({ preventScroll: true }); };
+$('gc-pic').addEventListener('pointerdown', e => e.preventDefault());
+$('gc-pic').onclick = () => {
+  if (typeof atok !== 'string' || !atok) { toast('Masuk dulu untuk mengirim gambar'); close(); openLogin(); return; }
+  if (!canSend(A.getState())) { toast('Belum terhubung'); return; }
+  fileIn.value = ''; fileIn.click();
+};
+fileIn.onchange = async () => {
+  const f = fileIn.files && fileIn.files[0]; fileIn.value = '';
+  if (!f) return;
+  if (!/^image\//.test(f.type)) { toast('Pilih file gambar'); return; }
+  if (f.size > 25 * 1024 * 1024) { toast('Gambar terlalu besar (maks 25 MB)'); return; }
+  try {
+    const r = await shrinkImg(f);
+    if (att) URL.revokeObjectURL(att.url);
+    att = { blob: r.blob, url: URL.createObjectURL(r.blob), w: r.w, h: r.h };
+    paintAtt(); inp.focus({ preventScroll: true });
+  } catch (e) { toast(e.message || 'Gambar tidak terbaca'); }
+};
+
+/* Lihat gambar besar (ketuk gambar di bubble) */
+const lb = document.createElement('div'); lb.id = 'gc-lb'; lb.className = 'hide'; lb.setAttribute('role', 'dialog'); lb.setAttribute('aria-label', 'Gambar');
+lb.innerHTML = '<img alt="Gambar" draggable="false"><button type="button" aria-label="Tutup">' + I.close + '</button>';
+gc.append(lb);
+lb.addEventListener('click', () => { lb.classList.add('hide'); lb.querySelector('img').removeAttribute('src'); });
+addEventListener('keydown', e => { if (e.key === 'Escape' && !lb.classList.contains('hide')) { e.stopPropagation(); lb.click(); } }, true);
+list.addEventListener('click', e => { const z = e.target.closest('.gc-img[data-zoom]'); if (!z || z.classList.contains('bad')) return; lb.querySelector('img').src = z.dataset.zoom; lb.classList.remove('hide'); });
 
 /* ---------- Balas pesan ----------
    Tombol balas ada di bubble terakhir tiap grup pesan. `rp` = pesan yang sedang dibalas (id + cuplikan untuk pratinjau);
@@ -283,10 +363,10 @@ let rp = null;
 const rpBar = document.getElementById('gc-rp');
 function setReply(m) {
   if (!m || typeof m.id !== 'string') return;
-  rp = { id: m.id, name: m.senderName, text: m.text };
+  rp = { id: m.id, name: m.senderName, text: photoLabel(m) };
   rpBar.classList.remove('hide');
   rpBar.querySelector('b').textContent = 'Membalas ' + m.senderName;
-  rpBar.querySelector('.gc-rp-c span').textContent = clip(m.text); // bukan querySelector('span') polos: itu mengenai span ikon (.gc-rp-i) yang lebih dulu di DOM
+  rpBar.querySelector('.gc-rp-c span').textContent = clip(photoLabel(m)); // bukan querySelector('span') polos: itu mengenai span ikon (.gc-rp-i) yang lebih dulu di DOM
   inp.placeholder = 'Balas ' + m.senderName + '…';
   paintComposer();
   if (matchMedia('(hover:hover)').matches) inp.focus({ preventScroll: true });
@@ -403,7 +483,7 @@ function open() {
   syncDev(); primed = false; unread = 0; render(A.getState(), true);
   if (matchMedia('(hover:hover)').matches) setTimeout(() => inp.focus({ preventScroll: true }), 300);
 }
-function close() { if (!isOpen) return; isOpen = false; gc.classList.remove('show'); gc.setAttribute('aria-hidden', 'true'); clearReply(); inp.blur(); }
+function close() { if (!isOpen) return; isOpen = false; gc.classList.remove('show'); gc.setAttribute('aria-hidden', 'true'); clearReply(); dropAtt(); lb.classList.add('hide'); inp.blur(); }
 $('gcbtn').onclick = open;
 $('gc-back').onclick = close;
 document.addEventListener('keydown', e => {
@@ -478,14 +558,14 @@ function showNote(fresh) {
   const last = nBatch[nBatch.length - 1], names = [...new Set(nBatch.map(m => m.senderName))];
   const av = note.querySelector('.gcn-av'); av.style.setProperty('--h', hue(last.senderId)); av.textContent = [...last.senderName][0] || '?'; addPhoto(av, last);
   note.querySelector('b').textContent = names.length === 1 ? names[0] + (nBatch.length > 1 ? ' · ' + nBatch.length + ' pesan' : '') : names[0] + ' +' + (names.length - 1) + ' lainnya · ' + nBatch.length + ' pesan';
-  note.querySelector('.gcn-t span').textContent = last.text.replace(/\s+/g, ' ').slice(0, 90);
+  note.querySelector('.gcn-t span').textContent = photoLabel(last).replace(/\s+/g, ' ').slice(0, 90);
   note.classList.add('show'); clearTimeout(nT); nT = setTimeout(hideNote, 5500);
 }
 function sysNote(fresh) { // tab di latar (Android/desktop): notifikasi sistem kalau sudah diizinkan
   try {
     if (!document.hidden || typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
     const m = fresh[fresh.length - 1];
-    const n = new Notification('Chat Global · ' + m.senderName, { body: m.text.slice(0, 120), tag: 'neyhra-gc', renotify: true });
+    const n = new Notification('Chat Global · ' + m.senderName, { body: photoLabel(m).slice(0, 120), tag: 'neyhra-gc', renotify: true });
     n.onclick = () => { window.focus(); n.close(); openFromNote(); };
   } catch {}
 }

@@ -138,6 +138,7 @@ Index: `{username:1} unique`, `{refCode:1} unique sparse`, `{createdAt:-1}`.
 
 ### 1.10 `gc_messages` — riwayat Chat Global (penyimpanan utama)
 `lib/gc.js`. `{ _id: <UUID pesan>, senderId, senderName, text, ts, replyTo, au?, av? }`.
+- **Gambar (opsional):** `img` (alamat publik R2, dibangun server), `iw`/`ih` (ukuran, untuk aspect-ratio bubble), `imgKey` (nama objek R2 `gc/<24-hex>.jpg`, TIDAK dikirim ke client; dipakai untuk menghapus objek saat pesan dihapus). `text` boleh kosong kalau ada gambar.
 - `_id` = id pesan (UUID dibuat server), `ts` = waktu server (client tidak menentukan urutan), `replyTo` = id pesan yang dibalas (disiapkan untuk fitur balas; belum ada UI-nya).
 - `au`/`av` = username + versi foto profil, hanya untuk pengirim yang masuk akun (alamat foto dibangun client dari pola tetap, bukan URL kiriman orang lain).
 - Index `{ts:-1, _id:-1}` = urutan pagination riwayat (kursor `{ts, id}`, terbaru dulu lalu mundur, maks 30–50 per halaman).
@@ -149,6 +150,7 @@ Index: `{username:1} unique`, `{refCode:1} unique sparse`, `{createdAt:-1}`.
 | `/api/gc/send` | validasi teks (1–256 codepoint, ditolak bukan dipangkas) → identitas: token Bearer sah = nama+foto profil akun, tanpa token = tamu (nama dari body) → rate-limit `rls` → **insert ke `gc_messages`** → push ke feed Redis (best-effort; gagal = warning saja, pesan tetap terkirim) → balas `{m}` |
 | `/api/gc/history` | rate-limit `rlh` → baca watermark → query Mongo `ts < before.ts` ATAU (`ts == before.ts` DAN `_id < before.id`) (kursor `{ts,id}` stabil, tanpa skip/offset, index `{ts:-1,_id:-1}`) → 30–50 pesan urut naik + `more` + `t0` (titik awal tombstone client) |
 | `/api/gc/sync` | heartbeat presence `live` (rate-limit `rlb`) → feed Redis: pesan dengan `ts > since` + watermark + tombstone baru → **gap-patch**: kalau pesan tertua di feed lebih baru dari `since` klien (pesan terdorong keluar LTRIM / push gagal / feed terisi sebagian), ambil dari Mongo urut naik (maks 50, `more` = masih sisa → klien polling cepat) |
+| `/api/gc/upload` | body = JPEG mentah (`Content-Type: image/jpeg`, ≤700 KB, cek byte awal) → **wajib login** + rate-limit 8/menit/akun → `r2Put('gc/<24-hex>.jpg')` → `{key, img}`. Tanpa env R2 → 501 `imgOff`. `send` lalu memakai `imgKey` (divalidasi regex; URL gambar dibangun server, bukan dari client) |
 | `/api/gc/delete` | wajib kode dev (hash dicek server) → satu pesan: deleteOne Mongo + tombstone Redis; semua: deleteMany Mongo + watermark Redis → klien online membuang pesan lewat `sync`; Redis gagal = best-effort (Mongo sudah bersih, respons tetap `ok`) |
 
 **Di browser TIDAK ada penyimpanan Chat Global** (`public/globalchat.adapter.js`): riwayat hanya di memori (maks 3000 pesan, yang terlama dibuang dan bisa dimuat lagi lewat `loadOlder`), dedup by id + tombstone/watermark. `loadOlder` menjaga posisi scroll; pesan lama tidak memicu notifikasi (baseline `nMax` saat pertama online).
@@ -198,7 +200,7 @@ Index: `{username:1} unique`, `{refCode:1} unique sparse`, `{createdAt:-1}`.
 
 **Env (semua wajib agar R2 aktif):** `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_URL` (+ opsional `R2_ENDPOINT` untuk bucket EU).
 
-- Objek: `pfp/<24-hex-acak>.jpg` — JPEG 256×256 ≤100 KB, header `Cache-Control: public, max-age=31536000, immutable`.
+- Objek: `gc/<24-hex-acak>.jpg` = gambar Chat Global (JPEG ≤700 KB; dihapus dari R2 saat pesan dihapus lewat Mode dev). Foto profil: `pfp/<24-hex-acak>.jpg` — JPEG 256×256 ≤100 KB, header `Cache-Control: public, max-age=31536000, immutable`.
 - Nama objek (`avKey`) + alamat publik (`avatarUrl`) disimpan di koleksi `users`; foto lama dihapus dari bucket saat diganti / akun dihapus.
 - **Fallback:** env R2 tidak lengkap → foto disimpan di MongoDB `avatars` (dikembalikan lewat `GET /api/auth/avatar/:username?v=`). Client selalu menerima satu field `avatar` (alamat lengkap) jadi tidak perlu tahu foto ada di mana.
 - Avatar **karakter** (bukan user) TIDAK di R2 — lihat §5.
