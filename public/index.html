@@ -2573,6 +2573,35 @@ function renderDevWallet(){
       row.append(ic,ig,btn,msg); box.appendChild(row);
     }
   }
+  /* Dev: ganti password akun LAIN (divalidasi server lewat kode dev, lib/dev.js -> /api/auth/dev/resetpw)
+     Tidak perlu tahu password lama. Sesi login lama akun target otomatis dihapus (logout paksa). */
+  { const g4=document.createElement('span'); g4.className='vlab'; g4.textContent='Ganti password akun lain (uji)'; box.appendChild(g4);
+    const wh=document.createElement('p'); wh.className='mhelp';
+    wh.textContent=atok?'Mengganti password akun lain tanpa tahu password lamanya. Akun itu akan otomatis keluar dari semua sesi login yang sedang aktif. Hati-hati: ini mengambil alih akun orang lain.':'Masuk ke akun dulu untuk memakai fitur ini.';
+    wh.style.color='var(--err,#f87171)'; box.appendChild(wh);
+    if(atok){
+      const row2=document.createElement('div'); row2.className='mdrow'; row2.style.flexWrap='wrap'; row2.style.gap='6px';
+      const mk2=(ph,type)=>{ const i=document.createElement('input'); i.type=type||'text'; i.placeholder=ph; i.autocomplete='off'; i.style.cssText='width:140px;padding:6px 8px;border-radius:8px;border:1px solid var(--line,#444);background:transparent;color:inherit'; return i; };
+      const iu=mk2('username target'), ip2=mk2('password baru','text');
+      const btn2=document.createElement('button'); btn2.type='button'; btn2.className='mdel'; btn2.textContent='Ganti password';
+      const msg2=document.createElement('small'); msg2.style.cssText='display:block;width:100%';
+      btn2.onclick=async()=>{
+        const username=iu.value.trim().toLowerCase(), password=ip2.value;
+        if(!username){ msg2.textContent='Isi username target dulu.'; msg2.classList.add('err'); return; }
+        if(!password||password.length<6){ msg2.textContent='Password baru minimal 6 karakter.'; msg2.classList.add('err'); return; }
+        if(!confirm('Yakin ganti password akun "'+username+'"? Akun itu akan otomatis keluar dari semua sesi yang sedang login.')) return;
+        if(!devCodeMem){ const c=prompt('Masukkan kode dev:'); if(!c||!c.trim()) return; devCodeMem=c.trim(); }
+        btn2.disabled=true; msg2.classList.remove('err'); msg2.textContent='Mengganti…';
+        try{
+          const r=await aApi('dev/resetpw',{code:devCodeMem,username,password});
+          if(r.ok){ ip2.value=''; msg2.textContent='Berhasil. Password akun "'+r.username+'" sudah diganti.'; }
+          else{ msg2.textContent=r.error||'Gagal.'; msg2.classList.add('err'); }
+        }catch(e){ if(e.status===403) devCodeMem=null; msg2.textContent=(e.message||'Gagal mengganti password.'); msg2.classList.add('err'); }
+        btn2.disabled=false;
+      };
+      row2.append(iu,ip2,btn2,msg2); box.appendChild(row2);
+    }
+  }
 }
 function renderDev(){
   const box=$('mdev'); box.textContent='';
