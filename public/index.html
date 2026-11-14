@@ -1295,7 +1295,7 @@ async function pendFlush(keepBusy){ /* keepBusy=true: dipanggil dari jalur hadia
   const chId=b[0].chId, c=allChars.find(x=>x.id===chId); if(!c) return;
   const text=b.map(x=>String(x.x||'')).filter(Boolean).join('\n\n').slice(0,2000);
   const useVoice=voiceOn&&!!vcode, lang=voiceLang; let okReply=false, relNote='', lastReply='', r=null;
-  busy=true; setStatus(idleStat(),false); refresh();
+  busy=true; if(stillHere(chId)) setStatus(idleStat(),false); refresh(); /* status cuma disentuh kalau masih di chat ini — chat lain yang sedang punya indikator sendiri jangan ikut kereset */
   let t=stillHere(chId)?thinkBubble(c.name,false):null; /* sudah pindah chat: tidak perlu bubble mikir (balasannya tetap dicatat) */
   try{
     const hist=loadHist(chId);
@@ -1305,7 +1305,7 @@ async function pendFlush(keepBusy){ /* keepBusy=true: dipanggil dari jalur hadia
     if(!useVoice||!stillHere(chId)){ if(t)t.remove(); showThemSafe(chId,r.id); } /* pindah chat saat voice: teksnya saja yang dicatat */
     else{ t.remove(); t=typingBubble(); setStatus('merekam suara',true); await speakReply(chId,r,lang,t); }
   }catch(e){ if(t)t.remove(); toast(e.message); }
-  setStatus(idleStat(),false); if(!keepBusy){ busy=false; refresh(); }
+  if(stillHere(chId)) setStatus(idleStat(),false); if(!keepBusy){ busy=false; refresh(); }
   if(relNote) toast(relNote);
   if(okReply){
     if(Array.isArray(r.qr)&&stillHere(chId)) qrPaint(r.qr); else if(!pend.length) qrPaint(); /* chip saran balasan */
@@ -1366,7 +1366,7 @@ async function submit(opt){
       await speakReply(chId,r,lang,t);
     }
   }catch(e){ t.remove(); toast(e.message); if(window.SCN&&SCN.onErr) SCN.onErr(e); }
-  setStatus(idleStat(),false); busy=false; refresh();
+  if(stillHere(chId)) setStatus(idleStat(),false); busy=false; refresh();
   if(relNote) toast(relNote);
   if(okReply){
     if(Array.isArray(r.qr)&&ch&&ch.id===chId) qrPaint(r.qr); else qrPaint(); /* chip saran balasan (hanya kalau masih di chat yang sama) */
@@ -1758,10 +1758,10 @@ async function goOn(){
     r=await (await post('/api/chat',{clientId:cid,char:chId,message:'',cont:true,userName:uname,history:loadHist(chId),voice:{on:useVoice,lang},memory:memUse(chId).list,rel:relPayload(chId),qr:true,...engPayload(),...(rpOn()?{rp:true}:{})})).json();
     saveHist(chId,[...loadHist(chId),['char',r.id]]); /* tidak ada pesan user: riwayat hanya bertambah giliran karakter */
     relNote=relApply(chId,r.dExp!=null?r.dExp:(Math.round(Number(r.dRel))||0)*3,r.dMood);
-    if(!useVoice){ t.remove(); showThem(chId,r.id); }
+    if(!useVoice||!stillHere(chId)){ t.remove(); showThemSafe(chId,r.id); } /* pindah chat sebelum balasan datang: masuk log karakter aslinya, tidak nyasar ke layar sekarang */
     else{ t.remove(); t=typingBubble(); setStatus('merekam suara',true); await speakReply(chId,r,lang,t); }
   }catch(e){ t.remove(); toast(e.message); }
-  setStatus(idleStat(),false); busy=false; refresh();
+  if(stillHere(chId)) setStatus(idleStat(),false); busy=false; refresh();
   if(relNote) toast(relNote);
   if(r&&Array.isArray(r.nq)) r.nq.forEach((t,i)=>setTimeout(()=>toast(t),600+i*2300)); /* misi selesai / piala baru */
   maybeMemorize(chId);
