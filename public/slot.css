@@ -30,7 +30,7 @@
 @media(hover:hover){.sl-root .gm-back:hover{background:var(--ink);color:var(--bg)}}
 
 /* label kecil UPPERCASE, tracking longgar */
-.sl-bal span,.sl-bet span,.sl-combo-l,.sl-stat span,.sl-btot span,.sl-bcard span,.sl-turbo span,.sl-btotal span{
+.sl-bal span,.sl-bet span,.sl-combo-l,.sl-stat span,.sl-ses-g span,.sl-optb span,.sl-btot span,.sl-bcard span,.sl-turbo span,.sl-btotal span{
   font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
 
 /* ---------- bar atas ---------- */
@@ -48,7 +48,7 @@
 @media(hover:hover){.sl-tbtn:hover{background:var(--ink);color:var(--bg);border-color:var(--ink)}}
 
 /* ---------- kabinet ---------- */
-.sl-cab{container-type:inline-size;position:relative;margin:0;padding:12px;border-bottom:1px solid var(--line);background:var(--surf)}
+.sl-cab{container-type:inline-size;position:relative;overflow:hidden;margin:0;padding:12px;border-bottom:1px solid var(--line);background:var(--surf)}
 
 /* meter combo (ditutup banner hasil sebentar tiap putaran) */
 .sl-combo{display:flex;align-items:center;gap:12px;height:34px;margin-bottom:12px;padding:0 12px;border:1px solid var(--line);background:var(--bg)}
@@ -87,8 +87,8 @@
 .sl-cell{position:relative;height:var(--ch);display:flex;align-items:center;justify-content:center;overflow:hidden}
 .sl-cell+.sl-cell{box-shadow:inset 0 1px 0 var(--line)}
 .sl-cell img{position:relative;flex:none;width:var(--fs);height:var(--fs);object-fit:contain;user-select:none;-webkit-user-drag:none}
-.sl-reel.land{animation:slland .2s ease-out}
-@keyframes slland{35%{transform:scaleY(.97)}}
+.sl-reel.land{animation:slland .3s ease-out}
+@keyframes slland{30%{transform:translateY(5px)}60%{transform:translateY(-2px)}}
 /* sel menang = inversi penuh */
 .sl-cell.win{background:var(--ink);box-shadow:none}
 .sl-cell.win img{animation:slwin .9s steps(2,end) infinite}
@@ -124,16 +124,16 @@
 .sl-bet b{font-family:var(--mono);font-size:22px;font-weight:800;letter-spacing:-.02em;line-height:1.05;font-variant-numeric:tabular-nums}
 .sl-bet span{margin-top:3px;font-size:9.5px}
 
-.sl-countrow{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.sl-seg,.sl-turbo button{height:40px;border-radius:0;border:1px solid var(--line);background:transparent;color:var(--ink);
+.sl-countrow{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.sl-seg,.sl-turbo button,.sl-optb button{height:40px;border-radius:0;border:1px solid var(--line);background:transparent;color:var(--ink);
   font-family:var(--mono);font-size:13px;font-weight:700;letter-spacing:.04em}
-.sl-seg.on,.sl-turbo.on button{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.sl-seg.on,.sl-turbo.on button,.sl-optb.on button{background:var(--ink);border-color:var(--ink);color:var(--bg)}
 .sl-seg:disabled{opacity:.4}
-@media(hover:hover){.sl-seg:not(:disabled):not(.on):hover,.sl-turbo:not(.on) button:hover{background:var(--ink);color:var(--bg);border-color:var(--ink)}}
-.sl-turbo{display:flex;align-items:center;gap:12px}
-.sl-turbo span{min-width:0;font-size:9.5px;line-height:1.4}
-.sl-turbo button{flex:none;display:inline-flex;align-items:center;gap:6px;padding:0 14px;font-family:var(--sans);font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase}
-.sl-turbo button svg{width:13px;height:13px;fill:currentColor}
+@media(hover:hover){.sl-seg:not(:disabled):not(.on):hover,.sl-turbo:not(.on) button:hover,.sl-optb:not(.on) button:hover{background:var(--ink);color:var(--bg);border-color:var(--ink)}}
+.sl-turbo,.sl-optb{display:flex;align-items:center;gap:12px}
+.sl-turbo span,.sl-optb span{min-width:0;font-size:9.5px;line-height:1.4}
+.sl-turbo button,.sl-optb button{flex:none;display:inline-flex;align-items:center;gap:6px;padding:0 14px;font-family:var(--sans);font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase}
+.sl-turbo button svg,.sl-optb button svg{width:13px;height:13px;fill:currentColor}
 
 /* tombol spin: blok putih solid, hover = inversi */
 .sl-spin{width:100%;margin:0;padding:14px 0 13px;border-radius:0;border:1px solid var(--ink);background:var(--ink);color:var(--bg);
@@ -293,6 +293,7 @@
 .sl-root :is(button):focus-visible,.sl-modal :is(button):focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 @media (prefers-reduced-motion:reduce){
   .sl-strip.fast{filter:none}
+  .sl-bulbs i,.sl-stage.tease .sl-reels,.sl-root.shake,.sl-rain,.sl-tier,.sl-tier-in,.sl-tier b{animation:none!important}
   .sl-combo.hot .sl-combo-dots i.on,.sl-cell.win img{animation:none}
   .sl-banner,.sl-bintro,.sl-mbox{transition:none;animation:none}
 }
@@ -334,3 +335,90 @@
   .sl-bal b{font-size:21px}
   .sl-tbtns{gap:6px}
 }
+
+
+/* ================= Fitur tambahan: marquee, daftar garis menang, ketegangan, perayaan, statistik sesi ================= */
+
+/* lampu marquee di atas & bawah gulungan: berkedip bergantian; makin cepat saat combo tinggi / gulungan berputar */
+.sl-bulbs{display:flex;justify-content:space-between;padding:0 1px;height:8px;margin:0}
+.sl-stage>.sl-bulbs:first-child{margin-bottom:6px}
+.sl-stage>.sl-bulbs:last-child{margin-top:6px}
+.sl-bulbs i{width:6px;height:6px;margin-top:1px;background:var(--line);animation:slbulb 1.6s steps(1,end) infinite}
+.sl-bulbs i:nth-child(odd){animation-delay:.8s}
+.sl-cab[data-c="2"] .sl-bulbs i,.sl-cab[data-c="3"] .sl-bulbs i{animation-duration:1.2s}
+.sl-cab[data-c="4"] .sl-bulbs i,.sl-cab[data-c="5"] .sl-bulbs i{animation-duration:.8s}
+.sl-cab[data-c="6"] .sl-bulbs i,.sl-cab[data-c="7"] .sl-bulbs i{animation-duration:.5s}
+.sl-cab.spinning .sl-bulbs i{animation:slchase .45s steps(1,end) infinite}
+.sl-cab.spinning .sl-bulbs i:nth-child(3n+2){animation-delay:.15s}
+.sl-cab.spinning .sl-bulbs i:nth-child(3n){animation-delay:.3s}
+@keyframes slbulb{0%{background:var(--ink)}50%{background:var(--line)}}
+@keyframes slchase{0%{background:var(--ink)}33%{background:var(--line)}}
+.sl-cab[data-c="0"] .sl-bulbs i{animation-duration:2.4s}
+
+/* ketegangan gulungan ke-3 (kosmetik) */
+.sl-stage.tease .sl-reels{animation:sltease .45s steps(2,end) infinite}
+.sl-stage.tease .sl-reel:last-child{box-shadow:inset 0 0 0 2px var(--ink)}
+@keyframes sltease{50%{border-color:var(--ink)}}
+
+/* daftar garis menang: chip bisa diketuk untuk menyorot satu garis */
+.sl-wlist{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;min-height:0;margin-top:10px}
+.sl-wlist:empty{display:none}
+.sl-wchip{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 9px 0 6px;border-radius:0;border:1px solid var(--line);background:var(--bg);color:var(--ink);animation:slline .25s steps(3,end)}
+.sl-wchip img{width:18px;height:18px;object-fit:contain}
+.sl-wchip b{font-family:var(--mono);font-size:12px;font-weight:800;font-variant-numeric:tabular-nums}
+.sl-wchip.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.sl-wmini{display:grid;grid-template-columns:repeat(3,4px);grid-auto-rows:4px;gap:1px}
+.sl-wmini i{background:var(--line)}
+.sl-wmini i.on{background:currentColor}
+.sl-wchip.on .sl-wmini i:not(.on){background:#52525b}
+@media(hover:hover){.sl-wchip:hover{border-color:var(--ink)}}
+
+/* hujan ikon mata uang */
+.sl-rain{position:absolute;top:-24px;width:20px;height:20px;z-index:6;pointer-events:none;animation:slrain 1.8s linear forwards}
+@keyframes slrain{to{transform:translateY(calc(var(--cabh,380px) + 40px)) rotate(var(--rot));opacity:.9}}
+.sl-root.shake{animation:slshake .5s steps(8,end)}
+@keyframes slshake{12%{transform:translate(-4px,2px)}37%{transform:translate(4px,-2px)}62%{transform:translate(-3px,-1px)}87%{transform:translate(2px,2px)}}
+
+/* layar perayaan: menutup kabinet, ketuk untuk lanjut */
+.sl-tier{position:absolute;inset:0;z-index:9;display:flex;align-items:center;justify-content:center;text-align:center;cursor:pointer;
+  background:var(--ink);color:var(--bg);animation:sltierin .25s steps(4,end)}
+.sl-tier.out{opacity:0;transition:opacity .2s}
+.sl-tier-in{display:flex;flex-direction:column;align-items:center;gap:10px;padding:0 14px}
+.sl-tier i{font-style:normal;font-size:12px;font-weight:900;letter-spacing:.34em;padding:5px 12px;border:2px solid var(--bg)}
+.sl-tier b{font-family:var(--mono);font-size:clamp(40px,13vw,62px);font-weight:800;letter-spacing:-.04em;line-height:1;font-variant-numeric:tabular-nums}
+.sl-tier b.done{animation:sltierpop .4s steps(4,end)}
+.sl-tier span{font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;opacity:.75}
+.sl-tier u{margin-top:6px;text-decoration:none;font-size:9.5px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;opacity:.5}
+.sl-tier[data-k="mega"] i{background:var(--bg);color:var(--ink);font-size:14px}
+.sl-tier[data-k="mega"] b{font-size:clamp(46px,15vw,72px)}
+.sl-tier[data-k="epic"]{background:var(--bg);color:var(--ink);border:2px solid var(--ink);outline:2px solid var(--ink);outline-offset:-8px}
+.sl-tier[data-k="epic"] i{background:var(--ink);color:var(--bg);font-size:15px;letter-spacing:.4em}
+.sl-tier[data-k="epic"] b{font-size:clamp(50px,16vw,80px)}
+.sl-tier[data-k="epic"] u{opacity:.6}
+@keyframes sltierin{from{transform:scale(.92);opacity:0}}
+@keyframes sltierpop{50%{transform:scale(1.1)}}
+
+/* statistik sesi */
+.sl-ses{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--line)}
+.sl-ses-g{padding:12px 6px 10px;text-align:center;min-width:0}
+.sl-ses-g+.sl-ses-g{border-left:1px solid var(--line)}
+.sl-ses-g span{display:block;font-size:8.5px;letter-spacing:.12em}
+.sl-ses-g b{display:block;margin-top:5px;font-family:var(--mono);font-size:14px;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sl-ses-g b[data-s="down"]{color:var(--dim)}
+.sl-spark-l{grid-column:1/-1;display:block;width:100%;height:40px;padding:6px 12px 8px;border-top:1px solid var(--line);box-sizing:border-box;background:var(--bg)}
+.sl-spark-l polyline{fill:none;stroke:var(--ink);stroke-width:1.6;vector-effect:non-scaling-stroke}
+.sl-spark-l rect{fill:var(--ink)}
+.sl-spark-l line.z{stroke:var(--line);stroke-width:1;vector-effect:non-scaling-stroke;stroke-dasharray:3 3}
+
+/* paytable: tingkat, tangga combo, hadiah bonus */
+.sl-tbadge{display:grid;place-items:center;min-width:46px;height:22px;padding:0 6px;background:var(--ink);color:var(--bg);font-size:9.5px;font-weight:900;letter-spacing:.14em}
+.sl-tr[data-k="mega"] .sl-tbadge{outline:1px solid var(--ink);outline-offset:2px}
+.sl-tr[data-k="epic"] .sl-tbadge{background:var(--bg);color:var(--ink);border:2px solid var(--ink);outline:1px solid var(--ink);outline-offset:2px}
+.sl-ladder{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.sl-rung{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 0 7px;border:1px solid var(--line);background:var(--bg)}
+.sl-rung b{font-family:var(--mono);font-size:14px;font-weight:800}
+.sl-rung span{font-size:7.5px;font-weight:700;letter-spacing:.08em;color:var(--dim)}
+.sl-rung.on{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.sl-rung.on span{color:var(--bg);opacity:.7}
+.sl-rung.top{border-color:var(--ink)}
+.sl-pool .sl-psym{padding:3px 6px}

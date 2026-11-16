@@ -64,9 +64,17 @@ let modal = '';          // '' | 'pay' | 'set'
 let betIx = 2, countIx = 0;
 let lastGrid = null;    // grid terakhir yang sudah BERHENTI (dipakai render ulang antar putaran, supaya repaint tidak mengubah hasil di layar)
 let noPaint = false;   // true = ada animasi yang tidak boleh diganggu (gulungan berputar / intro / ronde bonus); render() hanya menyegarkan angka
-const COUNTS = [1, 5, 10];
+const COUNTS = [1, 5, 10, 25];
+const TIERS = [{ k: 'epic', x: 80, t: 'EPIC WIN' }, { k: 'mega', x: 30, t: 'MEGA WIN' }, { k: 'big', x: 10, t: 'BIG WIN' }]; // kelipatan taruhan -> tingkat kemenangan
+const tierOf = (win, bet) => bet > 0 ? TIERS.find(t => win >= bet * t.x) || null : null;
+let stopBig = false;     // auto-play berhenti setelah BIG WIN ke atas
+let ses = null;          // statistik sesi (hanya tampilan; angka resmi tetap dari server)
+const sesNew = () => ({ spins: 0, wagered: 0, won: 0, last: 0, streak: 0, bestStreak: 0, trail: [] });
+let lastWin = null;      // {lines, combo} hasil menang terakhir (sorotan bertahan saat layar digambar ulang)
+let lastTier = null;     // tingkat kemenangan putaran terakhir (BIG/MEGA/EPIC) atau null
+let winTok = 0;          // token siklus sorotan garis (batalkan saat spin baru)
 let turbo = false, sfxVol = .8, sfxMute = false;
-try { turbo = store.get('slturbo') === 1; const v = Number(store.get('slvol')); if (Number.isFinite(v) && v >= 0 && v <= 1) sfxVol = v; sfxMute = store.get('slmute') === 1; } catch { }
+try { turbo = store.get('slturbo') === 1; const v = Number(store.get('slvol')); if (Number.isFinite(v) && v >= 0 && v <= 1) sfxVol = v; sfxMute = store.get('slmute') === 1; stopBig = store.get('slstopbig') === 1; } catch { }
 let remT0 = 0, remNext = 30 * 60e3, remIv = 0;   // pengingat durasi bermain
 let refillIv = 0;
 let balShown = null, balRaf = 0;   // saldo yang tampil (untuk animasi hitung naik/turun)
@@ -136,6 +144,7 @@ function render() {
   stageDark(true);
   b.innerHTML = shellHtml();
   paintLive();
+  if (lastWin && !bonusPh && !(st && st.bonus)) paintWinState();   // sorotan menang bertahan setelah layar digambar ulang
   SFX.warm();
 }
 function paintLive() { // bagian yang boleh diperbarui tanpa membangun ulang layar
@@ -150,6 +159,8 @@ function paintLive() { // bagian yang boleh diperbarui tanpa membangun ulang lay
     if (dots) dots.innerHTML = Array.from({ length: cfg ? cfg.comboMax : 7 }, (_, i) => '<i' + (i < c ? ' class="on"' : '') + '></i>').join('');
   }
   if (st && bn && Number.isFinite(st.best)) bn.textContent = nf.format(st.best);
+  const cab = b.querySelector('.sl-cab'); if (cab && st) cab.dataset.c = st.combo || 0;
+  paintSes();
   const sp = b.querySelector('[data-act="sl-spin"]'); if (sp) sp.innerHTML = busy ? 'STOP' : 'SPIN <em>' + nf.format((cfg ? cfg.bets[betIx] : 0)) + ' ' + curShort() + '</em>';
   setBusyUi();
 }
@@ -168,6 +179,7 @@ function shellHtml() {
 function gameHtml() {
   const bet = cfg.bets[betIx], minBet = cfg.bets[0], broke = st.bal < minBet;
   const P = paid();
+  if (!ses) ses = sesNew();
   const counts = COUNTS.map((n, i) => '<button type="button" class="sl-seg' + (i === countIx ? ' on' : '') + '" data-act="sl-count" data-i="' + i + '"' + (busy ? ' disabled' : '') + '>' + n + 'x</button>').join('');
   const dots = Array.from({ length: cfg.comboMax }, (_, i) => '<i' + (i < (st.combo || 0) ? ' class="on"' : '') + '></i>').join('');
   // gulungan diam memakai grid terakhir yang sudah berhenti (bukan pola default) supaya render ulang tidak mengubah isi layar
@@ -197,9 +209,12 @@ function gameHtml() {
         '<span class="sl-combo-l">COMBO</span><span class="sl-combo-dots">' + dots + '</span><b class="sl-combo-n">x' + (st.combo || 0) + '</b>' +
       '</div>' +
       '<div class="sl-stage">' +
+        bulbsHtml() +
         '<div class="sl-reels" data-act="sl-quick" role="grid" aria-label="Gulungan buah">' + fillers + '</div>' +
         '<svg class="sl-lines" viewBox="0 0 300 300" preserveAspectRatio="none" aria-hidden="true"></svg>' +
+        bulbsHtml() +
       '</div>' +
+      '<div class="sl-wlist" id="slwlist" aria-live="polite"></div>' +
       '<div class="sl-banner" aria-live="polite"></div>' +
       '<div class="sl-remind" role="status"></div>' +
     '</div>' +
@@ -216,9 +231,48 @@ function gameHtml() {
       '<div class="sl-countrow" role="group" aria-label="Jumlah putaran">' + counts + '</div>' +
       '<button type="button" class="sl-spin' + (busy ? ' stop' : '') + '" data-act="sl-spin">' + (busy ? 'STOP' : 'SPIN <em>' + nf.format(bet) + ' ' + curShort() + '</em>') + '</button>' +
       '<div class="sl-turbo' + (turbo ? ' on' : '') + '"><button type="button" data-act="sl-turbo" aria-pressed="' + turbo + '">' + IC.bolt + 'Turbo</button><span>animasi cepat — hasil tetap sama</span></div>' +
+      '<div class="sl-optb' + (stopBig ? ' on' : '') + '"><button type="button" data-act="sl-stopbig" aria-pressed="' + stopBig + '">' + IC.star + 'Stop BIG</button><span>auto-play berhenti setelah BIG WIN ke atas</span></div>' +
     '</div>' +
+    sesHtml() +
     '<div class="sl-stat"><span><b>' + nf.format(st.spins || 0) + '</b>putaran</span><span><b>' + nf.format(st.wins || 0) + '</b>menang</span><span><b id="slbest">' + nf.format(st.best || 0) + '</b>menang terbesar</span>' + (P ? '<span class="sl-stat-paid">mode Paid</span>' : '') + '</div>' +
   '</div>';
+}
+
+const bulbsHtml = () => '<div class="sl-bulbs" aria-hidden="true">' + '<i></i>'.repeat(13) + '</div>';
+
+/* ---------- Statistik sesi (tampilan saja; angka resmi putaran/menang/terbesar tetap dari server) ---------- */
+function sesHtml() {
+  return '<div class="sl-ses" id="slses">' +
+    '<div class="sl-ses-g"><span>Net sesi</span><b id="slsnet">0</b></div>' +
+    '<div class="sl-ses-g"><span>RTP sesi</span><b id="slsrtp">—</b></div>' +
+    '<div class="sl-ses-g"><span>Beruntun</span><b id="slsstr">0</b></div>' +
+    '<div class="sl-ses-g"><span>Menang terakhir</span><b id="slslast">—</b></div>' +
+    '<svg class="sl-spark-l" id="slspl" viewBox="0 0 200 40" preserveAspectRatio="none" aria-label="Grafik saldo sesi"></svg>' +
+  '</div>';
+}
+function paintSes() {
+  const b = host(); if (!b || !ses) return;
+  const q = id => b.querySelector(id); if (!q('#slses')) return;
+  const net = ses.won - ses.wagered;
+  const n = q('#slsnet'); n.textContent = (net > 0 ? '+' : '') + nf.format(net); n.dataset.s = net > 0 ? 'up' : net < 0 ? 'down' : '';
+  q('#slsrtp').textContent = ses.wagered > 0 ? Math.round(ses.won / ses.wagered * 100) + '%' : '—';
+  q('#slsstr').textContent = ses.streak + (ses.bestStreak > ses.streak ? ' / ' + ses.bestStreak : '');
+  q('#slslast').textContent = ses.last > 0 ? '+' + nf.format(ses.last) : '—';
+  const svg = q('#slspl'), t = ses.trail;
+  if (svg) {
+    if (t.length < 2) { svg.innerHTML = '<line x1="0" y1="20" x2="200" y2="20" class="z"/>'; return; }
+    const mn = Math.min(...t), mx = Math.max(...t), rg = Math.max(1, mx - mn);
+    const pts = t.map((v, i) => (i / (t.length - 1) * 196 + 2).toFixed(1) + ',' + (36 - (v - mn) / rg * 32).toFixed(1));
+    const last = pts[pts.length - 1].split(',');
+    svg.innerHTML = '<polyline points="' + pts.join(' ') + '"/><rect x="' + (last[0] - 3) + '" y="' + (last[1] - 3) + '" width="6" height="6"/>';
+  }
+}
+function sesPush(r) {
+  if (!ses) ses = sesNew();
+  if (!ses.trail.length) ses.trail.push(r.bal - r.win + r.bet);
+  ses.spins++; ses.wagered += r.bet; ses.won += r.win;
+  if (r.win > 0) { ses.last = r.win; ses.streak++; ses.bestStreak = Math.max(ses.bestStreak, ses.streak); } else ses.streak = 0;
+  ses.trail.push(r.bal); if (ses.trail.length > 40) ses.trail.shift();
 }
 
 function brokeHtml() { // saldo di bawah taruhan terkecil: panel isi ulang gratis (server yang menjamin waktunya)
@@ -283,7 +337,7 @@ function payHtml() {
   const rows = [...cfg.symbols].sort((a, b) => (b.pay3 || 0) - (a.pay3 || 0)).map(s =>
     '<div class="sl-prow">' +
       '<span class="sl-psym">' + symImg(s.id) + symImg(s.id) + symImg(s.id) + '</span>' +
-      '<b>' + esc(s.name) + '</b><i>3 sejenis</i><em>+' + nf.format(Math.round(s.pay3 * lb * mult)) + ' ' + curShort() + '</em>' +
+      '<b>' + esc(s.name) + '</b><i>3 sejenis · ×' + String(Math.round(s.pay3 / cfg.lines * 10) / 10).replace('.', ',') + '</i><em>+' + nf.format(Math.round(s.pay3 * lb * mult)) + ' ' + curShort() + '</em>' +
     '</div>').join('');
   const cherry = cfg.symbols.find(s => s.id === 'cherry');
   const lineDots = LINES.map((cells, li) => '<div class="sl-pline" aria-label="Garis ' + (li + 1) + '">' +
@@ -295,9 +349,33 @@ function payHtml() {
       '<div class="sl-prows">' + rows + '</div>' +
       (cherry && cherry.pay2 ? '<div class="sl-prow cherry"><span class="sl-psym">' + symImg('cherry') + symImg('cherry') + '</span><b>Ceri</b><i>2 di satu garis</i><em>+' + nf.format(Math.round(cherry.pay2 * lb * mult)) + ' ' + curShort() + '</em></div>' : '') +
       '<h4>Garis bayaran</h4><div class="sl-plines">' + lineDots + '</div>' +
+      '<h4>Tingkat kemenangan</h4>' + tiersHtml(bet) +
+      '<h4>Tangga combo</h4>' + ladderHtml() +
+      '<h4>Hadiah ronde Bonus Session</h4>' + poolHtml(bet, mult) +
       '<h4>Combo &amp; Bonus Session</h4>' +
       '<p class="sl-mnote">Menang menaikkan combo +1, kalah me-reset. <b>Combo x' + cfg.comboMax + '</b> membuka Bonus Session: ' + cfg.bonusRounds + ' ronde tanpa biaya ' + curShort() + ', reward dari pool khusus, totalnya masuk saldo sekali setelah ronde terakhir.</p>' +
     '</div></div>';
+}
+
+function tiersHtml(bet) {
+  const mult = paid() ? ((cfg.paid && cfg.paid.winMult) || 1) : 1;
+  return '<div class="sl-prows">' + [...TIERS].reverse().map(t =>
+    '<div class="sl-prow sl-tr" data-k="' + t.k + '"><span class="sl-tbadge">' + t.t.split(' ')[0] + '</span><b>' + t.t + '</b><i>≥ ×' + t.x + ' taruhan</i><em>≥ ' + nf.format(bet * t.x) + ' ' + curShort() + '</em></div>').join('') + '</div>' +
+    '<p class="sl-mnote">Kemenangan satu putaran yang menembus ambang ini mendapat layar perayaan. Tombol <b>Stop BIG</b> menghentikan auto-play di sini.' + (mult > 1 ? ' Ambang dihitung dari total bayaran yang sudah ×' + String(mult).replace('.', ',') + '.' : '') + '</p>';
+}
+function ladderHtml() {
+  const n = cfg.comboMax;
+  return '<div class="sl-ladder">' + Array.from({ length: n }, (_, i) => {
+    const last = i === n - 1;
+    return '<div class="sl-rung' + (last ? ' top' : '') + (st && (st.combo || 0) > i ? ' on' : '') + '"><b>' + (last ? '★' : i + 1) + '</b><span>' + (last ? 'BONUS' : 'x' + (i + 1)) + '</span></div>';
+  }).join('') + '</div><p class="sl-mnote">Tiap menang beruntun naik satu anak tangga dan nada combo ikut naik. Satu zonk mengembalikan ke nol. Di <b>x' + n + '</b> Bonus Session terbuka.</p>';
+}
+function poolHtml(bet, mult) {
+  const pool = (cfg.bonusPool || []); if (!pool.length) return '<p class="sl-mnote">Hadiah ronde ditentukan server.</p>';
+  const tot = pool.reduce((s, p) => s + p.w, 0);
+  return '<div class="sl-prows">' + [...pool].sort((a, b) => b.m - a.m).map(p =>
+    '<div class="sl-prow sl-pool"><span class="sl-psym">' + symImg(p.sym) + '</span><b>×' + p.m + ' taruhan</b><i>peluang ' + (p.w / tot * 100).toFixed(p.w / tot < .1 ? 1 : 0).replace('.', ',') + '%</i><em>+' + nf.format(Math.round(p.m * bet * mult)) + ' ' + curShort() + '</em></div>').join('') + '</div>' +
+    '<p class="sl-mnote">Nilai per ronde pada taruhan <b>' + nf.format(bet) + ' ' + curShort() + '</b>; ada ' + cfg.bonusRounds + ' ronde, totalnya masuk saldo sekali.</p>';
 }
 
 /* ---------- Modal Chip: beli (Coin -> Chip) & jual (Chip -> Coin) lewat /api/auth/economy ---------- */
@@ -367,6 +445,8 @@ function setHtml() {
         '<button type="button" class="sl-sw' + (sfxMute ? ' on' : '') + '" data-act="sl-mute" role="switch" aria-checked="' + sfxMute + '"><i></i></button></div>' +
       '<div class="sl-setrow"><div><b>' + IC.bolt + 'Turbo</b><span>Animasi gulungan lebih cepat — hasil tidak berubah</span></div>' +
         '<button type="button" class="sl-sw' + (turbo ? ' on' : '') + '" data-act="sl-turbo" role="switch" aria-checked="' + turbo + '"><i></i></button></div>' +
+      '<div class="sl-setrow"><div><b>' + IC.star + 'Stop BIG</b><span>Auto-play berhenti setelah BIG WIN ke atas</span></div>' +
+        '<button type="button" class="sl-sw' + (stopBig ? ' on' : '') + '" data-act="sl-stopbig" role="switch" aria-checked="' + stopBig + '"><i></i></button></div>' +
       '<h4>Riwayat putaran</h4>' +
       '<div class="sl-hists">' + (hists || '<p class="sl-mnote">Belum ada putaran.</p>') + '</div>' +
       '<p class="sl-mnote">' + note + '</p>' +
@@ -387,8 +467,20 @@ function stripHtml(finalCol) { // finalCol = [idSimbol baris atas..bawah]
 const cellH = reel => { const c = reel.querySelector('.sl-cell'); if (!c) return 80; const h = c.getBoundingClientRect().height; return h > 10 ? h : 80; };
 
 // Putar 3 gulungan lalu berhenti berurutan (kiri -> tengah -> kanan). Grid final dari server.
+// ketegangan kosmetik: dua gulungan pertama sudah membentuk pasangan simbol bernilai pada satu garis -> gulungan 3 melambat
+function teaseOf(cols) {
+  if (reduceMo()) return false;
+  return LINES.some(l => {
+    const a = cols[0][Math.floor(l[0] / 3)], b = cols[1][Math.floor(l[1] / 3)];
+    const sym = cfg.symbols.find(s => s.id === a);
+    return a === b && sym && sym.pay3 >= 35;
+  });
+}
 function spinReels(cols) {
   const t = TT();
+  const tease = teaseOf(cols), extra = tease ? (turbo ? 320 : 900) : 0;
+  const stage = host().querySelector('.sl-stage'); if (stage) stage.classList.toggle('tease', tease);
+  const cab0 = host().querySelector('.sl-cab'); if (cab0) cab0.classList.add('spinning');
   const reels = [...host().querySelectorAll('.sl-reel')];
   SFX.spinStart();
   const anims = [];
@@ -401,19 +493,23 @@ function spinReels(cols) {
     const blurT = setTimeout(() => strip.classList.add('fast'), 30);
     const a = strip.animate(
       [{ transform: 'translateY(0)' }, { transform: 'translateY(-' + off + 'px)' }],
-      { duration: t.reel[i], delay: i * t.stag, easing: 'cubic-bezier(.15,.6,.16,1)', fill: 'forwards' }
+      { duration: t.reel[i] + (i === 2 ? extra : 0), delay: i * t.stag, easing: 'cubic-bezier(.15,.6,.16,1)', fill: 'forwards' }
     );
-    const unblur = setTimeout(() => strip.classList.remove('fast'), (t.reel[i] + i * t.stag) * .6);
+    const unblur = setTimeout(() => strip.classList.remove('fast'), (t.reel[i] + (i === 2 ? extra : 0) + i * t.stag) * .6);
     a.finished.then(() => {
       clearTimeout(blurT); clearTimeout(unblur); strip.classList.remove('fast');
-      reel.classList.add('land'); setTimeout(() => reel.classList.remove('land'), 240);
+      reel.classList.add('land'); setTimeout(() => reel.classList.remove('land'), 300);
+      if (i === 2 && stage) stage.classList.remove('tease');
     });
     anims.push(a);
   });
   curAnims = anims;
-  const total = t.reel[2] + 2 * t.stag + 400;
+  const total = t.reel[2] + extra + 2 * t.stag + 400;
   // pengaman: kalau finish() Quick Stop tidak memicu 'finished' di browser tertentu, tetap lanjut
-  return Promise.race([Promise.all(anims.map(a => a.finished)).then(() => { SFX.spinStop(); curAnims = []; }), sleep(total)]).then(() => { SFX.spinStop(); });
+  return Promise.race([Promise.all(anims.map(a => a.finished)).then(() => { SFX.spinStop(); curAnims = []; }), sleep(total)]).then(() => {
+    SFX.spinStop(); if (stage) stage.classList.remove('tease');
+    const c = host() && host().querySelector('.sl-cab'); if (c) c.classList.remove('spinning');
+  });
 }
 function quickStop() { // percepat putaran AKTIF tanpa mengubah hasil (animasi melompat ke akhir)
   if (!curAnims.length) return;
@@ -430,26 +526,63 @@ function settleReels(cols) {
   });
 }
 function clearWinFx() {
+  winTok++; lastWin = null;
   const root = host().querySelector('.sl-cab'); if (!root) return;
   root.classList.remove('flash');
   root.querySelectorAll('.sl-cell.win').forEach(c => c.classList.remove('win'));
   const svg = root.querySelector('.sl-lines'); if (svg) svg.innerHTML = '';
+  const wl = root.querySelector('#slwlist'); if (wl) wl.innerHTML = '';
 }
-function showWins(lines, comboLv) { // sorot sel + garis pemenang, kilat kabinet
+// sorot garis menang: only = nomor garis tunggal, kosong = semua garis sekaligus
+function paintLines(lines, only) {
   const root = host().querySelector('.sl-cab'); if (!root) return;
-  const cells = [...root.querySelectorAll('.sl-reel')];
-  const svg = root.querySelector('.sl-lines');
-  let svgOut = '';
+  const reels = [...root.querySelectorAll('.sl-reel')], svg = root.querySelector('.sl-lines');
+  root.querySelectorAll('.sl-cell.win').forEach(c => c.classList.remove('win'));
+  let out = '';
   for (const l of lines) {
-    for (const ci of LINES[l.line]) {
-      const r = Math.floor(ci / 3), c = ci % 3;
-      const cell = cells[c] && cells[c].querySelectorAll('.sl-cell')[r];
+    if (only != null && l.line !== only) continue;
+    const cells = LINES[l.line].filter(ci => l.kind !== 2 || (lastGrid && lastGrid[ci] === l.sym));   // 2-sejenis: hanya ceri yang menyala
+    for (const ci of cells) {
+      const cell = reels[ci % 3] && reels[ci % 3].querySelectorAll('.sl-cell')[Math.floor(ci / 3)];
       if (cell) cell.classList.add('win');
     }
     const pts = LINES[l.line].map(ci => ((ci % 3) * 100 + 50) + ',' + (Math.floor(ci / 3) * 100 + 50)).join(' ');
-    svgOut += '<polyline points="' + pts + '" style="stroke:' + LINE_COLOR[l.line] + '"/>';
+    out += '<polyline points="' + pts + '" style="stroke:' + LINE_COLOR[l.line] + '"/>';
   }
-  if (svg) svg.innerHTML = svgOut;
+  if (svg) svg.innerHTML = out;
+  root.querySelectorAll('.sl-wchip').forEach(c => c.classList.toggle('on', only != null && Number(c.dataset.l) === only));
+}
+function wlistHtml(lines) {
+  const mini = li => '<span class="sl-wmini">' + Array.from({ length: 9 }, (_, i) => '<i' + (LINES[li].includes(i) ? ' class="on"' : '') + '></i>').join('') + '</span>';
+  return lines.map(l => '<button type="button" class="sl-wchip" data-act="sl-wl" data-l="' + l.line + '" aria-label="Garis ' + (l.line + 1) + '">' +
+    mini(l.line) + symImg(l.sym) + '<b>+' + nf.format(l.pay) + '</b></button>').join('');
+}
+// tampilkan menang: semua garis dulu, lalu (kalau >1 garis) bergantian satu per satu selama papan diam
+function paintWinState() {
+  if (!lastWin) return;
+  const wl = host().querySelector('#slwlist'); if (wl) wl.innerHTML = wlistHtml(lastWin.lines);
+  paintLines(lastWin.lines);
+  cycleLines(lastWin.lines);
+}
+async function cycleLines(lines) {
+  const tok = ++winTok;
+  if (lines.length < 2 || reduceMo()) return;
+  const step = turbo ? 650 : 1100;
+  await sleep(step * 1.3);
+  while (tok === winTok && on) {
+    for (const l of lines) {
+      if (tok !== winTok || !on || busy) return;
+      paintLines(lines, l.line); await sleep(step);
+    }
+    if (tok !== winTok || busy) return;
+    paintLines(lines); await sleep(step * .8);
+  }
+}
+function showWins(lines, comboLv) {
+  const root = host().querySelector('.sl-cab'); if (!root) return;
+  lastWin = { lines, combo: comboLv };
+  const wl = root.querySelector('#slwlist'); if (wl) wl.innerHTML = wlistHtml(lines);
+  paintLines(lines);
   if (comboLv >= 4) { root.classList.add('flash'); setTimeout(() => root.classList.remove('flash'), 1200); }
 }
 function banner(txt, cls) {
@@ -471,6 +604,50 @@ function burst(n, gold) { // percikan ringan (transform/opacity saja, buang send
     root.appendChild(p);
     setTimeout(() => p.remove(), 950);
   }
+}
+
+function rain(n) { // hujan ikon mata uang (MEGA/EPIC)
+  const root = host().querySelector('.sl-cab'); if (!root || reduceMo()) return;
+  const src = paid() ? '/chip.svg' : '/slot/vp.svg';
+  root.style.setProperty('--cabh', root.clientHeight + 'px');
+  for (let i = 0; i < n; i++) {
+    const p = document.createElement('img');
+    p.src = src; p.alt = ''; p.className = 'sl-rain'; p.draggable = false;
+    p.style.left = (Math.random() * 94).toFixed(1) + '%';
+    p.style.animationDelay = (Math.random() * 0.9).toFixed(2) + 's';
+    p.style.animationDuration = (1.3 + Math.random() * 0.9).toFixed(2) + 's';
+    p.style.setProperty('--rot', (Math.random() * 360 - 180).toFixed(0) + 'deg');
+    root.appendChild(p);
+    setTimeout(() => p.remove(), 2600);
+  }
+}
+// layar perayaan: BIG / MEGA / EPIC. Ketuk untuk melewati. Hasil sudah ditentukan server; ini hanya tampilan.
+function showTier(tier, r) {
+  const root = host().querySelector('.sl-cab'); if (!root) return Promise.resolve();
+  const mult = r.bet > 0 ? r.win / r.bet : 0;
+  const el = document.createElement('div');
+  el.className = 'sl-tier'; el.dataset.k = tier.k; el.setAttribute('role', 'status');
+  el.innerHTML = '<div class="sl-tier-in"><i>' + tier.t + '</i><b>0</b><span>×' + (Math.round(mult * 10) / 10).toString().replace('.', ',') + ' taruhan · ' + curShort() + '</span><u>ketuk untuk lanjut</u></div>';
+  root.appendChild(el);
+  const rootEl = host().querySelector('.sl-root');
+  if (tier.k !== 'big' && rootEl && !reduceMo()) { rootEl.classList.add('shake'); setTimeout(() => rootEl.classList.remove('shake'), 600); }
+  if (tier.k !== 'big') rain(tier.k === 'epic' ? 34 : 22);
+  try { if (navigator.vibrate) navigator.vibrate(tier.k === 'epic' ? [60, 40, 60, 40, 120] : [50]); } catch { }
+  const num = el.querySelector('b');
+  const dur = reduceMo() ? 200 : (turbo ? 700 : 1400), hold = reduceMo() ? 500 : (turbo ? 700 : tier.k === 'big' ? 1100 : 1700);
+  return new Promise(done => {
+    let fin = false;
+    const close = () => { if (fin) return; fin = true; el.classList.add('out'); setTimeout(() => { el.remove(); done(); }, reduceMo() ? 0 : 200); };
+    el.addEventListener('click', close);
+    const t0 = performance.now();
+    const tick = now => {
+      if (fin || !el.isConnected) return;
+      const k = Math.min(1, (now - t0) / dur);
+      num.textContent = nf.format(Math.round(r.win * (1 - Math.pow(1 - k, 3))));
+      if (k < 1) requestAnimationFrame(tick); else { num.textContent = nf.format(r.win); num.classList.add('done'); setTimeout(close, hold); }
+    };
+    requestAnimationFrame(tick);
+  });
 }
 
 /* ================= ALUR SPIN ================= */
@@ -504,6 +681,7 @@ async function doSpin() {
       }
       const res = await presentSpin(r);
       left--;
+      if (stopBig && lastTier && left > 0) { stopReq = true; toast('Auto-play berhenti: ' + lastTier.t); }
       if (res === 'bonus') { busy = false; return; } // Bonus Session mengambil alih layar
       if (stopReq) break;
       await sleep(TT().gap);
@@ -525,9 +703,11 @@ async function presentSpin(r) {
   if (r.win > 0) showWins(r.lines || [], r.combo || 0);
   noPaint = false;                                 // papan sudah diam: render ulang kembali aman (lastGrid dipakai)
   const t = TT();
+  sesPush(r);
+  lastTier = r.win > 0 ? tierOf(r.win, r.bet) : null;
   if (r.win > 0) {
-    const big = r.win >= r.bet * 10;
-    banner('<b>MENANG +' + nf.format(r.win) + '</b>' + (big ? '<i>BIG WIN!</i>' : '') + ((r.combo || 0) >= 2 ? '<u>COMBO x' + r.combo + '</u>' : ''), big ? 'big' : 'win');
+    const big = !!lastTier;
+    banner('<b>MENANG +' + nf.format(r.win) + '</b>' + (big ? '<i>' + lastTier.t + '!</i>' : '') + ((r.combo || 0) >= 2 ? '<u>COMBO x' + r.combo + '</u>' : ''), big ? 'big' : 'win');
     burst(big ? 16 : 8, true);
     if (r.bonusHit) SFX.play('combo7');          // combo 7: SFX panjang transisi Bonus Session
     else SFX.play('combo' + Math.min(r.combo, 6)); // combo 1-6 sesuai levelnya
@@ -536,8 +716,10 @@ async function presentSpin(r) {
     banner('Zonk…', 'dim');
   }
   paintLive();
-  await sleep(t.hold);
+  if (r.win > 0 && !r.bonusHit && lastTier) { noPaint = true; await showTier(lastTier, r); noPaint = false; }
+  else await sleep(t.hold);
   if (r.bonusHit) { await enterBonus(); return 'bonus'; }
+  if (r.win > 0) cycleLines(r.lines || []);
   return 'ok';
 }
 
@@ -614,7 +796,7 @@ async function setMode(m) {
   if (busy || !st || st.mode === m) return;
   try {
     await api('', { mode: m });        // server yang memutuskan (blokir kalau Bonus Session berjalan)
-    lastGrid = null; balShown = null;  // papan & angka mulai bersih (mata uang beda)
+    lastGrid = null; lastWin = null; ses = sesNew(); balShown = null;  // papan & angka mulai bersih (mata uang beda)
     render(); paintWithModal();
     toast(m === 'paid' ? 'Mode Paid: taruhan pakai Chip beneran.' : 'Mode Demo: virtual point gratis.');
   } catch (e) { toast(e.message || 'Gagal pindah mode.'); }
@@ -638,6 +820,12 @@ host().addEventListener('click', e => {
   else if (a === 'sl-chs') { chipSell = Number(b.dataset.id) || chipSell; paintModalOnly(); }
   else if (a === 'sl-chgo') chipGo(b.dataset.id);
   else if (a === 'sl-turbo') { turbo = !turbo; try { store.set('slturbo', turbo ? 1 : 0); } catch { } paintWithModal(); }
+  else if (a === 'sl-stopbig') { stopBig = !stopBig; try { store.set('slstopbig', stopBig ? 1 : 0); } catch { } paintWithModal(); }
+  else if (a === 'sl-wl') {                                 // ketuk chip garis: sorot garis itu saja; ketuk lagi = semua garis
+    if (!lastWin || busy) return;
+    const li = Number(b.dataset.l), on1 = b.classList.contains('on');
+    winTok++; paintLines(lastWin.lines, on1 ? undefined : li);
+  }
   else if (a === 'sl-pay') { modal = 'pay'; paintWithModal(); }
   else if (a === 'sl-set') { modal = 'set'; paintWithModal(); }
   else if (a === 'sl-mute') { sfxMute = !sfxMute; try { store.set('slmute', sfxMute ? 1 : 0); } catch { } SFX.setVol(sfxVol, sfxMute); paintWithModal(); }
@@ -678,7 +866,7 @@ function modalNow() { return modal ? (modal === 'pay' ? payHtml() : modal === 'c
 function paintWithModal() { render(); const b = host(); if (b && modal) b.insertAdjacentHTML('beforeend', modalNow()); }
 
 async function enter(retry) {
-  on = true; failed = retry ? '' : failed; modal = '';
+  on = true; failed = retry ? '' : failed; modal = ''; ses = sesNew(); lastWin = null;
   if (!st) render();
   try { await api('', {}); failed = ''; if (st.bonus && !st.bonus.done) bonusPh = 'rounds'; else if (st.bonus && st.bonus.done) bonusPh = 'summary'; else bonusPh = ''; }
   catch (e) { failed = e.message || 'Gagal memuat.'; }

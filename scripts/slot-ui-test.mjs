@@ -38,7 +38,7 @@ ok('kabinet + gulungan tampil', await page.locator('.sl-cab .sl-reel').count() =
 ok('saldo VP besar tampil', await page.locator('.sl-bal b').textContent().then(t => /50\.?0?00/.test(t.replace(/\./g, '')) || Number(t.replace(/\D/g, '')) > 0))
 ok('tombol SPIN tampil', await page.locator('[data-act="sl-spin"]').count() === 1)
 ok('stepper taruhan tampil', await page.locator('[data-act="sl-betp"]').count() === 1)
-ok('pilihan jumlah 1x/5x/10x', await page.locator('.sl-seg').count() === 3)
+ok('pilihan jumlah 1x/5x/10x/25x', await page.locator('.sl-seg').count() === 4)
 ok('combo dots 7', await page.locator('.sl-combo-dots i').count() === 7)
 await shot(page, '02-slot-screen')
 
