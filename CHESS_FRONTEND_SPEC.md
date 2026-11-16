@@ -604,3 +604,30 @@ Semua endpoint tetap berfungsi identik apapun engine aktif; hanya nama `engine` 
 5. Selesai → `review` (loading sekali) → grafik `ev` + label + akurasi; `replay` → stepper; `stats` untuk profil.
 6. Error: 400 inline, 409 refresh state, 429 delay, 404 balik lobby.
 7. Jangan validasi aturan catur di frontend — backend satu-satunya sumber kebenaran; `moves` dari server untuk highlight saja.
+
+---
+
+## 11. Catatan implementasi frontend (ditemukan saat membangun `public/chessmp.js`)
+
+Bagian-bagian spec di atas yang ternyata tidak lengkap / perlu diturunkan sendiri oleh frontend.
+Backend TIDAK diubah; semua sudah ditangani di `public/chessmp.js`:
+
+1. **`check: -1` saat permainan selesai (termasuk skakmat).** Endpoint `game`/`sync`/`move` hanya
+   mengirim `check` saat game AKTIF (lihat §1.6/§1.7 contoh mate: `check: -1`). Supaya raja yang
+   skakmat tetap disorot merah, frontend menurunkan sendiri kotak rajanya dari `board` + `result`
+   (murni tampilan; kebenaran aturan tetap 100% di server).
+2. **`sync` tidak memuat `capsW`/`capsB`.** Baris bidak tertangkap setelah langkah lawan hanya
+   bisa diperbarui lewat `move`/`game` penuh. Frontend menurunkan bidak tertangkap dari isi
+   `board` (16 bidak awal dikurangi yang tersisa) — ikut benar otomatis setelah promosi.
+3. **`sans`/`hist` dipangkas 80 TERAKHIR.** Untuk game > 80 ply, penomoran daftar langkah harus
+   dihitung dari offset (`ply total - panjang + 1`), bukan dari 1 — kalau tidak, nomor baris dan
+   pasangan putih/hitam bisa salah. `review.moves[]`/`replay.positions[]` memuat semua, jadi
+   daftar lengkap ambil dari sana.
+4. **Presence beda bentuk:** `game` → `opp.online` (boolean), `sync` → `oppOnline` (boolean).
+   Keduanya harus dipetai ke titik presence yang sama.
+5. **Modal/tombol `closeovl`** (Tutup) adalah kebutuhan frontend murni — tidak ada di spec;
+   idempoten terhadap `resultShown`.
+6. **`svg` global CSS di index.html** (`svg{fill:none;stroke:currentColor;stroke-width:1.7}`):
+   elemen SVG baru di frontend WAJIB men-set `fill`/`stroke`/`stroke-width`/`width`/`height`
+   secara eksplisit per elemen (atribut presentasi dikalahkan rule CSS ini lewat pewarisan),
+   kalau tidak akan muncul artefak stroke raksasa & ukuran 20×20 default.
