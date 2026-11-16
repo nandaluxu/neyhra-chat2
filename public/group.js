@@ -14,6 +14,8 @@ const CFG = {
   MAX_PER_CHAR: 2,         // maks balasan satu karakter dalam satu rantai
   ACCEPT: [0.85, 0.65, 0.40], // peluang menerima `next` setelah balasan ke-1, ke-2, ke-3
   AUTO_CHAIN: 3,           // maks giliran untuk "Biarkan mereka ngobrol"
+  PULL: 0.22,              // peluang tiap giliran antar-karakter dipakai untuk mengajak user ikut bicara (tidak untuk balasan langsung ke user)
+  PULL_GAP: 6,             // minimal giliran AI di antara dua ajakan (supaya tidak terlalu sering), dihitung lintas rantai
   MIN_MEMBERS: 2, MAX_MEMBERS: 5, MAX_GROUPS: 20,
   HIST: 30,                // riwayat yang dikirim ke server (riwayat lokal tetap lengkap)
   MSGMAX: 400, AUDMAX: 30  // maks pesan per grup, dan maks voice note yang audionya disimpan
@@ -444,13 +446,13 @@ function abortChain() {
   baseStatus();
 }
 
-async function callChat(g, sp, { userText, replyTo, depth, ctl }) {
+async function callChat(g, sp, { userText, replyTo, depth, ctl, pull }) {
   const useVoice = voiceOn && !!vcode, lang = voiceLang;
   // balasan yang sudah jadi tapi belum tampil tetap ikut jadi konteks, supaya karakter berikutnya nyambung
   const history = [...state.msgs, ...state.pending].filter(m => m.from !== 'system').slice(-CFG.HIST).map(m => [m.from, String(m.text).slice(0, 600)]);
   const body = {
     clientId: cid, char: sp, message: userText || '', userName: uname, history,
-    group: { members: g.members.filter(charOf), muted: g.muted || [], scene: g.scene || '', ...(replyTo && { replyTo }), depth },
+    group: { members: g.members.filter(charOf), muted: g.muted || [], scene: g.scene || '', ...(replyTo && { replyTo }), ...(pull && { pull: true }), depth },
     voice: { on: useVoice, lang }
   };
   const r = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: ctl.signal });
@@ -536,8 +538,11 @@ async function runChain(g, { userText, first, max }) {
       if (!activeIds(g).includes(sp)) continue;
       await Promise.race([shownPrev, aborted(ctl)]); // karakter berikutnya mulai mikir setelah yang sebelumnya tampil (tidak numpuk indikator)
       if (ctl.signal.aborted || state !== st) break;
-      const r = await compose(st, sp, { userText, replyTo, depth, ctl });
+      // ajak user ikut ngobrol: hanya di giliran antar-karakter (bukan balasan langsung ke pesan user), jarang, dan ada jeda minimum
+      const pull = !!replyTo && !queue.length && (st.sincePull = (st.sincePull ?? CFG.PULL_GAP) + 1) > CFG.PULL_GAP && Math.random() < CFG.PULL;
+      const r = await compose(st, sp, { userText, replyTo, depth, ctl, pull });
       if (!r.ok) break;
+      if (pull) { st.sincePull = 0; r.next = null; } // setelah mengajak user, rantai berhenti: giliran user
       let shown; shownPrev = new Promise(res => shown = res);
       st.tail = reveal(st, r, st.tail || Promise.resolve(true), ctl, shown); // antre: tampil + putar setelah voice note sebelumnya selesai
       depth++; counts[sp] = (counts[sp] || 0) + 1;
