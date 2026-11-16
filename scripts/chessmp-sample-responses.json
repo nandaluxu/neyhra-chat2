@@ -1,0 +1,554 @@
+{
+  "room": {
+    "ok": true,
+    "code": "C9BEVW",
+    "color": "w",
+    "ttlMin": 60
+  },
+  "join": {
+    "ok": true,
+    "game": {
+      "id": "b96ec91e-046f-4b27-9be3-5e37cd48cdd5",
+      "status": "active",
+      "turn": "w",
+      "you": "b",
+      "yourTurn": false,
+      "active": true,
+      "board": "rnbqkbnrpppppppp................................PPPPPPPPRNBQKBNR",
+      "ply": 0,
+      "moves": null,
+      "last": null,
+      "hist": [],
+      "sans": [],
+      "capsW": [],
+      "capsB": [],
+      "check": -1,
+      "draw": null,
+      "white": {
+        "name": "Nanda",
+        "username": "nanda"
+      },
+      "black": {
+        "name": "Luxu",
+        "username": "luxu"
+      },
+      "opp": {
+        "name": "Nanda",
+        "username": "nanda",
+        "online": true
+      },
+      "createdAt": "2026-11-16T16:47:20.895Z",
+      "updatedAt": "2026-11-16T16:47:20.895Z",
+      "reviewed": false
+    }
+  },
+  "game": {
+    "ok": true,
+    "game": {
+      "id": "b96ec91e-046f-4b27-9be3-5e37cd48cdd5",
+      "status": "active",
+      "turn": "w",
+      "you": "w",
+      "yourTurn": true,
+      "active": true,
+      "board": "rnbqkbnrpppppppp................................PPPPPPPPRNBQKBNR",
+      "ply": 0,
+      "moves": {
+        "48": [
+          40,
+          32
+        ],
+        "49": [
+          41,
+          33
+        ],
+        "50": [
+          42,
+          34
+        ],
+        "51": [
+          43,
+          35
+        ],
+        "52": [
+          44,
+          36
+        ],
+        "53": [
+          45,
+          37
+        ],
+        "54": [
+          46,
+          38
+        ],
+        "55": [
+          47,
+          39
+        ],
+        "57": [
+          40,
+          42
+        ],
+        "62": [
+          45,
+          47
+        ]
+      },
+      "last": null,
+      "hist": [],
+      "sans": [],
+      "capsW": [],
+      "capsB": [],
+      "check": -1,
+      "draw": null,
+      "white": {
+        "name": "Nanda",
+        "username": "nanda"
+      },
+      "black": {
+        "name": "Luxu",
+        "username": "luxu"
+      },
+      "opp": {
+        "name": "Luxu",
+        "username": "luxu",
+        "online": true
+      },
+      "createdAt": "2026-11-16T16:47:20.895Z",
+      "updatedAt": "2026-11-16T16:47:20.895Z",
+      "reviewed": false
+    }
+  },
+  "move_mate": {
+    "ok": true,
+    "game": {
+      "id": "b96ec91e-046f-4b27-9be3-5e37cd48cdd5",
+      "status": "done",
+      "turn": "w",
+      "you": "b",
+      "yourTurn": false,
+      "active": false,
+      "board": "rnb.kbnrpppp.ppp............p.........Pq.....P..PPPPP..PRNBQKBNR",
+      "ply": 4,
+      "moves": null,
+      "last": {
+        "f": 3,
+        "t": 39
+      },
+      "hist": [
+        "f2-f3",
+        "e7-e5",
+        "g2-g4",
+        "Qd8-h4"
+      ],
+      "sans": [
+        "f3",
+        "e5",
+        "g4",
+        "Qh4#"
+      ],
+      "capsW": [],
+      "capsB": [],
+      "check": -1,
+      "draw": null,
+      "white": {
+        "name": "Nanda",
+        "username": "nanda"
+      },
+      "black": {
+        "name": "Luxu",
+        "username": "luxu"
+      },
+      "opp": {
+        "name": "Nanda",
+        "username": "nanda",
+        "online": false
+      },
+      "createdAt": "2026-11-16T16:47:20.895Z",
+      "updatedAt": "2026-11-16T16:47:20.932Z",
+      "result": {
+        "won": "b",
+        "reason": "mate",
+        "score": "0-1"
+      },
+      "pgn": "[Event \"Neyhra Multiplayer Chess\"]\n[Site \"neyhra-chat2\"]\n[Date \"2026.11.16\"]\n[Round \"-\"]\n[White \"Nanda\"]\n[Black \"Luxu\"]\n[Result \"0-1\"]\n[Termination \"checkmate\"]\n\n1. f3 e5 2. g4 Qh4# 0-1\n",
+      "reviewed": false
+    },
+    "move": {
+      "n": 4,
+      "san": "Qh4#",
+      "uci": "d8h4",
+      "from": 3,
+      "to": 39
+    }
+  },
+  "sync": {
+    "ok": true,
+    "id": "b96ec91e-046f-4b27-9be3-5e37cd48cdd5",
+    "status": "done",
+    "ply": 4,
+    "turn": "w",
+    "yourTurn": false,
+    "board": "rnb.kbnrpppp.ppp............p.........Pq.....P..PPPPP..PRNBQKBNR",
+    "last": {
+      "f": 3,
+      "t": 39
+    },
+    "check": -1,
+    "draw": null,
+    "newMoves": [
+      {
+        "n": 3,
+        "from": 54,
+        "to": 38,
+        "uci": "g2g4",
+        "san": "g4",
+        "ts": 1794847640929
+      },
+      {
+        "n": 4,
+        "from": 3,
+        "to": 39,
+        "uci": "d8h4",
+        "san": "Qh4#",
+        "ts": 1794847640932
+      }
+    ],
+    "oppOnline": false,
+    "result": {
+      "won": "b",
+      "reason": "mate",
+      "score": "0-1"
+    },
+    "pgn": "[Event \"Neyhra Multiplayer Chess\"]\n[Site \"neyhra-chat2\"]\n[Date \"2026.11.16\"]\n[Round \"-\"]\n[White \"Nanda\"]\n[Black \"Luxu\"]\n[Result \"0-1\"]\n[Termination \"checkmate\"]\n\n1. f3 e5 2. g4 Qh4# 0-1\n",
+    "reviewed": false
+  },
+  "games": {
+    "ok": true,
+    "games": [
+      {
+        "id": "b96ec91e-046f-4b27-9be3-5e37cd48cdd5",
+        "status": "done",
+        "turn": "w",
+        "you": "b",
+        "yourTurn": false,
+        "ply": 4,
+        "opp": {
+          "name": "Nanda",
+          "username": "nanda"
+        },
+        "last": {
+          "f": 3,
+          "t": 39
+        },
+        "sans": [
+          "f3",
+          "e5",
+          "g4",
+          "Qh4#"
+        ],
+        "result": {
+          "won": "b",
+          "reason": "mate",
+          "score": "0-1"
+        },
+        "reviewed": false,
+        "updatedAt": "2026-11-16T16:47:20.932Z"
+      }
+    ],
+    "page": 0,
+    "more": false,
+    "active": 0
+  },
+  "stats": {
+    "ok": true,
+    "user": {
+      "username": "luxu",
+      "name": "Luxu"
+    },
+    "stats": {
+      "played": 1,
+      "won": 1,
+      "drawn": 0,
+      "lost": 0,
+      "winRate": 100,
+      "accuracy": null,
+      "accGames": 0,
+      "bestAcc": 0,
+      "labels": {
+        "best": 0,
+        "great": 0,
+        "excellent": 0,
+        "mistake": 0,
+        "miss": 0,
+        "blunder": 0
+      },
+      "updatedAt": "2026-11-16T16:47:20.932Z"
+    }
+  },
+  "review": {
+    "ok": true,
+    "review": {
+      "engine": "internal-d2",
+      "depth": 2,
+      "ev": [
+        0,
+        -20,
+        -60,
+        -99999,
+        -100000
+      ],
+      "mates": [
+        null,
+        null,
+        null,
+        -1,
+        0
+      ],
+      "moves": [
+        {
+          "ply": 1,
+          "color": "w",
+          "san": "f3",
+          "uci": "f2f3",
+          "from": 53,
+          "to": 45,
+          "evalBefore": 0,
+          "evalAfter": -20,
+          "cpLoss": 20,
+          "winBefore": 50,
+          "winAfter": 48.2,
+          "delta": 1.8,
+          "acc": 92.1,
+          "label": "Great",
+          "bestSan": "Nc3",
+          "bestUci": "b1c3"
+        },
+        {
+          "ply": 2,
+          "color": "b",
+          "san": "e5",
+          "uci": "e7e5",
+          "from": 12,
+          "to": 28,
+          "evalBefore": -20,
+          "evalAfter": -60,
+          "cpLoss": -40,
+          "winBefore": 51.8,
+          "winAfter": 55.5,
+          "delta": 0,
+          "acc": 100,
+          "label": "Great",
+          "bestSan": "Nc6",
+          "bestUci": "b8c6"
+        },
+        {
+          "ply": 3,
+          "color": "w",
+          "san": "g4",
+          "uci": "g2g4",
+          "from": 54,
+          "to": 38,
+          "evalBefore": -60,
+          "evalAfter": -99999,
+          "cpLoss": 99939,
+          "winBefore": 44.5,
+          "winAfter": 0,
+          "delta": 44.5,
+          "acc": 11.7,
+          "label": "Blunder",
+          "bestSan": "Nc3",
+          "bestUci": "b1c3"
+        },
+        {
+          "ply": 4,
+          "color": "b",
+          "san": "Qh4#",
+          "uci": "d8h4",
+          "from": 3,
+          "to": 39,
+          "evalBefore": -99999,
+          "evalAfter": -100000,
+          "cpLoss": -1,
+          "winBefore": 100,
+          "winAfter": 100,
+          "delta": 0,
+          "acc": 100,
+          "label": "Best",
+          "bestSan": "Qh4#",
+          "bestUci": "d8h4"
+        }
+      ],
+      "accuracy": {
+        "w": 51.9,
+        "b": 100
+      },
+      "counts": {
+        "w": {
+          "best": 0,
+          "great": 1,
+          "excellent": 0,
+          "mistake": 0,
+          "miss": 0,
+          "blunder": 1
+        },
+        "b": {
+          "best": 1,
+          "great": 1,
+          "excellent": 0,
+          "mistake": 0,
+          "miss": 0,
+          "blunder": 0
+        }
+      },
+      "reviewedAt": "2026-11-16T16:47:21.076Z"
+    }
+  },
+  "replay": {
+    "ok": true,
+    "meta": {
+      "id": "b96ec91e-046f-4b27-9be3-5e37cd48cdd5",
+      "status": "done",
+      "ply": 4,
+      "white": {
+        "name": "Nanda",
+        "username": "nanda"
+      },
+      "black": {
+        "name": "Luxu",
+        "username": "luxu"
+      },
+      "result": {
+        "won": "b",
+        "reason": "mate",
+        "score": "0-1"
+      },
+      "pgn": "[Event \"Neyhra Multiplayer Chess\"]\n[Site \"neyhra-chat2\"]\n[Date \"2026.11.16\"]\n[Round \"-\"]\n[White \"Nanda\"]\n[Black \"Luxu\"]\n[Result \"0-1\"]\n[Termination \"checkmate\"]\n\n1. f3 e5 2. g4 Qh4# 0-1\n",
+      "reviewed": true,
+      "createdAt": "2026-11-16T16:47:20.895Z",
+      "endedAt": "2026-11-16T16:47:20.932Z"
+    },
+    "initial": {
+      "board": "rnbqkbnrpppppppp................................PPPPPPPPRNBQKBNR",
+      "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+    },
+    "positions": [
+      {
+        "ply": 1,
+        "color": "w",
+        "san": "f3",
+        "uci": "f2f3",
+        "from": 53,
+        "to": 45,
+        "board": "rnbqkbnrpppppppp.............................P..PPPPP.PPRNBQKBNR",
+        "fen": "rnbqkbnr/pppppppp/8/8/8/5P2/PPPPP1PP/RNBQKBNR b KQkq - 0 1",
+        "lastMove": {
+          "f": 53,
+          "t": 45
+        },
+        "ts": 1794847640919
+      },
+      {
+        "ply": 2,
+        "color": "b",
+        "san": "e5",
+        "uci": "e7e5",
+        "from": 12,
+        "to": 28,
+        "board": "rnbqkbnrpppp.ppp............p................P..PPPPP.PPRNBQKBNR",
+        "fen": "rnbqkbnr/pppp1ppp/8/4p3/8/5P2/PPPPP1PP/RNBQKBNR w KQkq e6 0 1",
+        "lastMove": {
+          "f": 12,
+          "t": 28
+        },
+        "ts": 1794847640925
+      },
+      {
+        "ply": 3,
+        "color": "w",
+        "san": "g4",
+        "uci": "g2g4",
+        "from": 54,
+        "to": 38,
+        "board": "rnbqkbnrpppp.ppp............p.........P......P..PPPPP..PRNBQKBNR",
+        "fen": "rnbqkbnr/pppp1ppp/8/4p3/6P1/5P2/PPPPP2P/RNBQKBNR b KQkq g3 0 2",
+        "lastMove": {
+          "f": 54,
+          "t": 38
+        },
+        "ts": 1794847640929
+      },
+      {
+        "ply": 4,
+        "color": "b",
+        "san": "Qh4#",
+        "uci": "d8h4",
+        "from": 3,
+        "to": 39,
+        "board": "rnb.kbnrpppp.ppp............p.........Pq.....P..PPPPP..PRNBQKBNR",
+        "fen": "rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 2",
+        "lastMove": {
+          "f": 3,
+          "t": 39
+        },
+        "check": 60,
+        "ts": 1794847640932
+      }
+    ]
+  },
+  "hint": {
+    "ok": true,
+    "best": {
+      "san": "Nc3",
+      "uci": "b1c3",
+      "from": 57,
+      "to": 42,
+      "evalCp": 50
+    },
+    "engine": "internal-d3"
+  },
+  "draw_accept": {
+    "ok": true,
+    "game": {
+      "id": "321d8ac7-d467-4780-97ee-da0c6dfa51ea",
+      "status": "done",
+      "turn": "w",
+      "you": "b",
+      "yourTurn": false,
+      "active": false,
+      "board": "rnbqkbnrpppppppp................................PPPPPPPPRNBQKBNR",
+      "ply": 0,
+      "moves": null,
+      "last": null,
+      "hist": [],
+      "sans": [],
+      "capsW": [],
+      "capsB": [],
+      "check": -1,
+      "draw": null,
+      "white": {
+        "name": "Reze",
+        "username": "reze"
+      },
+      "black": {
+        "name": "Nanda",
+        "username": "nanda"
+      },
+      "opp": {
+        "name": "Reze",
+        "username": "reze",
+        "online": false
+      },
+      "createdAt": "2026-11-16T16:47:21.083Z",
+      "updatedAt": "2026-11-16T16:47:21.163Z",
+      "result": {
+        "won": "d",
+        "reason": "agreement",
+        "score": "1/2-1/2"
+      },
+      "pgn": "[Event \"Neyhra Multiplayer Chess\"]\n[Site \"neyhra-chat2\"]\n[Date \"2026.11.16\"]\n[Round \"-\"]\n[White \"Reze\"]\n[Black \"Nanda\"]\n[Result \"1/2-1/2\"]\n[Termination \"draw by agreement\"]\n\n1/2-1/2\n",
+      "reviewed": false
+    }
+  }
+}

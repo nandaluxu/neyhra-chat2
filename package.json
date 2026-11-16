@@ -6,7 +6,8 @@
     "start": "node --env-file=.env dev.js",
     "db:test": "node --env-file=.env scripts/db-test.js",
     "r2:test": "node --env-file=.env scripts/r2-test.js",
-    "r2:migrate": "node --env-file=.env scripts/migrate-avatars-r2.js"
+    "r2:migrate": "node --env-file=.env scripts/migrate-avatars-r2.js",
+    "mp:test": "node scripts/chessmp-e2e.mjs"
   },
   "engines": {
     "node": ">=20.6"
