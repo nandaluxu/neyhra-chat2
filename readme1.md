@@ -275,7 +275,7 @@ Index: `{username:1} unique`, `{refCode:1} unique sparse`, `{createdAt:-1}`.
 **Mode grup**
 | Key | Isi |
 |---|---|
-| `groups` | daftar grup buatan user (anggota, muted, scene) — maks 20 grup (CFG.MAX_GROUPS) |
+| `groups` | daftar grup buatan user (anggota, muted, scene, `rp` = mode roleplay grup) — maks 20 grup (CFG.MAX_GROUPS) |
 | `g:<id>:msgs` | pesan grup per perangkat |
 | `gx` | flag grup aktif |
 

@@ -53,6 +53,12 @@ const pseudo = id => ({ id, name: id.charAt(0).toUpperCase() + id.slice(1), avat
 const cOrP = id => charOf(id) || pseudo(id);
 const firstName = c => String(c.name).replace(/\([^)]*\)/g, ' ').trim().split(/[\s/]+/)[0] || c.name;
 
+/* Mode roleplay PER GRUP (g.rp, switch di modal buat grup dan panel grup; terpisah dari switch Pengaturan yang hanya untuk chat 1-lawan-1).
+   Server (lib/sessions.js rpGroupStyle): narasi *miring* hanya untuk diri sendiri + tepat SATU ucapan "kutip" per giliran, jadi satu bubble tetap = satu voice note. */
+const RP_HINT = 'Karakter membalas dengan narasi miring dan ucapan dalam kutip. Tulis aksimu di antara *bintang*, mis. *duduk di sebelah Reze*.';
+const inputHint = g => g && g.rp ? 'Pesan, *aksi*, atau @mention' : 'Pesan ke grup (@ untuk mention)';
+const rpText = (el, text) => { if (typeof rpRender === 'function') rpRender(el, String(text == null ? '' : text)); else el.textContent = text; }; // rpRender: index.html (narasi *...* tampil miring)
+
 const GX = window.GX = { cur: null, hash: s => hash(norm(s)), CFG };
 const enabled = GX.enabled = () => store.get('gx') === '1';
 
@@ -64,7 +70,7 @@ const normGroup = g => {
   return {
     id: g.id, name: cleanLine(g.name).slice(0, 40) || 'Grup', members,
     muted: (Array.isArray(g.muted) ? g.muted : []).filter(i => members.includes(i)),
-    scene: cleanLine(g.scene).slice(0, 120), createdAt: isNum(g.createdAt) ? g.createdAt : Date.now()
+    scene: cleanLine(g.scene).slice(0, 120), rp: g.rp === true, createdAt: isNum(g.createdAt) ? g.createdAt : Date.now()
   };
 };
 let groups = (() => { try { const a = JSON.parse(store.get('groups') || '[]'); return (Array.isArray(a) ? a : []).map(normGroup).filter(Boolean).slice(0, CFG.MAX_GROUPS); } catch { return []; } })();
@@ -131,7 +137,7 @@ GX.card = e => {
   b.innerHTML = '<span class="m-av"><i class="m-dot"></i></span><span class="m-info"><b></b><small class="gsmall"></small></span><span class="m-go"><svg viewBox="0 0 24 24"><path d="M4 12h16M14 6l6 6-6 6"/></svg></span>';
   const av = b.querySelector('.m-av'); av.prepend(stack(g));
   b.querySelector('b').textContent = g.name;
-  b.querySelector('small').textContent = 'Grup · ' + g.members.map(i => firstName(cOrP(i))).join(', ');
+  b.querySelector('small').textContent = (g.rp ? 'Grup roleplay · ' : 'Grup · ') + g.members.map(i => firstName(cOrP(i))).join(', ');
   b.onclick = () => open(g, av);
   return b;
 };
@@ -176,6 +182,7 @@ app.insertAdjacentHTML('beforeend', `
     <label class="gl" for="gmname">Nama grup</label><input id="gmname" class="gin" maxlength="40" autocomplete="off" placeholder="Nama grup">
     <label class="gl" for="gmscene">Scene (opsional)</label><input id="gmscene" class="gin" maxlength="120" autocomplete="off" placeholder="mis. Mereka nongkrong di kafe guild">
     <div class="gchips" id="gmchips"></div>
+    <label class="srow"><span><b>Mode roleplay</b><i>${RP_HINT}</i></span><input type="checkbox" id="gmrp" class="sw"></label>
   </div>
   <span class="gl">Anggota <span id="gmcnt"></span></span>
   <label class="srch gsrch"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg><input id="gmq" type="search" placeholder="Cari karakter" autocomplete="off"></label>
@@ -193,6 +200,9 @@ app.insertAdjacentHTML('beforeend', `
   <div class="sgroup"><h3>Anggota <span id="gpmc"></span></h3>
     <div id="gpmem"></div>
     <button class="srow" id="gpedit" type="button"><span><b>Tambah / keluarkan anggota</b><i>Pesan lama tetap tampil dengan nama dan avatar aslinya.</i></span><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
+  </div>
+  <div class="sgroup"><h3>Mode</h3>
+    <label class="srow"><span><b>Mode roleplay</b><i>${RP_HINT} Berlaku mulai giliran berikutnya.</i></span><input type="checkbox" id="gprp" class="sw"></label>
   </div>
   <div class="sgroup"><h3>Obrolan</h3>
     <button class="srow" id="gptalk" type="button"><span><b>Biarkan mereka ngobrol</b><i>Anggota saling bicara tanpa pesanmu, maksimal ${CFG.AUTO_CHAIN} giliran.</i></span><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
@@ -234,7 +244,7 @@ function openEditor(g) {
   $('gmsub').textContent = 'Pilih ' + CFG.MIN_MEMBERS + '–' + CFG.MAX_MEMBERS + ' karakter yang ada di grup.';
   $('gmmeta').classList.toggle('hide', edit);
   $('gmok').textContent = edit ? 'Simpan' : 'Buat grup'; $('gmok').disabled = full;
-  $('gmname').value = ''; $('gmscene').value = ''; $('gmq').value = '';
+  $('gmname').value = ''; $('gmscene').value = ''; $('gmq').value = ''; $('gmrp').checked = typeof rpOn === 'function' && rpOn(); // bawaan mengikuti switch roleplay di Pengaturan
   chips($('gmchips'), $('gmscene'));
   const box = $('gmlist'); box.innerHTML = '';
   allChars.forEach(c => {
@@ -272,7 +282,7 @@ $('gmok').onclick = () => {
     return;
   }
   const ids = [...ed.sel];
-  const g = { id: newId(), name: cleanLine($('gmname').value).slice(0, 40) || defaultName(ids), members: ids, muted: [], scene: cleanLine($('gmscene').value).slice(0, 120), createdAt: Date.now() };
+  const g = { id: newId(), name: cleanLine($('gmname').value).slice(0, 40) || defaultName(ids), members: ids, muted: [], scene: cleanLine($('gmscene').value).slice(0, 120), rp: $('gmrp').checked, createdAt: Date.now() };
   groups.unshift(g); saveGroups();
   const r = $('gmok').getBoundingClientRect(); // titik awal animasi buka chat
   closeEditor(); renderList(); paintAll();
@@ -285,11 +295,18 @@ gmore.id = 'gmore'; gmore.type = 'button'; gmore.className = 'hide'; gmore.title
 gmore.innerHTML = '<svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="12" cy="19" r="1.9"/></svg>';
 $('vmore').after(gmore);
 
-const baseStatus = () => { if (GX.cur) setStatus(GX.cur.members.length + ' anggota', false); };
+const baseStatus = () => { if (GX.cur) setStatus(GX.cur.members.length + ' anggota' + (GX.cur.rp ? ' · roleplay' : ''), false); };
 const paintHeader = () => {
   const g = GX.cur; if (!g) return;
   $('hname').textContent = g.name; $('hpfp').replaceWith(Object.assign(stack(g, 'pfp'), { id: 'hpfp' })); baseStatus();
 };
+
+// switch roleplay berubah (panel grup): perbarui status header, placeholder kolom ketik, dan hint grup kosong
+function paintRp() {
+  const g = GX.cur; if (!g) return;
+  baseStatus(); inp.placeholder = inputHint(g);
+  const h = chat.querySelector('.gempty'); if (h) { h.remove(); emptyHint(); }
+}
 
 function open(g, avEl) {
   if (moving) return;
@@ -306,7 +323,7 @@ function open(g, avEl) {
   closeSearch(); if (current) current.stop(); openSub = null; urls.forEach(u => URL.revokeObjectURL(u)); urls = []; clearTimeout(clrT); clrT = 0;
   chat.innerHTML = ''; lastDay = ''; ready = false; const tok = ++openTok;
   clearTimeout(draftT); inp.value = store.get('draft:g:' + g.id) || ''; grow(); refresh();
-  inp.placeholder = 'Pesan ke grup (@ untuk mention)';
+  inp.placeholder = inputHint(g);
   $('vmore').classList.add('hide'); gmore.classList.remove('hide');
   paintHeader();
   if (!was && !inline) {
@@ -335,7 +352,10 @@ async function restore(g, tok) {
 
 function emptyHint() {
   const d = document.createElement('div'); d.className = 'gempty';
-  d.innerHTML = '<div>Grup siap. Kirim pesan, atau ketik @ untuk menunjuk siapa yang menjawab.</div><button type="button">Biarkan mereka ngobrol</button>';
+  d.innerHTML = '<div></div><button type="button">Biarkan mereka ngobrol</button>';
+  d.firstChild.textContent = GX.cur && GX.cur.rp
+    ? 'Roleplay aktif. Tulis aksimu di antara *bintang*, atau ketik @ untuk menunjuk siapa yang menjawab.'
+    : 'Grup siap. Kirim pesan, atau ketik @ untuk menunjuk siapa yang menjawab.';
   d.querySelector('button').onclick = autoChat;
   chat.append(d);
 }
@@ -370,7 +390,7 @@ function bubble(m) {
   row.innerHTML = '<div class="bub"><div class="gname"></div><div class="txt"></div><div class="ts">' + now(t) + '</div></div>';
   row.prepend(img(c, 'gav'));
   row.querySelector('.gname').textContent = c.name;
-  row.querySelector('.txt').textContent = m.text;
+  rpText(row.querySelector('.txt'), m.text);
   chat.append(row); scroll();
 }
 
@@ -452,7 +472,7 @@ async function callChat(g, sp, { userText, replyTo, depth, ctl, pull }) {
   const history = [...state.msgs, ...state.pending].filter(m => m.from !== 'system').slice(-CFG.HIST).map(m => [m.from, String(m.text).slice(0, 600)]);
   const body = {
     clientId: cid, char: sp, message: userText || '', userName: uname, history,
-    group: { members: g.members.filter(charOf), muted: g.muted || [], scene: g.scene || '', ...(replyTo && { replyTo }), ...(pull && { pull: true }), depth },
+    group: { members: g.members.filter(charOf), muted: g.muted || [], scene: g.scene || '', ...(g.rp && { rp: true }), ...(replyTo && { replyTo }), ...(pull && { pull: true }), depth },
     voice: { on: useVoice, lang }
   };
   const r = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: ctl.signal });
@@ -649,7 +669,7 @@ function twoTap(btn, fn) {
 }
 function paintPanel() {
   const g = GX.cur; if (!g) return;
-  $('gpname').value = g.name; $('gpscene').value = g.scene || '';
+  $('gpname').value = g.name; $('gpscene').value = g.scene || ''; $('gprp').checked = !!g.rp;
   $('gpmc').textContent = '(' + g.members.length + '/' + CFG.MAX_MEMBERS + ')';
   const box = $('gpmem'); box.innerHTML = '';
   g.members.forEach(id => {
@@ -688,6 +708,11 @@ $('gpx').onclick = closePanel;
 gp.addEventListener('click', e => { if (e.target === gp) closePanel(); });
 $('gpedit').onclick = () => { if (GX.cur) openEditor(GX.cur); };
 $('gptalk').onclick = () => { closePanel(); autoChat(); };
+$('gprp').onchange = () => { // berlaku mulai giliran berikutnya; pesan lama tidak diubah
+  const g = GX.cur; if (!g) return;
+  g.rp = $('gprp').checked; saveGroups(); paintRp(); renderList();
+  sysAdd(g.rp ? 'Mode roleplay dinyalakan' : 'Mode roleplay dimatikan');
+};
 
 function clearMsgs() {
   const g = GX.cur; if (!g) return;
@@ -729,6 +754,7 @@ GX.exportChat = async () => {
     const body = x => String(x || '').replace(/\n/g, '\n    ');
     out.push('Obrolan grup: ' + g.name, 'Anggota: ' + g.members.map(i => cOrP(i).name).join(', '));
     if (g.scene) out.push('Scene: ' + g.scene);
+    if (g.rp) out.push('Mode: roleplay');
     out.push('Diekspor: ' + stamp(Date.now()), '');
     let n = 0;
     for (const m of state.msgs) {
