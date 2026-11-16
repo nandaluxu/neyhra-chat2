@@ -194,7 +194,7 @@ function chessScreen() {
       '<ol class="gm-how">' + (cc.length ? '<li>Pilih lawan (AI biasa atau karakter). Langkah tetap dihitung engine, karakter hanya berkomentar.</li>' : '') + '<li>Pilih tingkat kesulitan untuk mulai.</li><li>Ketuk bidakmu, lalu ketuk kotak tujuan (ditandai titik).</li><li>Lawan membalas setelah mikir sebentar (kadang dia mengoceh, kalau kamu main lawan karakter). Skakmat lawanmu untuk menang!</li></ol>' +
       (live ? '<p class="gm-resume">Ada permainan ' + esc(chLvName(g.level)) + ' yang belum selesai.</p><div class="gm-row"><button class="gm-btn" type="button" data-act="play">Lanjutkan</button><button class="gm-ghost" type="button" data-act="chnew">Main baru</button></div>' : '') +
       oppPick + '<div class="ch-lvls' + (live ? ' ch-lvls-dim' : '') + '">' + lvls + '</div>' + msgEl + '</div></div>' +
-      '<div class="gm-info"><h3>Cara main</h3><p class="gm-cap">Aturan standar lengkap: rokade, en passant, promosi pion, skak, pat, aturan 50 langkah, dan pengulangan posisi. Menang dapat coin sesuai tingkat (seri 40%, paling sedikit ' + nf.format(5) + '), maksimal ' + d.cap + ' kemenangan berhadiah per hari (sekarang ' + d.wins + '/' + d.cap + '). Tidak ada undo: pikirkan dulu!</p></div>';
+      '<div class="gm-info"><h3>Cara main</h3><p class="gm-cap">Aturan standar lengkap: rokade, en passant, promosi pion, skak, pat, aturan 50 langkah, dan pengulangan posisi. Menang dapat coin sesuai tingkat (seri 40%, paling sedikit ' + nf.format(20) + '), maksimal ' + d.cap + ' kemenangan berhadiah per hari (sekarang ' + d.wins + '/' + d.cap + '). Tidak ada undo: pikirkan dulu!</p></div>';
   }
 
   // papan
