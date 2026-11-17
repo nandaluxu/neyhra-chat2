@@ -87,6 +87,7 @@ let pollT = 0, pollGen = 0, pollFast = 0;      // polling sync
 let roomT = 0, roomGen = 0, ttlT = 0;          // polling ruang + countdown
 let autoT = 0;                                  // autoplay replay
 let attached = false;
+let extBack = null;                 // callback tombol kembali saat review dibuka dari luar (games.js)
 
 /* ---------- util kecil ---------- */
 const legalOf = i => (game && game.moves && game.moves[i] && game.moves[i].length) ? game.moves[i] : null;
@@ -452,9 +453,9 @@ const cntOf = (rv, c, k) => ((rv.counts && rv.counts[c]) || {})[k] || 0;
 function avatarHtml(who, big) {
   return '<span class="cm-av' + (big ? ' big' : '') + '" aria-hidden="true">' + esc(initial(who && who.name)) + '</span>';
 }
-function oppLine(win, draw, rv, me) {
+function oppLine(win, draw, rv, me, rp) {
   if (!rv) return win ? 'Selamat! Permainan yang bagus.' : draw ? 'Seri yang adil. Mau coba lagi?' : 'Permainan yang seru. Rematch?';
-  const rp = resCache.rp, ph = rp ? phaseRatings(rv, rp)[me] : null;
+  const ph = rp ? phaseRatings(rv, rp)[me] : null;
   const acc = rv.accuracy && rv.accuracy[me];
   if (win && ph && ph.end === 'ok') return 'Kamu tetap tenang di endgame, dan itu memberimu kemenangan.';
   if (win && cntOf(rv, me, 'blunder') === 0) return 'Nyaris tanpa blunder — permainan yang rapi!';
@@ -463,30 +464,45 @@ function oppLine(win, draw, rv, me) {
   if (cntOf(rv, me, 'blunder') > 2) return 'Beberapa blunder menentukan hasilnya. Cek Game Review!';
   return 'Kamu sudah berusaha. Lihat di mana kuncinya lewat Game Review.';
 }
-function resultModalHtml() {
-  const r = game.result, me = game.you, opp = oppOf();
-  const win = r.won === me, draw = r.won === 'd', aborted = r.reason === 'abort';
-  const still = resultAnim === game.id ? ' still' : '';
-  resultAnim = game.id;
-  const rv = resCache.id === game.id ? resCache.rv : null;
-  const loading = !rv && resCache.id === game.id && resCache.loading;
+/* Modal hasil generik (dipakai Multiplayer & Catur vs AI).
+   o: { key, me, result:{won,reason,score?}, reasons (peta alasan), opp:{name,avatar?}, rv, rp, loading, canReview, aborted,
+        extra (html tambahan), acts:{ review, close, again, newgame, replay?, pgn? } -> string atribut, mis. 'data-cm="review" data-id="x"' } */
+function resultModalGeneric(o) {
+  const r = o.result, me = o.me;
+  const win = r.won === me, draw = r.won === 'd', aborted = !!o.aborted;
+  const rv = o.rv, loading = !rv && o.loading;
   const title = aborted ? 'Permainan Dibatalkan' : win ? 'Kamu Menang!' : draw ? 'Seri' : 'Kamu Kalah';
-  const by = aborted ? 'Dibatalkan sebelum dua langkah' : (draw ? 'Karena ' : 'Oleh ') + (REASONS[r.reason] || r.reason) + ' · ' + esc(r.score);
+  const why = (o.reasons || REASONS)[r.reason] || r.reason;
+  const by = aborted ? 'Dibatalkan sebelum dua langkah' : (draw ? 'Karena ' : 'Oleh ') + why + (r.score ? ' · ' + r.score : '');
   const icon = aborted ? '' : win ? TROPHY : draw ? '<span class="cm-rico">½</span>' : '<span class="cm-rico lose">⚑</span>';
   const stat = (k, n, label) => '<div class="cm-rs"><span class="ic">' + markIcon(k, 24) + '</span><b' + (n == null ? ' class="sk"' : '') + '>' + (n == null ? '' : n) + '</b><small>' + label + '</small></div>';
-  const stats = aborted ? '' : '<div class="cm-rstats' + (loading ? ' load' : '') + '">' +
+  const stats = aborted || o.noStats ? '' : '<div class="cm-rstats' + (loading ? ' load' : '') + '">' +
     stat('great', rv ? cntOf(rv, me, 'great') : null, 'Great') + stat('best', rv ? cntOf(rv, me, 'best') : null, 'Best') + stat('excellent', rv ? cntOf(rv, me, 'excellent') : null, 'Excellent') + '</div>';
-  const bubble = aborted ? '' : '<div class="cm-rbub"><div class="cm-rbav">' + avatarHtml(opp, true) + '</div><div class="cm-bubble">' + esc(oppLine(win, draw, rv, me)) + '</div></div>';
-  const canReview = game.status === 'done' && !aborted;
+  const av = o.opp && o.opp.avatar ? '<span class="cm-av big"><img src="' + esc(o.opp.avatar) + '" alt="" referrerpolicy="no-referrer"></span>' : avatarHtml(o.opp, true);
+  const bubble = aborted ? '' : '<div class="cm-rbub"><div class="cm-rbav">' + av + '</div><div class="cm-bubble">' + esc(oppLine(win, draw, rv, me, o.rp)) + '</div></div>';
+  const A = o.acts;
+  const still = o.still ? ' still' : '';
   return '<div class="cm-ovl" data-cm-ovl="result" role="dialog" aria-modal="true" aria-label="' + esc(title) + '"><div class="cm-rmod' + still + '">' +
-    '<button class="cm-res-x" type="button" data-cm="closeovl" aria-label="Tutup">×</button>' +
-    '<div class="cm-res-top"><h3>' + icon + '<span>' + esc(title) + '</span></h3><p>' + by + '</p></div>' +
-    bubble + stats +
-    (canReview ? '<button class="cm-res-main" type="button" data-cm="review" data-id="' + esc(game.id) + '"><span class="st">★</span>Game Review</button>' : '') +
-    '<div class="cm-res-row"><button type="button" data-cm="newgame">Game Baru</button><button type="button" data-cm="rematch"' + (aborted ? ' disabled' : '') + '>Rematch</button></div>' +
-    '<div class="cm-res-row sm">' + (canReview ? '<button type="button" data-cm="replay" data-id="' + esc(game.id) + '">Putar Ulang</button>' : '') +
-    (game.pgn ? '<button type="button" data-cm="copypgn">Salin PGN</button>' : '') + '</div>' +
+    '<button class="cm-res-x" type="button" ' + A.close + ' aria-label="Tutup">×</button>' +
+    '<div class="cm-res-top"><h3>' + icon + '<span>' + esc(title) + '</span></h3><p>' + esc(by) + '</p></div>' +
+    bubble + (o.extra || '') + stats +
+    (o.canReview ? '<button class="cm-res-main" type="button" ' + A.review + '><span class="st">★</span>Game Review</button>' : '') +
+    '<div class="cm-res-row"><button type="button" ' + A.newgame + '>' + (o.newLabel || 'Game Baru') + '</button><button type="button" ' + A.again + (aborted ? ' disabled' : '') + '>' + (o.againLabel || 'Rematch') + '</button></div>' +
+    ((A.replay || A.pgn) ? '<div class="cm-res-row sm">' + (A.replay ? '<button type="button" ' + A.replay + '>Putar Ulang</button>' : '') + (A.pgn ? '<button type="button" ' + A.pgn + '>Salin PGN</button>' : '') + '</div>' : '') +
     '</div></div>';
+}
+function resultModalHtml() {
+  const rv = resCache.id === game.id ? resCache.rv : null;
+  const still = resultAnim === game.id;
+  resultAnim = game.id;
+  const aborted = game.result.reason === 'abort';
+  return resultModalGeneric({
+    me: game.you, result: game.result, opp: oppOf(), rv, rp: resCache.id === game.id ? resCache.rp : null,
+    loading: resCache.id === game.id && resCache.loading, aborted, still,
+    canReview: game.status === 'done' && !aborted,
+    acts: { close: 'data-cm="closeovl"', review: 'data-cm="review" data-id="' + esc(game.id) + '"', newgame: 'data-cm="newgame"', again: 'data-cm="rematch"',
+      replay: game.status === 'done' && !aborted ? 'data-cm="replay" data-id="' + esc(game.id) + '"' : '', pgn: game.pgn ? 'data-cm="copypgn"' : '' }
+  });
 }
 /* ambil analisis di latar belakang agar angka Great/Best/Excellent muncul di modal */
 function ensureResultReview() {
@@ -540,7 +556,7 @@ function reviewSummaryHtml(rv, white, black) {
    REVIEW (Chess Review)
    ============================================================ */
 function reviewScreen() {
-  const back = '<button class="gm-back" type="button" data-cm="back">' + SVG.back + (gameFrom === 'game' ? 'Ke permainan' : 'Semua game') + '</button>';
+  const back = '<button class="gm-back" type="button" data-cm="back">' + SVG.back + (gameFrom === 'game' || gameFrom === 'ext' ? 'Ke permainan' : 'Semua game') + '</button>';
   if (review.loading) {
     return back + '<div class="gm-panel"><div class="cm-analyzing"><div class="spin" role="status" aria-label="Menganalisis"></div>' +
       '<b>Menganalisis permainan…</b><p>Engine menilai setiap langkah kedua pemain. Ini bisa memakan waktu beberapa detik hingga ±30 detik untuk permainan panjang — hasilnya tersimpan permanen, pembukaan berikutnya instan.</p></div></div>';
@@ -1250,6 +1266,7 @@ function goLobby() {
   loadLobby();   // selalu segarkan: hasil/daftar permainan bisa saja berubah
 }
 function goBack() {
+  if (gameFrom === 'ext') { const f = extBack; extBack = null; gameFrom = 'lobby'; view = 'lobby'; if (f) f(); return; }
   if (gameFrom === 'game' && game) { view = 'game'; render(); if (game.status === 'active') startPoll(true); return; }
   goLobby();
 }
@@ -1427,7 +1444,16 @@ function paintHubTag() {
 }
 
 /* API untuk games.js */
+/* Pembukaan review dari luar (Catur vs AI di games.js): data {rv, rp:{initial,positions}} dari /api/auth/chess/review */
+function openExtReview(o) {
+  attachOnce(); stopPoll(); stopRoomPoll(); stopAuto();
+  gameFrom = 'ext'; extBack = o.onBack || null;
+  review = { loading: false, err: '', data: o.rv, pos: { initial: o.rp.initial, positions: o.rp.positions, meta: { white: o.white, black: o.black, result: o.result } }, ply: 1, gameId: 'ext' };
+  view = 'review'; flip = o.flip != null ? !!o.flip : false; render();
+}
 window.CHMP = {
+  ui: { resultModal: resultModalGeneric, summary: null },
+  openExtReview,
   enter() {
     attachOnce();
     if (atok !== lastTok) { lastTok = atok; resetAll(); }

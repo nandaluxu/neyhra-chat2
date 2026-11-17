@@ -39,6 +39,7 @@ let csFail = '';
 let chSel = -1;           // kotak catur yang sedang dipilih
 let chPromo = null;       // { from, to } -> menunggu pilihan bidak promosi
 let chArm = 0;            // konfirmasi dua-tap tombol menyerah
+let chRes = null;         // modal hasil Catur vs AI { key, open, still, rv, rp, loading } (UI bersama dengan chessmp.js)
 let screen = 'hub';       // 'hub' | id game
 let ready = false;        // status akun (aktif/tidak) sudah diketahui
 let failed = '';          // pesan kalau gagal memuat
@@ -259,7 +260,47 @@ function chessScreen() {
     (g.active ? '<div class="ch-acts"><button class="gm-ghost" type="button" data-act="cresign"' + (chArm ? ' data-arm="1"' : '') + '>' + (chArm ? 'Tap lagi: menyerah' : 'Menyerah') + '</button></div>' : '') +
     result + '</div>' +
     '<div class="ch-side"><div class="gm-info"><h3>Langkah (' + g.hist.length + ')</h3>' + (pairs.length ? '<div class="ch-hist">' + pairs.join('') + '</div>' : '<p class="gm-cap">Belum ada langkah.</p>') +
-    '<p class="gm-cap">Menang +' + nf.format(lv[String(g.level)].prize) + ' coin (seri 40%). Maksimal ' + d.cap + ' kemenangan berhadiah per hari (sekarang ' + d.wins + '/' + d.cap + ').</p></div></div></div>';
+    '<p class="gm-cap">Menang +' + nf.format(lv[String(g.level)].prize) + ' coin (seri 40%). Maksimal ' + d.cap + ' kemenangan berhadiah per hari (sekarang ' + d.wins + '/' + d.cap + ').</p></div></div></div>' + chResultHtml(g, d);
+}
+
+/* ---------- Catur vs AI: modal hasil + Game Review (komponen UI dari public/chessmp.js) ---------- */
+function chResultHtml(g, d) {
+  if (!chRes || !chRes.open || !g.result || g.active || !window.CHMP || !CHMP.ui) return '';
+  const r = g.result, oc = g.opp && oppOf(g.opp), still = chRes.still; chRes.still = true;
+  const score = r.won === 'w' ? '1-0' : r.won === 'b' ? '0-1' : '1/2-1/2';
+  const prize = r.won === 'b' ? '' : g.reward
+    ? '<div class="cm-rprize"><img src="/coin.svg" alt="">+' + nf.format(g.reward) + ' coin</div>'
+    : '<div class="cm-rprize none">Hadiah harian sudah habis (' + d.wins + '/' + d.cap + '), kembali besok pukul 00.00 WIB.</div>';
+  return CHMP.ui.resultModal({
+    me: 'w', result: { won: r.won, reason: r.reason, score }, reasons: CH_END,
+    opp: { name: oc ? oc.name : 'AI', avatar: oc && oc.avatar }, rv: chRes.rv, rp: chRes.rp, loading: chRes.loading,
+    noStats: !chRes.canAnalyze, canReview: !!chRes.rv, still: !!still, extra: prize, newLabel: 'Ganti Level', againLabel: 'Main Lagi',
+    acts: { close: 'data-act="cresclose"', review: 'data-act="crev"', newgame: 'data-act="chnew"', again: 'data-act="cagain"' }
+  });
+}
+function chResOpen(g) {
+  if (!g || !g.result) return;
+  const key = g.board + ':' + g.hist.length + ':' + g.result.reason;
+  chRes = { key, open: true, still: false, rv: null, rp: null, loading: false, canAnalyze: g.hist.length >= 2 };
+  if (!chRes.canAnalyze) return;
+  chRes.loading = true;
+  aApi('chess/review', {}).then(r => {
+    if (!chRes || chRes.key !== key) return;
+    chRes.loading = false;
+    if (r && r.ok) { chRes.rv = r.review; chRes.rp = r.replay; }
+    if (screen === 'chess' && chRes.open) render();
+  }).catch(() => { if (chRes && chRes.key === key) { chRes.loading = false; if (screen === 'chess' && chRes.open) render(); } });
+}
+function chOpenReview() {
+  if (!chRes || !chRes.rv || !cs || !cs.game || !window.CHMP) return;
+  const g = cs.game, r = g.result, oc = g.opp && oppOf(g.opp), rv = chRes.rv, rp = chRes.rp;
+  chRes.open = false;
+  screen = 'chessmp';
+  CHMP.openExtReview({
+    rv, rp, white: { name: 'Kamu' }, black: { name: oc ? oc.name : 'AI ' + chLvName(g.level) },
+    result: { won: r.won, reason: r.reason, score: r.won === 'w' ? '1-0' : r.won === 'b' ? '0-1' : '1/2-1/2' },
+    onBack: () => { screen = 'chess'; intro = false; render(); }
+  });
 }
 const sq2name = i => 'abcdefgh'[i & 7] + (8 - (i >> 3));
 
@@ -383,7 +424,7 @@ async function cstart(lv) {
   if (busy) return; busy = true; msg = ['', '']; let started = false;
   body.querySelectorAll('.ch-lvl,.gm-btn,.gm-ghost').forEach(b => { b.disabled = true; });
   try {
-    if (await callC('chess/start', { level: Number(lv), ...(chOpp && chChars().some(c => c.id === chOpp) ? { opp: chOpp } : {}) })) { started = true; intro = false; chSel = -1; chPromo = null; msg = ['', 'Kamu putih. Mulai dengan melangkah pion dua kotak (e2-e4 misalnya).']; }
+    if (await callC('chess/start', { level: Number(lv), ...(chOpp && chChars().some(c => c.id === chOpp) ? { opp: chOpp } : {}) })) { started = true; chRes = null; intro = false; chSel = -1; chPromo = null; msg = ['', 'Kamu putih. Mulai dengan melangkah pion dua kotak (e2-e4 misalnya).']; }
   } catch (e) { msg = [e.message || 'Gagal memulai, coba lagi.', 'err']; }
   chSayTok++; chSaying = false; busy = false; render();
   if (started) csay(); // sapaan pembuka dari lawan (kalau dia mau)
@@ -582,6 +623,7 @@ async function cmove(from, to, promo, drop) {
       // 2) saatnya: bidak AI meluncur (kalau keadaan sudah diganti fetch lain, keadaan server memang sudah final — tidak perlu apa-apa)
       if (cs.game === mid) {
         cs.game = fin;
+        if (fin.result) chResOpen(fin);
         if (fin.result) msg = fin.result.won === 'w' ? ['Menang! ' + (CH_END[fin.result.reason] || '')] : fin.result.won === 'd' ? ['Seri.'] : ['Kalah. ' + (CH_END[fin.result.reason] || '')];
         else msg = ['AI: ' + (aiNote || sq2name(from) + ' ok') + (fin.check >= 0 ? ' · kamu diskak!' : ''), ''];
         if (!chReduce() && aiNote) chPlan = chAiPlan(mid.board, fin);
@@ -599,7 +641,7 @@ async function cresign() {
   if (busy || !cs || !cs.game || !cs.game.active) return;
   busy = true;
   let done = false;
-  try { await callC('chess/resign'); done = true; msg = ['Kamu menyerah. Coba lagi dengan tingkat yang lebih ringan?', '']; }
+  try { await callC('chess/resign'); done = true; chResOpen(cs.game); msg = ['Kamu menyerah. Coba lagi dengan tingkat yang lebih ringan?', '']; }
   catch (e) { msg = [e.message || 'Gagal menyerah, coba lagi.', 'err']; }
   busy = false; render();
   if (done) csay();
@@ -728,7 +770,10 @@ body.addEventListener('click', e => {
   else if (a === 'pskip') pic('pic/start', { skip: true }, 'Gagal melewati soal, coba lagi.');
   else if (a === 'phint') pic('pic/hint', {}, 'Gagal membuka petunjuk, coba lagi.');
   else if (a === 'pguess') pguess();
-  else if (a === 'chnew') { intro = true; msg = ['', '']; chSel = -1; chPromo = null; render(); } // kembali ke pilihan tingkat
+  else if (a === 'cresclose') { if (chRes) chRes.open = false; render(); }
+  else if (a === 'crev') chOpenReview();
+  else if (a === 'cagain') { const g = cs && cs.game; if (g) { chOpp = g.opp || ''; chRes = null; cstart(g.level); } }
+  else if (a === 'chnew') { chRes = null; intro = true; msg = ['', '']; chSel = -1; chPromo = null; render(); } // kembali ke pilihan tingkat
   else if (a === 'copp') { chOpp = b.dataset.id || ''; try { localStorage.setItem('chessOpp', chOpp); } catch {} render(); }
   else if (a === 'cvoice') { const blob = chPendingAudio; chPendingAudio = null; if (blob) chVoicePlay(blob, false); chSayPaint(); }
   else if (a === 'cstart') cstart(b.dataset.lv);
