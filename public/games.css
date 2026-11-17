@@ -125,38 +125,75 @@
 .ch-lvl:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 .ch-lv{display:inline-block;margin-left:8px;padding:3px 10px;border-radius:99px;background:var(--bg);font-size:11.5px;font-weight:500;color:var(--mut);vertical-align:middle}
 
-.ch-caps{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;margin-top:14px;font-size:13px}
-.ch-cp{display:flex;align-items:center;gap:6px;min-height:22px;color:var(--mut);font-family:'Segoe UI Symbol','Noto Sans Symbols 2','Apple Symbols','DejaVu Sans',sans-serif}
-.ch-cp i{font-style:normal;font-size:17px;line-height:1;letter-spacing:1px}
-.ch-cp b{font-size:11.5px;font-weight:600}
-.ch-cp.ai{justify-content:flex-end}
-.ch-turn{font-weight:600;font-size:12.5px;color:var(--mut);text-align:center;white-space:nowrap}
-.ch-turn.is-think{color:var(--txt)} /* lawan sedang mikir: sedikit lebih menonjol + titiknya berdenyut halus */
-@media(prefers-reduced-motion:no-preference){.ch-turn.is-think{animation:chthink 1.6s infinite ease-in-out}@keyframes chthink{50%{opacity:.55}}}
+/* ---- kartu pemain: dipakai catur vs AI dan Catur Multiplayer (kelas cm-pl*; jangan disalin ke chessmp.css) ----
+   Semua anak flex diberi min-width:0 supaya bidak tertangkap / nama panjang tidak mendorong lebar layar (penyebab meluber di HP). */
+.cm-pl{display:flex;align-items:center;gap:10px;min-width:0;padding:8px 12px;border-radius:14px;background:var(--surface);transition:box-shadow .2s}
+.cm-pl.turn{box-shadow:inset 0 0 0 2px var(--ink)}
+.cm-pl-av{flex:none;width:34px;height:34px;border-radius:50%;background:var(--bg);display:grid;place-items:center;overflow:hidden;font-size:13px;font-weight:700;color:var(--mut)}
+.cm-pl-av img{width:100%;height:100%;object-fit:cover;display:block}
+.cm-pl-m{flex:0 1 auto;max-width:48%;min-width:0;display:flex;align-items:center;gap:7px}   /* nama dapat ruang wajar; sisanya untuk bidak tertangkap */
+.cm-pl-m b{min-width:0;font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cm-pl-m .ch-lv{flex:none;margin-left:0}
+.cm-pres{flex:none;width:9px;height:9px;border-radius:50%;background:var(--line)}
+.cm-pres.on{background:var(--ok)}
+.cm-pp{flex:1 1 0;min-width:0;display:flex;align-items:center;justify-content:flex-end;gap:8px}
+.cm-pc{flex:0 1 auto;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:14px;line-height:1.3;letter-spacing:-2px;
+  font-family:'Segoe UI Symbol','Noto Sans Symbols 2','Apple Symbols','DejaVu Sans',sans-serif}
+.cm-pc.w{color:#fffaf0;text-shadow:1px 0 0 #3b2a1c,-1px 0 0 #3b2a1c,0 1px 0 #3b2a1c,0 -1px 0 #3b2a1c}   /* bidak PUTIH yang tertangkap tampil putih */
+.cm-pc b{font:700 11px/1 system-ui,sans-serif;letter-spacing:0;margin-left:5px;color:var(--mut);text-shadow:none}
+.cm-turnchip{flex:none;padding:4px 10px;border-radius:99px;background:var(--bg);font-size:11px;font-weight:600;color:var(--mut);white-space:nowrap}
+.cm-turnchip.me{background:var(--ink);color:var(--bg)}
+.cm-turnchip.chk{background:#d54a38;color:#fff}
+@media(prefers-reduced-motion:no-preference){.cm-turnchip.is-think{animation:chthink 1.6s infinite ease-in-out}@keyframes chthink{50%{opacity:.5}}}
 
-.ch-bwrap{display:flex;gap:5px;margin-top:12px}
-.ch-ranks{display:flex;flex-direction:column;flex:none;width:14px}
-.ch-ranks span{flex:1;display:grid;place-items:center;font-size:10px;color:var(--mut)}
-.ch-mid{flex:1;min-width:0}
-.ch-board{display:grid;grid-template-columns:repeat(8,1fr);width:100%;max-width:480px;margin:0 auto;border-radius:14px;overflow:hidden;box-shadow:0 2px 14px rgba(0,0,0,.18)}
-.ch-sq{position:relative;aspect-ratio:1;padding:0;border:0;background:#ecdfc4;font:inherit;-webkit-tap-highlight-color:transparent}
-.ch-sq.ch-d{background:#b58863}
+/* ---- layout layar bermain (AI: .ch-stage; Multiplayer: .cm-game) ---- */
+.ch-stage{margin-top:6px;display:grid;grid-template-columns:minmax(0,1fr);gap:14px;min-width:0}
+.ch-main{min-width:0;display:flex;flex-direction:column;gap:8px}
+.ch-main .gm-msg{margin-top:0;min-height:0}.ch-main .gm-msg:empty{display:none}
+.ch-main .ch-acts{margin-top:0}
+.ch-main .gm-result{background:var(--surface)}
+.ch-main .gm-prize{background:var(--bg)}
+.ch-side{min-width:0}
+.ch-side .gm-info{margin-top:0}
+@media(min-width:900px){.ch-stage{grid-template-columns:minmax(0,520px) minmax(240px,1fr);align-items:start}.ch-stage .ch-side{position:sticky;top:16px}}
+/* HP: header "Minigame" + saldo disembunyikan selagi bermain supaya papan tampil utuh tanpa scroll (kelas dipasang games.js / chessmp.js) */
+@media(max-width:799px){
+  #games.ch-ingame .gm-top{display:none}
+  #games.ch-ingame .gm-in{padding-top:calc(6px + env(safe-area-inset-top,0px))}
+  #games.ch-ingame .gm-back{margin-top:2px}
+}
+
+/* ---- papan ----
+   Koordinat (a-h, 1-8) ada DI DALAM kotak (i.ch-co) seperti aplikasi catur modern, jadi papan memakai seluruh lebar. Tidak ada overflow:hidden
+   di papan (bidak yang diseret harus bisa keluar dari tepinya); sudut membulat lewat 4 kotak pojok. */
+.ch-bwrap{margin-top:0}
+.ch-ranks,.ch-files{display:none}
+.ch-mid{min-width:0}
+.ch-board{--ch-l:#f0dcb8;--ch-d:#b58863;position:relative;display:grid;grid-template-columns:repeat(8,minmax(0,1fr));width:100%;max-width:520px;margin:0 auto;
+  border-radius:10px;box-shadow:0 0 0 4px #4a3626,0 14px 30px rgba(0,0,0,.22);container-type:inline-size}
+.ch-sq{position:relative;aspect-ratio:1;min-width:0;padding:0;border:0;background:var(--ch-l);font:inherit;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+.ch-sq.ch-d{background:var(--ch-d)}
+.ch-sq:nth-child(1){border-top-left-radius:10px}.ch-sq:nth-child(8){border-top-right-radius:10px}
+.ch-sq:nth-child(57){border-bottom-left-radius:10px}.ch-sq:nth-child(64){border-bottom-right-radius:10px}
 .ch-sq:not(:disabled){cursor:pointer}
 .ch-sq:disabled{cursor:default}
 .ch-sq:focus-visible{outline:2px solid var(--ink);outline-offset:-2px;z-index:1}
-.ch-p{position:absolute;inset:0;display:grid;place-items:center;font-size:min(8.5vw,46px);line-height:1;user-select:none;-webkit-user-select:none;
-  font-family:'Segoe UI Symbol','Noto Sans Symbols 2','Apple Symbols','DejaVu Sans',serif}
-.ch-p.ch-w{color:#faf6ec;text-shadow:0 1px 0 #6b5136,0 0 2px rgba(64,44,22,.9)}
-.ch-p.ch-b{color:#2b2420;text-shadow:0 1px 1px rgba(255,246,224,.22)}
-.ch-sq.ch-last{background-image:linear-gradient(rgba(255,208,74,.36),rgba(255,208,74,.36))}
-.ch-sq.ch-sel{background-image:linear-gradient(rgba(255,208,74,.55),rgba(255,208,74,.55))}
+.ch-co{position:absolute;z-index:1;font:700 10px/1 system-ui,-apple-system,'Segoe UI',sans-serif;font-style:normal;pointer-events:none}
+.ch-co.r{left:3px;top:3px}.ch-co.f{right:3px;bottom:2px}
+.ch-l .ch-co{color:var(--ch-d)}.ch-d .ch-co{color:var(--ch-l)}
+.ch-p{position:absolute;inset:0;display:grid;place-items:center;font-size:min(8.8vw,48px);line-height:1;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;
+  font-family:'Segoe UI Symbol','Noto Sans Symbols 2','Apple Symbols','DejaVu Sans',serif;font-variant-emoji:text}
+@supports (font-size:1cqw){.ch-p{font-size:10.4cqw}}
+/* putih: isi krem + garis tepi gelap tipis; hitam: isi gelap + pantulan halus. Sama di semua OS (glif dipaksa gaya teks, bukan emoji) */
+.ch-p.ch-w{color:#fffaf0;text-shadow:1px 0 0 #3b2a1c,-1px 0 0 #3b2a1c,0 1px 0 #3b2a1c,0 -1px 0 #3b2a1c,0 3px 4px rgba(40,24,10,.4)}
+.ch-p.ch-b{color:#201a16;text-shadow:0 1px 0 rgba(255,244,220,.2),0 3px 4px rgba(40,24,10,.4)}
+.ch-sq.ch-last{background-image:linear-gradient(rgba(255,208,74,.4),rgba(255,208,74,.4))}
+.ch-sq.ch-sel{background-image:linear-gradient(rgba(255,208,74,.6),rgba(255,208,74,.6))}
 .ch-sq.ch-chk{background-image:radial-gradient(circle at 50% 45%,#ff6b52 0%,#e04a33 75%)}
 .ch-sq.ch-dot::before{content:'';position:absolute;left:50%;top:50%;width:27%;height:27%;transform:translate(-50%,-50%);border-radius:50%;background:rgba(24,18,10,.3)}
-.ch-sq.ch-d.ch-dot::before{background:rgba(250,246,236,.4)}
-.ch-sq.ch-cap::before{content:'';position:absolute;inset:7%;border-radius:50%;border:4px solid rgba(24,18,10,.35)}
-.ch-sq.ch-d.ch-cap::before{border-color:rgba(250,246,236,.45)}
-.ch-files{display:flex;max-width:480px;margin:4px auto 0}
-.ch-files span{flex:1;text-align:center;font-size:10px;color:var(--mut)}
+.ch-sq.ch-d.ch-dot::before{background:rgba(250,246,236,.42)}
+.ch-sq.ch-cap::before{content:'';position:absolute;inset:6%;border-radius:50%;border:4px solid rgba(24,18,10,.35)}
+.ch-sq.ch-d.ch-cap::before{border-color:rgba(250,246,236,.48)}
 
 .ch-promo{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:8px;margin-top:12px;font-size:13px}
 .ch-pr{width:52px;height:52px;border-radius:14px;background:var(--bg);font-size:30px;line-height:1;color:var(--ink);
@@ -168,11 +205,19 @@
 .ch-acts .gm-ghost[data-arm]{color:#d54a38;font-weight:600}
 
 .ch-hist{margin-top:10px;max-height:300px;overflow-y:auto;scrollbar-width:thin;display:flex;flex-direction:column;gap:2px}
-.ch-mv{display:grid;grid-template-columns:36px 1fr 1fr;gap:4px;padding:5px 10px;border-radius:10px;font-size:13px;font-variant-numeric:tabular-nums}
+.ch-mv{display:grid;grid-template-columns:32px 1fr 1fr;gap:4px;padding:3px 10px;border-radius:10px;font-size:13px;font-variant-numeric:tabular-nums}
 .ch-mv span:first-child{color:var(--mut);font-size:12px}
 .ch-mv span:nth-child(3){color:var(--mut)}
 @media(min-width:800px){.ch-hist{max-height:420px}}
+@media(max-width:899px){.ch-side .ch-hist{max-height:190px}}
 
+/* Catur vs AI: drag & drop (games.js, bagian "Catur: drag & drop"). Hanya kotak dengan bidakmu yang bisa jalan yang menolak scroll jari. */
+.ch-sq.ch-mine{touch-action:none}
+.ch-sq.ch-mine:not(:disabled){cursor:grab}
+.ch-sq.ch-lift .ch-p{opacity:.3;animation:none}
+.ch-sq.ch-over{box-shadow:inset 0 0 0 3px rgba(255,255,255,.85)}
+.ch-p.ch-drag{position:fixed;inset:auto;left:0;top:0;margin:0;z-index:300;pointer-events:none;will-change:transform;transform-origin:50% 50%;filter:drop-shadow(0 8px 10px rgba(0,0,0,.35))}
+body.ch-dragging,body.ch-dragging *{cursor:grabbing!important}
 /* Catur: animasi (logika gerak bidak di games.js, bagian "Catur: animasi") */
 .ch-sq.ch-fly{z-index:4}
 .ch-ghost{pointer-events:none}

@@ -18,7 +18,7 @@ const vibrate = n => { if (navigator.vibrate) try { navigator.vibrate(n) } catch
 const inTab = () => app.dataset.tab === 'games';
 
 /* ---------- konstanta catur (pola dari games.js game vs AI) ---------- */
-const CH_G = { k: '\u265A', q: '\u265B', r: '\u265C', b: '\u265D', n: '\u265E', p: '\u265F' };
+const CH_G = { k: '\u265A\uFE0E', q: '\u265B\uFE0E', r: '\u265C\uFE0E', b: '\u265D\uFE0E', n: '\u265E\uFE0E', p: '\u265F\uFE0E' };
 const CH_NAME = { k: 'raja', q: 'ratu', r: 'benteng', b: 'gajah', n: 'kuda', p: 'pion' };
 const CH_VAL = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
 const isW = p => p >= 'A' && p <= 'Z';
@@ -122,7 +122,7 @@ function boardHtml(board, o) {
   const flipOn = !!o.flip;
   const ranks = flipOn ? [1, 2, 3, 4, 5, 6, 7, 8] : [8, 7, 6, 5, 4, 3, 2, 1];
   const files = flipOn ? 'hgfedcba'.split('') : 'abcdefgh'.split('');
-  let h = '<div class="ch-bwrap cm-bwrap"><div class="ch-ranks" aria-hidden="true">' + ranks.map(n => '<span>' + n + '</span>').join('') + '</div><div class="ch-mid"><div class="ch-board cm-board" data-cm-board>';
+  let h = '<div class="ch-bwrap cm-bwrap"><div class="ch-mid"><div class="ch-board cm-board" data-cm-board role="grid" aria-label="Papan catur">';
   const targets = o.targets || [];
   for (let g = 0; g < 64; g++) {
     const i = flipOn ? 63 - g : g;
@@ -134,9 +134,10 @@ function boardHtml(board, o) {
     if (targets.includes(i)) cls.push(p !== '.' ? 'ch-cap' : 'ch-dot');
     const nm = p !== '.' ? CH_NAME[p.toLowerCase()] + ' ' + (isW(p) ? 'putih' : 'hitam') : 'kosong';
     h += '<button type="button" class="' + cls.join(' ') + '" data-cm-sq data-i="' + i + '" aria-label="' + sqName(i) + ', ' + nm + '"' + (o.interactive ? '' : ' disabled') + '>' +
+      ((g & 7) === 0 ? '<i class="ch-co r" aria-hidden="true">' + ranks[g >> 3] + '</i>' : '') + ((g >> 3) === 7 ? '<i class="ch-co f" aria-hidden="true">' + files[g & 7] + '</i>' : '') + // koordinat mengikuti orientasi papan (g = urutan tampil)
       (p !== '.' ? '<span class="ch-p ' + (isW(p) ? 'ch-w' : 'ch-b') + '" aria-hidden="true">' + CH_G[p.toLowerCase()] + '</span>' : '') + '</button>';
   }
-  h += (o.arrows || '') + '</div><div class="ch-files" aria-hidden="true">' + files.map(f => '<span>' + f + '</span>').join('') + '</div></div></div>';
+  h += (o.arrows || '') + '</div></div></div>';
   return h;
 }
 
@@ -193,6 +194,7 @@ function render() {
   if (drag) { pendingPaint = true; return; }
   const b = host();
   if (!b) return;
+  const gm = $('games'); if (gm) gm.classList.toggle('ch-ingame', view === 'game' || view === 'review' || view === 'replay'); // HP: header Minigame disembunyikan agar papan tampil utuh
   b.innerHTML = view === 'game' ? gameScreen()
     : view === 'host' ? hostScreen()
     : view === 'review' ? reviewScreen()
@@ -328,7 +330,7 @@ function gameScreen() {
       '<span class="cm-pl-m"><b>' + esc((who && who.name) || (c === 'w' ? 'Putih' : 'Hitam')) + (isMe ? ' (kamu)' : '') + '</b>' +
       (isMe ? '' : '<span class="cm-pres' + (online ? ' on' : '') + '" title="' + (online ? 'Lawan online' : 'Lawan tampak offline') + '"></span>') + '</span>' +
       '<span class="cm-pp" style="display:flex;align-items:center;gap:8px">' +
-      '<span class="cm-pc" style="font-family:' + "'Segoe UI Symbol','Noto Sans Symbols 2','DejaVu Sans',serif" + '">' + capStr(mine) + (diff !== 0 && (c === 'w' ? diff > 0 : diff < 0) ? ' <b>+' + Math.abs(diff) + '</b>' : '') + '</span>' +
+      '<span class="cm-pc' + (c === 'b' ? ' w' : '') + '" style="font-family:' + "'Segoe UI Symbol','Noto Sans Symbols 2','DejaVu Sans',serif" + '">' + capStr(mine) + (diff !== 0 && (c === 'w' ? diff > 0 : diff < 0) ? ' <b>+' + Math.abs(diff) + '</b>' : '') + '</span>' +
       '<span class="cm-turnchip' + (turn ? (c === g.you ? ' me' : '') : '') + '">' + (turn ? (c === g.you ? 'Giliranmu' : 'Lawan') : (c === 'w' ? 'putih' : 'hitam')) + '</span></span></div>';
   };
   const arrows = [];
