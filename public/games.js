@@ -248,7 +248,7 @@ function chessScreen() {
       : r.won === 'd' ? '<h3>Seri</h3><p>' + esc(CH_END[r.reason] || r.reason) + '.</p>' +
         (g.reward ? '<div class="gm-prize"><img src="/coin.svg" alt="">+' + nf.format(g.reward) + ' coin</div>' : '')
         : '<h3>Kalah</h3><p>' + esc(CH_END[r.reason] || r.reason) + '.</p>') +
-    '</div><button class="gm-btn full" type="button" data-act="chnew">Main lagi</button>';
+    '</div>' + (chRes && chRes.rv ? '<button class="gm-btn full" type="button" data-act="crev">Game Review</button>' : chRes && chRes.loading ? '<p class="gm-cap">Menganalisis permainan…</p>' : '') + '<button class="' + (chRes && chRes.rv ? 'gm-ghost' : 'gm-btn') + ' full" type="button" data-act="chnew">Main lagi</button>';
 
   // pilihan bidak promosi (muncul saat pion mencapai kotak terakhir)
   const promo = chPromo ? '<div class="ch-promo"><span>Pionnya jadi apa?</span>' +
