@@ -1,0 +1,89 @@
+/* ===== Minigame Word Search (layar 'ws' di tab Minigame) =====
+   Logika di wordsearch.js. Kerangka layar (gm-panel, gm-intro, gm-info, gm-btn, ...) memakai games.css; di sini hanya papan, daftar kata, dan panel waktu.
+   Hanya memakai variabel tema yang sudah ada (--bg --surface --ink --mut --line --ok --rec), jadi otomatis ikut terang/gelap.
+   Susunan layar lebar mengikuti game word search klasik: daftar kata di kiri, papan di tengah, waktu + tombol di kanan.
+   Layar sempit (HP): waktu, papan, daftar kata, lalu tombol. */
+
+#games.ws-on .gm-in{max-width:1000px}
+.ws-cq{container-type:inline-size;margin-top:10px}   /* wadah untuk @container; elemen tidak bisa meng-query dirinya sendiri */
+.ws-wrap{display:grid;gap:12px;grid-template-columns:minmax(0,1fr);grid-template-areas:"time" "board" "words" "acts"}
+.ws-wrap>*{min-width:0}
+
+/* waktu */
+.ws-time{grid-area:time;display:flex;align-items:stretch;gap:8px;padding:12px 14px;border-radius:22px;background:var(--surface)}
+.ws-time>div{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.ws-time span{font-size:12px;font-weight:500;color:var(--mut)}
+.ws-time b{font-size:30px;font-weight:800;letter-spacing:-.03em;line-height:1.1;font-variant-numeric:tabular-nums}
+.ws-time b.sm{font-size:18px;font-weight:700;line-height:1.5}
+.ws-time>div:first-child{flex:1.3}
+
+/* papan */
+.ws-stage{grid-area:board;display:flex;flex-direction:column;align-items:stretch;min-width:0}
+.ws-board{position:relative;width:min(100%,560px);aspect-ratio:1;margin:0 auto;padding:clamp(6px,2vw,14px);border-radius:22px;background:var(--surface);
+  container-type:inline-size;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;outline:none;cursor:pointer}
+.ws-board:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+.ws-grid,.ws-lines{position:absolute;inset:clamp(6px,2vw,14px);width:calc(100% - 2 * clamp(6px,2vw,14px));height:calc(100% - 2 * clamp(6px,2vw,14px))}
+.ws-grid{display:grid;grid-template-columns:repeat(var(--n),1fr);grid-template-rows:repeat(var(--n),1fr);pointer-events:none}
+.ws-grid b{display:grid;place-items:center;border-radius:50%;font-size:calc(100cqw / var(--n) * .46);font-weight:800;line-height:1;color:var(--ink);font-variant-numeric:tabular-nums}
+.ws-grid b.hint{box-shadow:inset 0 0 0 2px var(--ink)}
+.ws-lines{pointer-events:none;overflow:visible}
+.ws-lines line{stroke-linecap:round;stroke-width:.78}
+.ws-fl{stroke:var(--ok);opacity:.3}
+.ws-fl.rv{stroke:var(--mut);opacity:.32}
+.ws-fl.new{animation:wsin .32s ease-out}
+.ws-sl{stroke:var(--ink);opacity:.2}
+.ws-sl.bad{stroke:var(--rec);opacity:.35}
+@keyframes wsin{from{opacity:0;stroke-width:.2}}
+.ws-board.paused .ws-grid,.ws-board.paused .ws-lines{visibility:hidden}
+.ws-board.over{cursor:default}
+.ws-stage .gm-msg{min-height:20px}
+
+/* overlay jeda / selesai */
+.ws-ov{position:absolute;inset:0;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:20px;text-align:center;border-radius:22px;
+  background:color-mix(in srgb,var(--surface) 88%,transparent);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);animation:wsfade .3s ease both}
+.ws-ov h3{font-size:30px;font-weight:800;letter-spacing:-.03em}
+.ws-ov p{max-width:30ch;font-size:13.5px;line-height:1.45;color:var(--mut)}
+.ws-ov .gm-btn{margin-top:6px}
+.ws-ov .gm-prize{margin-top:2px;background:var(--bg)}
+.ws-ovnote{font-size:12.5px}
+@keyframes wsfade{from{opacity:0}}
+
+/* daftar kata */
+.ws-words{grid-area:words;padding:14px 16px;border-radius:22px;background:var(--surface)}
+.ws-words h3{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-size:14px;font-weight:600}
+.ws-words h3 span{font-size:12.5px;font-weight:500;color:var(--mut);font-variant-numeric:tabular-nums}
+.ws-words ul{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:6px}
+.ws-words li{padding:6px 12px;border-radius:99px;background:var(--bg);font-size:13.5px;font-weight:700;letter-spacing:.02em;transition:opacity .2s,background .2s}
+.ws-words li.got{color:var(--mut);text-decoration:line-through;text-decoration-thickness:2px;opacity:.75}
+.ws-words li.got:not(.rv){background:color-mix(in srgb,var(--ok) 16%,var(--bg))}
+.ws-words li.rv{font-style:italic}
+
+/* tombol */
+.ws-acts{grid-area:acts;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;align-content:start}
+.ws-btn{display:flex;align-items:center;gap:10px;min-width:0;min-height:46px;padding:7px 14px 7px 7px;border-radius:99px;background:var(--surface);color:var(--ink);text-align:left;font-size:13.5px;font-weight:600;transition:transform .15s,background .2s,opacity .2s}
+.ws-btn:active:not(:disabled){transform:scale(.97)}
+@media(hover:hover){.ws-btn:not(:disabled):hover{background:var(--line)}}
+.ws-btn:disabled{opacity:.45;cursor:default}
+.ws-btn:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.ws-btn i{flex:none;width:32px;height:32px;border-radius:50%;background:var(--ink);color:var(--bg);display:grid;place-items:center}
+.ws-btn i svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.ws-btn span{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ws-btn small{font-size:11.5px;font-weight:500;color:var(--mut)}
+.ws-btn.on small{color:inherit;opacity:.7}
+.ws-btn.on,.ws-btn.on:not(:disabled):hover{background:var(--ink);color:var(--bg)}
+.ws-btn.on i{background:var(--bg);color:var(--ink)}
+
+/* layar lebar: kata | papan | waktu + tombol */
+@container (min-width:640px){
+  .ws-wrap{grid-template-columns:minmax(150px,200px) minmax(0,1fr) minmax(190px,220px);grid-template-rows:auto 1fr;grid-template-areas:"words board time" "words board acts";align-items:start;gap:14px}
+  .ws-words{height:100%}
+  .ws-words ul{flex-direction:column;flex-wrap:nowrap;gap:2px}
+  .ws-words li{padding:7px 4px;border-radius:0;background:none;font-size:15px}
+  .ws-words li.got:not(.rv){background:none}
+  .ws-time{flex-direction:column;gap:10px}
+  .ws-time .ws-cnt{display:none}
+  .ws-time b{font-size:36px}
+  .ws-acts{grid-template-columns:minmax(0,1fr)}
+}
+@media(max-width:380px){.ws-time b{font-size:26px}.ws-time b.sm{font-size:16px}.ws-btn{font-size:12.5px;padding-right:10px}}
+@media(prefers-reduced-motion:reduce){.ws-fl.new,.ws-ov{animation:none}}

@@ -21,6 +21,7 @@ const SVG = {
   cmp: '<svg viewBox="0 0 24 24"><circle cx="7.5" cy="7.6" r="2.5"/><path d="M5.9 10.2c-1 .8-1.7 2.1-1.7 3.5 0 .9.3 1.8.8 2.5l-1.1 1.9c-.2.3 0 .7.4.7h6.4M16.5 12.1a2.3 2.3 0 100-4.6 2.3 2.3 0 000 4.6z"/><path d="M14.9 12.5c-.9.7-1.4 1.8-1.4 3 0 .8.2 1.5.7 2.1l-1 1.7c-.1.3.1.6.4.6h5.8c.3 0 .5-.3.4-.6l-1-1.7c.4-.6.7-1.3.7-2.1 0-1.2-.5-2.3-1.4-3"/><path d="M3.5 21.5h17"/></svg>',
   slot: '<svg viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="14" rx="3.5"/><path d="M6.5 9.5h3M6.5 12.5h3M6.5 15.5h3"/><circle cx="15.5" cy="10" r="1.6"/><circle cx="15.5" cy="15" r="1.6"/><path d="M6 19v1.8M18 19v1.8"/></svg>',
   g2048: '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><path d="M14 17h6M17 14v6"/></svg>',
+  ws: '<svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21M8 10.5h5"/></svg>',
   soon: '<svg viewBox="0 0 24 24"><path d="M6 12h4M8 10v4M15 13h.01M18 11h.01"/><path d="M17.32 5H6.68a4 4 0 00-3.98 3.59C2.6 9.42 2 14.46 2 16a3 3 0 003 3c1 0 1.5-.5 2-1l1.41-1.41A2 2 0 019.83 16h4.34a2 2 0 011.41.59L17 18c.5.5 1 1 2 1a3 3 0 003-3c0-1.55-.6-6.58-.68-7.26A4 4 0 0017.32 5z"/></svg>'
 };
 // daftar game. ready:false = kartu "segera hadir" (belum bisa dibuka)
@@ -31,6 +32,7 @@ const GAMES = [
   { id: 'chessmp', ready: true, icon: SVG.cmp, title: 'Catur Multiplayer', desc: 'Lawan teman lewat kode ruangan: sinkron real-time, analisis langkah, statistik, dan replay.' },
   { id: 'slot', ready: true, icon: SVG.slot, title: 'Fruit Slot', desc: 'Slot buah arcade 3x3: combo x7 membuka Bonus Session. Mode Demo gratis pakai virtual point, mode Paid beneran bayar pakai Chip.' },
   { id: 'g2048', ready: true, icon: SVG.g2048, title: '2048', desc: 'Geser dan gabungkan tile sampai 2048. Tiap tile target yang tercapai memberi coin.' },
+  { id: 'ws', ready: true, icon: SVG.ws, title: 'Word Search', desc: 'Cari semua kata tersembunyi di papan huruf secepat mungkin. Makin cepat selesai, makin besar coinnya.' },
   { id: 'soon', ready: false, icon: SVG.soon, title: 'Segera hadir', desc: 'Minigame lain lagi disiapkan.' }
 ];
 
@@ -314,6 +316,7 @@ function render() {
   if (!aOn) { body.innerHTML = empty('Minigame belum tersedia', 'Fitur akun belum aktif di server ini, jadi coin hasil main belum bisa disimpan.'); return; }
   if (!atok) { body.innerHTML = empty('Masuk dulu ya', 'Coin hasil main tersimpan di akunmu, jadi kamu perlu masuk atau daftar dulu.', '<button class="gm-btn" type="button" data-act="login">Masuk / Daftar</button>'); return; }
   if (screen === 'slot' && window.SLOT) { SLOT.render(body); return; } // Fruit Slot punya keadaan & pemuatan sendiri (public/slot.js)
+  if (screen === 'ws' && window.WSRCH) { WSRCH.render(body); return; } // Word Search punya keadaan & pemuatan sendiri (public/wordsearch.js)
   if (screen === 'g2048' && window.G2048) { G2048.render(body); return; } // 2048 punya keadaan & pemuatan sendiri (public/g2048.js)
   if (screen === 'chessmp' && window.CHMP) { CHMP.render(body); return; } // Catur Multiplayer punya keadaan & polling sendiri (public/chessmp.js)
   if (!st) { body.innerHTML = failed ? empty('Gagal memuat', failed, '<button class="gm-btn" type="button" data-act="retry">Coba lagi</button>') : empty('Memuat…'); return; }
@@ -764,8 +767,8 @@ body.addEventListener('pointerdown', e => {
 body.addEventListener('click', e => {
   const b = e.target.closest('[data-act]'); if (!b || b.disabled) return;
   const a = b.dataset.act;
-  if (a === 'open') { screen = b.dataset.g; intro = true; msg = ['', '']; chSel = -1; chPromo = null; render(); if (screen === 'pic' && (!ps || picFail)) fetchPic().then(render); if (screen === 'chess' && (!cs || csFail)) fetchChess().then(render); if (screen === 'slot' && window.SLOT) SLOT.enter(); if (screen === 'g2048' && window.G2048) G2048.enter(); if (screen === 'chessmp' && window.CHMP) CHMP.enter(); }
-  else if (a === 'hub') { screen = 'hub'; intro = true; msg = ['', '']; chSel = -1; chPromo = null; if (window.SLOT) SLOT.leave(); if (window.G2048) G2048.leave(); if (window.CHMP) CHMP.leave(); render(); }
+  if (a === 'open') { screen = b.dataset.g; intro = true; msg = ['', '']; chSel = -1; chPromo = null; render(); if (screen === 'pic' && (!ps || picFail)) fetchPic().then(render); if (screen === 'chess' && (!cs || csFail)) fetchChess().then(render); if (screen === 'slot' && window.SLOT) SLOT.enter(); if (screen === 'g2048' && window.G2048) G2048.enter(); if (screen === 'ws' && window.WSRCH) WSRCH.enter(); if (screen === 'chessmp' && window.CHMP) CHMP.enter(); }
+  else if (a === 'hub') { screen = 'hub'; intro = true; msg = ['', '']; chSel = -1; chPromo = null; if (window.SLOT) SLOT.leave(); if (window.G2048) G2048.leave(); if (window.WSRCH) WSRCH.leave(); if (window.CHMP) CHMP.leave(); render(); }
   else if (a === 'play') { intro = false; msg = ['', '']; render(); }
   else if (a === 'start') { intro = false; start(); }
   else if (a === 'guess') guess();
