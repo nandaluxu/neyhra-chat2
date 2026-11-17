@@ -68,6 +68,8 @@ Ditulis oleh: `lib/auth.js` (register), `lib/bonus.js`, `lib/games.js`, `lib/pic
   invited, refBy, refAt,  // jumlah undangan / pemilik kode yang dipakai / waktunya
   // --- games (lib/games.js, lib/picgame.js) ---
   gameDay, gameWins,      // kemenangan berhadiah Tebak Angka hari itu (anti farming)
+  g48Day, g48Coins,       // coin dari 2048 hari itu (batas harian, lib/g2048.js)
+  g48Best, g48Max,        // skor terbaik & tile terbesar 2048 (hanya naik; dipakai Peringkat)
   picDay, picWins, picDone,
   // --- profil (lib/profile.js) ---
   bio,                    // maks 120 char
@@ -120,11 +122,12 @@ Index: `{username:1} unique`, `{refCode:1} unique sparse`, `{createdAt:-1}`.
 `lib/games.js` (Tebak Angka) + `lib/picgame.js` (Tebak Gambar). Satu dokumen per user per game:
 - `"<userId>:guess"` → `{secret, hist:[{n,r}], done, won, reward, exp}`
 - `"<userId>:pic"` → `{id soal, hist:[{t}], hint, done, won, reward, exp}`
+- `"<userId>:g2048"` → `{b:[16 angka], score, moves, over, won, max, claimed:[tile...], earned}` (`lib/g2048.js`). Papan, tile baru (acak `crypto.randomInt`), skor, dan klaim hadiah tile **hanya diputuskan server**; client hanya mengirim arah geser. `moves` dipakai sebagai penjaga atomik (dua geseran bersamaan tidak bisa lolos untuk langkah yang sama); `claimed` mencegah hadiah tile yang sama dibayar dua kali dalam satu permainan.
 - Angka rahasia, jawaban, dan penilaian **hanya di sini** (client tidak pernah menerima jawaban sebelum selesai). Index TTL `exp` **24 jam**.
 
 ### 1.7b `lb_stats` — penghitung game untuk tab Peringkat
-`lib/leaderboard.js`. `{ _id: userId, c: { guessTries, guessPlayed, guessWon, picTries, picPlayed, picWon, chessPlayed, chessWon } }`.
-- Ditambah lewat `bump()` dari `lib/games.js` (tiap tebakan), `lib/picgame.js` (tiap jawaban), `lib/chess.js` (partai selesai/menyerah). Mulai dari 0 sejak fitur aktif.
+`lib/leaderboard.js`. `{ _id: userId, c: { guessTries, guessPlayed, guessWon, picTries, picPlayed, picWon, chessPlayed, chessWon, g48Played, g48Won } }`.
+- Ditambah lewat `bump()` dari `lib/games.js` (tiap tebakan), `lib/picgame.js` (tiap jawaban), `lib/chess.js` (partai selesai/menyerah), `lib/g2048.js` (permainan selesai / mencapai 2048). Skor terbaik 2048 dan tile terbesar dibaca langsung dari `users.g48Best` / `users.g48Max`. Mulai dari 0 sejak fitur aktif.
 - Peringkat lain memakai data yang sudah ada: `achv.c.chat|quests|maxLv`, `users.coins`, `users.slot.{demo,paid}.{spins,wins}`, dan `gc_messages` (dihitung per `au`, cache 90 dtk). Pengguna `hideStats` tidak ditampilkan.
 - Endpoint: `POST /api/auth/lb` (token opsional). Dihapus bersama akun lewat `purgeLb()`.
 

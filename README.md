@@ -111,6 +111,17 @@ R2_PUBLIC_URL=https://pub-xxxxxxxx.r2.dev
 
 Respons profil kini memuat `avatar` (alamat foto lengkap atau `''`); client memakainya langsung. Endpoint lama `GET /api/auth/avatar/:username` tetap ada untuk foto yang masih di MongoDB, dan mengalihkan (302) ke R2 kalau fotonya sudah di sana.
 
+## Minigame 2048
+
+Kartu **2048** di tab Minigame (`/games`). Papan 4×4, geser (swipe / tombol panah / WASD) dan gabungkan tile sama sampai 2048; setelah 2048 permainan boleh lanjut demi skor. Perlu akun (MongoDB aktif dan sudah masuk).
+
+- **Server yang memutuskan semuanya** (`lib/g2048.js`): papan, tile baru (2 peluang 90%, 4 peluang 10%), skor, game over, dan hadiah. Client (`public/g2048.js` + `g2048.css`) hanya mengirim arah dan menampilkan. Geseran dianimasikan seketika di client (logikanya cermin server, hanya untuk animasi); tile baru + skor resmi datang dari respons, dan kalau papan lokal berbeda dari server, layar otomatis disinkronkan ke server.
+- **Hadiah**: tiap tile target yang BARU tercapai dalam satu permainan memberi coin sekali (128 = 10, 256 = 25, 512 = 60, 1.024 = 120, 2.048 = 250). Total coin dari 2048 dibatasi **400/hari** (reset 00.00 WIB, field `users.g48Day/g48Coins`) supaya tidak bisa di-farm lewat skrip; lewat batas tetap bisa main, tanpa coin. Angka diatur di `G2048` (atas `lib/g2048.js`).
+- **Misi & Peringkat**: mencapai 2048 dihitung sebagai menang (misi harian "Menangkan minigame" + piala). Tab Peringkat → Game → **2048**: Skor terbaik, Tile terbesar, Permainan selesai, Mencapai 2048.
+- **API** (POST, Bearer): `/api/auth/g2048`, `/g2048/start`, `/g2048/move` (body `{ d: 'up'|'down'|'left'|'right' }`). Pembatas laju: 400 geseran/menit, 20 permainan baru/menit.
+- **Tes**: `node scripts/g2048-e2e.mjs` (Mongo palsu di memori; mengecek konsistensi papan, hadiah per tile, klaim ganda, batas harian, kemenangan).
+- **Menambah/ubah**: kartu hub + hook ada di `public/games.js` (cari `g2048`), file dimuat di `public/index.html` setelah `slot.js`, router dipasang di `lib/auth.js` (`mountG2048`), metrik peringkat di `lib/leaderboard.js`.
+
 ## Bonus (klaim harian + kode referal)
 
 Tab ketiga di navbar (ikon hadiah), alamat `/bonus`. Perlu akun (MongoDB aktif dan sudah masuk); kalau belum, halamannya mengajak masuk. Semua hadiah dan saldo diputuskan server, browser cuma menampilkan.

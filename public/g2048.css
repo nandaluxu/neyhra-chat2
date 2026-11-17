@@ -1,0 +1,62 @@
+/* ===== Minigame 2048 (layar 'g2048' di tab Minigame) =====
+   Logika di g2048.js. Kerangka layar (gm-panel, gm-intro, gm-info, gm-btn, ...) memakai games.css; di sini hanya papan & tile.
+   Memakai variabel tema yang sudah ada (--bg --surface --ink --mut --line). Warna tile tetap (tidak ikut tema) supaya angka selalu terbaca. */
+
+.g48-panel{padding:16px 14px 18px}
+.g48-top{display:flex;align-items:stretch;gap:8px}
+.g48-box{position:relative;flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:1px;padding:8px 12px;border-radius:14px;background:var(--bg)}
+.g48-box span{font-size:11px;font-weight:500;letter-spacing:.04em;text-transform:uppercase;color:var(--mut)}
+.g48-box b{font-size:20px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.15}
+.g48-newb{flex:none;align-self:center;background:var(--bg);color:var(--ink)}
+.g48-newb[data-act]{font-weight:600}
+.g48-plus{position:absolute;right:10px;top:6px;font-style:normal;font-size:13px;font-weight:700;color:var(--ok);pointer-events:none;animation:g48plus .65s ease-out forwards}
+@keyframes g48plus{to{transform:translateY(-22px);opacity:0}}
+.g48-help{margin-top:10px;text-align:center}
+.g48-chip{display:inline-flex;align-items:center;gap:5px}
+
+/* papan */
+.g48-board{--g:clamp(6px,2.2vw,11px);position:relative;width:min(100%,440px);aspect-ratio:1;margin:14px auto 0;border-radius:18px;background:var(--line);
+  container-type:inline-size;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;outline:none}
+.g48-board:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+.g48-grid,.g48-tiles{position:absolute;inset:var(--g)}
+.g48-grid{display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(4,1fr);gap:var(--g)}
+.g48-grid i{border-radius:10px;background:var(--bg);opacity:.75}
+.g48-t{position:absolute;left:0;top:0;width:calc((100% - 3 * var(--g)) / 4);height:calc((100% - 3 * var(--g)) / 4);
+  transform:translate(calc(var(--c) * (100% + var(--g))),calc(var(--r) * (100% + var(--g))));transition:transform .115s ease-out;will-change:transform}
+.g48-v{width:100%;height:100%;display:grid;place-items:center;border-radius:10px;font-size:8cqw;font-weight:800;letter-spacing:-.03em;font-variant-numeric:tabular-nums;
+  background:#cdc1b4;color:#4a4036}
+.g48-v.d3{font-size:6.6cqw}.g48-v.d4{font-size:5.4cqw}.g48-v.d5{font-size:4.2cqw}
+.g48-v.v2{background:#eee4da;color:#776e65}
+.g48-v.v4{background:#ede0c8;color:#776e65}
+.g48-v.v8{background:#f2b179;color:#fff}
+.g48-v.v16{background:#f59563;color:#fff}
+.g48-v.v32{background:#f67c5f;color:#fff}
+.g48-v.v64{background:#f65e3b;color:#fff}
+.g48-v.v128{background:#edcf72;color:#fff;box-shadow:0 0 14px rgba(237,207,114,.35)}
+.g48-v.v256{background:#edcc61;color:#fff;box-shadow:0 0 16px rgba(237,204,97,.42)}
+.g48-v.v512{background:#edc850;color:#fff;box-shadow:0 0 18px rgba(237,200,80,.5)}
+.g48-v.v1024{background:#edc53f;color:#fff;box-shadow:0 0 20px rgba(237,197,63,.58)}
+.g48-v.v2048{background:#edc22e;color:#fff;box-shadow:0 0 24px rgba(237,194,46,.7)}
+.g48-v.vx,.g48-v.v4096,.g48-v.v8192{background:#3c3a32;color:#f9f6f2}
+.g48-v.pop{animation:g48pop .16s ease-out}
+.g48-v.new{animation:g48new .18s ease-out}
+@keyframes g48pop{50%{transform:scale(1.18)}}
+@keyframes g48new{from{transform:scale(.3);opacity:0}}
+.g48-board.shake{animation:g48shake .22s ease}
+@keyframes g48shake{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+
+/* overlay menang / kalah */
+.g48-ov{position:absolute;inset:0;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:20px;text-align:center;border-radius:18px;
+  background:color-mix(in srgb,var(--surface) 86%,transparent);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);animation:g48fade .3s ease both}
+.g48-ov h3{font-size:30px;font-weight:800;letter-spacing:-.03em}
+.g48-ov p{max-width:28ch;font-size:13.5px;line-height:1.45;color:var(--mut)}
+.g48-ov .gm-btn{margin-top:6px}
+.g48-ov .gm-prize{margin-top:2px;background:var(--bg)}
+@keyframes g48fade{from{opacity:0}}
+
+/* tabel hadiah: tile yang sudah tercapai di permainan ini */
+.gm-rw .g48-got{background:var(--ink);color:var(--bg)}
+.gm-rw .g48-got b{color:var(--bg)}
+
+@media(max-width:380px){.g48-box b{font-size:17px}.g48-top{gap:6px}}
+@media(prefers-reduced-motion:reduce){.g48-t{transition:none}.g48-v.pop,.g48-v.new,.g48-board.shake,.g48-plus,.g48-ov{animation:none}}
