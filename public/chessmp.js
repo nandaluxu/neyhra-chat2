@@ -72,7 +72,9 @@ let hintBusy = false;
 let busyMove = false;               // request move sedang berjalan (jangan double-submit)
 let msg = ['', ''];                 // [teks, kelas 'ok'|'err']
 let drawShownFor = null;            // tawaran seri yang modalnya sudah pernah ditampilkan
-let resultShown = false;            // modal hasil sudah ditampilkan untuk game ini
+let resultShown = false;            // modal hasil sudah ditutup untuk game ini
+let resultAnim = '';                // id game yang animasi modalnya sudah diputar
+let resCache = { id: '', loading: false, rv: null, rp: null, err: '' };   // analisis latar belakang untuk modal hasil
 let gameFrom = 'lobby';             // asal saat membuka review/replay (tombol kembali)
 let review = { loading: false, err: '', data: null, pos: null, ply: 0, gameId: '' };
 let replay = { loading: false, err: '', data: null, idx: -1, playing: false, gameId: '' };
@@ -376,19 +378,8 @@ function promoHtml() {
 function overlaysHtml() {
   let h = '';
   if (game && game.status !== 'active' && !resultShown && game.result && view === 'game') {
-    const r = game.result, mine = game.you;
-    const win = r.won === mine, draw = r.won === 'd', aborted = r.reason === 'abort';
-    resultShown = true;
-    h += '<div class="cm-ovl" data-cm-ovl="result" role="dialog" aria-modal="true"><div class="cm-modal">' +
-      '<h3>' + (aborted ? 'Permainan Dibatalkan' : win ? 'Kamu Menang!' : draw ? 'Seri' : 'Kamu Kalah') + '</h3>' +
-      (aborted ? '<p class="sub">Dibatalkan sebelum dua langkah — tidak dihitung dalam statistik.</p>'
-        : '<p class="sub">' + esc(REASONS[r.reason] || r.reason) + '</p><div class="cm-score">' + esc(r.score) + '</div>') +
-      '<div class="row">' + (game.status === 'done' && !aborted ? '' : '') +
-      (game.status === 'done' ? '<button class="gm-btn" type="button" data-cm="review" data-id="' + esc(game.id) + '">Analisis</button>' : '') +
-      '</div><div class="row">' +
-      (game.status === 'done' ? '<button class="gm-ghost" type="button" data-cm="replay" data-id="' + esc(game.id) + '">Putar ulang</button>' : '') +
-      (game.pgn ? '<button class="gm-ghost" type="button" data-cm="copypgn">Salin PGN</button>' : '') +
-      '<button class="gm-ghost" type="button" data-cm="closeovl">Tutup</button></div></div></div>';
+    h += resultModalHtml();
+    ensureResultReview();
   }
   if (game && game.draw && !game.draw.mine && drawShownFor !== game.draw.by + ':' + (game.draw.at || '') && game.status === 'active') {
     drawShownFor = game.draw.by + ':' + (game.draw.at || '');
@@ -397,6 +388,152 @@ function overlaysHtml() {
       '<div class="row"><button class="gm-btn" type="button" data-cm="drawaccept">Terima seri</button><button class="gm-ghost" type="button" data-cm="drawdecline">Tolak</button></div></div></div>';
   }
   return h;
+}
+
+/* ============================================================
+   MODAL HASIL + RINGKASAN REVIEW (gaya chess.com)
+   ============================================================ */
+const MARK = {
+  great: { c: '#6b9bd1', g: '!' }, best: { c: '#81b64c', g: 'star' }, excellent: { c: '#81b64c', g: 'thumb' },
+  mistake: { c: '#f0a037', g: '?' }, miss: { c: '#ee6b5e', g: 'x' }, blunder: { c: '#d93a32', g: '??' }
+};
+const MK_PATH = {
+  star: '<path d="M12 4.2l2.4 4.9 5.4.8-3.9 3.8.9 5.3-4.8-2.5-4.8 2.5.9-5.3-3.9-3.8 5.4-.8z" fill="#fff"/>',
+  thumb: '<path d="M8 11v8H5v-8zM10 11l3-6c1.4 0 2.2 1.1 1.9 2.4L14.4 10H19a1.6 1.6 0 011.6 1.9l-1.1 6A1.8 1.8 0 0117.8 19H10z" fill="#fff"/>',
+  x: '<path d="M8 8l8 8M16 8l-8 8" stroke="#fff" stroke-width="2.6" stroke-linecap="round" fill="none"/>'
+};
+function markIcon(k, size) {
+  const m = MARK[k]; if (!m) return '';
+  const body = MK_PATH[m.g] || '<text x="12" y="16.6" text-anchor="middle" font-size="' + (m.g.length > 1 ? 12 : 15) + '" font-weight="800" fill="#fff" font-family="system-ui,sans-serif">' + m.g + '</text>';
+  return '<svg class="cm-mk" viewBox="0 0 24 24" width="' + (size || 22) + '" height="' + (size || 22) + '" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="' + m.c + '"/>' + body + '</svg>';
+}
+const TROPHY = '<svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true"><path d="M7 3h10v5a5 5 0 01-10 0z" fill="#f5c542"/><path d="M7 5H4v1.5A3.5 3.5 0 007.6 10M17 5h3v1.5A3.5 3.5 0 0116.4 10" fill="none" stroke="#f5c542" stroke-width="1.6"/><path d="M11 13h2v3h-2zM8 19.5h8M9 16h6v3.5H9z" fill="#c9972a" stroke="#c9972a" stroke-width="1"/></svg>';
+
+/* estimasi rating permainan dari akurasi (perkiraan, bukan rating resmi) */
+function gameRating(acc) {
+  if (acc == null) return null;
+  const t = Math.max(0, (acc - 45) / 55);
+  return Math.max(100, Math.min(3200, Math.round((100 + 3100 * t * t) / 50) * 50));
+}
+const MAT_V = { n: 3, b: 3, r: 5, q: 9 };
+function nonPawnMat(board) { let t = 0; for (const ch of board) t += MAT_V[ch.toLowerCase()] || 0; return t; }
+
+/* fase permainan per langkah: Pembukaan (≤10 langkah), Endgame (material tinggal sedikit),
+   sisanya Taktik (ada tangkapan/skak) atau Strategi (langkah tenang). Rating tiap fase = rata-rata akurasi. */
+function phaseRatings(rv, rp) {
+  const out = { w: {}, b: {} };
+  const bucket = { w: { open: [], tact: [], strat: [], end: [] }, b: { open: [], tact: [], strat: [], end: [] } };
+  const posBd = ply => ply <= 1 ? (rp && rp.initial && rp.initial.board) : (rp && rp.positions && rp.positions[ply - 2] ? rp.positions[ply - 2].board : null);
+  for (const m of rv.moves) {
+    if (m.acc == null) continue;
+    const bd = rp ? posBd(m.ply) : null;
+    let ph;
+    if (m.ply <= 20) ph = 'open';
+    else if (bd && nonPawnMat(bd) <= 26) ph = 'end';
+    else ph = /[x+#]/.test(m.san || '') ? 'tact' : 'strat';
+    bucket[m.color][ph].push(m);
+  }
+  for (const c of ['w', 'b']) for (const k of ['open', 'tact', 'strat', 'end']) {
+    const arr = bucket[c][k];
+    if (!arr.length) { out[c][k] = null; continue; }
+    const avg = arr.reduce((a, m) => a + m.acc, 0) / arr.length;
+    const bl = arr.some(m => String(m.label).toLowerCase() === 'blunder');
+    out[c][k] = avg >= 75 && !(bl && avg < 85) ? 'ok' : avg >= 55 ? 'warn' : 'bad';
+  }
+  return out;
+}
+function phaseIcon(v) {
+  if (!v) return '<span class="cm-ph na">–</span>';
+  if (v === 'ok') return '<span class="cm-ph ok"><svg viewBox="0 0 24 24"><path d="M6 12.5l4 4 8-9"/></svg></span>';
+  return '<span class="cm-ph ' + v + '">' + (v === 'warn' ? '?!' : '??') + '</span>';
+}
+const cntOf = (rv, c, k) => ((rv.counts && rv.counts[c]) || {})[k] || 0;
+
+function avatarHtml(who, big) {
+  return '<span class="cm-av' + (big ? ' big' : '') + '" aria-hidden="true">' + esc(initial(who && who.name)) + '</span>';
+}
+function oppLine(win, draw, rv, me) {
+  if (!rv) return win ? 'Selamat! Permainan yang bagus.' : draw ? 'Seri yang adil. Mau coba lagi?' : 'Permainan yang seru. Rematch?';
+  const rp = resCache.rp, ph = rp ? phaseRatings(rv, rp)[me] : null;
+  const acc = rv.accuracy && rv.accuracy[me];
+  if (win && ph && ph.end === 'ok') return 'Kamu tetap tenang di endgame, dan itu memberimu kemenangan.';
+  if (win && cntOf(rv, me, 'blunder') === 0) return 'Nyaris tanpa blunder — permainan yang rapi!';
+  if (win) return 'Kamu menang! Masih ada ruang untuk lebih akurat.';
+  if (draw) return 'Seri. Akurasimu ' + (acc != null ? acc.toFixed(1) : '–') + ' — lumayan.';
+  if (cntOf(rv, me, 'blunder') > 2) return 'Beberapa blunder menentukan hasilnya. Cek Game Review!';
+  return 'Kamu sudah berusaha. Lihat di mana kuncinya lewat Game Review.';
+}
+function resultModalHtml() {
+  const r = game.result, me = game.you, opp = oppOf();
+  const win = r.won === me, draw = r.won === 'd', aborted = r.reason === 'abort';
+  const still = resultAnim === game.id ? ' still' : '';
+  resultAnim = game.id;
+  const rv = resCache.id === game.id ? resCache.rv : null;
+  const loading = !rv && resCache.id === game.id && resCache.loading;
+  const title = aborted ? 'Permainan Dibatalkan' : win ? 'Kamu Menang!' : draw ? 'Seri' : 'Kamu Kalah';
+  const by = aborted ? 'Dibatalkan sebelum dua langkah' : (draw ? 'Karena ' : 'Oleh ') + (REASONS[r.reason] || r.reason) + ' · ' + esc(r.score);
+  const icon = aborted ? '' : win ? TROPHY : draw ? '<span class="cm-rico">½</span>' : '<span class="cm-rico lose">⚑</span>';
+  const stat = (k, n, label) => '<div class="cm-rs"><span class="ic">' + markIcon(k, 24) + '</span><b' + (n == null ? ' class="sk"' : '') + '>' + (n == null ? '' : n) + '</b><small>' + label + '</small></div>';
+  const stats = aborted ? '' : '<div class="cm-rstats' + (loading ? ' load' : '') + '">' +
+    stat('great', rv ? cntOf(rv, me, 'great') : null, 'Great') + stat('best', rv ? cntOf(rv, me, 'best') : null, 'Best') + stat('excellent', rv ? cntOf(rv, me, 'excellent') : null, 'Excellent') + '</div>';
+  const bubble = aborted ? '' : '<div class="cm-rbub"><div class="cm-rbav">' + avatarHtml(opp, true) + '</div><div class="cm-bubble">' + esc(oppLine(win, draw, rv, me)) + '</div></div>';
+  const canReview = game.status === 'done' && !aborted;
+  return '<div class="cm-ovl" data-cm-ovl="result" role="dialog" aria-modal="true" aria-label="' + esc(title) + '"><div class="cm-rmod' + still + '">' +
+    '<button class="cm-res-x" type="button" data-cm="closeovl" aria-label="Tutup">×</button>' +
+    '<div class="cm-res-top"><h3>' + icon + '<span>' + esc(title) + '</span></h3><p>' + by + '</p></div>' +
+    bubble + stats +
+    (canReview ? '<button class="cm-res-main" type="button" data-cm="review" data-id="' + esc(game.id) + '"><span class="st">★</span>Game Review</button>' : '') +
+    '<div class="cm-res-row"><button type="button" data-cm="newgame">Game Baru</button><button type="button" data-cm="rematch"' + (aborted ? ' disabled' : '') + '>Rematch</button></div>' +
+    '<div class="cm-res-row sm">' + (canReview ? '<button type="button" data-cm="replay" data-id="' + esc(game.id) + '">Putar Ulang</button>' : '') +
+    (game.pgn ? '<button type="button" data-cm="copypgn">Salin PGN</button>' : '') + '</div>' +
+    '</div></div>';
+}
+/* ambil analisis di latar belakang agar angka Great/Best/Excellent muncul di modal */
+function ensureResultReview() {
+  if (!game || game.status !== 'done' || !game.result || game.result.reason === 'abort') return;
+  const id = game.id;
+  if (resCache.id === id) return;
+  resCache = { id, loading: true, rv: null, rp: null, err: '' };
+  Promise.allSettled([api('review', { id }), api('replay', { id })]).then(([rv, rp]) => {
+    if (resCache.id !== id) return;
+    resCache.loading = false;
+    if (rv.status === 'fulfilled') resCache.rv = rv.value.review; else resCache.err = (rv.reason && rv.reason.message) || 'gagal';
+    if (rp.status === 'fulfilled') resCache.rp = rp.value;
+    if (view === 'game' && game && game.id === id && !resultShown) render();
+  });
+}
+async function doRematch() {
+  if (!game || busyMove) return;
+  const color = game.you === 'w' ? 'b' : 'w';
+  busyMove = true;
+  try {
+    const r = await api('room', { color });
+    resultShown = true; game = null;
+    room = { code: r.code, color: r.color, ttlMin: r.ttlMin || 60, createdAt: Date.now() };
+    msg = ['', ''];
+    view = 'host'; render(); startRoomPoll();
+  } catch (e) { msg = [e.message || 'Gagal membuat rematch.', 'err']; render(); }
+  busyMove = false;
+}
+
+/* kartu ringkasan Game Review */
+function reviewSummaryHtml(rv, white, black) {
+  const rp = review.pos;
+  const acc = c => rv.accuracy && rv.accuracy[c] != null ? rv.accuracy[c] : null;
+  const rate = c => gameRating(acc(c));
+  const ph = rp ? phaseRatings(rv, rp) : null;
+  const pcol = c => '<div class="c"><span class="cm-pav ' + c + '">' + (c === 'w' ? '♙' : '♟') + '</span><small>' + esc(((c === 'w' ? white : black) || {}).name || (c === 'w' ? 'Putih' : 'Hitam')) + '</small></div>';
+  const row = (lab, a, b, mid) => '<div class="r"><span class="l">' + lab + '</span><b class="v ' + (mid || '') + '">' + a + '</b><span class="m">' + (mid ? markIcon(mid, 22) : '') + '</span><b class="v ' + (mid || '') + '">' + b + '</b></div>';
+  const cnt = ['great', 'best', 'excellent', 'mistake', 'miss', 'blunder'].map(k => row(k[0].toUpperCase() + k.slice(1), cntOf(rv, 'w', k), cntOf(rv, 'b', k), k)).join('');
+  const prow = (lab, k) => '<div class="r"><span class="l">' + lab + '</span><span class="v">' + phaseIcon(ph[ 'w'][k]) + '</span><span class="m"></span><span class="v">' + phaseIcon(ph['b'][k]) + '</span></div>';
+  return '<div class="cm-sum" aria-label="Ringkasan Game Review">' +
+    '<div class="cm-sum-h">' + markIcon('best', 26) + '<b>Game Review</b></div>' +
+    '<div class="r"><span class="l">Pemain</span>' + pcol('w') + '<span class="m"></span>' + pcol('b') + '</div>' +
+    '<div class="r"><span class="l">Akurasi</span><b class="v acc">' + (acc('w') != null ? acc('w').toFixed(1) : '–') + '</b><span class="m"></span><b class="v acc">' + (acc('b') != null ? acc('b').toFixed(1) : '–') + '</b></div>' +
+    '<hr>' + cnt + '<hr>' +
+    '<div class="r"><span class="l">Rating Game</span><b class="v acc">' + (rate('w') || '–') + '</b><span class="m"></span><b class="v acc">' + (rate('b') || '–') + '</b></div>' +
+    (ph ? '<hr>' + prow('Pembukaan', 'open') + prow('Taktik', 'tact') + prow('Strategi', 'strat') + prow('Endgame', 'end') : '') +
+    '<p class="cm-sum-n">Rating Game adalah perkiraan dari akurasi, bukan rating resmi.</p></div>';
 }
 
 /* ============================================================
@@ -419,14 +556,6 @@ function reviewScreen() {
   const black = meta ? meta.black : (game ? game.black : null);
   const result = meta && meta.result;
   const N = rv.moves.length;
-
-  const accCard = c => {
-    const cnt = rv.counts[c] || {};
-    const chips = LABELS.filter(l => cnt[l.k]).map(l => '<span class="cm-lblchip cm-lab ' + l.k + '">' + l.n + ' ' + cnt[l.k] + '</span>').join('');
-    return '<div class="cm-acc-c"><span class="who"><i class="' + c + '"></i>' + esc(((c === 'w' ? white : black) || {}).name || (c === 'w' ? 'Putih' : 'Hitam')) + '</span>' +
-      '<div class="val">' + (rv.accuracy && rv.accuracy[c] != null ? rv.accuracy[c].toFixed(1) : '–') + '<small>/100</small></div>' +
-      '<div class="cm-lbls">' + (chips || '<span class="cm-lblchip">belum ada</span>') + '</div></div>';
-  };
 
   const graph = evalGraphHtml(rv);
   const ply = review.ply;                       // 1..N langkah yang dipilih (0 = belum)
@@ -462,7 +591,7 @@ function reviewScreen() {
   const sans = rv.moves.map(m => m.san);
   return back + '<div class="gm-panel"><h2>Analisis Permainan</h2>' +
     '<p class="gm-hint">' + esc((white && white.name) || 'Putih') + ' vs ' + esc((black && black.name) || 'Hitam') + (result ? ' · ' + esc(result.score) + ' (' + esc(REASONS[result.reason] || result.reason) + ')' : '') + '</p>' +
-    '<div class="cm-acc">' + accCard('w') + accCard('b') + '</div>' +
+    reviewSummaryHtml(rv, white, black) +
     '<p class="cm-eng">Engine: ' + esc(rv.engine || '-') + (rv.depth ? ' · kedalaman ' + rv.depth : '') + (N ? ' · ' + N + ' langkah dianalisis' : '') + '</p>' +
     graph +
     '<div class="cm-rev-grid"><div class="cm-main">' + board + nav + '</div>' +
@@ -1042,6 +1171,9 @@ async function openReview(id) {
   view = 'review'; gameFrom = (game && game.id === id) ? 'game' : 'lobby';
   review = { loading: true, err: '', data: null, pos: null, ply: 1, gameId: id };
   render();
+  if (resCache.id === id && resCache.rv) {   // sudah dianalisis di latar belakang (modal hasil)
+    review.data = resCache.rv; review.pos = resCache.rp; review.loading = false; review.ply = 1; render(); return;
+  }
   const [rv, rp] = await Promise.allSettled([api('review', { id }), api('replay', { id })]);
   if (rv.status === 'rejected') {
     const e = rv.reason;
@@ -1138,8 +1270,8 @@ function onHostClick(e) {
   else if (a === 'reloadlobby') { msg = ['', '']; loadLobby(0); }
   else if (a === 'moregames') loadLobby(lobby.page + 1);
   else if (a === 'open') { msg = ['', '']; fetchGame(b.dataset.id).then(ok => { if (ok) { view = 'game'; gameFrom = 'lobby'; sel = -1; resultShown = false; drawShownFor = null; render(); if (game.status === 'active') startPoll(true); } }); }
-  else if (a === 'review') { msg = ['', '']; openReview(b.dataset.id); }
-  else if (a === 'replay') { msg = ['', '']; openReplay(b.dataset.id); }
+  else if (a === 'review') { msg = ['', '']; resultShown = true; openReview(b.dataset.id); }
+  else if (a === 'replay') { msg = ['', '']; resultShown = true; openReplay(b.dataset.id); }
   else if (a === 'openstats') { msg = ['', '']; gameFrom = 'lobby'; openStats(''); }
   else if (a === 'lookup') { const inp = $('cmuser'); openStats((inp ? inp.value : '').trim().toLowerCase()); }
   else if (a === 'lobby') goLobby();
@@ -1156,6 +1288,8 @@ function onHostClick(e) {
   else if (a === 'pickpromo') { if (promo) { const { from, to } = promo; promo = null; sendMove(from, to, b.dataset.p); } }
   else if (a === 'cancelpromo') { promo = null; render(); }
   else if (a === 'closeovl') { resultShown = true; render(); }
+  else if (a === 'newgame') { resultShown = true; goLobby(); }
+  else if (a === 'rematch') doRematch();
   else if (a === 'selmove') {
     const p = +b.dataset.ply;
     if (view === 'review') { review.ply = p; render(); }
@@ -1266,7 +1400,7 @@ function resetAll() {
   review = { loading: false, err: '', data: null, pos: null, ply: 0, gameId: '' };
   replay = { loading: false, err: '', data: null, idx: -1, playing: false, gameId: '' };
   stats = { loading: false, err: '', data: null, user: '' };
-  msg = ['', '']; resultShown = false; drawShownFor = null; flip = false; resignArm = 0;
+  msg = ['', '']; resultShown = false; resultAnim = ''; resCache = { id: '', loading: false, rv: null, rp: null, err: '' }; drawShownFor = null; flip = false; resignArm = 0;
 }
 function suspend() { stopPoll(); stopRoomPoll(); stopAuto(); }   // keluar tab games / layar: timer berhenti, state tetap
 
