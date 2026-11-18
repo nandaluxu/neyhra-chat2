@@ -304,7 +304,7 @@ html #games.ws-on .gm-in{max-width:1180px}
 }
 
 /* Layar game: tidak ikut melebar tanpa batas. Game dengan panel + tabel hadiah jadi dua kolom di desktop */
-#gmbody:not(:has(>.gm-grid)){max-width:1040px}
+#gmbody:not(:has(>.gm-grid)){max-width:1040px;margin-left:auto;margin-right:auto} /* layar game: rata tengah */
 #gmbody>.gm-back{margin-top:22px}
 #gmbody>.gm-panel{padding:26px 22px;border-radius:28px;box-shadow:inset 0 0 0 1px var(--line)}
 @media(min-width:800px){#gmbody>.gm-panel{padding:32px 34px}}
@@ -315,5 +315,5 @@ html #games.ws-on .gm-in{max-width:1180px}
   #gmbody:has(>.gm-info)>.gm-back{grid-column:1/-1;justify-self:start}
   #gmbody:has(>.gm-info)>.gm-info{grid-column:2;grid-row:2/span 6;margin-top:6px;position:sticky;top:16px}
 }
-/* panel tunggal tanpa tabel hadiah (mis. layar pembuka): tetap nyaman dibaca, rata kiri dengan judul */
-#gmbody:not(:has(>.gm-info)):not(:has(.ch-stage,.cm-game,.cm-lobby-top,.ws-wrap))>.gm-panel{max-width:660px}
+/* panel tunggal tanpa tabel hadiah (mis. layar pembuka): tetap nyaman dibaca, di tengah */
+#gmbody:not(:has(>.gm-grid)):not(:has(>.gm-info)):not(:has(.ch-stage,.cm-game,.cm-lobby-top,.ws-wrap)){max-width:660px} /* tombol kembali ikut sejajar dengan panelnya */
