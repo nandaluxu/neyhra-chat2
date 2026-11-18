@@ -379,7 +379,7 @@
 }
 
 /* Judul bagian: hitungan jadi label kecil di kanan */
-#menu .b-head{align-items:center;margin:28px 0 12px}
+#menu .b-head{align-items:center;margin-top:28px;margin-bottom:12px}
 #menu .b-head h2{font-size:17px;font-weight:650;letter-spacing:-.025em}
 #menu .b-head #allcount{margin-left:auto;padding:3px 10px;border-radius:99px;background:var(--surface);font-size:12px;font-weight:500;color:var(--mut);font-variant-numeric:tabular-nums}
 #menu .b-cont{margin-bottom:0}
@@ -402,3 +402,19 @@
 #menu .b-av i{top:12px;right:12px;width:10px;height:10px;box-shadow:0 0 0 3px rgba(0,0,0,.2)}
 @media(hover:hover){#menu .b-tile:hover{transform:translateY(-3px);box-shadow:inset 0 0 0 1px rgba(128,128,128,.14),0 12px 28px rgba(0,0,0,.16)}}
 @media(min-width:800px){#menu{padding-left:56px;padding-right:56px}#menu .b-strip{margin:0;padding-left:0;padding-right:0}}
+
+/* Beranda v2 desktop: isi memenuhi layar (tanpa kolom sempit di tengah), grid melebar sesuai ruang */
+@media(min-width:800px){
+  #menu{padding:36px 40px 24px}
+  #menu .m-hero,#menu .srch,#menu .b-head,#menu .b-cont,#menu .bgrid,#menu .all-empty{max-width:none;width:100%;margin-left:0;margin-right:0}
+  #menu .m-hero{margin-top:12px;margin-bottom:22px}
+  #menu .srch{max-width:640px}
+  #menu .bgrid{grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:16px}
+  #menu .b-tile{border-radius:24px}
+  #menu .b-name{font-size:17px;left:16px;right:16px;bottom:33px}
+  #menu .b-tag{left:16px;right:16px;bottom:15px;font-size:12px}
+  #menu .b-strip{padding-top:2px}
+  #menu .b-cc{width:250px}
+  #menu #mtitle.greet{font-size:40px}
+}
+@media(min-width:1500px){#menu .bgrid{grid-template-columns:repeat(auto-fill,minmax(210px,1fr))}}
