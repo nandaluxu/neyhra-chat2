@@ -508,6 +508,9 @@ header .pfp,header .who{cursor:pointer}
 .pecard .pe-t b,.pe-opt .pe-t b{display:block;font-size:14px;font-weight:600;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pecard .pe-t small,.pe-opt .pe-t small{display:block;margin-top:1px;font-size:11.5px;line-height:1.35;color:var(--mut);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .pecard>svg{flex:none;width:16px;height:16px;color:var(--mut)}
+.pecard{margin-top:0;padding:13px 14px}
+.pecard .pe-l{flex:none;font-size:14px;font-weight:600;letter-spacing:-.01em}
+.pecard .pe-v{flex:1;min-width:0;text-align:right;font-size:14px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #pemodal .nbox{max-width:380px;display:flex;flex-direction:column}
 .pe-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .pe-head button{width:34px;height:34px;border-radius:50%;transition:background .15s}
@@ -868,8 +871,7 @@ header .pfp,header .who{cursor:pointer}
     <div class="dp-scroll">
       <div class="rprof"><img id="rpfp" alt=""><div><b id="rname"></b><small id="rtag"></small></div></div>
       <div class="rsec" id="dpers">
-        <h3>Persona</h3>
-        <button class="pecard" id="pecard" type="button" aria-haspopup="dialog"><span class="pe-t"><b>Persona</b><small>Memuat…</small></span><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+        <button class="pecard" id="pecard" type="button" aria-haspopup="dialog"><span class="pe-l">Persona</span><span class="pe-v"></span><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
         <p class="rdesc">Identitas yang dipakai AI saat mengenali kamu di chat ini. Ketuk untuk memilih persona lain khusus untuk karakter ini.</p>
       </div>
       <div class="rsec">
@@ -2405,7 +2407,7 @@ const shortName=c=>{ const n=String((c&&c.name)||'').replace(/\([^)]*\)/g,' ').r
    persona default (kalau ada) atau nama akun — persis perilaku sebelum fitur ini. Client tidak mengirim apa pun
    saat chat: server membaca pilihan lewat token Bearer + field `char` yang memang sudah dikirim.
    Ganti persona -> personaHash di fmtKey berubah -> sesi AI dimulai ulang -> blok identitas baru langsung dipakai. */
-const PE={mode:'follow',personaId:null,items:null,max:6,busy:false,saving:false,seq:0,err:'',char:'',t:0};
+const PE={mode:'follow',personaId:null,items:null,max:6,busy:false,saving:false,seq:0,err:'',char:'',t:0,lbl:{}}; /* lbl: nama persona terakhir yang diketahui per karakter, supaya kartu tidak kosong/berkedip */
 const peModal=$('pemodal');
 const PE_ICO={person:'<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.6"/><path d="M5 20a7 7 0 0114 0"/></svg>',check:'<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>'};
 function peAv(name,src){ /* avatar bulat: foto persona atau inisial nama */
@@ -2419,22 +2421,20 @@ function peIco(){ /* lingkaran ikon orang: untuk opsi "ikut default"/"profil aku
 }
 const peDef=()=>(PE.items||[]).find(p=>p.def)||null; /* persona default saat ini */
 const peEff=()=>PE.mode==='pick'?(PE.items||[]).find(p=>p.id===PE.personaId)||null:PE.mode==='none'?null:peDef(); /* identitas efektif untuk kartu */
-function paintPersonaCard(){ /* kartu di panel detail: selalu digambar ulang dari state (murah, panel bisa tersembunyi) */
+function paintPersonaCard(){ /* kartu di panel detail: satu baris "Persona ... nama >"; tidak pernah menampilkan "Memuat…" */
   const sec=$('dpers'), card=$('pecard'); if(!sec||!card) return;
   if(!aOn){ sec.classList.add('hide'); return; } /* fitur akun mati di server: sembunyikan bagian persona */
   sec.classList.remove('hide');
-  card.textContent='';
-  const t=document.createElement('span'); t.className='pe-t';
-  const put=(av,b,s)=>{ card.append(av); const bb=document.createElement('b'); bb.textContent=b; const sm=document.createElement('small'); sm.textContent=s; t.append(bb,sm); };
-  if(!atok) put(peIco(),'Persona','Masuk akun untuk memakai identitas lain saat ngobrol');
-  else if(PE.err) put(peIco(),'Gagal memuat',PE.err+' Ketuk untuk coba lagi.');
-  else if(!PE.items) put(peIco(),'Memuat…','');
-  else if(PE.mode==='none') put(peAv(uname||'A',''),'Profil akun','Tanpa persona — '+(ch?shortName(ch):'karakter ini')+' memanggil nama akunmu');
-  else { const eff=peEff();
-    if(eff) put(peAv(eff.name,eff.avatar),eff.name,PE.mode==='pick'?'Persona khusus untuk '+(ch?shortName(ch):'chat ini'):'Persona default — dipakai di semua chat');
-    else put(peAv(uname||'A',''),'Nama akun','Belum ada persona default');
-  }
-  card.append(t); card.insertAdjacentHTML('beforeend','<svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>');
+  const v=card.querySelector('.pe-v'); if(!v) return;
+  let txt='';
+  if(!atok) txt='Masuk akun';
+  else if(PE.err) txt='Gagal, ketuk lagi';
+  else if(ch&&PE.items&&PE.char===ch.id){ /* data karakter ini sudah ada: hitung dari state, simpan sebagai cache */
+    const eff=PE.mode==='none'?null:peEff();
+    txt=eff?eff.name:(uname||'Nama akun');
+    PE.lbl[ch.id]=txt;
+  }else if(ch) txt=PE.lbl[ch.id]||''; /* belum ada data (sedang diambil diam-diam): pakai cache, kalau belum ada biarkan kosong */
+  v.textContent=txt;
 }
 async function peLoad(){ /* ambil status pilihan karakter ini + daftar persona (satu endpoint, lihat persona/pick-get) */
   if(!atok||!ch||PE.busy) return;
@@ -2505,7 +2505,7 @@ $('pemanage').onclick=()=>{ /* ke Profil > Persona (tab Persona di profil sendir
   if(window.Shell) Shell.setTab('profile'); else $('rprofile').click();
 };
 addEventListener('acct',()=>{ /* masuk/keluar akun: buang cache, kartu mengikuti status akun baru */
-  PE.items=null; PE.char=''; PE.t=0; PE.err=''; PE.seq++; PE.busy=false;
+  PE.items=null; PE.char=''; PE.t=0; PE.err=''; PE.seq++; PE.busy=false; PE.lbl={};
   closePe(); if(ch) paintPersonaCard();
 });
 
