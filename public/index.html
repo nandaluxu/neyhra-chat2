@@ -800,6 +800,7 @@ header .pfp,header .who{cursor:pointer}
       </div>
       <div class="sgroup"><h3>Fitur</h3>
         <label class="srow"><span><b>Mode roleplay</b><i>Balasan karakter jadi gaya roleplay: gerak-gerik dan ekspresi ditulis miring, ucapan dalam tanda kutip. Di voice note hanya ucapannya yang dibacakan, dipisah jeda panjang. Berlaku untuk chat 1-lawan-1. Chat grup punya switch roleplay sendiri di panel grup.</i></span><input type="checkbox" id="srp" class="sw"></label>
+        <label class="srow"><span><b>Spam chat (tunggu sampai selesai)</b><i>Kirim sampai 3 pesan beruntun ke karakter tanpa menunggu balasan. Karakter menjawab semuanya sekaligus setelah kamu diam 10 detik, atau langsung begitu pesan ke-3 terkirim. Kalau dimatikan, tiap pesan langsung dikirim dan dijawab satu per satu. Default mati.</i></span><input type="checkbox" id="sspam" class="sw"></label>
         <button class="srow" id="voicebtn" type="button"><span><b>Voice note</b><i id="vlabel">Voice mati</i></span><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
         <button class="srow" id="sumbtn" type="button"><span><b>Ringkasan harian</b><i>Rekap obrolanmu hari ini, kemarin, atau 7 hari terakhir. Bisa dibagikan sebagai gambar.</i></span><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
         <button class="srow" id="membtn" type="button"><span><b>Memori</b><i>Ringkasan obrolan lama yang diingat tiap karakter. Bisa dilihat dan dihapus.</i></span><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
@@ -1334,7 +1335,7 @@ async function speakReply(chId,r,lang,t){
   }
 }
 
-/* ===== Jeda cerdas: AI menjawab setelah user berhenti mengetik =====
+/* ===== Jeda cerdas (opsional, Pengaturan > Spam chat): AI menjawab setelah user berhenti mengetik =====
    User bebas spam pesan beruntun; pesan yang sudah dikirim langsung jadi bubble + masuk antrean (pend).
    Selama user masih mengetik ATAU masih mengirim, jawaban AI ditunda: timer 10 detik di-reset tiap
    ketikan maupun kiriman baru (typing dan kirim dibedakan, tapi keduanya sama-sama menunda).
@@ -1342,6 +1343,8 @@ async function speakReply(chId,r,lang,t){
    dijawab sekali — jadi spam tidak menumpuk balasan dan obrolan tetap terasa hidup. */
 let pend=[],pendT=0;
 const PEND_MS=10000;
+const SPAM_MAX=3; /* maks pesan beruntun yang boleh mengantre; pesan ke-3 langsung memicu balasan */
+const spamOn=()=>store.get('spam')==='1'; /* switch "Spam chat" di Pengaturan, default mati */
 const stillHere=id=>!!ch&&ch.id===id&&app.classList.contains('open')&&!(window.GX&&GX.cur);
 /* Balasan bersuara: jangan dilewati cuma karena chat ditinggal (dulu jadi teks biasa). Bubble "merekam suara" hanya kalau masih di chat itu. */
 async function voiceReply(chId,r,lang,t){
@@ -1397,9 +1400,11 @@ async function submit(opt){
   /* Jeda cerdas (cuma teks biasa, tanpa hadiah/gambar/skenario aktif): pesan masuk antrean — AI menjawab
      semua antrean SEKALI setelah user diam 10 detik. Skenario Skrip tidak diantrekan: gilirannya diatur sutradaranya. */
   const scnOn=()=>{ try{ return !!(window.SCN&&SCN.body(chId).scenario) }catch{ return false } };
-  if(!gf&&!vf&&!scnOn()){
-    pend.push({chId,x:text}); pendArm();
-    busy=false; refresh(); return;
+  if(!gf&&!vf&&!scnOn()&&spamOn()){
+    pend.push({chId,x:text});
+    busy=false;
+    if(pend.length>=SPAM_MAX){ pendFlush(false); return; } /* sudah 3 pesan: tidak menunggu 10 detik lagi, langsung dijawab */
+    pendArm(); refresh(); return;
   }
   if(pend.length) await pendFlush(true); /* hadiah/gambar/skenario saat masih ada antrean teks: antreannya dikirim dulu */
   const useVoice=voiceOn&&!!vcode, lang=voiceLang; let okReply=false, relNote='', lastReply='';
@@ -2714,6 +2719,7 @@ function tryChess(text){
 }
 $('smedia').onchange=()=>{ store.set('scnauto',$('smedia').checked?'1':null); };
 $('srp').checked=rpOn(); $('srp').onchange=()=>{ store.set('rp',$('srp').checked?'1':null); };
+$('sspam').checked=spamOn(); $('sspam').onchange=()=>{ store.set('spam',$('sspam').checked?'1':null); if(!spamOn()&&pend.length) pendFlush(false); }; /* dimatikan saat masih ada antrean: kirim sekarang */
 $('setbtn').addEventListener('click',()=>renderDevWallet()); /* segarkan status login tiap Pengaturan dibuka */
 $('sdev').onchange=()=>{ store.set('dev',$('sdev').checked?'1':null); renderDev(); renderDevWallet(); paintMusic(); paintEng(); window.dispatchEvent(new Event('devmode')); };
 /* Dev: tambah Coin & Gems — baris di grup Dev Pengaturan (#sdevcoin), divalidasi server lewat kode dev (lib/dev.js) */
