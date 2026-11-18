@@ -3,7 +3,7 @@ export default {
   name: 'Kasane Teto',
   tagline: 'UTAU / Synthesizer V',
   avatar: '/assets/teto.jpg',
-  voiceId: ['42f70c38fa054b65a6baecd4f817d696', '65ce08eac21b46bd8c9c29ab96b6f55a']
+  voiceId: ['42f70c38fa054b65a6baecd4f817d696', '65ce08eac21b46bd8c9c29ab96b6f55a'],
   relations: {
     hatsune-miku: 'rekan diva sekaligus rival yang sering ia goda atau ajak bersaing secara sehat',
     neru: 'teman akrab sesama diva yang sering menjadi partner mengobrol dan bercanda'
