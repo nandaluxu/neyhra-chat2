@@ -353,3 +353,52 @@
 .all-empty button{padding:10px 18px;border-radius:99px;background:var(--surface);font-size:13.5px;font-weight:600}
 .all-empty.hide{display:none}
 @media(prefers-reduced-motion:reduce){.b-tile.sk{animation:none}}
+
+/* ---------- Beranda v2: layout lebih lega, sapaan ringkas rata kiri, kartu foto 2 kolom ---------- */
+#menu{padding-left:20px;padding-right:20px}
+#menu .orb{display:none} /* bola blur dibuang: latar bersih, foto karakter jadi pusat perhatian */
+
+/* Sapaan: tidak lagi menyedot setengah layar */
+#menu #mtitle{font-size:clamp(40px,12vw,52px);line-height:1;letter-spacing:-.045em}
+#menu #mtitle:not(.greet) .tw{display:inline-block;margin-right:.2em}
+#menu #mtitle.greet{font-size:clamp(25px,7.4vw,31px);line-height:1.15;letter-spacing:-.03em;font-weight:700}
+#menu .m-sub{margin-top:8px;font-size:14px}
+#menu .m-pills{margin-top:16px}
+#menu .m-set{padding:10px 16px 10px 13px;border-radius:14px;background:var(--surface);box-shadow:inset 0 0 0 1px var(--line);font-weight:600}
+@media(max-width:799px){
+  #menu .m-hero{margin-top:26px;margin-bottom:20px}
+  #menu .srch{margin-bottom:2px}
+}
+
+/* Pencarian: lebih tinggi, sudut sama dengan kartu */
+#menu .srch{height:50px;padding:0 16px;border-radius:16px;box-shadow:inset 0 0 0 1px var(--line)}
+#menu .srch:focus-within{box-shadow:inset 0 0 0 2px var(--ink)}
+@media(max-width:799px){
+  #menu .srch{box-shadow:inset 0 0 0 1px var(--line),0 0 0 8px var(--bg)}
+  #menu .srch:focus-within{box-shadow:inset 0 0 0 2px var(--ink),0 0 0 8px var(--bg)}
+}
+
+/* Judul bagian: hitungan jadi label kecil di kanan */
+#menu .b-head{align-items:center;margin:28px 0 12px}
+#menu .b-head h2{font-size:17px;font-weight:650;letter-spacing:-.025em}
+#menu .b-head #allcount{margin-left:auto;padding:3px 10px;border-radius:99px;background:var(--surface);font-size:12px;font-weight:500;color:var(--mut);font-variant-numeric:tabular-nums}
+#menu .b-cont{margin-bottom:0}
+#menu .b-cont .b-head{margin-top:24px}
+
+/* Lanjut ngobrol: kartu bersudut dengan foto kotak membulat */
+#menu .b-strip{margin:0 -20px;padding:2px 20px 4px;scroll-padding:0 20px;gap:10px}
+#menu .b-cc{width:228px;grid-template-columns:44px minmax(0,1fr);padding:10px 14px 10px 10px;border-radius:18px;background:var(--surface);box-shadow:inset 0 0 0 1px var(--line)}
+#menu .b-cav{width:44px;height:44px}
+#menu .b-cav img{border-radius:13px}
+#menu .b-cc b{font-size:14.5px}
+
+/* Grid karakter: 2 kolom di HP, foto lebih besar (4:5), teks di atas gradasi lembut */
+#menu .bgrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+@media(min-width:520px){#menu .bgrid{grid-template-columns:repeat(auto-fill,minmax(168px,1fr))}}
+#menu .b-tile{aspect-ratio:4/5;border-radius:22px;box-shadow:inset 0 0 0 1px rgba(128,128,128,.14)}
+#menu .b-tile::after{background:linear-gradient(to top,rgba(0,0,0,.72) 0%,rgba(0,0,0,.28) 34%,rgba(0,0,0,0) 58%)}
+#menu .b-name{left:14px;right:14px;bottom:31px;font-size:16px;font-weight:700;letter-spacing:-.025em}
+#menu .b-tag{left:14px;right:14px;bottom:13px;font-size:11.5px;color:rgba(255,255,255,.75)}
+#menu .b-av i{top:12px;right:12px;width:10px;height:10px;box-shadow:0 0 0 3px rgba(0,0,0,.2)}
+@media(hover:hover){#menu .b-tile:hover{transform:translateY(-3px);box-shadow:inset 0 0 0 1px rgba(128,128,128,.14),0 12px 28px rgba(0,0,0,.16)}}
+@media(min-width:800px){#menu{padding-left:56px;padding-right:56px}#menu .b-strip{margin:0;padding-left:0;padding-right:0}}
