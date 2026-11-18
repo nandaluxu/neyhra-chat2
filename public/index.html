@@ -651,7 +651,7 @@ header .pfp,header .who{cursor:pointer}
     <label class="srch"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg><input id="q" type="search" placeholder="Cari nama atau judul" autocomplete="off" enterkeyhint="search"></label>
     <section class="b-cont hide" id="bcont" aria-label="Lanjut ngobrol"><div class="b-head"><h2>Lanjut ngobrol</h2></div><div class="b-strip" id="bstrip"></div></section>
     </div><div class="m-main">
-    <div class="b-head"><h2>Semua karakter</h2><span id="allcount"></span></div>
+    <div class="b-head"><h2>Semua karakter</h2><span id="allcount"></span><button type="button" class="b-ctog hide" id="chiptog" aria-controls="bchips" aria-expanded="true"><svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg>Filter</button></div>
     <div class="b-chips" id="bchips" role="group" aria-label="Filter seri"></div>
     <div class="bgrid" id="alllist" aria-busy="true"><span class="b-tile sk" aria-hidden="true"></span><span class="b-tile sk" aria-hidden="true"></span><span class="b-tile sk" aria-hidden="true"></span><span class="b-tile sk" aria-hidden="true"></span><span class="b-tile sk" aria-hidden="true"></span><span class="b-tile sk" aria-hidden="true"></span></div>
     <div class="all-empty hide" id="allempty"><p>Nggak ada karakter yang cocok.</p><button type="button" id="qclear">Hapus pencarian</button></div>
@@ -2800,12 +2800,22 @@ function buildChips(){
   const box=$('bchips'); if(!box) return; const m=new Map();
   allChars.forEach(c=>{ const t=(c.tagline||'').trim(); if(t) m.set(t,(m.get(t)||0)+1); });
   const top=[...m].filter(([,n])=>n>=2).sort((a,b)=>b[1]-a[1]).slice(0,16);
-  box.textContent=''; box.classList.toggle('hide',!top.length); if(!top.length) return;
+  box.textContent=''; box.classList.toggle('hide',!top.length); $('chiptog').classList.toggle('hide',!top.length); if(!top.length) return;
   const add=(label,val,n)=>{ const b=document.createElement('button'); b.type='button'; b.className='b-chip'+(val===serie?' on':''); b.textContent=label;
     if(n){ const sm=document.createElement('small'); sm.textContent=n; b.append(sm); }
-    b.onclick=()=>{ serie=val; box.querySelectorAll('.b-chip').forEach(x=>x.classList.toggle('on',x===b)); filterAll(); }; box.append(b); };
+    b.onclick=()=>{ serie=val; box.querySelectorAll('.b-chip').forEach(x=>x.classList.toggle('on',x===b)); filterAll(); paintChipTog(); }; box.append(b); };
   add('Semua','',0); top.forEach(([t,n])=>add(t,t,n));
+  paintChipTog();
 }
+/* tombol Filter: sembunyikan/tampilkan baris chip (kalau seri sudah banyak). Pilihan diingat; filter yang aktif tetap berlaku saat baris disembunyikan (titik di tombol) */
+const chipsOff=()=>store.get('chips')==='0';
+function paintChipTog(){
+  const b=$('chiptog'), box=$('bchips'); if(!b||!box) return;
+  const off=chipsOff(); box.classList.toggle('off',off);
+  b.setAttribute('aria-expanded',String(!off)); b.classList.toggle('active',off&&!!serie);
+  b.setAttribute('aria-label',off?'Tampilkan filter seri':'Sembunyikan filter seri');
+}
+$('chiptog').onclick=()=>{ store.set('chips',chipsOff()?null:'0'); paintChipTog(); };
 function filterAll(){
   const k=q.value.trim().toLowerCase(); let n=0;
   rows.forEach(({c,el})=>{ const ok=(!k||(c.name+' '+(c.tagline||'')).toLowerCase().includes(k))&&(!serie||(c.tagline||'').trim()===serie); el.classList.toggle('hide',!ok); if(ok) n++; });

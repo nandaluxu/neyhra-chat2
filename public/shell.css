@@ -463,3 +463,15 @@
   #menu .m-main .b-head{margin-top:2px}
   #menu .bgrid{grid-template-columns:repeat(auto-fill,minmax(176px,1fr));gap:22px 16px}
 }
+
+/* Filter seri: fix HP (baris chip menciut jadi 0 tinggi di kolom flex #menu) + tombol sembunyikan/tampilkan */
+.b-chips{flex:none}
+.b-chips.off{display:none}
+#menu .b-head .b-ctog{position:relative;display:inline-flex;align-items:center;gap:5px;flex:none;margin-left:8px;padding:5px 11px 5px 9px;border-radius:99px;background:var(--surface);color:var(--mut);font-size:12px;font-weight:600;transition:color .15s}
+#menu .b-head .b-ctog.hide{display:none}
+#menu .b-ctog svg{width:14px;height:14px;transition:transform .2s}
+#menu .b-ctog[aria-expanded="false"] svg{transform:rotate(180deg)}
+@media(hover:hover){#menu .b-ctog:hover{color:var(--ink)}}
+#menu .b-ctog:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+#menu .b-ctog.active::after{content:"";position:absolute;top:-2px;right:-2px;width:9px;height:9px;border-radius:50%;background:var(--ink);box-shadow:0 0 0 2px var(--bg)}
+@media(prefers-reduced-motion:reduce){#menu .b-ctog svg{transition:none}}
