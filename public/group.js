@@ -467,7 +467,7 @@ function abortChain() {
 }
 
 async function callChat(g, sp, { userText, replyTo, depth, ctl, pull }) {
-  const useVoice = voiceOn && !!vcode, lang = voiceLang;
+  const useVoice = voiceOn && !!vcode && canVoice(sp), lang = voiceLang;
   // balasan yang sudah jadi tapi belum tampil tetap ikut jadi konteks, supaya karakter berikutnya nyambung
   const history = [...state.msgs, ...state.pending].filter(m => m.from !== 'system').slice(-CFG.HIST).map(m => [m.from, String(m.text).slice(0, 600)]);
   const body = {

@@ -29,6 +29,9 @@ const fr = { q: '', items: null, err: '', seq: 0 }; // tab Teman
 let cups = null; // tab Piala: { ach:[...], streak:{now,best} } dari /api/auth/quests (profil sendiri)
 const ps = { items: null, err: '', busy: false, seq: 0, max: 6 }; // tab Persona (lib/persona.js)
 let psForm = null; // form tambah/edit persona (modal)
+const ai = { items: null, err: '', busy: false, seq: 0, max: 10 }; // tab AI Saya (lib/userchars.js)
+let aiForm = null; // form buat/edit AI (modal)
+let voiceCat = null; // katalog suara bawaan dari /api/voices: [{ char, name, voices:[{key,label}] }]
 let frT = 0;
 
 /* nama profil dipakai juga di Beranda (sapaan), chat dengan karakter, dan Chat Global */
@@ -125,7 +128,7 @@ function render() {
     else renderTabs([['sum', 'Ringkasan'], ['chars', 'Karakter']]); // seperti profil sendiri, tanpa tab Teman
     return;
   }
-  renderTabs([['sum', 'Ringkasan'], ['chars', 'Karakter'], ['cups', 'Piala'], ['friends', 'Teman'], ['persona', 'Persona']]);
+  renderTabs([['sum', 'Ringkasan'], ['chars', 'Karakter'], ['cups', 'Piala'], ['friends', 'Teman'], ['persona', 'Persona'], ['ai', 'AI Saya']]);
 }
 
 /* kerangka tab + panel; list = [key, label]. Profil orang tidak punya tab Teman, jadi tabKey yang tidak ada di list kembali ke tab pertama */
@@ -143,7 +146,7 @@ function paintPanel() {
   const panel = $('pfpanel'); if (!panel) return;
   panel.textContent = '';
   const own = !!(view && view.isMe);
-  if (tabKey === 'chars') panelChars(panel, own); else if (own && tabKey === 'cups') panelCups(panel); else if (own && tabKey === 'friends') panelFriends(panel); else if (own && tabKey === 'persona') panelPersona(panel); else panelSum(panel, own);
+  if (tabKey === 'chars') panelChars(panel, own); else if (own && tabKey === 'cups') panelCups(panel); else if (own && tabKey === 'friends') panelFriends(panel); else if (own && tabKey === 'persona') panelPersona(panel); else if (own && tabKey === 'ai') panelAI(panel); else panelSum(panel, own);
 }
 
 /* ---------- Statistik profil orang lain (dari server; diterbitkan perangkat pemiliknya lewat profile/stats) ---------- */
@@ -431,6 +434,214 @@ function askDeletePersona(id) {
   box.append(head, t, act); openModal(box);
   setTimeout(() => del.focus({ preventScroll: true }), 30);
 }
+/* ---------- Tab AI Saya (karakter AI buatan sendiri — lib/userchars.js) ----------
+   AI buatan user tampil di Beranda seperti karakter bawaan, tapi hanya terlihat dan bisa dipakai pemiliknya. Tanpa suara (voice). */
+const AI_LIM = { name: 40, tagline: 40, identity: 600, personality: 600, speech: 300, rules: 400 };
+async function loadAIs(force) {
+  if (!atok || ai.busy || (!force && ai.items)) return false;
+  ai.busy = true; ai.err = '';
+  const seq = ++ai.seq;
+  try {
+    const r = await aApi('aichar/list');
+    if (seq !== ai.seq) return false;
+    if (r && r.ok) { ai.items = Array.isArray(r.chars) ? r.chars : []; ai.max = r.max || 10; }
+    else ai.err = (r && r.error) || 'Gagal memuat AI.';
+  } catch (e) { if (seq === ai.seq) ai.err = (e && e.status === 401) ? '' : (e && e.message) || 'Tidak bisa terhubung ke server.'; }
+  ai.busy = false;
+  return true;
+}
+const aiSync = () => { if (typeof window.reloadChars === 'function') window.reloadChars(); }; // Beranda ikut menampilkan AI baru
+function aiCard(c) {
+  const card = h('div', 'pf-pcard');
+  card.tabIndex = 0; card.setAttribute('role', 'button'); card.dataset.act = 'aiedit'; card.dataset.id = c.id;
+  card.setAttribute('aria-label', 'Edit AI ' + c.name);
+  card.addEventListener('keydown', e => { if (e.target === card && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openAIForm(c); } });
+  const bd = h('div', 'pf-pbd'), nm = h('div', 'pf-pnm');
+  nm.append(h('b', null, c.name));
+  bd.append(nm, h('small', null, c.personality || c.identity || 'Belum ada deskripsi'));
+  const acts = h('div', 'pf-pacts');
+  const chat = btn('pf-pdef on', 'Chat', 'aichat'); chat.dataset.id = c.id; chat.setAttribute('aria-label', 'Mulai chat dengan ' + c.name);
+  const del = btn('pf-pdel', null, 'aidel'); del.dataset.id = c.id; del.setAttribute('aria-label', 'Hapus AI ' + c.name); del.innerHTML = ICON.trash;
+  acts.append(chat, del);
+  card.append(avatar(c.name, '', c.avatar, 'pav'), bd, acts);
+  return card;
+}
+function panelAI(panel) {
+  loadAIs().then(fresh => { if (fresh && tabKey === 'ai') paintPanel(); });
+  const sec = h('div', 'pf-sec');
+  sec.append(h('h3', null, 'AI Saya'));
+  sec.append(h('p', 'pf-note', 'Buat karakter AI-mu sendiri: tentukan nama, identitas, kepribadian, dan gaya bicaranya. AI buatanmu muncul di Beranda bersama karakter lain dan mendukung hubungan, memori, grup, serta persona. Hanya kamu yang bisa melihat dan memakainya. Suaranya bisa dipilih dari suara karakter yang sudah ada; tanpa suara, AI hanya membalas teks.'));
+  panel.append(sec);
+  if (ai.err) { panel.append(h('div', 'pf-empty', ai.err)); return; }
+  if (!ai.items) { panel.append(h('div', 'pf-empty', 'Memuat…')); return; }
+  if (!ai.items.length) {
+    const e = h('div', 'pf-empty', 'Belum ada AI buatanmu. Ciptakan karakter yang kamu inginkan — tokoh fiksi favorit, teman curhat, atau sosok yang benar-benar baru.');
+    e.append(document.createElement('br'), btn('pf-btn', 'Buat AI', 'aiadd'));
+    panel.append(e); return;
+  }
+  const grid = h('div', 'pf-pgrid');
+  for (const c of ai.items) grid.append(aiCard(c));
+  if (ai.items.length < ai.max) {
+    const add = btn('pf-pcard add', null, 'aiadd'); add.setAttribute('aria-label', 'Buat AI baru');
+    add.append(h('span', 'pf-plus', '+'), h('small', null, 'Buat AI baru'));
+    grid.append(add);
+  }
+  panel.append(grid, h('p', 'pf-note', ai.items.length >= ai.max ? 'Kuota penuh (' + ai.items.length + '/' + ai.max + '). Hapus salah satu AI untuk membuat yang baru.' : ai.items.length + '/' + ai.max + ' AI terpakai.'));
+}
+/* Pemilih suara: AI buatan memakai suara karakter bawaan (id asli tidak pernah dikirim ke browser, hanya key + label).
+   Tanpa suara = tidak bisa voice note walaupun voice dinyalakan. */
+function aiVoiceBox(c) {
+  const l = h('label', 'pf-lab', 'Suara (voice note)'), sel = h('select', 'pf-inp'); sel.id = 'aivoice';
+  sel.append(new Option('Tanpa suara', '')); sel.dataset.cur = c && c.voice ? c.voice.char + '|' + c.voice.key : '';
+  const note = h('div', 'pf-cnt', 'Pilih suara karakter yang sudah ada. Tanpa suara, AI ini hanya membalas teks walau voice dinyalakan.');
+  l.append(sel); const box = h('div'); box.append(l, note); return box;
+}
+async function fillVoiceSel() {
+  const sel = $('aivoice'); if (!sel) return;
+  try {
+    if (!voiceCat) { const r = await fetch('/api/voices'); voiceCat = r.ok ? await r.json() : []; }
+    if (!Array.isArray(voiceCat)) voiceCat = [];
+  } catch (e) { voiceCat = null; return; } // gagal: select dibiarkan tanpa penanda ready -> suara tidak ikut tersimpan
+  const cur = sel.dataset.cur;
+  for (const ch of voiceCat) {
+    const g = document.createElement('optgroup'); g.label = ch.name;
+    for (const v of ch.voices) g.append(new Option(ch.voices.length > 1 ? v.label : 'Suara utama', ch.char + '|' + v.key));
+    sel.append(g);
+  }
+  sel.value = [...sel.options].some(o => o.value === cur) ? cur : '';
+  sel.dataset.ready = '1';
+}
+
+/* Mode dev: tambah/ubah voice ID (Fish Audio) mentah untuk AI ini. Dijaga kode dev yang sama dengan alat dev lain (diminta lewat prompt). */
+const aiDevOn = () => typeof devOn === 'function' && devOn();
+function aiDevBox(c) {
+  const box = h('div'), l = h('label', 'pf-lab', 'Suara dev (Mode dev)'), t = h('textarea', 'pf-inp');
+  t.id = 'aidev'; t.rows = 3; t.placeholder = 'Satu suara per baris: Label | voiceId\nmis. Normal | c438f4ef85b848c295a505a7ae2f1278'; t.disabled = !c;
+  l.append(t);
+  const note = h('div', 'pf-cnt', c ? 'Memuat suara dev…' : 'Simpan AI dulu, baru suara dev bisa diatur.'); note.id = 'aidevnote';
+  const b = btn('pf-lnk', 'Simpan suara dev', 'aidevsave'); b.disabled = !c;
+  box.append(l, note, b); return box;
+}
+async function devCode() {
+  if (typeof devCodeMem === 'undefined') return '';
+  if (!devCodeMem) { const c = prompt('Masukkan kode dev:'); if (!c || !c.trim()) return ''; devCodeMem = c.trim(); }
+  return devCodeMem;
+}
+const devLines = list => list.map(v => (v.label ? v.label + ' | ' : '') + v.id).join('\n');
+async function loadDevVoices(id) {
+  const t = $('aidev'), note = $('aidevnote'); if (!t) return;
+  const code = await devCode(); if (!code) { note.textContent = 'Kode dev dibutuhkan untuk melihat suara dev.'; return; }
+  try {
+    const r = await aApi('dev/aivoice/list', { code, id });
+    if (!r || !r.ok) throw new Error((r && r.error) || 'Gagal.');
+    const d = (r.chars || [])[0]; t.value = d ? devLines(d.voices) : ''; note.textContent = 'Suara dev tampil di pemilih suara chat kalau lebih dari satu.';
+  } catch (e) { if (e && e.status === 403) devCodeMem = null; note.textContent = (e && e.message) || 'Gagal memuat suara dev.'; }
+}
+async function saveDevVoices() {
+  if (!aiForm || !aiForm.id) return;
+  const t = $('aidev'), note = $('aidevnote'); if (!t) return;
+  const voices = t.value.split('\n').map(x => x.trim()).filter(Boolean).map(x => { const i = x.lastIndexOf('|'); return i < 0 ? { label: '', id: x } : { label: x.slice(0, i).trim(), id: x.slice(i + 1).trim() }; });
+  const code = await devCode(); if (!code) return;
+  note.textContent = 'Menyimpan…';
+  try {
+    const r = await aApi('dev/aivoice/set', { code, id: aiForm.id, voices });
+    if (!r || !r.ok) throw new Error((r && r.error) || 'Gagal menyimpan.');
+    t.value = devLines(r.voices); note.textContent = 'Suara dev tersimpan (' + r.voices.length + ').'; aiSync();
+  } catch (e) { if (e && e.status === 403) devCodeMem = null; note.textContent = (e && e.message) || 'Gagal menyimpan suara dev.'; }
+}
+
+function paintAIPic() {
+  const holder = $('aipic'); if (!holder || !aiForm) return;
+  const a = avatar(($('ainame') && $('ainame').value) || '?', '', aiForm.preview === 'cur' ? aiForm.curAv : '');
+  if (aiForm.preview && aiForm.preview !== 'cur') {
+    const im = new Image(); im.alt = ''; im.src = aiForm.preview;
+    im.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover';
+    a.append(im);
+  }
+  holder.replaceWith(a); a.id = 'aipic';
+  const rm = $('airm'); if (rm) rm.classList.toggle('hide', !aiForm.preview);
+}
+function aiField(label, id, key, rows, ph, c) { // textarea berlabel + penghitung huruf
+  const l = h('label', 'pf-lab', label), t = h(rows === 1 ? 'input' : 'textarea', 'pf-inp');
+  t.id = id; t.maxLength = AI_LIM[key]; t.value = c ? (c[key] || '') : ''; t.placeholder = ph; if (rows > 1) t.rows = rows; else t.autocomplete = 'off';
+  const cnt = h('div', 'pf-cnt', t.value.length + '/' + AI_LIM[key]);
+  t.addEventListener('input', () => { cnt.textContent = t.value.length + '/' + AI_LIM[key]; });
+  l.append(t); return [l, cnt];
+}
+function openAIForm(c) {
+  if (!aOn || !atok) return;
+  aiForm = { id: c ? c.id : '', curAv: c ? (c.avatar || '') : '', av: undefined, preview: c ? (c.avatar ? 'cur' : '') : '' };
+  const box = h('div'), head = h('div', 'pf-mh');
+  const x = iconBtn('', ICON.close, 'Tutup'); x.addEventListener('click', closeModal);
+  head.append(h('h2', null, c ? 'Edit AI' : 'AI baru'), x);
+  const pic = h('div', 'pf-epic'), holder = h('span'); holder.id = 'aipic';
+  const acts = h('div'), file = h('input'); file.type = 'file'; file.accept = 'image/*'; file.hidden = true; file.id = 'aifile';
+  const rm = btn('pf-lnk d', 'Hapus foto', 'airmpic'); rm.id = 'airm';
+  acts.append(btn('pf-lnk', 'Ganti foto', 'aipick'), rm, file); pic.append(holder, acts);
+  const msg = h('p', 'pf-msg'); msg.id = 'aimsg'; msg.setAttribute('role', 'status');
+  const act = h('div', 'pf-mact'), save = btn('go', 'Simpan', 'aisave'); save.id = 'aisave'; act.append(btn('', 'Batal', 'aicancel'), save);
+  box.append(head, pic,
+    ...aiField('Nama', 'ainame', 'name', 1, 'Nama AI, mis. Luna', c),
+    ...aiField('Label (opsional)', 'aitag', 'tagline', 1, 'Muncul di bawah nama, mis. Penyihir Bulan', c),
+    ...aiField('Identitas', 'aiident', 'identity', 4, 'Siapa dia? Asal-usul, pekerjaan, latar cerita, hubungannya denganmu', c),
+    ...aiField('Kepribadian', 'aipers', 'personality', 4, 'Sifat dan sikapnya, mis. ceria, usil, tapi diam-diam perhatian', c),
+    ...aiField('Gaya bicara (opsional)', 'aispeech', 'speech', 3, 'Cara bicaranya, mis. santai, singkat, sering bercanda', c),
+    ...aiField('Aturan tambahan (opsional)', 'airules', 'rules', 3, 'Hal yang harus/tidak boleh dilakukan AI ini', c),
+    aiVoiceBox(c), ...(aiDevOn() ? [aiDevBox(c)] : []),
+    msg, act);
+  openModal(box); paintAIPic(); fillVoiceSel(); if (aiDevOn() && c) loadDevVoices(c.id);
+  $('ainame').addEventListener('input', () => { if (!aiForm.preview || aiForm.preview === '') paintAIPic(); });
+  file.addEventListener('change', async () => {
+    const f = file.files && file.files[0]; file.value = ''; if (!f) return;
+    msg.className = 'pf-msg'; msg.textContent = '';
+    if (!/^image\//.test(f.type) || f.size > 15 * 1024 * 1024) { msg.className = 'pf-msg err'; msg.textContent = 'Pilih file gambar (maks 15 MB).'; return; }
+    try { aiForm.av = await toJpeg(f); aiForm.preview = aiForm.av; paintAIPic(); }
+    catch (e) { msg.className = 'pf-msg err'; msg.textContent = (e && e.message) || 'Foto tidak bisa dipakai.'; }
+  });
+  setTimeout(() => $('ainame').focus({ preventScroll: true }), 30);
+}
+async function saveAI() {
+  if (!aiForm) return;
+  const msg = $('aimsg'), save = $('aisave'), v = id => $(id).value.trim();
+  const payload = { name: v('ainame'), tagline: v('aitag'), identity: v('aiident'), personality: v('aipers'), speech: v('aispeech'), rules: v('airules') };
+  msg.className = 'pf-msg err';
+  if (!payload.name) { msg.textContent = 'Nama AI tidak boleh kosong.'; $('ainame').focus(); return; }
+  if (!payload.identity && !payload.personality) { msg.textContent = 'Isi minimal identitas atau kepribadian.'; $('aipers').focus(); return; }
+  if (aiForm.id) payload.id = aiForm.id;
+  const vs = $('aivoice'); if (vs && vs.dataset.ready === '1') { const [vc, vk] = vs.value.split('|'); payload.voice = vc ? { char: vc, key: vk } : null; } // select belum terisi (katalog gagal dimuat) = suara dibiarkan
+  if (aiForm.av !== undefined) payload.avatar = aiForm.av; // undefined = biarkan foto, null = hapus, string = JPEG baru
+  save.disabled = true; msg.className = 'pf-msg'; msg.textContent = 'Menyimpan…';
+  try {
+    const r = await aApi('aichar/save', payload);
+    if (!r || !r.ok) throw new Error((r && r.error) || 'Gagal menyimpan.');
+    ai.items = Array.isArray(r.chars) ? r.chars : []; ai.max = r.max || 10;
+    closeModal(); paintPanel(); aiSync(); toast('AI disimpan');
+  } catch (e) { msg.className = 'pf-msg err'; msg.textContent = (e && e.message) || 'Gagal menyimpan, coba lagi.'; save.disabled = false; }
+}
+function askDeleteAI(id) {
+  const c = (ai.items || []).find(x => x.id === id); if (!c) return;
+  const box = h('div'), head = h('div', 'pf-mh');
+  const x = iconBtn('', ICON.close, 'Tutup'); x.addEventListener('click', closeModal);
+  head.append(h('h2', null, 'Hapus AI?'), x);
+  const t = h('p', 'pf-dtxt', '"' + c.name + '" akan dihapus permanen. Riwayat obrolan di perangkat ini tidak ikut dihapus, tapi AI-nya tidak bisa dipakai lagi.');
+  const act = h('div', 'pf-mact'), del = btn('go danger', 'Hapus', 'aidelok'); del.dataset.id = id;
+  act.append(btn('', 'Batal', 'aicancel'), del);
+  box.append(head, t, act); openModal(box);
+  setTimeout(() => del.focus({ preventScroll: true }), 30);
+}
+async function deleteAI(id) {
+  try {
+    const r = await aApi('aichar/delete', { id });
+    if (!r || !r.ok) throw new Error((r && r.error) || 'Gagal.');
+    ai.items = Array.isArray(r.chars) ? r.chars : [];
+    closeModal(); paintPanel(); aiSync(); toast('AI dihapus');
+  } catch (e) { closeModal(); toast((e && e.message) || 'Gagal, coba lagi.'); }
+}
+function chatWithAI(id) {
+  const c = (typeof allChars !== 'undefined' ? allChars : []).find(x => x.id === id);
+  if (c && typeof openChat === 'function') openChat(c); else { aiSync(); toast('AI sedang disiapkan, coba lagi sebentar.'); }
+}
+
 async function deletePersona(id) {
   try {
     const r = await aApi('persona/delete', { id });
@@ -481,7 +692,7 @@ async function fetchMe() {
   return false;
 }
 async function load(force) {
-  if (lastTok !== atok) { lastTok = atok; me = null; view = null; viewing = ''; failed = ''; fr.items = null; fr.q = ''; fr.err = ''; cups = null; tabKey = 'sum'; ps.items = null; ps.err = ''; ps.busy = false; psForm = null; syncRail(); }
+  if (lastTok !== atok) { lastTok = atok; me = null; view = null; viewing = ''; failed = ''; fr.items = null; fr.q = ''; fr.err = ''; cups = null; tabKey = 'sum'; ps.items = null; ps.err = ''; ps.busy = false; psForm = null; ai.items = null; ai.err = ''; ai.busy = false; aiForm = null; syncRail(); }
   if (!aOn || !atok) { me = null; view = null; render(); syncRail(); return; }
   if (busy || (!force && me && Date.now() - lastAt < 4000)) { render(); return; }
   busy = true; if (!view) render();
@@ -647,6 +858,17 @@ document.addEventListener('click', e => {
   else if (a === 'psgen-f') { if (psForm) { psForm.gender = psForm.gender === 'f' ? '' : 'f'; paintGenSeg(); } }
   else if (a === 'psdef') { if (psForm) { psForm.def = !psForm.def; b.setAttribute('aria-checked', String(psForm.def)); } }
   else if (a === 'pssave') savePersona();
+  /* --- AI Saya --- */
+  else if (a === 'aiadd') openAIForm(null);
+  else if (a === 'aiedit') { const c = (ai.items || []).find(x => x.id === b.dataset.id); if (c) openAIForm(c); }
+  else if (a === 'aichat') chatWithAI(b.dataset.id);
+  else if (a === 'aidel') askDeleteAI(b.dataset.id);
+  else if (a === 'aidelok') deleteAI(b.dataset.id);
+  else if (a === 'aipick') $('aifile').click();
+  else if (a === 'airmpic') { if (aiForm) { aiForm.av = null; aiForm.preview = ''; paintAIPic(); } }
+  else if (a === 'aisave') saveAI();
+  else if (a === 'aidevsave') saveDevVoices();
+  else if (a === 'aicancel') closeModal();
   else if (a === 'pscancel') closeModal();
 });
 // baris pengguna (hasil cari / modal): klik di luar tombol = buka profilnya

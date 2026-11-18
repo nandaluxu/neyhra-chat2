@@ -404,7 +404,7 @@
     const chId = ch.id
     const relNote = relApply(chId, r.dExp != null ? r.dExp : (Math.round(Number(r.dRel)) || 0) * 3, r.dMood)
     saveHist(chId, [...loadHist(chId), ['char', r.id]])
-    const useVoice = voiceOn && !!vcode, lang = voiceLang
+    const useVoice = voiceOn && !!vcode && canVoice(chId), lang = voiceLang
     if (!useVoice) showThemSafe(chId, r.id)
     else await voiceReply(chId, r, lang, null) // suara tetap dibuat walau chat ditinggal (voiceReply memasang bubble hanya kalau masih di chat itu)
     setStatus('online', false)

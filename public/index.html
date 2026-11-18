@@ -557,6 +557,7 @@ header .pfp,header .who{cursor:pointer}
 <link rel="stylesheet" href="/globalchat.css">
 <link rel="stylesheet" href="/extras.css">
 <link rel="stylesheet" href="/shell.css">
+<link rel="stylesheet" href="/cdetail.css">
 <link rel="stylesheet" href="/bonus.css">
 <link rel="stylesheet" href="/leaderboard.css">
 <link rel="stylesheet" href="/games.css">
@@ -1149,6 +1150,7 @@ let vcode=store.get('vcode')||'';           /* kode yang sudah terbukti benar */
 let voiceOn=store.get('von')==='1'&&!!vcode; /* voice cuma bisa nyala kalau sudah punya kode */
 /* suara per karakter: server cuma memberi { key, label } (voiceId asli tidak pernah sampai ke browser). Pilihan disimpan per karakter. */
 const charVoices=id=>{ const c=allChars.find(x=>x.id===id); return (c&&c.voices)||[]; };
+const canVoice=id=>{ const c=allChars.find(x=>x.id===id); return !(c&&c.novoice); }; /* karakter tanpa voiceId (flag `novoice` dari server) tidak bisa voice note walau voice nyala */
 const voiceKeyOf=id=>{ const vs=charVoices(id); if(vs.length<2) return undefined; const k=store.get('vv:'+id); return vs.some(v=>v.key===k)?k:vs[0].key; };
 /* 3 karakter yang terakhir dibuka tampil di atas menu. Murni client side: cuma daftar id di localStorage perangkat ini. */
 let recent=(()=>{ try{ const r=JSON.parse(store.get('recent')||'[]'); return Array.isArray(r)?r.filter(x=>typeof x==='string').slice(0,10):[]; }catch{ return []; } })();
@@ -1367,7 +1369,7 @@ async function pendFlush(keepBusy){ /* keepBusy=true: dipanggil dari jalur hadia
   const b=pend; pend=[];
   const chId=b[0].chId, c=allChars.find(x=>x.id===chId); if(!c) return;
   const text=b.map(x=>String(x.x||'')).filter(Boolean).join('\n\n').slice(0,2000);
-  const useVoice=voiceOn&&!!vcode, lang=voiceLang; let okReply=false, relNote='', lastReply='', r=null;
+  const useVoice=voiceOn&&!!vcode&&canVoice(chId), lang=voiceLang; let okReply=false, relNote='', lastReply='', r=null;
   busy=true; setStatus(idleStat(),false); refresh();
   let t=stillHere(chId)?thinkBubble(c.name,false):null; /* sudah pindah chat: tidak perlu bubble mikir (balasannya tetap dicatat) */
   try{
@@ -1413,7 +1415,7 @@ async function submit(opt){
     pendArm(); refresh(); return;
   }
   if(pend.length) await pendFlush(true); /* hadiah/gambar/skenario saat masih ada antrean teks: antreannya dikirim dulu */
-  const useVoice=voiceOn&&!!vcode, lang=voiceLang; let okReply=false, relNote='', lastReply='';
+  const useVoice=voiceOn&&!!vcode&&canVoice(ch&&ch.id), lang=voiceLang; let okReply=false, relNote='', lastReply='';
   /* Pesan gambar: bubble user (gambar + caption) langsung tampil SAAT DIKIRIM, tidak menunggu /api/vision selesai. Kalau pembacaan gagal, bubble dicabut lagi. Dicatat ke log setelah berhasil. */
   const vt=Date.now(); let vrow=null;
   if(vf&&ch&&ch.id===chId&&app.classList.contains('open')&&!(window.GX&&GX.cur)) vrow=VISION.render({img:vf.thumb,x:text,t:vt});
@@ -1824,7 +1826,7 @@ async function goOn(){
   if(window.GX&&GX.cur) return;
   if(window.SCN&&SCN.activeFor&&SCN.activeFor(ch.id)) return;
   busy=true; refresh(); hideGoon();
-  const chId=ch.id, useVoice=voiceOn&&!!vcode, lang=voiceLang;
+  const chId=ch.id, useVoice=voiceOn&&!!vcode&&canVoice(chId), lang=voiceLang;
   let t=thinkBubble(ch.name), relNote='', r=null; /* r diangkat keluar try: masih dipakai setelahnya (dulu r.nq di luar try = ReferenceError, placeGoon tak pernah jalan) */
   try{
     r=await (await post('/api/chat',{clientId:cid,char:chId,message:'',cont:true,userName:uname,history:loadHist(chId),voice:{on:useVoice,lang},memory:memUse(chId).list,rel:relPayload(chId),qr:true,...engPayload(),...(rpOn()?{rp:true}:{})})).json();
@@ -2791,7 +2793,7 @@ function card(c){
   const im=img(c); im.loading='lazy'; im.decoding='async'; av.append(im, document.createElement('i'));
   const n=document.createElement('span'); n.className='b-name'; n.textContent=shortName(c); b.title=c.name;
   const tg=document.createElement('span'); tg.className='b-tag'; tg.textContent=c.tagline||'';
-  b.append(av,n,tg); b.onclick=()=>openChat(c,av); /* openChat sendiri memindahkan tab ke 'recent' */
+  b.append(av,n,tg); b.onclick=()=>{ if(window.CD) CD.open(c); else openChat(c,av); }; /* ketuk = halaman detail dulu (public/cdetail.js); tombol Obrolan di sana yang memanggil openChat */
   return b;
 }
 let rows=[]; /* [{c, el}] tile di Beranda, dibuat sekali lalu cuma disembunyikan/ditampilkan saat mencari */
@@ -2848,15 +2850,24 @@ q.addEventListener('input',filterAll);
 q.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); const f=rows.find(r=>!r.el.classList.contains('hide')); if(f){ q.blur(); f.el.click(); } } });
 
 function renderList(){ if(window.Shell) Shell.renderRecent(); } /* semua pemanggil lama (termasuk group.js) otomatis memperbarui daftar baru */
-fetch('/api/chars').then(r=>r.json()).then(cs=>{
+/* Daftar karakter: bawaan + AI buatan sendiri (dikirim server hanya kalau token Bearer pemiliknya ada). Dipanggil ulang setelah masuk/keluar
+   atau setelah AI dibuat/diedit/dihapus di Profil > AI Saya (window.reloadChars). */
+let charsFirst=true;
+function loadAllChars(){
+return fetch('/api/chars',atok?{headers:{Authorization:'Bearer '+atok},cache:'no-store'}:{cache:'no-store'}).then(r=>r.json()).then(cs=>{
+  if(!Array.isArray(cs)) throw 0;
   allChars=cs;
   $('alllist').textContent=''; $('alllist').removeAttribute('aria-busy');
   rows=cs.map((c,i)=>{ const el=card(c); el.style.setProperty('--i',Math.min(i,12)); return {c,el}; }); $('alllist').append(...rows.map(r=>r.el));
   $('allcount').textContent=cs.length+' karakter';
-  renderList(); renderCont(); buildChips();
+  renderList(); renderCont(); buildChips(); if(typeof filterAll==='function') filterAll();
   if(window.GX) GX.paintAll();
-  proArm(); /* pesan proaktif: mulai mencari kandidat setelah karakter termuat */
-}).catch(()=>{ $('alllist').textContent='Gagal memuat karakter'; $('alllist').removeAttribute('aria-busy'); });
+  if(charsFirst){ charsFirst=false; proArm(); } /* pesan proaktif: mulai mencari kandidat setelah karakter termuat (sekali) */
+}).catch(()=>{ if(charsFirst){ $('alllist').textContent='Gagal memuat karakter'; $('alllist').removeAttribute('aria-busy'); } });
+}
+loadAllChars();
+window.reloadChars=loadAllChars;
+let charsTok=atok; addEventListener('acct',()=>{ if(charsTok!==atok){ charsTok=atok; loadAllChars(); } }); /* masuk/keluar akun: AI buatan akun itu muncul/hilang */
 window.addEventListener('shell:tab',e=>{ if(e.detail==='home') renderCont(); }); /* selesai ngobrol lalu balik ke Beranda: strip ikut segar */
 
 
@@ -2987,6 +2998,7 @@ document.addEventListener('visibilitychange',()=>{ if(!document.hidden) setTimeo
 <script src="/wordsearch.js"></script>
 <script src="/scenario.js"></script>
 <script src="/profile.js"></script>
+<script src="/cdetail.js"></script>
 <script src="/notify.js"></script>
 <script src="/shop.js"></script>
 <script src="/economy.js"></script>

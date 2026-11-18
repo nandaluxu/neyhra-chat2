@@ -1,0 +1,56 @@
+/* Halaman detail karakter (Beranda -> ketuk karakter -> detail -> tombol Obrolan). Lihat public/cdetail.js.
+   Warna ikut tema aplikasi (--bg/--surface/--ink/--mut/--line); aksen ungu dipakai tombol Obrolan dan penanda bagian. */
+#cdetail{--ac:#7c6cf5;display:none;position:absolute;inset:0;z-index:2;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;background:var(--bg);color:var(--ink);
+  padding:calc(12px + env(safe-area-inset-top,0px)) 16px calc(28px + env(safe-area-inset-bottom,0px));scrollbar-width:thin}
+#app.cd-on #cdetail{display:block}
+#app.cd-on #menu{display:none}
+#app:not([data-tab="home"]) #cdetail{display:none}
+#cdetail .cd-wrap{max-width:1040px;margin:0 auto}
+#cdetail .cd-back{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 12px 0 8px;margin:0 0 10px -6px;border-radius:999px;font-size:13.5px;color:var(--mut)}
+#cdetail .cd-back:hover{background:var(--surface);color:var(--ink)}
+#cdetail .cd-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:20px}
+#cdetail .cd-cover{position:relative;border-radius:14px;overflow:hidden;background:var(--surface);aspect-ratio:4/5;max-height:40vh;width:100%}
+#cdetail .cd-cover img{width:100%;height:100%;object-fit:cover;display:block}
+#cdetail .cd-badge{position:absolute;right:0;bottom:0;display:flex;align-items:center;gap:5px;padding:5px 10px;background:rgba(0,0,0,.62);color:#fff;font-size:12.5px;border-top-left-radius:10px}
+#cdetail .cd-badge svg{width:14px;height:14px}
+#cdetail .cd-stat{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--surface);border-radius:12px;padding:14px 16px;margin-top:10px}
+#cdetail .cd-stat b{font-size:16px;display:flex;align-items:center;gap:8px;font-weight:600}
+#cdetail .cd-stat small{display:block;margin-top:6px;font-size:13px;color:var(--mut)}
+#cdetail .cd-like{width:40px;height:40px;border-radius:50%;border:1px solid var(--line);flex:none}
+#cdetail .cd-act{display:flex;gap:10px;align-items:center;margin-top:14px}
+#cdetail .cd-chat{flex:1;height:44px;border-radius:12px;background:var(--ac);color:#fff;font-size:15px;font-weight:600}
+#cdetail .cd-chat:hover{filter:brightness(1.08)}
+#cdetail .cd-share{width:44px;height:44px;border-radius:12px;color:var(--mut)}
+#cdetail .cd-share:hover{background:var(--surface);color:var(--ink)}
+#cdetail .cd-rel h3{font-size:17px;font-weight:700;margin:18px 0 8px}
+#cdetail .cd-ritem{display:flex;gap:12px;width:100%;text-align:left;place-items:unset;align-items:flex-start;background:var(--surface);border-radius:12px;padding:10px;margin-bottom:10px}
+#cdetail .cd-ritem:hover{background:var(--line)}
+#cdetail .cd-ritem img{width:64px;height:80px;border-radius:8px;object-fit:cover;flex:none;background:var(--line)}
+#cdetail .cd-ritem b{display:block;font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#cdetail .cd-ritem span{display:block;font-size:12.5px;color:var(--mut);margin-top:3px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+#cdetail .cd-ritem > div{min-width:0;flex:1}
+#cdetail h1.cd-title{font-size:clamp(24px,5vw,34px);font-weight:700;letter-spacing:-.02em;line-height:1.15;word-break:break-word}
+#cdetail .cd-meta{display:flex;flex-wrap:wrap;gap:4px 18px;margin-top:8px;font-size:13px;color:var(--mut)}
+#cdetail .cd-meta b{color:var(--ink);font-weight:700;margin-left:4px}
+#cdetail .cd-sub{margin-top:8px;font-size:14.5px;line-height:1.5}
+#cdetail .cd-by{margin-top:16px;background:var(--surface);border-radius:14px;padding:18px}
+#cdetail .cd-byt{display:flex;align-items:center;gap:12px}
+#cdetail .cd-av{width:48px;height:48px;border-radius:50%;object-fit:cover;background:var(--line);flex:none}
+#cdetail .cd-bn{font-weight:700;font-size:16px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#cdetail .cd-pill{height:34px;padding:0 16px;border-radius:999px;font-size:13.5px;font-weight:600;flex:none}
+#cdetail .cd-pill.o{border:1px solid var(--ac);color:var(--ac)}
+#cdetail .cd-pill.t{color:var(--ac)}
+#cdetail .cd-bio{margin-top:12px;font-size:14px;line-height:1.5;color:var(--mut)}
+#cdetail .cd-tabs{display:flex;margin-top:18px;background:var(--surface);border-radius:10px;overflow:hidden}
+#cdetail .cd-tab{flex:1;height:40px;font-size:13.5px;font-weight:600;color:var(--mut);border-radius:0}
+#cdetail .cd-tab[aria-selected="true"]{background:var(--line);color:var(--ink)}
+#cdetail .cd-sec{margin-top:22px}
+#cdetail .cd-sec h2{font-size:16px;font-weight:700;padding-left:9px;border-left:3px solid var(--ac);line-height:1.1;margin-bottom:10px}
+#cdetail .cd-box{background:var(--surface);border-radius:12px;padding:16px;font-size:14px;line-height:1.6;color:var(--mut)}
+#cdetail .cd-chip{display:inline-block;background:var(--surface);color:var(--mut);font-weight:700;font-size:14px;padding:8px 14px;border-radius:999px}
+#cdetail .cd-boxh{font-weight:700;color:var(--ink);font-size:13.5px;margin-bottom:8px}
+@media(min-width:800px){
+  #app #cdetail{position:relative;inset:auto;grid-column:2;grid-row:1;min-width:0;padding:32px 40px 40px}
+  #cdetail .cd-grid{grid-template-columns:320px minmax(0,1fr);gap:40px;align-items:start}
+  #cdetail .cd-cover{aspect-ratio:1/1.12;max-height:none}
+}
