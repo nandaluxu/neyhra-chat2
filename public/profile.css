@@ -51,6 +51,7 @@ button.pf-stat:active{transform:scale(.97)}
 .pf-tab[aria-selected=true]{color:var(--ink);font-weight:600}
 .pf-tab[aria-selected=true]::after{content:"";position:absolute;left:18%;right:18%;bottom:-1px;height:2px;border-radius:2px;background:var(--ink)}
 @media(hover:hover){.pf-tab:hover{color:var(--ink)}}
+@media(max-width:519px){.pf-tab{padding:12px 2px;font-size:12.5px}.pf-tab[aria-selected=true]::after{left:10%;right:10%}}
 .pf-panel{margin-top:16px}
 .pf-sec{margin-top:16px}
 .pf-sec:first-child{margin-top:0}
@@ -132,3 +133,37 @@ button.pf-stat:active{transform:scale(.97)}
 .pc-bar{margin-top:6px;height:4px;border-radius:99px;background:var(--line);overflow:hidden}
 .pc-bar i{display:block;height:100%;border-radius:99px;background:var(--ink)}
 .pf-cup.got .pc-bar i{background:#d4a017}
+
+/* ===== Tab Persona (identitas alternatif user untuk konteks AI — lib/persona.js) ===== */
+.pf-pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-top:10px}
+.pf-pcard{display:flex;flex-direction:column;align-items:flex-start;gap:10px;padding:16px;border-radius:18px;background:var(--surface);text-align:left;min-width:0;cursor:pointer;transition:transform .15s}
+.pf-pcard:active{transform:scale(.985)}
+.pf-pcard.def{outline:1.5px solid var(--ink)}
+.pf-pcard:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.pf-pcard .pf-av{width:56px;height:56px;font-size:22px}
+.pf-pbd{min-width:0;width:100%}
+.pf-pnm{display:flex;align-items:center;gap:6px;min-width:0}
+.pf-pnm b{min-width:0;font-size:14.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pf-pgen{flex:none;padding:2px 8px;border-radius:99px;background:var(--bg);color:color-mix(in srgb,#4a7fd4 85%,var(--ink));font-size:10.5px;font-weight:600;letter-spacing:.02em}
+.pf-pgen.f{color:color-mix(in srgb,#d44a8f 85%,var(--ink))}
+.pf-pbd small{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-top:3px;font-size:12px;line-height:1.4;color:var(--mut);overflow-wrap:anywhere}
+.pf-pacts{display:flex;gap:6px;width:100%;margin-top:auto}
+.pf-pdef{flex:1;min-width:0;padding:8px 10px;border-radius:99px;background:var(--bg);color:var(--ink);font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:transform .15s}
+.pf-pdef:active{transform:scale(.96)}
+.pf-pdef.on{background:var(--ink);color:var(--bg)}
+.pf-pdef:disabled{opacity:.5;cursor:default;transform:none}
+.pf-pdef:focus-visible,.pf-pdel:focus-visible,.pf-pcard.add:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.pf-pdel{flex:none;display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:var(--bg);color:var(--rec);transition:transform .15s}
+.pf-pdel:active{transform:scale(.92)}
+.pf-pdel svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.pf-pcard.add{align-items:center;justify-content:center;gap:8px;min-height:150px;border:1.5px dashed var(--line);background:transparent;color:var(--mut)}
+.pf-plus{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:var(--surface);font-size:22px;font-weight:500;color:var(--ink)}
+.pf-pcard.add small{font-size:12.5px}
+
+/* form persona (modal) */
+.pf-seg{display:flex;gap:6px;margin-top:6px}
+.pf-seg button{flex:1;padding:10px 12px;border-radius:12px;background:var(--surface);font-size:13.5px;font-weight:500;color:var(--mut);transition:background .15s,color .15s}
+.pf-seg button[aria-pressed=true]{background:var(--ink);color:var(--bg);font-weight:600}
+.pf-psw{margin-top:14px;padding:12px;cursor:default}
+.pf-dtxt{margin-top:12px;font-size:13.5px;line-height:1.5}
+.pf-mact button.danger{background:#e5484d;color:#fff}

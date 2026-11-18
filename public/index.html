@@ -162,7 +162,7 @@ footer:has(#send:not(.hide)) #recbar{right:106px}
 .m-name:active{transform:scale(.96)}
 .m-name svg{width:15px;height:15px}
 .m-name:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
-#nmodal,#vmodal,#smodal,#pmodal,#mmodal,#rnmodal,#dlmodal{position:absolute;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(0,0,0,.45);backdrop-filter:blur(3px)}
+#nmodal,#vmodal,#smodal,#pmodal,#mmodal,#rnmodal,#dlmodal,#pemodal{position:absolute;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(0,0,0,.45);backdrop-filter:blur(3px)}
 .nbox{width:100%;max-width:340px;background:var(--bg);border:1px solid var(--line);border-radius:22px;padding:20px;animation:nin .25s cubic-bezier(.2,.9,.3,1.2)}
 @keyframes nin{from{opacity:0;transform:scale(.92) translateY(8px)}}
 .nbox h2{font-size:18px;font-weight:600;letter-spacing:-.02em}
@@ -329,7 +329,7 @@ header>button:active,.mwrap>button:active{transform:scale(.88)}
   .pfp{width:40px;height:40px}
   .name{font-size:16px}
   /* kotak nama jadi bottom sheet, gampang dijangkau jempol */
-  #nmodal,#vmodal,#smodal,#mmodal,#rnmodal,#dlmodal{align-items:flex-end;padding:12px 12px calc(12px + env(safe-area-inset-bottom,0px))}
+  #nmodal,#vmodal,#smodal,#mmodal,#rnmodal,#dlmodal,#pemodal{align-items:flex-end;padding:12px 12px calc(12px + env(safe-area-inset-bottom,0px))}
   .nbox{max-width:none;border-radius:26px;padding:22px 20px 20px}
   .nact button{padding:12px 20px}
 }
@@ -494,6 +494,40 @@ header .pfp,header .who{cursor:pointer}
 .rsteps li.cur::before{background:var(--ink);box-shadow:0 0 0 3px var(--line)}
 .rsteps li.lock{color:var(--mut);font-weight:400}
 .rsteps small{display:block;margin-top:1px;font-size:12px;font-weight:400;color:var(--mut)}
+
+/* ===== Persona chat ini: kartu di panel Detail karakter + pemilih persona (koleksi persona_picks, lib/persona.js) ===== */
+#dpers.hide{display:none!important}
+.pecard{width:100%;display:flex;align-items:center;gap:11px;margin-top:8px;padding:9px 11px;border-radius:14px;background:var(--bg);border:1px solid var(--line);text-align:left;transition:border-color .15s,transform .12s}
+@media(hover:hover){.pecard:hover{border-color:var(--mut)}}
+.pecard:active{transform:scale(.985)}
+.pecard:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.pe-av{flex:none;position:relative;width:38px;height:38px;border-radius:50%;overflow:hidden;background:var(--surface);display:grid;place-items:center;font-size:15px;font-weight:600;color:var(--mut)}
+.pe-av img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.pe-av svg{width:17px;height:17px}
+.pecard .pe-t,.pe-opt .pe-t{flex:1;min-width:0}
+.pecard .pe-t b,.pe-opt .pe-t b{display:block;font-size:14px;font-weight:600;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pecard .pe-t small,.pe-opt .pe-t small{display:block;margin-top:1px;font-size:11.5px;line-height:1.35;color:var(--mut);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.pecard>svg{flex:none;width:16px;height:16px;color:var(--mut)}
+#pemodal .nbox{max-width:380px;display:flex;flex-direction:column}
+.pe-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.pe-head button{width:34px;height:34px;border-radius:50%;transition:background .15s}
+@media(hover:hover){.pe-head button:hover{background:var(--surface)}}
+.pe-list{margin-top:12px;display:grid;gap:7px;max-height:min(52vh,430px);overflow-y:auto;overscroll-behavior:contain;padding-right:1px}
+.pe-list.busy{pointer-events:none;opacity:.55}
+.pe-opt{width:100%;display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:14px;background:var(--surface);border:1px solid transparent;text-align:left;transition:border-color .15s,transform .12s}
+@media(hover:hover){.pe-opt:hover{border-color:var(--line)}}
+.pe-opt:active{transform:scale(.985)}
+.pe-opt:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.pe-opt[aria-checked="true"]{border-color:var(--ink)}
+.pe-gen{display:inline-block;flex:none;margin-left:6px;padding:1.5px 7px;border-radius:99px;background:rgba(84,143,239,.16);color:#548fef;font-size:10.5px;font-weight:600;letter-spacing:.02em}
+.pe-gen.f{background:rgba(224,84,148,.15);color:#e05494}
+.pe-dot{flex:none;width:20px;height:20px;border-radius:50%;border:1.5px solid var(--off);display:grid;place-items:center;color:transparent;transition:background .15s,border-color .15s,color .15s}
+.pe-opt[aria-checked="true"] .pe-dot{border-color:var(--ink);background:var(--ink);color:var(--bg)}
+.pe-dot svg{width:11px;height:11px;stroke-width:2.6}
+.pe-manage{margin-top:12px;width:100%;padding:10px;border-radius:12px;background:var(--surface);font-size:13px;font-weight:600;transition:background .15s}
+@media(hover:hover){.pe-manage:hover{background:var(--line)}}
+.pe-msg{margin-top:10px;font-size:12.5px;line-height:1.4;color:var(--rec)}
+.pe-msg.hide{display:none}
 
 /* ===== Quick replies: chip saran balasan dari AI, melayang di atas footer (logika di index.html bawah) ===== */
 #qrrow{position:absolute;left:10px;right:10px;bottom:calc(100% + 8px);z-index:5;display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
@@ -832,6 +866,11 @@ header .pfp,header .who{cursor:pointer}
     <div class="shead dp-head"><h2>Detail karakter</h2><button id="rx" type="button" aria-label="Tutup"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     <div class="dp-scroll">
       <div class="rprof"><img id="rpfp" alt=""><div><b id="rname"></b><small id="rtag"></small></div></div>
+      <div class="rsec" id="dpers">
+        <h3>Persona</h3>
+        <button class="pecard" id="pecard" type="button" aria-haspopup="dialog"><span class="pe-t"><b>Persona</b><small>Memuat…</small></span><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+        <p class="rdesc">Identitas yang dipakai AI saat mengenali kamu di chat ini. Ketuk untuk memilih persona lain khusus untuk karakter ini.</p>
+      </div>
       <div class="rsec">
         <h3>Hubungan</h3>
         <div class="rline"><b id="rstage"></b><small id="rrel"></small></div>
@@ -878,6 +917,15 @@ header .pfp,header .who{cursor:pointer}
       <h2 id="dltitle">Hapus obrolan?</h2>
       <p id="dlsub"></p>
       <div class="nact"><button id="dlcancel" type="button">Batal</button><button id="dlok" type="button" style="background:var(--rec);color:#fff">Hapus</button></div>
+    </div>
+  </div>
+  <div id="pemodal" class="hide">
+    <div class="nbox" role="dialog" aria-labelledby="petitle">
+      <div class="pe-head"><h2 id="petitle">Persona</h2><button id="pex" type="button" aria-label="Tutup"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+      <p id="pesub"></p>
+      <div class="pe-list" id="pelist" role="radiogroup" aria-label="Persona untuk karakter ini"></div>
+      <p class="pe-msg hide" id="pemsg" role="status"></p>
+      <button class="pe-manage" id="pemanage" type="button">Kelola persona di Profil</button>
     </div>
   </div>
   <div id="invmodal" class="hide">
@@ -1584,7 +1632,7 @@ function closeChat(){
   const an=view.animate({clipPath:[circle(reach()),circle(0)]},{duration:DUR,easing:'cubic-bezier(.7,0,.2,1)',fill:'forwards'});
   an.onfinish=()=>{app.classList.remove('open'); an.cancel(); if(window.Shell) Shell.afterClose()};
 }
-document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ if(window.GX&&GX.esc()) return; if(!pm.classList.contains('hide')) closePicker(); else if(window.Shell&&Shell.detailOpen()&&!Shell.docked()) closeRel(); else if(!memModal.classList.contains('hide')) closeMem(); else if(!sm.classList.contains('hide')) closeSettings(); else if(!vm.classList.contains('hide')) closeVoice(); else if(window.Shell&&Shell.esc()) return; else if(app.classList.contains('open')&&!isDesk()) closeChat(); } });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ if(window.GX&&GX.esc()) return; if(!pm.classList.contains('hide')) closePicker(); else if(!peModal.classList.contains('hide')) closePe(); else if(window.Shell&&Shell.detailOpen()&&!Shell.docked()) closeRel(); else if(!memModal.classList.contains('hide')) closeMem(); else if(!sm.classList.contains('hide')) closeSettings(); else if(!vm.classList.contains('hide')) closeVoice(); else if(window.Shell&&Shell.esc()) return; else if(app.classList.contains('open')&&!isDesk()) closeChat(); } });
 $('back').addEventListener('click',closeChat);
 const savePlaying=()=>{ if(current&&current.save) current.save(); };
 window.addEventListener('pagehide',savePlaying);
@@ -2332,7 +2380,7 @@ function paintRel(){
     li.append(d); ol.append(li);
   });
 }
-function openRel(){ if(!ch||(window.GX&&GX.cur)) return; paintRel(); renderCharMem(ch.id); if(window.Shell) Shell.detail(true); }
+function openRel(){ if(!ch||(window.GX&&GX.cur)) return; paintRel(); renderCharMem(ch.id); peSync(); if(window.Shell) Shell.detail(true); }
 function closeRel(keep){ if(window.Shell) Shell.detail(false,{keep:keep===true}); if(rrT){ clearTimeout(rrT); rrT=0; $('rreset').classList.remove('arm'); $('rreset').querySelector('b').textContent='Reset hubungan'; } }
 document.querySelector('header').addEventListener('click',e=>{ if(e.target.closest('#hpfp,.who')) openRel(); });
 $('rx').onclick=()=>closeRel();
@@ -2343,6 +2391,118 @@ $('rreset').onclick=()=>{
   if(ch){ store.set(relKey(ch.id),null); paintRel(); toast('Hubungan direset'); }
 };
 const shortName=c=>{ const n=String((c&&c.name)||'').replace(/\([^)]*\)/g,' ').replace(/\s+/g,' ').trim(); return n.length<=12?n:(n.split(/[\s/]+/)[0]||n); };
+
+/* ===== Persona untuk chat ini (panel Detail karakter) =====
+   Kartu persona yang bisa ditekan -> membuka daftar seluruh persona milik user -> pilih SATU untuk dipakai
+   khusus pada percakapan dengan karakter ini. Tersimpan di akun (persona_picks: per user + per karakter), jadi
+   karakter berbeda bisa memakai persona berbeda dan pilihan ikut saat pindah perangkat.
+   Resolusi di server (personaFor, lib/app.js): pilihan per-karakter menimpa persona default; tanpa pilihan ->
+   persona default (kalau ada) atau nama akun — persis perilaku sebelum fitur ini. Client tidak mengirim apa pun
+   saat chat: server membaca pilihan lewat token Bearer + field `char` yang memang sudah dikirim.
+   Ganti persona -> personaHash di fmtKey berubah -> sesi AI dimulai ulang -> blok identitas baru langsung dipakai. */
+const PE={mode:'follow',personaId:null,items:null,max:6,busy:false,saving:false,seq:0,err:'',char:'',t:0};
+const peModal=$('pemodal');
+const PE_ICO={person:'<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.6"/><path d="M5 20a7 7 0 0114 0"/></svg>',check:'<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>'};
+function peAv(name,src){ /* avatar bulat: foto persona atau inisial nama */
+  const a=document.createElement('span'); a.className='pe-av'; a.setAttribute('aria-hidden','true');
+  if(src){ const im=new Image(); im.alt=''; im.decoding='async'; im.referrerPolicy='no-referrer'; im.src=src; im.onerror=()=>im.remove(); a.append(im); }
+  else a.textContent=(String(name||'?').trim()[0]||'?').toUpperCase();
+  return a;
+}
+function peIco(){ /* lingkaran ikon orang: untuk opsi "ikut default"/"profil akun" tanpa persona */
+  const a=document.createElement('span'); a.className='pe-av'; a.setAttribute('aria-hidden','true'); a.innerHTML=PE_ICO.person; return a;
+}
+const peDef=()=>(PE.items||[]).find(p=>p.def)||null; /* persona default saat ini */
+const peEff=()=>PE.mode==='pick'?(PE.items||[]).find(p=>p.id===PE.personaId)||null:PE.mode==='none'?null:peDef(); /* identitas efektif untuk kartu */
+function paintPersonaCard(){ /* kartu di panel detail: selalu digambar ulang dari state (murah, panel bisa tersembunyi) */
+  const sec=$('dpers'), card=$('pecard'); if(!sec||!card) return;
+  if(!aOn){ sec.classList.add('hide'); return; } /* fitur akun mati di server: sembunyikan bagian persona */
+  sec.classList.remove('hide');
+  card.textContent='';
+  const t=document.createElement('span'); t.className='pe-t';
+  const put=(av,b,s)=>{ card.append(av); const bb=document.createElement('b'); bb.textContent=b; const sm=document.createElement('small'); sm.textContent=s; t.append(bb,sm); };
+  if(!atok) put(peIco(),'Persona','Masuk akun untuk memakai identitas lain saat ngobrol');
+  else if(PE.err) put(peIco(),'Gagal memuat',PE.err+' Ketuk untuk coba lagi.');
+  else if(!PE.items) put(peIco(),'Memuat…','');
+  else if(PE.mode==='none') put(peAv(uname||'A',''),'Profil akun','Tanpa persona — '+(ch?shortName(ch):'karakter ini')+' memanggil nama akunmu');
+  else { const eff=peEff();
+    if(eff) put(peAv(eff.name,eff.avatar),eff.name,PE.mode==='pick'?'Persona khusus untuk '+(ch?shortName(ch):'chat ini'):'Persona default — dipakai di semua chat');
+    else put(peAv(uname||'A',''),'Nama akun','Belum ada persona default');
+  }
+  card.append(t); card.insertAdjacentHTML('beforeend','<svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>');
+}
+async function peLoad(){ /* ambil status pilihan karakter ini + daftar persona (satu endpoint, lihat persona/pick-get) */
+  if(!atok||!ch||PE.busy) return;
+  PE.busy=true; const seq=++PE.seq;
+  try{
+    const r=await aApi('persona/pick-get',{char:ch.id});
+    if(seq!==PE.seq){ PE.busy=false; return; } /* respons lama: sudah ada permintaan lebih baru */
+    if(r&&r.ok){ PE.mode=r.mode==='none'||r.mode==='pick'?r.mode:'follow'; PE.personaId=r.personaId||null;
+      PE.items=Array.isArray(r.personas)?r.personas:[]; PE.max=r.max||6; PE.err=''; PE.char=ch.id; PE.t=Date.now(); }
+    else PE.err=(r&&r.error)||'Gagal memuat persona.';
+  }catch(e){ if(seq===PE.seq) PE.err=(e&&e.status===401)?'':((e&&e.message)||'Tidak bisa terhubung ke server.'); }
+  PE.busy=false; paintPersonaCard();
+  if(!peModal.classList.contains('hide')) pePaintList();
+}
+function peSync(){ /* panel detail tampil (openRel / Shell.afterOpen / refreshDetail): gambar kartu + muat bila perlu */
+  if(!ch) return;
+  paintPersonaCard();
+  if(aOn&&atok&&!PE.busy&&(PE.char!==ch.id||Date.now()-PE.t>5000)) peLoad(); /* maks 1x/5 dtk; karakter berganti = selalu muat */
+}
+function peMsg(s){ const m=$('pemsg'); if(!m) return; m.textContent=s||''; m.classList.toggle('hide',!s); }
+function peRow({av,b,s,gen,sel,act}){ /* satu baris pilihan di pemilih persona (radio) */
+  const r=document.createElement('button'); r.type='button'; r.className='pe-opt'; r.setAttribute('role','radio'); r.setAttribute('aria-checked',String(!!sel));
+  r.append(av||peIco());
+  const t=document.createElement('span'); t.className='pe-t'; const bb=document.createElement('b'); bb.textContent=b;
+  if(gen){ const g=document.createElement('span'); g.className='pe-gen'+(gen==='f'?' f':''); g.textContent=gen==='f'?'Perempuan':'Laki-laki'; bb.append(g); }
+  const sm=document.createElement('small'); sm.textContent=s||''; t.append(bb,sm); r.append(t);
+  r.insertAdjacentHTML('beforeend','<span class="pe-dot">'+PE_ICO.check+'</span>');
+  r.addEventListener('click',act); return r;
+}
+function pePaintList(){ /* isi pemilih persona: ikut default -> semua persona -> profil akun */
+  const list=$('pelist'); if(!list) return;
+  list.textContent=''; peMsg('');
+  const c=ch?shortName(ch):'karakter ini';
+  $('pesub').textContent='Pilih identitas yang dipakai saat ngobrol dengan '+c+'. Hanya berlaku untuk '+c+' — karakter lain tetap memakai pengaturannya sendiri.';
+  if(!atok||PE.err){ list.append(peRow({b:'Gagal memuat',s:(PE.err||'')+' Ketuk untuk coba lagi.',sel:false,act:()=>peLoad()})); return; }
+  if(!PE.items){ list.append(peRow({b:'Memuat…',s:'',sel:false,act:()=>{}})); return; }
+  const def=peDef();
+  list.append(peRow({b:'Ikut persona default',s:def?'Sekarang: '+def.name:'Belum ada persona default — AI memanggil nama akunmu',sel:PE.mode==='follow',act:()=>peChoose('follow')}));
+  for(const p of PE.items) list.append(peRow({av:peAv(p.name,p.avatar),b:p.name,s:p.bio||'Tanpa profil karakter',gen:p.gender,sel:PE.mode==='pick'&&PE.personaId===p.id,act:()=>peChoose(p.id)}));
+  list.append(peRow({b:'Profil akun',s:'Tanpa persona — '+c+' memanggil nama akunmu',sel:PE.mode==='none',act:()=>peChoose('none')}));
+}
+async function peChoose(key){ /* simpan pilihan; server yang memutuskan validitasnya */
+  if(!ch||PE.saving) return;
+  PE.saving=true; $('pelist').classList.add('busy'); peMsg('Menyimpan…');
+  try{
+    const body=key==='follow'?{char:ch.id,follow:true}:key==='none'?{char:ch.id,persona:null}:{char:ch.id,persona:key};
+    const r=await aApi('persona/pick',body);
+    if(!r||!r.ok) throw new Error((r&&r.error)||'Gagal menyimpan.');
+    PE.mode=r.mode; PE.personaId=r.personaId||null; PE.char=ch.id; PE.t=Date.now(); /* pilihan lama di karakter lain tidak tersentuh */
+    closePe(); paintPersonaCard();
+    const nm=key==='follow'?(peDef()?'ikut default: '+peDef().name:'nama akun'):key==='none'?'profil akun':((PE.items||[]).find(p=>p.id===key)||{}).name||'persona';
+    toast('Persona untuk '+(ch?shortName(ch):'chat ini')+': '+nm);
+  }catch(e){ peMsg((e&&e.message)||'Gagal menyimpan, coba lagi.'); }
+  PE.saving=false; $('pelist').classList.remove('busy');
+}
+function openPe(){ /* kartu ditekan: tamu -> masuk akun; pengguna -> pemilih persona */
+  if(!ch) return;
+  if(!atok){ if(typeof openLogin==='function') openLogin(); return; }
+  peModal.classList.remove('hide'); pePaintList(); peLoad();
+  setTimeout(()=>{ try{ $('pex').focus({preventScroll:true}) }catch{} },30);
+}
+function closePe(){ peModal.classList.add('hide'); peMsg(''); }
+$('pecard').onclick=openPe;
+$('pex').onclick=closePe;
+peModal.addEventListener('click',e=>{ if(e.target===peModal) closePe() });
+$('pemanage').onclick=()=>{ /* ke Profil > Persona (tab Persona di profil sendiri) */
+  closePe(); window.__wantPersonaTab=true;
+  if(window.Shell) Shell.setTab('profile'); else $('rprofile').click();
+};
+addEventListener('acct',()=>{ /* masuk/keluar akun: buang cache, kartu mengikuti status akun baru */
+  PE.items=null; PE.char=''; PE.t=0; PE.err=''; PE.seq++; PE.busy=false;
+  closePe(); if(ch) paintPersonaCard();
+});
 
 /* buang bagian h: yang sudah diringkas. Normalnya h: cuma bertambah di ujung, jadi chunk masih di depan; kalau depan sempat terpotong batas 40, cari ujung chunk. */
 function dropChunk(h,chunk){

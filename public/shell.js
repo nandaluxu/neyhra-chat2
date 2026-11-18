@@ -331,7 +331,7 @@ function refreshDetail() {
   rdRaf = requestAnimationFrame(() => {
     rdRaf = 0;
     if (!ch || (window.GX && GX.cur) || !detailOpen()) return;
-    paintRel(); renderCharMem(ch.id);
+    paintRel(); renderCharMem(ch.id); peSync(); // kartu persona per-karakter ikut menyegarkan (index.html)
   });
 }
 function afterOpen(c) {
@@ -340,7 +340,7 @@ function afterOpen(c) {
   if (c) {
     const on = docked() && store.get('dp') !== '0';
     app.classList.toggle('dp-on', on);
-    if (on) { paintRel(); renderCharMem(c.id); }
+    if (on) { paintRel(); renderCharMem(c.id); peSync(); } // panel detail langsung tampil di desktop: kartu persona ikut
   } else app.classList.remove('dp-on');
   renderRecent();
 }

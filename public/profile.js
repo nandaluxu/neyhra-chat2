@@ -15,17 +15,20 @@ const h = (tag, cls, text) => { const e = document.createElement(tag); if (cls) 
 const btn = (cls, text, act) => { const b = h('button', cls, text); b.type = 'button'; if (act) b.dataset.act = act; return b; };
 const ICON = {
   back: '<svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg>',
-  close: '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>'
+  close: '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  trash: '<svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13a1 1 0 001 1h8a1 1 0 001-1l1-13M9 7V5a2 2 0 012-2h2a2 2 0 012 2v2"/></svg>'
 };
 const iconBtn = (cls, svg, label) => { const b = h('button', cls); b.type = 'button'; b.setAttribute('aria-label', label); b.innerHTML = svg; return b; }; // svg = konstanta statis di atas
 
 let me = null;          // profil sendiri { username, name, bio, avatar (alamat foto atau ''), joined, invited, followers, following }
 let view = null;        // profil yang sedang ditampilkan (me atau akun lain)
 let viewing = '';       // username akun lain yang sedang dilihat ('' = profil sendiri)
-let tabKey = 'sum';     // 'sum' | 'chars' | 'cups' | 'friends'
+let tabKey = 'sum';     // 'sum' | 'chars' | 'cups' | 'friends' | 'persona'
 let ready = false, failed = '', busy = false, lastTok = '', lastAt = 0;
 const fr = { q: '', items: null, err: '', seq: 0 }; // tab Teman
 let cups = null; // tab Piala: { ach:[...], streak:{now,best} } dari /api/auth/quests (profil sendiri)
+const ps = { items: null, err: '', busy: false, seq: 0, max: 6 }; // tab Persona (lib/persona.js)
+let psForm = null; // form tambah/edit persona (modal)
 let frT = 0;
 
 /* nama profil dipakai juga di Beranda (sapaan), chat dengan karakter, dan Chat Global */
@@ -88,6 +91,7 @@ function render() {
   if (!view) { body.append(failed ? gate('Gagal memuat', failed, 'Coba lagi', 'retry') : gate('Memuat…')); return; }
 
   const p = view, own = p.isMe;
+  if (own && window.__wantPersonaTab) { window.__wantPersonaTab = false; tabKey = 'persona'; } // pintasan "Kelola persona" dari pemilih persona di halaman chat (index.html)
   if (!own) { const b = btn('pf-back', '', 'back'); b.innerHTML = ICON.back; b.append(document.createTextNode('Profilku')); body.append(b); }
 
   const card = h('div', 'pf-card'), top = h('div', 'pf-top'), who = h('div', 'pf-who');
@@ -121,7 +125,7 @@ function render() {
     else renderTabs([['sum', 'Ringkasan'], ['chars', 'Karakter']]); // seperti profil sendiri, tanpa tab Teman
     return;
   }
-  renderTabs([['sum', 'Ringkasan'], ['chars', 'Karakter'], ['cups', 'Piala'], ['friends', 'Teman']]);
+  renderTabs([['sum', 'Ringkasan'], ['chars', 'Karakter'], ['cups', 'Piala'], ['friends', 'Teman'], ['persona', 'Persona']]);
 }
 
 /* kerangka tab + panel; list = [key, label]. Profil orang tidak punya tab Teman, jadi tabKey yang tidak ada di list kembali ke tab pertama */
@@ -139,7 +143,7 @@ function paintPanel() {
   const panel = $('pfpanel'); if (!panel) return;
   panel.textContent = '';
   const own = !!(view && view.isMe);
-  if (tabKey === 'chars') panelChars(panel, own); else if (own && tabKey === 'cups') panelCups(panel); else if (own && tabKey === 'friends') panelFriends(panel); else panelSum(panel, own);
+  if (tabKey === 'chars') panelChars(panel, own); else if (own && tabKey === 'cups') panelCups(panel); else if (own && tabKey === 'friends') panelFriends(panel); else if (own && tabKey === 'persona') panelPersona(panel); else panelSum(panel, own);
 }
 
 /* ---------- Statistik profil orang lain (dari server; diterbitkan perangkat pemiliknya lewat profile/stats) ---------- */
@@ -275,6 +279,167 @@ async function searchUsers() {
   if (tabKey === 'friends') paintFriends();
 }
 
+/* ---------- Tab Persona (identitas alternatif PENGGUNA untuk konteks AI — lib/persona.js) ----------
+   Persona BUKAN persona AI: karakter AI tetap punya identitas dan kepribadiannya sendiri.
+   Persona default dipakai server (lewat token Bearer) di seluruh prompt percakapan AI:
+   nama + gender + profil karakter user. Tanpa persona default, AI memanggil nama akun seperti biasa. */
+async function loadPersonas(force) {
+  if (!atok || ps.busy || (!force && ps.items)) return false;
+  ps.busy = true; ps.err = '';
+  const seq = ++ps.seq;
+  try {
+    const r = await aApi('persona/list');
+    if (seq !== ps.seq) return false;
+    if (r && r.ok) { ps.items = Array.isArray(r.personas) ? r.personas : []; ps.max = r.max || 6; }
+    else ps.err = (r && r.error) || 'Gagal memuat persona.';
+  } catch (e) { if (seq === ps.seq) ps.err = (e && e.status === 401) ? '' : (e && e.message) || 'Tidak bisa terhubung ke server.'; }
+  ps.busy = false;
+  return true;
+}
+function personaCard(p) {
+  const card = h('div', 'pf-pcard' + (p.def ? ' def' : ''));
+  card.tabIndex = 0; card.setAttribute('role', 'button'); card.dataset.act = 'pedit'; card.dataset.id = p.id;
+  card.setAttribute('aria-label', 'Edit persona ' + p.name);
+  card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPersonaForm(p); } });
+  const av = avatar(p.name, '', p.avatar, 'pav');
+  const bd = h('div', 'pf-pbd'), nm = h('div', 'pf-pnm');
+  nm.append(h('b', null, p.name));
+  if (p.gender) nm.append(h('span', 'pf-pgen' + (p.gender === 'f' ? ' f' : ''), p.gender === 'f' ? 'Perempuan' : 'Laki-laki'));
+  bd.append(nm, h('small', null, p.bio || 'Belum ada profil karakter'));
+  const acts = h('div', 'pf-pacts');
+  const def = btn('pf-pdef' + (p.def ? ' on' : ''), p.def ? 'Default' : 'Jadikan default', 'pdef');
+  def.dataset.id = p.id; def.title = p.def ? 'Lepas sebagai default (AI kembali memanggil nama akun)' : 'Pakai persona ini di semua obrolan AI';
+  def.setAttribute('aria-pressed', String(!!p.def)); def.setAttribute('aria-label', (p.def ? 'Lepas ' : 'Jadikan ') + 'default persona ' + p.name);
+  const del = btn('pf-pdel', null, 'pdel'); del.dataset.id = p.id; del.setAttribute('aria-label', 'Hapus persona ' + p.name); del.innerHTML = ICON.trash;
+  acts.append(def, del);
+  card.append(av, bd, acts);
+  return card;
+}
+function panelPersona(panel) {
+  loadPersonas().then(fresh => { if (fresh && tabKey === 'persona') paintPanel(); }); // data datang belakangan: gambar ulang sekali
+  const sec = h('div', 'pf-sec');
+  sec.append(h('h3', null, 'Persona'));
+  sec.append(h('p', 'pf-note', 'Persona adalah identitas alternatif kamu saat diajak ngobrol AI: nama, gender, dan profil karakter yang dikenali AI. Persona default otomatis dipakai di chat karakter, grup, dan Skenario Skrip — kepribadian karakter AI tidak berubah, yang berubah hanya cara mereka mengenali kamu.'));
+  panel.append(sec);
+  if (ps.err) { panel.append(h('div', 'pf-empty', ps.err)); return; }
+  if (!ps.items) { panel.append(h('div', 'pf-empty', 'Memuat…')); return; }
+  if (!ps.items.length) {
+    const e = h('div', 'pf-empty', 'Belum ada persona. Buat identitas lain yang ingin kamu pakai saat ngobrol — nama panggilan, gender, dan cerita tentang dirimu yang kamu mau AI ketahui.');
+    e.append(document.createElement('br'), btn('pf-btn', 'Buat persona', 'psadd'));
+    panel.append(e); return;
+  }
+  const grid = h('div', 'pf-pgrid');
+  for (const p of ps.items) grid.append(personaCard(p));
+  if (ps.items.length < ps.max) {
+    const addCard = btn('pf-pcard add', null, 'psadd');
+    addCard.setAttribute('aria-label', 'Tambah persona');
+    addCard.append(h('span', 'pf-plus', '+'), h('small', null, 'Tambah persona'));
+    grid.append(addCard);
+  }
+  panel.append(grid, h('p', 'pf-note', ps.items.length >= ps.max
+    ? 'Kuota penuh (' + ps.items.length + '/' + ps.max + '). Hapus salah satu persona untuk menambah yang baru.'
+    : 'Hanya satu persona yang jadi default. Tanpa persona default, AI memanggilmu dengan nama akunmu.'));
+}
+function paintGenSeg() { // dua tombol gender di form: salah satu aktif; ketuk lagi untuk kosong (tidak ditentukan)
+  const seg = $('psgen'); if (!seg || !psForm) return;
+  const [bm, bf] = seg.querySelectorAll('button');
+  bm.setAttribute('aria-pressed', String(psForm.gender === 'm'));
+  bf.setAttribute('aria-pressed', String(psForm.gender === 'f'));
+}
+function paintPersonaPic() {
+  const holder = $('pspic'); if (!holder || !psForm) return;
+  const a = avatar(($('psname') && $('psname').value) || '?', '', psForm.preview === 'cur' ? psForm.curAv : '');
+  if (psForm.preview && psForm.preview !== 'cur') {
+    const im = new Image(); im.alt = ''; im.src = psForm.preview;
+    im.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover';
+    a.append(im);
+  }
+  holder.replaceWith(a); a.id = 'pspic';
+  const rm = $('psrm'); if (rm) rm.classList.toggle('hide', !psForm.preview);
+}
+function openPersonaForm(p) {
+  if (!aOn || !atok) return;
+  psForm = { id: p ? p.id : '', curAv: p ? (p.avatar || '') : '', av: undefined, preview: p ? (p.avatar ? 'cur' : '') : '', gender: p ? (p.gender || '') : '', def: p ? !!p.def : false };
+  const box = h('div'), head = h('div', 'pf-mh');
+  const x = iconBtn('', ICON.close, 'Tutup'); x.addEventListener('click', closeModal);
+  head.append(h('h2', null, p ? 'Edit persona' : 'Persona baru'), x);
+
+  const pic = h('div', 'pf-epic'), holder = h('span'); holder.id = 'pspic';
+  const acts = h('div'), file = h('input'); file.type = 'file'; file.accept = 'image/*'; file.hidden = true; file.id = 'psfile';
+  const ch = btn('pf-lnk', 'Ganti foto', 'pspick'), rm = btn('pf-lnk d', 'Hapus foto', 'psrmpic'); rm.id = 'psrm';
+  acts.append(ch, rm, file); pic.append(holder, acts);
+
+  const l1 = h('label', 'pf-lab', 'Nama'), n = h('input', 'pf-inp'); n.id = 'psname'; n.maxLength = 24; n.value = p ? p.name : ''; n.autocomplete = 'off'; n.enterkeyhint = 'done'; n.placeholder = 'Nama persona, mis. Ayu'; l1.append(n);
+  const l2 = h('div', 'pf-lab'); l2.append(document.createTextNode('Gender (opsional)'));
+  const seg = h('div', 'pf-seg'); seg.id = 'psgen';
+  seg.append(btn(null, 'Laki-laki', 'psgen-m'), btn(null, 'Perempuan', 'psgen-f')); l2.append(seg);
+  const l3 = h('label', 'pf-lab', 'Profil karakter'), b = h('textarea', 'pf-inp'); b.id = 'psbio'; b.maxLength = 300; b.rows = 4; b.value = p ? (p.bio || '') : ''; b.placeholder = 'Cerita tentang dirimu yang kamu mau AI ketahui, mis. hobi, pekerjaan, sifat, cara AI memperlakukanmu'; l3.append(b);
+  const cnt = h('div', 'pf-cnt', (p ? (p.bio || '').length : 0) + '/300'); cnt.id = 'pscnt';
+
+  const srow = h('div', 'srow pf-psw'), sp = h('span');
+  sp.append(h('b', null, 'Persona default'), h('i', null, 'Persona ini dipakai di semua percakapan AI. Tanpa persona default, AI memanggilmu dengan nama akunmu.'));
+  const sw = btn('sw', null, 'psdef'); sw.id = 'psdef'; sw.setAttribute('role', 'switch'); sw.setAttribute('aria-checked', String(psForm.def)); sw.setAttribute('aria-label', 'Persona default');
+  srow.append(sp, sw);
+
+  const msg = h('p', 'pf-msg'); msg.id = 'psmsg'; msg.setAttribute('role', 'status');
+  const act = h('div', 'pf-mact'), cancel = btn('', 'Batal', 'pscancel'), save = btn('go', 'Simpan', 'pssave'); save.id = 'pssave'; act.append(cancel, save);
+  box.append(head, pic, l1, l2, l3, cnt, srow, msg, act); openModal(box);
+  paintPersonaPic(); paintGenSeg();
+  b.addEventListener('input', () => { cnt.textContent = b.value.length + '/300'; });
+  n.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); savePersona(); } });
+  file.addEventListener('change', async () => {
+    const f = file.files && file.files[0]; file.value = ''; if (!f) return;
+    msg.className = 'pf-msg'; msg.textContent = '';
+    if (!/^image\//.test(f.type) || f.size > 15 * 1024 * 1024) { msg.className = 'pf-msg err'; msg.textContent = 'Pilih file gambar (maks 15 MB).'; return; }
+    try { psForm.av = await toJpeg(f); psForm.preview = psForm.av; paintPersonaPic(); }
+    catch (e) { msg.className = 'pf-msg err'; msg.textContent = (e && e.message) || 'Foto tidak bisa dipakai.'; }
+  });
+  setTimeout(() => n.focus({ preventScroll: true }), 30);
+}
+async function savePersona() {
+  if (!psForm) return;
+  const msg = $('psmsg'), save = $('pssave'), name = $('psname').value.trim(), bio = $('psbio').value.trim();
+  msg.className = 'pf-msg';
+  if (!name) { msg.className = 'pf-msg err'; msg.textContent = 'Nama persona tidak boleh kosong.'; $('psname').focus(); return; }
+  const payload = { name, gender: psForm.gender, bio, def: psForm.def };
+  if (psForm.id) payload.id = psForm.id;
+  if (psForm.av !== undefined) payload.avatar = psForm.av; // undefined = biarkan foto, null = hapus, string = JPEG baru
+  save.disabled = true; msg.textContent = 'Menyimpan…';
+  try {
+    const r = await aApi('persona/save', payload);
+    if (!r || !r.ok) throw new Error((r && r.error) || 'Gagal menyimpan.');
+    ps.items = Array.isArray(r.personas) ? r.personas : []; ps.max = r.max || 6;
+    closeModal(); paintPanel(); toast('Persona disimpan');
+  } catch (e) { msg.className = 'pf-msg err'; msg.textContent = (e && e.message) || 'Gagal menyimpan, coba lagi.'; save.disabled = false; }
+}
+async function setDefaultPersona(id, on) {
+  try {
+    const r = await aApi('persona/default', on ? { id } : { id: null });
+    if (!r || !r.ok) throw new Error((r && r.error) || 'Gagal.');
+    ps.items = Array.isArray(r.personas) ? r.personas : [];
+    paintPanel();
+  } catch (e) { toast((e && e.message) || 'Gagal, coba lagi.'); }
+}
+function askDeletePersona(id) {
+  const p = (ps.items || []).find(x => x.id === id); if (!p) return;
+  const box = h('div'), head = h('div', 'pf-mh');
+  const x = iconBtn('', ICON.close, 'Tutup'); x.addEventListener('click', closeModal);
+  head.append(h('h2', null, 'Hapus persona?'), x);
+  const t = h('p', 'pf-dtxt', 'Persona "' + p.name + '" akan dihapus permanen.' + (p.def ? ' Persona default ikut hilang, jadi AI kembali memanggilmu dengan nama akun.' : ''));
+  const act = h('div', 'pf-mact'), cancel = btn('', 'Batal', 'pscancel'), del = btn('go danger', 'Hapus', 'psdelok'); del.dataset.id = id;
+  act.append(cancel, del);
+  box.append(head, t, act); openModal(box);
+  setTimeout(() => del.focus({ preventScroll: true }), 30);
+}
+async function deletePersona(id) {
+  try {
+    const r = await aApi('persona/delete', { id });
+    if (!r || !r.ok) throw new Error((r && r.error) || 'Gagal.');
+    ps.items = Array.isArray(r.personas) ? r.personas : [];
+    closeModal(); paintPanel(); toast('Persona dihapus');
+  } catch (e) { closeModal(); toast((e && e.message) || 'Gagal, coba lagi.'); }
+}
+
 /* ---------- Ikuti ---------- */
 // was = status ikuti sebelum diklik. Menyinkronkan hitungan dan semua salinan data (profil, hasil cari, daftar modal).
 async function toggleFollow(username, on, was) {
@@ -316,7 +481,7 @@ async function fetchMe() {
   return false;
 }
 async function load(force) {
-  if (lastTok !== atok) { lastTok = atok; me = null; view = null; viewing = ''; failed = ''; fr.items = null; fr.q = ''; fr.err = ''; cups = null; tabKey = 'sum'; syncRail(); }
+  if (lastTok !== atok) { lastTok = atok; me = null; view = null; viewing = ''; failed = ''; fr.items = null; fr.q = ''; fr.err = ''; cups = null; tabKey = 'sum'; ps.items = null; ps.err = ''; ps.busy = false; psForm = null; syncRail(); }
   if (!aOn || !atok) { me = null; view = null; render(); syncRail(); return; }
   if (busy || (!force && me && Date.now() - lastAt < 4000)) { render(); return; }
   busy = true; if (!view) render();
@@ -470,6 +635,19 @@ document.addEventListener('click', e => {
   else if (a === 'rmpic') { editState.av = null; editState.preview = ''; paintEditPic(); }
   else if (a === 'cancel') closeModal();
   else if (a === 'save') saveEdit();
+  /* --- Persona --- */
+  else if (a === 'psadd') openPersonaForm(null);
+  else if (a === 'pedit') { const p = (ps.items || []).find(x => x.id === b.dataset.id); if (p) openPersonaForm(p); }
+  else if (a === 'pdef') { const on = b.getAttribute('aria-pressed') !== 'true'; b.disabled = true; setDefaultPersona(b.dataset.id, on).finally(() => { b.disabled = false; }); }
+  else if (a === 'pdel') askDeletePersona(b.dataset.id);
+  else if (a === 'psdelok') deletePersona(b.dataset.id);
+  else if (a === 'pspick') $('psfile').click();
+  else if (a === 'psrmpic') { if (psForm) { psForm.av = null; psForm.preview = ''; paintPersonaPic(); } }
+  else if (a === 'psgen-m') { if (psForm) { psForm.gender = psForm.gender === 'm' ? '' : 'm'; paintGenSeg(); } }
+  else if (a === 'psgen-f') { if (psForm) { psForm.gender = psForm.gender === 'f' ? '' : 'f'; paintGenSeg(); } }
+  else if (a === 'psdef') { if (psForm) { psForm.def = !psForm.def; b.setAttribute('aria-checked', String(psForm.def)); } }
+  else if (a === 'pssave') savePersona();
+  else if (a === 'pscancel') closeModal();
 });
 // baris pengguna (hasil cari / modal): klik di luar tombol = buka profilnya
 function rowOpen(e) {
