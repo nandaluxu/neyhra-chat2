@@ -108,10 +108,17 @@ app.insertAdjacentHTML('beforeend', `
       <button class="srow" id="gc-dreseed" type="button"><span><b>Isi ulang data contoh</b><i>Kembalikan pesan contoh dan status Online.</i></span>${I.chev}</button>
     </div>
   </div>
+</div>
+<div id="gc-read-ov" class="gc-ov hide">
+  <div class="nbox sbox" role="dialog" aria-labelledby="gc-read-t">
+    <div class="shead"><h2 id="gc-read-t">Dibaca oleh</h2><button id="gc-read-x" type="button" aria-label="Tutup">${I.close}</button></div>
+    <input id="gc-read-q" class="gc-rsearch hide" type="search" placeholder="Cari nama pembaca…" autocomplete="off">
+    <div id="gc-read-list" class="gc-rlist"></div>
+  </div>
 </div>`);
 
 const gc = $('gc'), list = $('gc-list'), inp = $('gc-inp'), sendB = $('gc-send'), banner = $('gc-banner'),
-      cnt = $('gc-count'), as = $('gc-as'), down = $('gc-down'), infoOv = $('gc-info-ov'), devOv = $('gc-dev-ov');
+      cnt = $('gc-count'), as = $('gc-as'), down = $('gc-down'), infoOv = $('gc-info-ov'), devOv = $('gc-dev-ov'), readOv = $('gc-read-ov');
 let older = false, loadingOld = false; // older: lagi memuat halaman riwayat lama (bukan pesan baru)
 let isOpen = false, started = false, primed = false, unread = 0, bannerKey = '', asKey = '', listKey = '', tT = 0;
 const seen = new Set();
@@ -215,8 +222,80 @@ function bubble(m, o, find) {
   else if (o.mine) r.append(del, b); else r.append(b, del);
   return r;
 }
+/* ---------- Indikator avatar pembaca (Read Receipts) ---------- */
+const MAX_READ_AV = 4;
+let readsByMsg = new Map(), activeReadMsgId = '', readScanT = 0;
+
+function buildReadMap(msgs, reads, more) {
+  const map = new Map();
+  if (!Array.isArray(reads) || !reads.length || !msgs.length) return map;
+  const byId = new Map(msgs.map(m => [m.id, m]));
+  for (const r of reads) {
+    if (!r || !r.sid || isMine({ senderId: r.sid, au: r.au })) continue;
+    let targetId = byId.has(r.id) ? r.id : '';
+    if (!targetId) {
+      for (let i = msgs.length - 1; i >= 0; i--) {
+        if (msgs[i].ts <= r.ts) { targetId = msgs[i].id; break; }
+      }
+      if (!targetId && !more) targetId = msgs[0].id;
+    }
+    if (!targetId) continue;
+    if (!map.has(targetId)) map.set(targetId, []);
+    map.get(targetId).push(r);
+  }
+  for (const arr of map.values()) arr.sort((a, b) => (b.at || b.ts) - (a.at || a.ts));
+  return map;
+}
+
+function readReceiptsNode(msgId, readers, mine) {
+  if (!readers || !readers.length) return null;
+  const row = el('div', 'gc-rrow ' + (mine ? 'me' : 'them'));
+  const btn = el('button', 'gc-reads');
+  btn.type = 'button';
+  btn.dataset.readers = msgId;
+  const vis = readers.slice(0, MAX_READ_AV);
+  const extra = readers.length - vis.length;
+  const previewNames = vis.map(r => r.name).join(', ') + (extra > 0 ? ' dan ' + extra + ' lainnya' : '');
+  btn.title = 'Dibaca oleh ' + previewNames;
+  btn.setAttribute('aria-label', 'Dibaca oleh ' + readers.length + ' orang: ' + previewNames);
+  for (const r of vis) {
+    const av = el('span', 'gc-rav', [...(r.name || '?')][0] || '?');
+    av.style.setProperty('--h', hue(r.sid));
+    av.setAttribute('aria-hidden', 'true');
+    addPhoto(av, r);
+    btn.append(av);
+  }
+  if (extra > 0) btn.append(el('span', 'gc-rmore', '+' + (extra > 99 ? '99' : extra)));
+  row.append(btn);
+  return row;
+}
+
+function scanRead() {
+  if (!isOpen || document.hidden || !A.markRead) return;
+  const msgs = A.getState().messages.filter(m => !String(m.id).startsWith('tmp-') && m.status !== 'sending' && m.status !== 'failed');
+  if (!msgs.length) return;
+  if (list.scrollHeight - list.scrollTop - list.clientHeight < NEAR) {
+    const last = msgs[msgs.length - 1];
+    A.markRead(last.id, last.ts);
+    return;
+  }
+  const limBottom = list.getBoundingClientRect().bottom + 12;
+  const rows = list.querySelectorAll('.gc-msg[data-id]');
+  let lastVisId = '';
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const id = rows[i].dataset.id;
+    if (!id || id.startsWith('tmp-')) continue;
+    if (rows[i].getBoundingClientRect().bottom <= limBottom) { lastVisId = id; break; }
+  }
+  if (lastVisId) {
+    const m = msgs.find(x => x.id === lastVisId);
+    if (m) A.markRead(m.id, m.ts);
+  }
+}
+function queueScanRead() { clearTimeout(readScanT); readScanT = setTimeout(scanRead, 180); }
 function paintList(s) {
   const nearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < NEAR, top = list.scrollTop, msgs = s.messages;
+  readsByMsg = buildReadMap(msgs, s.reads, s.more);
   const frag = document.createDocumentFragment();
   let added = 0, other = 0, mine = 0;
   if (!msgs.length) frag.append(emptyView(s));
@@ -230,14 +309,19 @@ function paintList(s) {
       const more = !!n && dayKey(n.ts) === dk && authorKey(n) === authorKey(m) && n.ts - m.ts < GROUP;
       const isNew = !seen.has(m.id);
       if (isNew) { seen.add(m.id); if (primed && !older) { added++; isMine(m) ? mine++ : other++; } }
-      frag.append(bubble(m, { mine: isMine(m), first: !cont, last: !more, fresh: primed && isNew && !older }, id => byId.get(id)));
+      const mMine = isMine(m);
+      frag.append(bubble(m, { mine: mMine, first: !cont, last: !more, fresh: primed && isNew && !older }, id => byId.get(id)));
+      const rr = readReceiptsNode(m.id, readsByMsg.get(m.id), mMine);
+      if (rr) frag.append(rr);
     });
   }
   list.replaceChildren(frag);
   if (!primed || mine || (nearBottom && added)) { list.scrollTo({ top: list.scrollHeight, behavior: primed ? 'smooth' : 'auto' }); unread = 0; }
   else { list.scrollTop = top; if (other) unread += other; }
   primed = true; paintDown();
+  if (!readOv.classList.contains('hide') && activeReadMsgId) paintReadersModal(activeReadMsgId);
   if (s.more && list.scrollHeight <= list.clientHeight + 60) setTimeout(pageOlder, 0); // daftar belum cukup panjang untuk digulir: ambil halaman lama
+  queueScanRead();
 }
 function paintDown() {
   const far = list.scrollHeight - list.scrollTop - list.clientHeight > 280;
@@ -256,7 +340,7 @@ async function pageOlder() {
     if (A.getState().more && list.scrollHeight <= list.clientHeight + 60) setTimeout(pageOlder, 0);
   }
 }
-list.addEventListener('scroll', () => { paintDown(); pageOlder(); }, { passive: true });
+list.addEventListener('scroll', () => { paintDown(); pageOlder(); queueScanRead(); }, { passive: true });
 down.onclick = () => { unread = 0; list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' }); };
 
 /* ---------- Composer ---------- */
@@ -390,12 +474,13 @@ function jumpTo(id) {
   setTimeout(() => row.classList.remove('flash'), 1400);
 }
 gc.addEventListener('click', e => {
-  const t = e.target.closest('[data-act],[data-retry],[data-del],[data-reply],[data-q]'); if (!t) return;
+  const t = e.target.closest('[data-act],[data-retry],[data-del],[data-reply],[data-q],[data-readers]'); if (!t) return;
   if (t.dataset.act === 'reconnect') { A.reconnect(); }
   else if (t.dataset.act === 'greet') { inp.value = 'Halo semuanya!'; grow(); paintComposer(); inp.focus(); }
   else if (t.dataset.retry) { if (!canSend(A.getState())) toast('Belum terhubung'); else A.retry(t.dataset.retry); }
   else if (t.dataset.reply) { const m = A.getState().messages.find(x => x.id === t.dataset.reply); if (m) setReply(m); }
   else if (t.dataset.q) { jumpTo(t.dataset.q); }
+  else if (t.dataset.readers) { openReadersModal(t.dataset.readers); }
   else if (t.dataset.del) { // hapus per pesan (Mode dev): tap dua kali
     if (!devOn()) return;
     if (armed.has(t)) { clearTimeout(armed.get(t)); armed.delete(t); A.deleteMessage(t.dataset.del); toast('Pesan dihapus'); return; }
@@ -488,17 +573,57 @@ $('gcbtn').onclick = open;
 $('gc-back').onclick = close;
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
-  if (!devOv.classList.contains('hide')) { closeOv(devOv); e.stopPropagation(); }
+  if (!readOv.classList.contains('hide')) { closeOv(readOv); activeReadMsgId = ''; e.stopPropagation(); }
+  else if (!devOv.classList.contains('hide')) { closeOv(devOv); e.stopPropagation(); }
   else if (!infoOv.classList.contains('hide')) { closeOv(infoOv); e.stopPropagation(); }
   else if (isOpen) close();
 }, true); // capture: jalan sebelum handler Esc milik menu utama
 
-/* ---------- InfoSheet + DevSheet ---------- */
+/* ---------- InfoSheet + ReadersSheet + DevSheet ---------- */
 const openOv = (o, focus) => { o.classList.remove('hide'); setTimeout(() => $(focus).focus(), 50); };
 const closeOv = o => o.classList.add('hide');
 $('gc-info').onclick = () => openOv(infoOv, 'gc-info-x');
 $('gc-info-x').onclick = () => closeOv(infoOv);
 infoOv.addEventListener('click', e => { if (e.target === infoOv) closeOv(infoOv); });
+
+const readQ = $('gc-read-q'), readListEl = $('gc-read-list');
+function paintReadersModal(msgId) {
+  const all = readsByMsg.get(msgId) || [];
+  if (!all.length) { closeOv(readOv); activeReadMsgId = ''; return; }
+  $('gc-read-t').textContent = 'Dibaca oleh (' + all.length + ')';
+  readQ.classList.toggle('hide', all.length < 8);
+  const q = (readQ.value || '').trim().toLowerCase();
+  const listData = q ? all.filter(r => (r.name || '').toLowerCase().includes(q) || (r.au || '').toLowerCase().includes(q)) : all;
+  const frag = document.createDocumentFragment();
+  if (!listData.length) {
+    frag.append(el('p', 'gc-rempty', 'Tidak ada pembaca yang cocok.'));
+  } else {
+    for (const r of listData) {
+      const row = el('div', 'gc-rli');
+      const av = el('span', 'gc-rli-av', [...(r.name || '?')][0] || '?');
+      av.style.setProperty('--h', hue(r.sid));
+      addPhoto(av, r);
+      const info = el('div', 'gc-rli-c');
+      info.append(el('b', null, r.name || 'Tamu'));
+      if (r.au) info.append(el('span', null, '@' + r.au));
+      row.append(av, info, el('time', 'gc-rli-t', now(r.at || r.ts)));
+      frag.append(row);
+    }
+  }
+  readListEl.replaceChildren(frag);
+}
+function openReadersModal(msgId) {
+  const all = readsByMsg.get(msgId) || [];
+  if (!all.length) return;
+  activeReadMsgId = msgId;
+  readQ.value = '';
+  paintReadersModal(msgId);
+  openOv(readOv, 'gc-read-x');
+}
+$('gc-read-x').onclick = () => { closeOv(readOv); activeReadMsgId = ''; };
+readOv.addEventListener('click', e => { if (e.target === readOv) { closeOv(readOv); activeReadMsgId = ''; } });
+readQ.addEventListener('input', () => { if (activeReadMsgId) paintReadersModal(activeReadMsgId); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && isOpen) queueScanRead(); });
 
 /* ---------- Dev Mode (memakai Mode dev yang sudah ada: devOn(), switch di Pengaturan) ---------- */
 function syncDev() { const on = devOn(); $('gc-dev').classList.toggle('hide', !on); list.classList.toggle('dev', on); if (!on) closeOv(devOv); }

@@ -36,7 +36,8 @@ const okShape = m => m && typeof m === 'object' &&
 
 async function api(path, body) {
   try {
-    const tok = path === '/api/gc/send' && typeof atok === 'string' && atok; // token akun: server memakai nama + foto profil sebagai identitas pengirim
+    const needAuth = path === '/api/gc/send' || (path === '/api/gc/sync' && body && body.read);
+    const tok = needAuth && typeof atok === 'string' && atok; // token akun: server memakai nama + foto profil sebagai identitas
     const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(tok ? { Authorization: 'Bearer ' + tok } : {}) }, body: JSON.stringify(body) });
     let j = null; try { j = await r.json(); } catch {}
     return { ok: r.ok, status: r.status, json: j };
@@ -54,7 +55,7 @@ async function upload(blob) {
 
 /* ---------- state (kontrak view model UI) ---------- */
 // more = masih ada riwayat lebih lama di server; loadingOlder = sedang mengambil halaman lama
-const st = { status: 'offline', error: null, onlineCount: null, sync: null, rev: 0, messages: [], more: false, loadingOlder: false };
+const st = { status: 'offline', error: null, onlineCount: null, sync: null, rev: 0, messages: [], reads: [], more: false, loadingOlder: false };
 const subs = new Set();
 const emit = () => subs.forEach(f => { try { f(st) } catch {} });
 function touch() { st.rev++; st.messages = [...msgsArr, ...pending].sort(cmp); emit(); }
@@ -66,6 +67,8 @@ let msgsArr = [], pending = [];         // msgsArr: pesan dari server (urut naik
 const ids = new Set();
 let tombs = new Set();                  // id yang dihapus selama sesi ini
 let wm = 0, tombTs = 0;                 // watermark "hapus semua" + titik awal tombstone berikutnya
+const readsMap = new Map();             // sid -> { sid, name, id, ts, at, au?, av? }
+let pendingRead = null, ackReadId = '', readSyncT = 0;             // watermark "hapus semua" + titik awal tombstone berikutnya
 
 function setStatus(s, err) {
   if (st.status === s && st.error === (err || null)) return;
@@ -93,6 +96,8 @@ function applyTombs(list, newWm) {
   if (!changed) return false;
   const bad = msgsArr.filter(m => tombs.has(m.id) || m.ts <= wm);
   if (bad.length) { msgsArr = msgsArr.filter(m => !tombs.has(m.id) && m.ts > wm); for (const m of bad) ids.delete(m.id); }
+  for (const [k, r] of readsMap) if (r.ts <= wm) readsMap.delete(k);
+  st.reads = [...readsMap.values()];
   touch();
   return true;
 }
@@ -146,7 +151,13 @@ async function beat() {
     if (!ok) { failed(); return schedule(); }
   }
   const prevMax = msgsArr.length ? msgsArr[msgsArr.length - 1].ts : 0;
-  const r = await api('/api/gc/sync', { clientId: meId(), since: Math.max(0, prevMax - 1), tombSince: tombTs });
+  const sentRead = pendingRead ? { ...pendingRead } : null;
+  const r = await api('/api/gc/sync', {
+    clientId: meId(),
+    since: Math.max(0, prevMax - 1),
+    tombSince: tombTs,
+    ...(sentRead ? { read: sentRead, name: getSelf().name } : {})
+  });
   if (!alive) return;
   if (!r.ok || !r.json) { failed(); return schedule(); }
   const j = r.json;
@@ -154,7 +165,19 @@ async function beat() {
   if (j.poll) POLL = { base: Math.max(3000, j.poll.base | 0), burst: Math.max(1500, j.poll.burst | 0) };
   if (j.devHash) serverDevHash = Number(j.devHash) || 0;
   failN = 0;
+  if (sentRead) ackReadId = sentRead.id;
   tombsFromServer(j.tombs || [], j.wm);
+  if (Array.isArray(j.reads)) {
+    const validSids = new Set();
+    for (const rd of j.reads) {
+      if (!rd || typeof rd.sid !== 'string' || !CID_RE.test(rd.sid) || typeof rd.id !== 'string' || !MID_RE.test(rd.id) || !Number.isInteger(rd.ts) || rd.ts <= wm) continue;
+      validSids.add(rd.sid);
+      const cur = readsMap.get(rd.sid);
+      if (!cur || rd.ts >= cur.ts) readsMap.set(rd.sid, rd);
+    }
+    for (const k of readsMap.keys()) if (!validSids.has(k)) readsMap.delete(k);
+    st.reads = [...readsMap.values()];
+  }
   const added = ingest(j.msgs);
   st.onlineCount = j.count || 0;
   if (st.status !== 'online') setStatus('online');
@@ -204,7 +227,7 @@ async function deleteMessage(id) {
 async function clearAll() {
   const code = askCode(); if (!code) return;
   const snap = msgsArr;
-  msgsArr = []; ids.clear(); st.more = false; touch();
+  msgsArr = []; ids.clear(); readsMap.clear(); st.reads = []; pendingRead = null; ackReadId = ''; st.more = false; touch();
   const r = await api('/api/gc/delete', { code, all: 1 });
   if (!r.ok || !r.json?.ok) { msgsArr = snap; for (const m of snap) ids.add(m.id); return touch(); }
   devCode = code;
@@ -258,6 +281,17 @@ function retry(id) {
   m.status = 'sending'; touch(); bump();
   deliver(m.text, m);
 }
+/* ---------- penanda sudah dibaca ---------- */
+function scheduleReadSync() {
+  clearTimeout(readSyncT);
+  readSyncT = setTimeout(() => { if (alive) { clearTimeout(beatT); beat(); } }, 900);
+}
+function markRead(id, ts) {
+  if (typeof id !== 'string' || !MID_RE.test(id) || !Number.isInteger(ts) || ts <= 1600000000000) return;
+  if (pendingRead && (ts < pendingRead.ts || (ts === pendingRead.ts && id === pendingRead.id))) return;
+  pendingRead = { id, ts };
+  if (alive && id !== ackReadId) scheduleReadSync();
+}
 
 /* ---------- siklus hidup ---------- */
 function sleep() { if (!booted) return; sleeping = true; alive = false; clearTimeout(beatT); setStatus('offline', null); }
@@ -303,6 +337,7 @@ const A = window.GlobalChatAdapter = {
   send,
   sendImage,
   retry,
+  markRead,
   loadOlder,
   deleteMessage,
   clearAll,
