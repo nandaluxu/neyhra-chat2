@@ -418,3 +418,48 @@
   #menu #mtitle.greet{font-size:40px}
 }
 @media(min-width:1500px){#menu .bgrid{grid-template-columns:repeat(auto-fill,minmax(210px,1fr))}}
+
+/* ---------- Beranda v3: ganti struktur. Desktop = panel kiri menempel + galeri kanan; kartu = foto bersudut, nama di bawah foto ---------- */
+.m-body,.m-side,.m-main{display:contents} /* HP: susunan tetap satu kolom */
+#menu .m-main{min-width:0}
+
+/* Filter seri */
+.b-chips{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:0 -20px 16px;padding:2px 20px}
+.b-chips::-webkit-scrollbar{display:none}
+.b-chips.hide{display:none}
+.b-chip{flex:none;display:flex;align-items:center;gap:7px;padding:8px 14px;border-radius:99px;background:var(--surface);color:var(--mut);font-size:13px;font-weight:600;white-space:nowrap;transition:background .15s,color .15s}
+.b-chip small{font-size:11.5px;font-weight:500;opacity:.7}
+@media(hover:hover){.b-chip:not(.on):hover{color:var(--ink)}}
+.b-chip.on{background:var(--ink);color:var(--bg)}
+.b-chip:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+
+/* Kartu karakter: foto 4:5 bersudut, nama + seri tepat di bawah foto (tanpa gradasi menimpa wajah) */
+#menu .b-tile{display:flex;flex-direction:column;gap:0;aspect-ratio:auto;overflow:visible;background:none;box-shadow:none;border-radius:0}
+#menu .b-tile::after{display:none}
+#menu .b-av{position:relative;inset:auto;display:block;width:100%;aspect-ratio:4/5;border-radius:20px;overflow:hidden;background:var(--surface);box-shadow:inset 0 0 0 1px rgba(128,128,128,.14)}
+#menu .b-av img{position:absolute;inset:0;width:100%;height:100%}
+#menu .b-name,#menu .b-tag{position:static;display:block;max-width:100%;text-shadow:none;left:auto;right:auto;bottom:auto}
+#menu .b-name{margin:10px 2px 0;color:var(--ink);font-size:15px;font-weight:650;letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#menu .b-tag{margin:1px 2px 0;color:var(--mut);font-size:12px}
+@media(hover:hover){#menu .b-tile:hover{transform:translateY(-3px);box-shadow:none}#menu .b-tile:hover .b-av{box-shadow:inset 0 0 0 1px rgba(128,128,128,.14),0 14px 28px rgba(0,0,0,.2)}}
+#menu .b-tile.sk{aspect-ratio:4/5;background:var(--surface);border-radius:20px}
+
+@media(min-width:800px){
+  #menu{padding:28px 36px 24px}
+  #menu .m-body{display:grid;grid-template-columns:minmax(300px,360px) minmax(0,1fr);gap:36px;align-items:start;margin-top:10px}
+  #menu .m-side{display:flex;flex-direction:column;position:sticky;top:0;max-height:calc(100vh - 96px);overflow-y:auto;scrollbar-width:none;padding:26px 22px 22px;border-radius:28px;background:var(--surface)}
+  #menu .m-side::-webkit-scrollbar{display:none}
+  #menu .m-main{display:block}
+  #menu .m-hero{margin:0 0 20px}
+  #menu #mtitle.greet{font-size:34px}
+  #menu #mtitle:not(.greet){font-size:52px}
+  #menu .m-side .m-set,#menu .m-side .srch,#menu .m-side .b-cc{background:var(--bg)}
+  #menu .m-side .srch{max-width:none}
+  /* Lanjut ngobrol: daftar vertikal di panel kiri */
+  #menu .m-side .b-cont .b-head{margin-top:26px}
+  #menu .m-side .b-strip{flex-direction:column;overflow:visible;margin:0;padding:0;gap:8px}
+  #menu .m-side .b-cc{width:100%}
+  #menu .b-chips{margin:0 0 18px;padding:2px 0;flex-wrap:wrap;overflow:visible}
+  #menu .m-main .b-head{margin-top:2px}
+  #menu .bgrid{grid-template-columns:repeat(auto-fill,minmax(176px,1fr));gap:22px 16px}
+}
