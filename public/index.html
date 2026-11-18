@@ -640,6 +640,7 @@ header .pfp,header .who{cursor:pointer}
   <section id="menu">
     <div class="orb o1"></div><div class="orb o2"></div>
     <div class="m-top"><div class="m-brand"><div class="m-logo"><img src="/icon.svg" alt="" draggable="false"></div><span class="m-word">neyhra chat</span></div><div class="m-wallet" role="group" aria-label="Saldo" data-w title="Masuk untuk punya coin &amp; gems"><span class="w-cur" data-k="coins"><img src="/coin.svg" alt="" draggable="false"><b class="w-n">–</b><span class="r-label w-l">Coin</span></span><span class="w-cur" data-k="gems"><img src="/gems.png" alt="" draggable="false"><b class="w-n">–</b><span class="r-label w-l">Gems</span></span></div><span class="m-online hide" id="online" role="status" aria-live="off"><span><span id="onum">0</span> online</span></span></div>
+    <div class="m-body"><div class="m-side">
     <div class="m-hero">
       <h1 id="mtitle" aria-label="neyhra chat">neyhra chat</h1>
       <p class="m-sub">Pilih siapa yang mau diajak ngobrol.</p>
@@ -649,9 +650,12 @@ header .pfp,header .who{cursor:pointer}
     </div>
     <label class="srch"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg><input id="q" type="search" placeholder="Cari nama atau judul" autocomplete="off" enterkeyhint="search"></label>
     <section class="b-cont hide" id="bcont" aria-label="Lanjut ngobrol"><div class="b-head"><h2>Lanjut ngobrol</h2></div><div class="b-strip" id="bstrip"></div></section>
+    </div><div class="m-main">
     <div class="b-head"><h2>Semua karakter</h2><span id="allcount"></span></div>
+    <div class="b-chips" id="bchips" role="group" aria-label="Filter seri"></div>
     <div class="bgrid" id="alllist" aria-busy="true"><span class="b-tile sk" aria-hidden="true"></span><span class="b-tile sk" aria-hidden="true"></span><span class="b-tile sk" aria-hidden="true"></span><span class="b-tile sk" aria-hidden="true"></span><span class="b-tile sk" aria-hidden="true"></span><span class="b-tile sk" aria-hidden="true"></span></div>
     <div class="all-empty hide" id="allempty"><p>Nggak ada karakter yang cocok.</p><button type="button" id="qclear">Hapus pencarian</button></div>
+    </div></div>
   </section>
   <aside id="lpanel" aria-label="Obrolan terakhir">
     <div class="lp-top">
@@ -2791,10 +2795,22 @@ function card(c){
   return b;
 }
 let rows=[]; /* [{c, el}] tile di Beranda, dibuat sekali lalu cuma disembunyikan/ditampilkan saat mencari */
+let serie=''; /* chip seri yang aktif ('' = semua) */
+function buildChips(){
+  const box=$('bchips'); if(!box) return; const m=new Map();
+  allChars.forEach(c=>{ const t=(c.tagline||'').trim(); if(t) m.set(t,(m.get(t)||0)+1); });
+  const top=[...m].filter(([,n])=>n>=2).sort((a,b)=>b[1]-a[1]).slice(0,16);
+  box.textContent=''; box.classList.toggle('hide',!top.length); if(!top.length) return;
+  const add=(label,val,n)=>{ const b=document.createElement('button'); b.type='button'; b.className='b-chip'+(val===serie?' on':''); b.textContent=label;
+    if(n){ const sm=document.createElement('small'); sm.textContent=n; b.append(sm); }
+    b.onclick=()=>{ serie=val; box.querySelectorAll('.b-chip').forEach(x=>x.classList.toggle('on',x===b)); filterAll(); }; box.append(b); };
+  add('Semua','',0); top.forEach(([t,n])=>add(t,t,n));
+}
 function filterAll(){
   const k=q.value.trim().toLowerCase(); let n=0;
-  rows.forEach(({c,el})=>{ const ok=!k||(c.name+' '+(c.tagline||'')).toLowerCase().includes(k); el.classList.toggle('hide',!ok); if(ok) n++; });
+  rows.forEach(({c,el})=>{ const ok=(!k||(c.name+' '+(c.tagline||'')).toLowerCase().includes(k))&&(!serie||(c.tagline||'').trim()===serie); el.classList.toggle('hide',!ok); if(ok) n++; });
   $('allempty').classList.toggle('hide',n>0);
+  $('allcount').textContent=n+' karakter';
   renderCont(); /* strip "Lanjut ngobrol" disembunyikan selama mencari */
 }
 /* "Lanjut ngobrol": jalan pintas ke obrolan terakhir langsung dari Beranda (maks 8, terbaru dulu) */
@@ -2827,7 +2843,7 @@ fetch('/api/chars').then(r=>r.json()).then(cs=>{
   $('alllist').textContent=''; $('alllist').removeAttribute('aria-busy');
   rows=cs.map((c,i)=>{ const el=card(c); el.style.setProperty('--i',Math.min(i,12)); return {c,el}; }); $('alllist').append(...rows.map(r=>r.el));
   $('allcount').textContent=cs.length+' karakter';
-  renderList(); renderCont();
+  renderList(); renderCont(); buildChips();
   if(window.GX) GX.paintAll();
   proArm(); /* pesan proaktif: mulai mencari kandidat setelah karakter termuat */
 }).catch(()=>{ $('alllist').textContent='Gagal memuat karakter'; $('alllist').removeAttribute('aria-busy'); });
