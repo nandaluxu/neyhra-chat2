@@ -268,3 +268,52 @@ body.ch-dragging,body.ch-dragging *{cursor:grabbing!important}
   .gm-wallet{gap:7px;padding:7px 10px}
   .gm-wallet .w-cur img{width:15px;height:15px}
 }
+
+/* ---------- Minigame v2: lebar penuh, hub kartu besar, layar game dua kolom ---------- */
+#games .gm-in{max-width:none}
+@media(min-width:800px){#games .gm-in{padding:40px 44px 56px}}
+html #games.ws-on .gm-in{max-width:1180px}
+#games .gm-top{align-items:center;padding-bottom:20px;border-bottom:1px solid var(--line)}
+#games .gm-top h1{font-size:clamp(28px,3.4vw,38px);letter-spacing:-.04em}
+#games .gm-sub{font-size:14.5px}
+#games .gm-wallet{padding:9px 16px;box-shadow:inset 0 0 0 1px var(--line)}
+
+/* Hub: kartu lebar dengan ikon besar, deskripsi, label hadiah, dan tombol panah */
+#games .gm-grid{grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;margin-top:24px}
+@media(min-width:1500px){#games .gm-grid{grid-template-columns:repeat(auto-fill,minmax(340px,1fr))}}
+#games .gm-card{position:relative;min-height:196px;padding:22px 22px 20px;gap:8px;border-radius:26px;
+  background:radial-gradient(120% 90% at 100% 0%,color-mix(in srgb,var(--ink) 9%,transparent),transparent 62%),var(--surface);box-shadow:inset 0 0 0 1px var(--line);
+  transition:transform .25s cubic-bezier(.2,.9,.3,1.2),box-shadow .25s}
+#games .gm-card .ic{width:54px;height:54px;border-radius:17px;margin-bottom:10px;transition:transform .3s cubic-bezier(.2,.9,.3,1.3)}
+#games .gm-card b{font-size:18px;font-weight:650;letter-spacing:-.025em}
+#games .gm-card span:not(.ic):not(.gm-tag){display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;font-size:13.5px;line-height:1.5}
+#games .gm-card .gm-tag{margin-top:auto;padding:5px 12px;box-shadow:inset 0 0 0 1px var(--line);font-weight:600}
+#games .gm-card:not(.soon)::after{content:"";position:absolute;top:20px;right:20px;width:36px;height:36px;border-radius:50%;transition:transform .25s,background-color .2s;
+  background:var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238b8b92' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 6l6 6-6 6'/%3E%3C/svg%3E") center/16px no-repeat}
+@media(hover:hover){
+  #games .gm-card:not(:disabled):hover{transform:translateY(-4px);box-shadow:inset 0 0 0 1px var(--mut),0 16px 34px rgba(0,0,0,.14)}
+  #games .gm-card:not(:disabled):hover .ic{transform:scale(1.08) rotate(-4deg)}
+  #games .gm-card:not(:disabled):hover::after{transform:translateX(3px);background-color:var(--line)}
+}
+#games .gm-card.soon{background:none;box-shadow:inset 0 0 0 1.5px var(--line);opacity:.7}
+@media(max-width:519px){ /* HP: kartu mendatar (ikon kiri) supaya daftar tidak terlalu panjang */
+  #games .gm-grid{grid-template-columns:minmax(0,1fr);gap:12px;margin-top:18px}
+  #games .gm-card{display:grid;grid-template-columns:52px minmax(0,1fr);column-gap:14px;row-gap:4px;min-height:0;padding:16px 56px 16px 16px;align-items:start}
+  #games .gm-card .ic{grid-row:1/4;width:52px;height:52px;margin:0}
+  #games .gm-card .gm-tag{justify-self:start;margin-top:6px}
+}
+
+/* Layar game: tidak ikut melebar tanpa batas. Game dengan panel + tabel hadiah jadi dua kolom di desktop */
+#gmbody:not(:has(>.gm-grid)){max-width:1040px}
+#gmbody>.gm-back{margin-top:22px}
+#gmbody>.gm-panel{padding:26px 22px;border-radius:28px;box-shadow:inset 0 0 0 1px var(--line)}
+@media(min-width:800px){#gmbody>.gm-panel{padding:32px 34px}}
+#gmbody .gm-info{border-radius:24px;box-shadow:inset 0 0 0 1px var(--line)}
+@media(min-width:960px){
+  #gmbody:has(>.gm-info){display:grid;grid-template-columns:minmax(0,1fr) 340px;column-gap:20px;align-items:start}
+  #gmbody:has(>.gm-info)>*{grid-column:1}
+  #gmbody:has(>.gm-info)>.gm-back{grid-column:1/-1;justify-self:start}
+  #gmbody:has(>.gm-info)>.gm-info{grid-column:2;grid-row:2/span 6;margin-top:6px;position:sticky;top:16px}
+}
+/* panel tunggal tanpa tabel hadiah (mis. layar pembuka): tetap nyaman dibaca, rata kiri dengan judul */
+#gmbody:not(:has(>.gm-info)):not(:has(.ch-stage,.cm-game,.cm-lobby-top,.ws-wrap))>.gm-panel{max-width:660px}
