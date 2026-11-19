@@ -206,6 +206,29 @@ function followBtn(by) {
 const CUR = 'Gems'; // nama mata uang di teks modal (sama dengan dompet di Beranda)
 const nfS = n => new Intl.NumberFormat('id-ID').format(n);
 const gemImg = cls => { const i = new Image(); i.src = '/gems.png'; i.alt = ''; i.draggable = false; if (cls) i.className = cls; return i; };
+/* Efek "Terkirim!" setelah dukungan sukses: hati melayang + pesan terima kasih (mati otomatis kalau prefers-reduced-motion).
+   Gayanya disuntik dari JS, sama seperti OTH_CSS, supaya tidak bergantung pada versi cdetail.css di browser. */
+const FX_CSS = `
+#cdetail .cds-done{position:relative;overflow:hidden;min-height:210px;padding:34px 0 14px;text-align:center}
+#cdetail .cds-big{font-size:58px;line-height:1;animation:cdsPop .55s cubic-bezier(.2,1.6,.4,1) both}
+#cdetail .cds-heart{position:absolute;bottom:-10px;left:var(--x);font-size:var(--s);opacity:0;pointer-events:none;animation:cdsUp 1.7s ease-out var(--d) forwards}
+@keyframes cdsPop{from{transform:scale(.2);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes cdsUp{0%{transform:translateY(0) scale(.6);opacity:0}15%{opacity:1}100%{transform:translateY(-230px) scale(1.15);opacity:0}}
+@media(prefers-reduced-motion:reduce){#cdetail .cds-heart{display:none}#cdetail .cds-big{animation:none}}
+`;
+function celebrate(card, n, by) {
+  if (!document.getElementById('cd-fx-css')) { const s = document.createElement('style'); s.id = 'cd-fx-css'; s.textContent = FX_CSS; document.head.append(s); }
+  card.textContent = '';
+  const x = btn('cds-x', null, 'Tutup'); x.append(svg('<path d="M6 6l12 12M18 6L6 18"/>')); x.onclick = closeSupport;
+  const d = h('div', 'cds-done');
+  for (let i = 0; i < 16; i++) {
+    const s = h('span', 'cds-heart', i % 4 === 0 ? '✨' : '💗');
+    s.style.setProperty('--x', (6 + Math.random() * 88) + '%'); s.style.setProperty('--s', (16 + Math.random() * 18) + 'px'); s.style.setProperty('--d', (Math.random() * 0.8).toFixed(2) + 's');
+    d.append(s);
+  }
+  d.append(h('div', 'cds-big', '💗'), h('h2', 'cds-title', 'Terkirim!'), h('p', 'cds-sub', nfS(n) + ' ' + CUR + ' untuk ' + by.name + '. Terima kasih sudah mendukung!'));
+  card.append(x, d);
+}
 let supEsc = null;
 function closeSupport() {
   const ov = root.querySelector('.cds-ov'); if (ov) ov.remove();
@@ -283,7 +306,8 @@ function openSupport(c) {
       if (!r || !r.ok) throw new Error((r && r.error) || 'Gagal mengirim dukungan.');
       st.idem = ''; st.busy = false;
       try { const w = typeof loadWallet === 'function' ? loadWallet() : null; if (w && typeof saveWallet === 'function' && Number.isFinite(r.gems)) saveWallet({ ...w, gems: r.gems }); } catch (e) {}
-      closeSupport(); say('Dukungan ' + nfS(n) + ' ' + CUR + ' terkirim ke ' + by.name + ' 💗');
+      st.busy = true; celebrate(card, n, by); // busy tetap true: tombol sudah tidak ada, cegah kirim ganda
+      setTimeout(() => { if (ov.isConnected) closeSupport(); }, 2300);
     } catch (e) { st.busy = false; st.err = (e && e.message) || 'Gagal mengirim, coba lagi.'; paint(); }
   }
   pay.onclick = send; pay.append(payG, payT);
@@ -451,6 +475,7 @@ function render(c) {
   const card = h('div', 'cd-by'), top = h('div', 'cd-byt');
   const av = new Image(); av.className = 'cd-av'; av.alt = ''; av.referrerPolicy = 'no-referrer'; av.onerror = () => { av.onerror = null; if (typeof ph === 'function') av.src = ph(by.name); }; av.src = by.avatar || (typeof ph === 'function' ? ph(by.name) : ''); userLink(av, by);
   const dk = btn('cd-pill o', 'Dukung'); dk.prepend(svg(I.spark)); dk.style.display = 'inline-flex'; dk.style.alignItems = 'center'; dk.style.gap = '6px'; dk.onclick = () => openSupport(c);
+  if (c.mine) dk.style.display = 'none'; // AI buatan sendiri: tombol Dukung disembunyikan (tidak bisa mendukung diri sendiri)
   const fl = followBtn(by);
   top.append(av, userLink(h('div', 'cd-bn', by.name), by), dk, fl);
   card.append(top, h('p', 'cd-bio', by.bio || 'Tidak ada deskripsi.'));
