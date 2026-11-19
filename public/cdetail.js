@@ -1,6 +1,6 @@
 /* Halaman detail karakter: dibuka dari kartu karakter di Beranda (bukan langsung masuk chat). Tombol "Obrolan" baru membuka chat.
-   Baru TIRUAN TAMPILAN: sapaan, story, komentar, likes, kategori lengkap, atribut persona, Dukung/Follow, bagikan masih placeholder
-   ("fitur belum selesai"). Yang sudah nyata: tombol Follow pembuat, nama, label (tagline), foto, pembuat (AI buatan user -> pemiliknya, bisa orang lain kalau AI-nya Publik; bawaan -> akun default nandasikma; nama/foto pembuat bisa dipencet -> profilnya),
+   Baru TIRUAN TAMPILAN: sapaan, story, jumlah obrolan, kategori lengkap, atribut persona, Dukung/Follow, bagikan masih placeholder
+   ("fitur belum selesai"). Yang sudah nyata: like, komentar (public/cdetail.js <-> lib/charsocial.js), tombol Follow pembuat, nama, label (tagline), foto, pembuat (AI buatan user -> pemiliknya, bisa orang lain kalau AI-nya Publik; bawaan -> akun default nandasikma; nama/foto pembuat bisa dipencet -> profilnya),
    tanggal diperbarui, dan "Robot Terkait" (karakter lain dengan label sama).
    Memakai global index.html: allChars, openChat, img, ph, dispName, toast, store. Semua teks dari data lewat textContent.
    Dibuka lewat window.CD.open(char); ditutup oleh tombol kembali, Escape, atau pindah tab (event 'shell:tab'). */
@@ -49,6 +49,127 @@ function userLink(el, by) {
   return el;
 }
 
+/* ---- Like & komentar (lib/charsocial.js). Membaca boleh tamu; menulis butuh login (belum masuk -> toast + overlay login). ---- */
+const S = { id: '', likes: null, liked: false, comments: null }; // null = belum termuat
+const C = { id: '', items: [], next: 0, more: false, loading: false, err: '', loaded: false }; // daftar komentar tab Komentar
+let likeBusy = false;
+const loggedIn = () => typeof atok === 'string' && !!atok;
+const api = (p, b) => (typeof aApi === 'function' ? aApi(p, b) : Promise.reject(new Error('Fitur tidak tersedia.')));
+const nfmt = n => (Number.isFinite(n) ? new Intl.NumberFormat('id-ID').format(n) : '–');
+const needLogin = msg => { if (typeof toast === 'function') toast(msg); if (typeof openLogin === 'function') openLogin(); };
+const say = m => { if (typeof toast === 'function') toast(m); };
+function resetSocial(c) {
+  S.id = c.id; S.likes = null; S.liked = false; S.comments = null; likeBusy = false;
+  C.id = c.id; C.items = []; C.next = 0; C.more = false; C.loading = false; C.err = ''; C.loaded = false;
+}
+function ago(ms) {
+  const s = Math.max(0, (Date.now() - ms) / 1000);
+  if (s < 60) return 'baru saja';
+  if (s < 3600) return Math.floor(s / 60) + ' mnt lalu';
+  if (s < 86400) return Math.floor(s / 3600) + ' jam lalu';
+  if (s < 2592000) return Math.floor(s / 86400) + ' hari lalu';
+  return dateText(new Date(ms).toISOString());
+}
+// perbarui angka like/komentar + tombol like + label tab pada tampilan yang sedang terbuka
+function paintSocial() {
+  const lk = root.querySelector('.cd-likes'); if (lk) lk.textContent = (S.likes === null ? '–' : nfmt(S.likes)) + ' likes';
+  const cc = root.querySelector('.cd-cc'); if (cc) cc.textContent = (S.comments === null ? '–' : nfmt(S.comments)) + ' Komentar';
+  const lb = root.querySelector('.cd-like'); if (lb) { lb.classList.toggle('on', S.liked); lb.setAttribute('aria-pressed', String(S.liked)); lb.setAttribute('aria-label', S.liked ? 'Batal suka' : 'Suka'); }
+  const tb = root.querySelector('.cd-tab[data-k="komentar"]'); if (tb) tb.textContent = 'Komentar(' + (S.comments === null ? '–' : nfmt(S.comments)) + ')';
+}
+async function loadSocial(c) {
+  try {
+    const r = await api('charsocial', { char: c.id });
+    if (!r || !r.ok || S.id !== c.id) return;
+    S.likes = r.likes; S.liked = !!r.liked; S.comments = r.comments; paintSocial();
+  } catch (e) { /* gagal: angka tetap "–" */ }
+}
+async function toggleLike() {
+  if (!loggedIn()) { needLogin('Masuk dulu untuk menyukai'); return; }
+  if (S.likes === null || likeBusy || !cur) return;
+  likeBusy = true;
+  const id = cur.id, was = S.liked;
+  S.liked = !was; S.likes = Math.max(0, S.likes + (was ? -1 : 1)); paintSocial(); // langsung terlihat, dibatalkan kalau server menolak
+  try {
+    const r = await api('charlike', { char: id, on: !was });
+    if (!r || !r.ok) throw new Error((r && r.error) || 'Gagal.');
+    if (S.id === id) { S.liked = !!r.liked; S.likes = r.likes; }
+  } catch (e) {
+    if (S.id === id) { S.liked = was; S.likes = Math.max(0, S.likes + (was ? 1 : -1)); }
+    say((e && e.message) || 'Gagal, coba lagi.');
+  }
+  likeBusy = false; paintSocial();
+}
+async function loadComments() {
+  if (C.loading || !cur) return;
+  const id = cur.id; C.loading = true; C.err = ''; drawComments();
+  try {
+    const r = await api('charcomments', { char: id, ...(C.next ? { before: C.next } : {}) });
+    if (!r || !r.ok) throw new Error((r && r.error) || 'Gagal memuat komentar.');
+    if (C.id !== id) return;
+    C.items.push(...r.items); C.more = !!r.more; C.next = r.next || 0; C.loaded = true;
+  } catch (e) { if (C.id === id) C.err = (e && e.message) || 'Gagal memuat komentar.'; }
+  if (C.id === id) { C.loading = false; drawComments(); }
+}
+function commentRow(it) {
+  const row = h('div', 'cd-cm');
+  const av = new Image(); av.className = 'cd-cav'; av.alt = ''; av.referrerPolicy = 'no-referrer';
+  av.onerror = () => { av.onerror = null; if (typeof ph === 'function') av.src = ph(it.user.name); };
+  av.src = it.user.avatar || (typeof ph === 'function' ? ph(it.user.name) : ''); userLink(av, it.user);
+  const body = h('div', 'cd-cmb'), top = h('div', 'cd-cmt');
+  top.append(userLink(h('b', null, it.user.name), it.user), h('small', null, ago(it.at)));
+  if (it.canDelete) {
+    const del = btn('cd-cdel', 'Hapus'); let armed = false;
+    del.onclick = async () => {
+      if (!armed) { armed = true; del.textContent = 'Yakin?'; setTimeout(() => { if (armed && !del.disabled) { armed = false; del.textContent = 'Hapus'; } }, 3000); return; }
+      del.disabled = true;
+      try {
+        const r = await api('charcomment/delete', { id: it.id });
+        if (!r || !r.ok) throw new Error((r && r.error) || 'Gagal.');
+        C.items = C.items.filter(x => x.id !== it.id); S.comments = r.comments; paintSocial(); drawComments();
+      } catch (e) { say((e && e.message) || 'Gagal, coba lagi.'); armed = false; del.disabled = false; del.textContent = 'Hapus'; }
+    };
+    top.append(del);
+  }
+  body.append(top, h('p', 'cd-cmx', it.text)); row.append(av, body); return row;
+}
+function drawComments() {
+  const list = root.querySelector('.cd-clist'); if (!list) return;
+  list.textContent = '';
+  for (const it of C.items) list.append(commentRow(it));
+  if (C.err) list.append(box(C.err));
+  else if (!C.loaded) list.append(box('Memuat…'));
+  else if (!C.items.length) list.append(box('Belum ada komentar. Jadilah yang pertama!'));
+  if (C.more) { const m = btn('cd-cmore', C.loading ? 'Memuat…' : 'Muat lebih banyak'); m.disabled = C.loading; m.onclick = loadComments; list.append(m); }
+}
+function panelComments(c) {
+  C.err = '';
+  const sec = section('Komentar');
+  if (loggedIn()) {
+    const f = h('div', 'cd-cform'), ta = h('textarea', 'cd-cinp'), row = h('div', 'cd-crow'), cnt = h('small', null, '0/300'), send = btn('cd-csend', 'Kirim');
+    ta.maxLength = 300; ta.rows = 2; ta.placeholder = 'Tulis komentar…'; ta.setAttribute('aria-label', 'Tulis komentar');
+    ta.addEventListener('input', () => { cnt.textContent = ta.value.length + '/300'; });
+    send.onclick = async () => {
+      const text = ta.value.trim(); if (!text || send.disabled) return;
+      send.disabled = true;
+      try {
+        const r = await api('charcomment', { char: c.id, text });
+        if (!r || !r.ok) throw new Error((r && r.error) || 'Gagal mengirim.');
+        if (C.id === c.id) { C.items.unshift(r.item); S.comments = r.comments; paintSocial(); drawComments(); }
+        ta.value = ''; cnt.textContent = '0/300';
+      } catch (e) { say((e && e.message) || 'Gagal mengirim, coba lagi.'); }
+      send.disabled = false;
+    };
+    row.append(cnt, send); f.append(ta, row); sec.append(f);
+  } else {
+    const b = box('Masuk untuk ikut berkomentar.'), lg = btn('cd-csend', 'Masuk'); lg.onclick = () => needLogin('Masuk dulu untuk berkomentar');
+    b.append(document.createElement('br'), lg); b.classList.add('cd-clogin'); sec.append(b);
+  }
+  sec.append(h('div', 'cd-clist'));
+  Promise.resolve().then(() => { if (!C.loaded && !C.loading) loadComments(); else drawComments(); }); // setelah panel terpasang di DOM
+  return sec;
+}
+
 /* Tombol Follow pembuat: memakai endpoint ikuti yang sama dengan tab Profil (PF.follow -> /api/auth/follow). Status awal (sudah mengikuti / dia mengikutimu / akun sendiri)
    diambil dari /api/auth/profile. Tanpa username (fallback Neyhra/Pengguna) atau akun sendiri = tombol disembunyikan. Belum masuk = diarahkan ke login. */
 function followBtn(by) {
@@ -95,7 +216,7 @@ function panelSoon(label) { return section(label, box(SOON)); }
 function paintTab(c) {
   const holder = root.querySelector('.cd-pane'); if (!holder) return;
   holder.textContent = '';
-  holder.append(tab === 'story' ? panelSoon('Story') : tab === 'komentar' ? panelSoon('Komentar') : panelDetail(c));
+  holder.append(tab === 'story' ? panelSoon('Story') : tab === 'komentar' ? panelComments(c) : panelDetail(c));
   root.querySelectorAll('.cd-tab').forEach(t => t.setAttribute('aria-selected', String(t.dataset.k === tab)));
 }
 
@@ -111,8 +232,10 @@ function render(c) {
   const im = typeof img === 'function' ? img(c) : new Image(); im.removeAttribute('class'); im.decoding = 'async'; cover.append(im);
   const badge = h('div', 'cd-badge'); badge.append(svg(I.chat), document.createTextNode('–')); badge.title = 'Jumlah obrolan: ' + SOON; cover.append(badge);
   const stat = h('div', 'cd-stat'), sl = h('div');
-  const lb = h('b'); lb.append(svg(I.like), document.createTextNode('– likes')); sl.append(lb, h('small', null, '– Komentar'));
-  const like = btn('cd-like', null, 'Suka'); like.append(svg(I.like)); like.onclick = soon;
+  const lb = h('b'); lb.append(svg(I.like), h('span', 'cd-likes', '– likes'));
+  const cc = btn('cd-cc', '– Komentar', 'Lihat komentar'); cc.onclick = () => { tab = 'komentar'; paintTab(cur); const t = root.querySelector('.cd-tabs'); if (t) t.scrollIntoView({ block: 'start', behavior: 'smooth' }); };
+  sl.append(lb, cc);
+  const like = btn('cd-like', null, 'Suka'); like.append(svg(I.like)); like.onclick = toggleLike;
   stat.append(sl, like);
   const act = h('div', 'cd-act');
   const go = btn('cd-chat', 'Obrolan'); go.onclick = () => { const c0 = cur; close(true); if (c0 && typeof openChat === 'function') openChat(c0, im); };
@@ -122,7 +245,7 @@ function render(c) {
   for (const r of related(c)) {
     const it = btn('cd-ritem'); const ri = typeof img === 'function' ? img(r) : new Image(); ri.removeAttribute('class'); ri.loading = 'lazy';
     const tx = h('div'); tx.append(h('b', null, r.name), h('span', null, r.tagline || 'AI buatan'));
-    it.append(ri, tx); it.onclick = () => { cur = r; tab = 'detail'; render(r); root.scrollTop = 0; };
+    it.append(ri, tx); it.onclick = () => { cur = r; tab = 'detail'; resetSocial(r); render(r); root.scrollTop = 0; };
     rel.append(it);
   }
   left.append(cover, stat, act, rel);
@@ -145,12 +268,12 @@ function render(c) {
   right.append(h('h1', 'cd-title', typeof dispName === 'function' ? dispName(c) : c.name), meta, h('p', 'cd-sub', c.tagline || ''), card, tabs, h('div', 'cd-pane'));
 
   grid.append(left, right); wrap.append(back, grid); root.append(wrap);
-  paintTab(c);
+  paintTab(c); paintSocial(); loadSocial(c);
 }
 
 function open(c) {
   if (!c) return;
-  cur = c; tab = 'detail'; render(c);
+  cur = c; tab = 'detail'; resetSocial(c); render(c);
   app.classList.add('cd-on'); root.scrollTop = 0;
   const b = root.querySelector('.cd-back'); if (b) b.focus({ preventScroll: true });
 }

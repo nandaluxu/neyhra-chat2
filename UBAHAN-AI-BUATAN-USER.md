@@ -59,3 +59,12 @@ Ketuk karakter di Beranda sekarang membuka **halaman detail** dulu (`public/cdet
 - Status awal diambil dari `POST /api/auth/profile` (`isFollowing`, `followsMe`, `isMe`): label "+ Follow" / "+ Follow balik" / "Mengikuti". Tombol dinonaktifkan sebentar sampai status awal termuat.
 - Disembunyikan kalau pembuatnya akun sendiri atau tidak punya username (fallback Neyhra/Pengguna). Belum login: toast + overlay login. "Dukung" masih placeholder.
 - File berubah: `public/cdetail.js`, `public/cdetail.css`, `public/profile.js`.
+
+## Like & komentar di detail karakter (update)
+- Tombol like, angka "likes", angka/tombol "Komentar", dan tab **Komentar** di halaman detail sekarang nyata (berlaku untuk karakter bawaan dan AI buatan user yang boleh dilihat pemanggil).
+- **Like:** toggle per akun per karakter (optimistis, dibatalkan kalau server menolak). Belum login -> toast + overlay login. Satu like per akun (id gabungan `<charId>:<userId>`).
+- **Komentar:** kotak tulis (maks 300 huruf), daftar terbaru dulu 20 per halaman + "Muat lebih banyak". Nama/foto penulis bisa dipencet -> profilnya. Hapus: penulisnya, atau pemilik AI buatan itu (dua langkah: Hapus -> Yakin?). Tamu boleh membaca, tidak boleh menulis.
+- **Backend baru `lib/charsocial.js`** (dipasang di `lib/auth.js`): `charsocial`, `charlike`, `charcomments`, `charcomment`, `charcomment/delete`. Koleksi `char_likes` dan `char_comments` (index dibuat otomatis). Karakter harus ada dan lolos `canUseChar` (AI privat orang lain tidak bisa disukai/dikomentari). Pembatas laju: tulis per akun (8 komentar/menit, 60/jam), baca per IP.
+- Pembersihan: hapus AI buatan (`aichar/delete`, `purgeUserChars`) menghapus like & komentarnya; hapus akun menghapus semua like & komentar milik akun itu.
+- Belum ada: notifikasi ke pemilik AI saat disukai/dikomentari, laporan/moderasi komentar, jumlah obrolan (badge di foto masih "–").
+- File: `lib/charsocial.js` (baru), `lib/auth.js`, `lib/userchars.js`, `public/cdetail.js`, `public/cdetail.css`.
