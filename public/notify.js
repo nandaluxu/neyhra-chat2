@@ -72,6 +72,13 @@ panel.innerHTML = '<div class="nt-head"><span class="nt-grab" aria-hidden="true"
 const live = h('div', 'nt-sr'); live.setAttribute('role', 'status'); live.setAttribute('aria-live', 'polite');
 document.body.append(scrim, panel, live);
 const head = panel.querySelector('.nt-head'), list = panel.querySelector('.nt-list'), cnt = panel.querySelector('.nt-count'), allBtn = panel.querySelector('.nt-all');
+/* Perbaikan tampilan daftar (disuntik dari JS supaya tidak tergantung versi notify.css di browser):
+   scrollbar bawaan browser tampil putih/tebal di tema gelap -> dibuat tipis dan mengikuti warna tema. */
+if (!document.getElementById('nt-fix-css')) {
+  const st = document.createElement('style'); st.id = 'nt-fix-css';
+  st.textContent = '.nt-list{scrollbar-width:thin;scrollbar-color:var(--line) transparent}.nt-list::-webkit-scrollbar{width:8px}.nt-list::-webkit-scrollbar-track{background:transparent}.nt-list::-webkit-scrollbar-thumb{background:var(--line);border-radius:8px}';
+  document.head.append(st);
+}
 btn.setAttribute('aria-haspopup', 'dialog'); btn.setAttribute('aria-controls', 'npanel'); btn.setAttribute('aria-expanded', 'false');
 
 /* ---------- Badge & kepala panel ---------- */
@@ -232,12 +239,15 @@ scrim.addEventListener('click', () => close());
 
 /* ---------- Buka / tutup ---------- */
 function place() {
-  if (mqM.matches) { panel.style.left = panel.style.top = panel.style.bottom = ''; return; } // mobile: bottom-sheet diatur CSS
+  if (mqM.matches) { panel.style.left = panel.style.top = panel.style.bottom = panel.style.maxHeight = ''; return; } // mobile: bottom-sheet diatur CSS
   const r = btn.getBoundingClientRect(), W = Math.min(360, innerWidth - 24);
   let left = r.right + 10; if (left + W > innerWidth - 12) left = Math.max(12, innerWidth - 12 - W);
   panel.style.left = left + 'px';
   if (r.top + r.height / 2 > innerHeight / 2) { panel.style.top = 'auto'; panel.style.bottom = Math.max(12, innerHeight - r.bottom - 4) + 'px'; }
   else { panel.style.bottom = 'auto'; panel.style.top = Math.max(12, r.top - 4) + 'px'; }
+  // tinggi dibatasi sesuai ruang yang ada (maks 70vh / 620px) supaya kepala panel tidak pernah terpotong di luar layar
+  const room = r.top + r.height / 2 > innerHeight / 2 ? innerHeight - parseFloat(panel.style.bottom) - 12 : innerHeight - parseFloat(panel.style.top) - 12;
+  panel.style.maxHeight = Math.max(180, Math.min(620, innerHeight * 0.7, room)) + 'px';
 }
 function openPanel() {
   if (open || !atok) return;
