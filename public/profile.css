@@ -167,3 +167,8 @@ button.pf-stat:active{transform:scale(.97)}
 .pf-psw{margin-top:14px;padding:12px;cursor:default}
 .pf-dtxt{margin-top:12px;font-size:13.5px;line-height:1.5}
 .pf-mact button.danger{background:#e5484d;color:#fff}
+
+/* AI Saya: saklar Privat/Publik + lencana status di kartu */
+.pf-pub{margin-top:14px}
+.pf-vis{display:inline-block;flex:none;padding:1px 7px;border-radius:99px;font-size:10.5px;font-weight:500;line-height:1.5;vertical-align:middle;background:var(--surface);color:var(--mut)}
+.pf-vis.pub{background:var(--on);color:var(--bg)}

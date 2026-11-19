@@ -2,7 +2,7 @@
 
 User yang sudah login bisa membuat karakter AI sendiri (maks 10/akun): nama, label, identitas, kepribadian,
 gaya bicara, aturan tambahan, foto. Dikelola di **Profil > tab "AI Saya"**; langsung muncul di Beranda
-dan ikut hubungan, memori, grup, skenario, persona, proaktif. Suara dipilih dari suara karakter bawaan; tanpa voiceId AI tidak bisa voice note.
+(milik sendiri, atau milik semua orang kalau diset **Publik**) dan ikut hubungan, memori, grup, skenario, persona, proaktif. Suara dipilih dari suara karakter bawaan; tanpa voiceId AI tidak bisa voice note.
 
 ## File
 | File | Perubahan |
@@ -15,10 +15,13 @@ dan ikut hubungan, memori, grup, skenario, persona, proaktif. Suara dipilih dari
 | `public/profile.js` | tab "AI Saya": daftar, form modal, hapus, tombol Chat |
 
 ## Penyimpanan
-Koleksi MongoDB `user_chars` `{_id:"u_<16hex>", ownerId, name, tagline, identity, personality, speech, rules, av, avatarUrl/avKey (R2) | avData}` — dibuat otomatis.
+Koleksi MongoDB `user_chars` `{_id:"u_<16hex>", ownerId, name, tagline, identity, personality, speech, rules, public, av, avatarUrl/avKey (R2) | avData}` — dibuat otomatis. `public` = boolean, default `false` (AI lama tanpa field ini otomatis privat).
 
 ## Keamanan
-- Privat: hanya pemilik yang melihat/memakai (`canUseChar`); id acak 64-bit.
+- Default Privat: hanya pemilik yang melihat/memakai (`canUseChar`); id acak 64-bit. Kalau `public: true`, semua orang (termasuk tamu) bisa melihat & memakainya.
+- Yang keluar ke publik lewat `/api/chars` hanya `id, name, tagline, avatar, creator` (+ `public`, `mine`). Identitas/kepribadian/gaya bicara/aturan tetap hanya di server dan di tab "AI Saya" milik pemilik.
+- Edit, hapus, dan ubah status publik hanya bisa oleh pemilik (selalu difilter `ownerId`).
+- Belum ada moderasi/laporan untuk AI publik.
 - Teks user dibersihkan (tanda `<>` dibuang agar tak memalsukan tag format balasan) dan prompt memuat penegasan "ikuti ATURAN FORMAT".
 - Rate limit simpan/foto/hapus; foto JPEG ≤100 KB (R2 atau fallback MongoDB).
 - Catatan: endpoint skenario/scene/vision/shop memakai id karakter tanpa cek pemilik (id tak bisa ditebak); tambahkan `canUseChar` di sana kalau mau ketat.
@@ -35,3 +38,13 @@ Ketuk karakter di Beranda sekarang membuka **halaman detail** dulu (`public/cdet
 - Placeholder ("Tidak ada deskripsi. Fitur ini belum selesai."): Sapaan, Atribut Persona, Story, Komentar, likes, Dukung/Follow, bagikan.
 - Tutup: tombol Kembali, Escape, atau pindah tab. Belum punya URL sendiri / tombol back browser.
 - File tambahan: `public/cdetail.js`, `public/cdetail.css`, `lib/app.js` (creator, updated), `lib/chars.js` (updatedAt).
+
+## Privat / Publik (update)
+- Form AI (Profil > AI Saya) punya saklar **Publik** (default mati = Privat). Kartu AI di tab menampilkan lencana Privat/Publik.
+- `POST /api/auth/aichar/save` menerima `public: true|false` (tanpa field = status tidak diubah; AI baru = privat). `aichar/list` mengembalikan `public`.
+- `lib/chars.js`: `toChar` membawa `public`; `canUseChar` = bawaan, atau `public`, atau pemilik. Fallback label AI tanpa tagline jadi "AI buatan pengguna".
+- `lib/app.js` `/api/chars`: tamu pun dapat AI publik. **Pembuat dicari per pemilik** (query `users` untuk `ownerId` yang tampil), bukan lagi diasumsikan akun yang sedang masuk. Field tambahan: `public`, `mine` (milik akun yang sedang masuk), `creator {name, username, bio, avatar}` (kalau akun pembuat tak ditemukan: "Pengguna").
+- Halaman detail (`public/cdetail.js`): "Dibuat oleh" + kartu pembuat memakai `creator` AI itu, jadi nama pembuat tampil untuk AI publik milik orang lain.
+- Hapus AI / hapus akun sekarang membersihkan `persona_picks` semua user untuk AI itu (sebelumnya hanya milik pemilik), karena AI publik bisa dipilih persona-nya oleh orang lain.
+- Kalau AI diubah publik -> privat: user lain tidak bisa chat lagi (server menjawab "Request tidak valid"); riwayat lokal mereka tetap ada di perangkat.
+- File berubah: `lib/userchars.js`, `lib/chars.js`, `lib/app.js`, `public/profile.js`, `public/profile.css`, `public/cdetail.js`.

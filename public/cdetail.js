@@ -1,6 +1,6 @@
 /* Halaman detail karakter: dibuka dari kartu karakter di Beranda (bukan langsung masuk chat). Tombol "Obrolan" baru membuka chat.
    Baru TIRUAN TAMPILAN: sapaan, story, komentar, likes, kategori lengkap, atribut persona, Dukung/Follow, bagikan masih placeholder
-   ("fitur belum selesai"). Yang sudah nyata: nama, label (tagline), foto, pembuat (AI buatan user -> pemiliknya, bawaan -> Neyhra),
+   ("fitur belum selesai"). Yang sudah nyata: nama, label (tagline), foto, pembuat (AI buatan user -> pemiliknya, bisa orang lain kalau AI-nya Publik; bawaan -> Neyhra),
    tanggal diperbarui, dan "Robot Terkait" (karakter lain dengan label sama).
    Memakai global index.html: allChars, openChat, img, ph, dispName, toast, store. Semua teks dari data lewat textContent.
    Dibuka lewat window.CD.open(char); ditutup oleh tombol kembali, Escape, atau pindah tab (event 'shell:tab'). */
@@ -37,7 +37,7 @@ function related(c) {
   const same = c.tagline ? all.filter(x => x.tagline === c.tagline) : [];
   return same.concat(all.filter(x => !same.includes(x))).slice(0, 3);
 }
-const createdBy = c => c.custom && c.creator ? c.creator : { name: 'Neyhra', username: '', bio: '', avatar: '/icon.svg' };
+const createdBy = c => c.custom ? (c.creator || { name: 'Pengguna', username: '', bio: '', avatar: '' }) : { name: 'Neyhra', username: '', bio: '', avatar: '/icon.svg' };
 
 function section(title, ...kids) { const s = h('div', 'cd-sec'); s.append(h('h2', null, title), ...kids); return s; }
 const box = text => h('div', 'cd-box', text);
@@ -45,7 +45,7 @@ const box = text => h('div', 'cd-box', text);
 function panelDetail(c) {
   const p = h('div');
   p.append(section('Sapaan', box('Tidak ada deskripsi. ' + SOON)));
-  const kat = h('div'); kat.append(h('span', 'cd-chip', c.tagline || (c.custom ? 'AI buatanmu' : 'Lainnya')));
+  const kat = h('div'); kat.append(h('span', 'cd-chip', c.tagline || (c.custom ? (c.mine ? 'AI buatanmu' : 'AI buatan pengguna') : 'Lainnya')));
   p.append(section('Kategori', kat));
   const at = h('div', 'cd-box'); at.append(h('div', 'cd-boxh', 'Appearance + body of {{char}}'), document.createTextNode('Tidak ada deskripsi. ' + SOON));
   p.append(section('Atribut Persona', at));

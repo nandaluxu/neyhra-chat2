@@ -437,7 +437,8 @@ function askDeletePersona(id) {
   setTimeout(() => del.focus({ preventScroll: true }), 30);
 }
 /* ---------- Tab AI Saya (karakter AI buatan sendiri — lib/userchars.js) ----------
-   AI buatan user tampil di Beranda seperti karakter bawaan, tapi hanya terlihat dan bisa dipakai pemiliknya. Tanpa suara (voice). */
+   AI buatan user tampil di Beranda seperti karakter bawaan. Default PRIVAT (hanya pemiliknya); kalau diset Publik, muncul di Beranda semua orang
+   dengan nama pembuatnya di halaman detail. Tanpa suara (voice) kecuali dipilih. */
 const AI_LIM = { name: 40, tagline: 40, identity: 600, personality: 600, speech: 300, rules: 400 };
 async function loadAIs(force) {
   if (!atok || ai.busy || (!force && ai.items)) return false;
@@ -459,7 +460,7 @@ function aiCard(c) {
   card.setAttribute('aria-label', 'Edit AI ' + c.name);
   card.addEventListener('keydown', e => { if (e.target === card && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openAIForm(c); } });
   const bd = h('div', 'pf-pbd'), nm = h('div', 'pf-pnm');
-  nm.append(h('b', null, c.name));
+  nm.append(h('b', null, c.name), h('span', 'pf-vis' + (c.public ? ' pub' : ''), c.public ? 'Publik' : 'Privat'));
   bd.append(nm, h('small', null, c.personality || c.identity || 'Belum ada deskripsi'));
   const acts = h('div', 'pf-pacts');
   const chat = btn('pf-pdef on', 'Chat', 'aichat'); chat.dataset.id = c.id; chat.setAttribute('aria-label', 'Mulai chat dengan ' + c.name);
@@ -472,7 +473,7 @@ function panelAI(panel) {
   loadAIs().then(fresh => { if (fresh && tabKey === 'ai') paintPanel(); });
   const sec = h('div', 'pf-sec');
   sec.append(h('h3', null, 'AI Saya'));
-  sec.append(h('p', 'pf-note', 'Buat karakter AI-mu sendiri: tentukan nama, identitas, kepribadian, dan gaya bicaranya. AI buatanmu muncul di Beranda bersama karakter lain dan mendukung hubungan, memori, grup, serta persona. Hanya kamu yang bisa melihat dan memakainya. Suaranya bisa dipilih dari suara karakter yang sudah ada; tanpa suara, AI hanya membalas teks.'));
+  sec.append(h('p', 'pf-note', 'Buat karakter AI-mu sendiri: tentukan nama, identitas, kepribadian, dan gaya bicaranya. AI buatanmu muncul di Beranda bersama karakter lain dan mendukung hubungan, memori, grup, serta persona. Secara bawaan AI bersifat Privat (hanya kamu yang bisa melihat dan memakainya); ubah ke Publik kalau mau orang lain ikut melihat dan mengobrol dengannya. Suaranya bisa dipilih dari suara karakter yang sudah ada; tanpa suara, AI hanya membalas teks.'));
   panel.append(sec);
   if (ai.err) { panel.append(h('div', 'pf-empty', ai.err)); return; }
   if (!ai.items) { panel.append(h('div', 'pf-empty', 'Memuat…')); return; }
@@ -563,6 +564,16 @@ function paintAIPic() {
   holder.replaceWith(a); a.id = 'aipic';
   const rm = $('airm'); if (rm) rm.classList.toggle('hide', !aiForm.preview);
 }
+/* Saklar Privat/Publik. Publik = AI muncul di Beranda semua orang dan bisa dipakai chat siapa pun, dengan namamu sebagai pembuat. */
+function aiPublicBox(c) {
+  const row = h('label', 'srow pf-pub'), tx = h('span'), b = h('b', null, 'Publik'), i = h('i');
+  const sw = h('input', 'sw'); sw.type = 'checkbox'; sw.id = 'aipub'; sw.checked = !!(c && c.public);
+  const hint = () => { i.textContent = sw.checked
+    ? 'AI muncul di Beranda semua orang dan bisa dipakai siapa pun untuk chat. Namamu tampil sebagai pembuat. Identitas, kepribadian, dan aturanmu tidak ditampilkan.'
+    : 'Privat: hanya kamu yang bisa melihat dan memakai AI ini.'; };
+  sw.addEventListener('change', hint); hint();
+  tx.append(b, i); row.append(tx, sw); return row;
+}
 function aiField(label, id, key, rows, ph, c) { // textarea berlabel + penghitung huruf
   const l = h('label', 'pf-lab', label), t = h(rows === 1 ? 'input' : 'textarea', 'pf-inp');
   t.id = id; t.maxLength = AI_LIM[key]; t.value = c ? (c[key] || '') : ''; t.placeholder = ph; if (rows > 1) t.rows = rows; else t.autocomplete = 'off';
@@ -589,7 +600,7 @@ function openAIForm(c) {
     ...aiField('Kepribadian', 'aipers', 'personality', 4, 'Sifat dan sikapnya, mis. ceria, usil, tapi diam-diam perhatian', c),
     ...aiField('Gaya bicara (opsional)', 'aispeech', 'speech', 3, 'Cara bicaranya, mis. santai, singkat, sering bercanda', c),
     ...aiField('Aturan tambahan (opsional)', 'airules', 'rules', 3, 'Hal yang harus/tidak boleh dilakukan AI ini', c),
-    aiVoiceBox(c), ...(aiDevOn() ? [aiDevBox(c)] : []),
+    aiVoiceBox(c), aiPublicBox(c), ...(aiDevOn() ? [aiDevBox(c)] : []),
     msg, act);
   openModal(box); paintAIPic(); fillVoiceSel(); if (aiDevOn() && c) loadDevVoices(c.id);
   $('ainame').addEventListener('input', () => { if (!aiForm.preview || aiForm.preview === '') paintAIPic(); });
@@ -605,7 +616,7 @@ function openAIForm(c) {
 async function saveAI() {
   if (!aiForm) return;
   const msg = $('aimsg'), save = $('aisave'), v = id => $(id).value.trim();
-  const payload = { name: v('ainame'), tagline: v('aitag'), identity: v('aiident'), personality: v('aipers'), speech: v('aispeech'), rules: v('airules') };
+  const payload = { name: v('ainame'), tagline: v('aitag'), identity: v('aiident'), personality: v('aipers'), speech: v('aispeech'), rules: v('airules'), public: !!($('aipub') && $('aipub').checked) };
   msg.className = 'pf-msg err';
   if (!payload.name) { msg.textContent = 'Nama AI tidak boleh kosong.'; $('ainame').focus(); return; }
   if (!payload.identity && !payload.personality) { msg.textContent = 'Isi minimal identitas atau kepribadian.'; $('aipers').focus(); return; }
