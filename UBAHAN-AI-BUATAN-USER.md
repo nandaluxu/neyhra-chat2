@@ -112,3 +112,20 @@ Ketuk karakter di Beranda sekarang membuka **halaman detail** dulu (`public/cdet
 - Hubungan (`rel:`) memang tidak ikut terhapus oleh "Hapus obrolan" (perilaku lama, tidak diubah). Hapus grup (`GX.clear`) tidak tercakup (grup tidak ikut sinkron akun).
 - Teruji end-to-end (Playwright + server tiruan): hapus -> akun bersih & `wipes` terkirim; refresh -> tetap kosong; pesan baru bertahan; akun berisi pesan lama + tombstone hanya di perangkat -> tidak kembali; perangkat lain ikut terhapus; impor file tetap memulihkan.
 - File: `public/index.html`, `public/cdetail.js`, `public/cdetail.css`.
+
+## Gender karakter (update)
+- Field `gender` di tiap AI: hanya `'cowo'` atau `'cewe'`; kosong / selain itu = **"Belum di set"** (`normGender` di `lib/chars.js`).
+- Karakter bawaan: tambahkan satu baris `gender: 'cewe'` di `char/<id>.js` (contoh: `char/furina.js`). File tanpa field ini otomatis "Belum di set".
+- AI buatan user: dropdown **Gender** (Belum di set / Cowo / Cewe) di form Profil > AI Saya; disimpan di koleksi `user_chars` field `gender` lewat `aichar/save { gender }` (tanpa field = tidak diubah).
+- `/api/chars` mengirim `gender`; halaman detail (`public/cdetail.js`) menampilkan bagian **Gender** di tab Detail.
+- File: `char/furina.js`, `lib/chars.js`, `lib/userchars.js`, `lib/app.js`, `public/profile.js`, `public/cdetail.js`.
+
+## Dukung kreator (update)
+- Tombol **Dukung** di halaman detail karakter membuka modal: pembuat (foto, nama, "N Dukungan diterima", tombol Follow), pilihan jumlah **5 / 20 / 50 / Kustom** (Gems), saldo, dan tombol "<n> Dukung". **Tanpa biaya platform**, tanpa tombol "Beli lagi". Teks mata uang = `CUR` di `public/cdetail.js` (sekarang "Gems", sama dengan dompet).
+- Backend **baru** `lib/support.js` (dipasang di `lib/auth.js`), BUKAN lewat `lib/transfer.js` (itu hanya Coin/barang, fee 5%, Gems sengaja tidak boleh ditransfer):
+  - `POST /api/auth/support/info { username }` (login opsional) -> `{ ok, received, isMe, gems?, trust?, dayLeft?, rates }`
+  - `POST /api/auth/support/send { to, amount, char?, idem }` -> `{ ok, gems, received, done, dayLeft }`
+- Penerima mendapat SELURUH jumlah. Pagar anti-ternak-akun (karena tanpa fee): akun pengirim minimal `ECON_TRUST_HOURS` (default 24 jam), maks 1000 Gems per kiriman dan 1000 Gems per hari (WIB; ubah di `SUPPORT` di `lib/support.js`), tidak bisa ke diri sendiri, laju 10/menit, `idem` (econ_txn), potong saldo atomik + kompensasi kalau penerima hilang.
+- Koleksi `supports { _id, from, to, charId, amount, at }` (index `to`, `from+at`); "Dukungan diterima" = jumlah dokumen `to` = pembuat. Dihapus saat akun dihapus (`purgeSupport`). Riwayat saldo: `econ_log` kind `support-out` / `support-in`; penerima dapat notifikasi (type `sys`).
+- Pembuat tanpa username (fallback Neyhra/Pengguna) = toast "belum bisa menerima dukungan". Belum login = toast + overlay login. Karakter bawaan mengirim ke akun pembuat default (nandasikma).
+- File: `lib/support.js` (baru), `lib/auth.js`, `public/cdetail.js`, `public/cdetail.css`.

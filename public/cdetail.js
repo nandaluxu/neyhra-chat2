@@ -1,6 +1,6 @@
 /* Halaman detail karakter: dibuka dari kartu karakter di Beranda (bukan langsung masuk chat). Tombol "Obrolan" baru membuka chat.
-   Baru TIRUAN TAMPILAN: sapaan, jumlah obrolan, kategori lengkap, atribut persona, Dukung/Follow, bagikan masih placeholder
-   ("fitur belum selesai"). Yang sudah nyata: sapaan (c.greeting, teks pembuka chat buatan pemilik AI), tab Story (cerita AI buatan user: ditulis / dikembangkan AI di Profil > AI Saya, lib/userchars.js charstory), like, komentar (public/cdetail.js <-> lib/charsocial.js), tombol Follow pembuat, nama, label (tagline), foto, pembuat (AI buatan user -> pemiliknya, bisa orang lain kalau AI-nya Publik; bawaan -> akun default nandasikma; nama/foto pembuat bisa dipencet -> profilnya),
+   Baru TIRUAN TAMPILAN: sapaan, jumlah obrolan, kategori lengkap, atribut persona, bagikan masih placeholder
+   ("fitur belum selesai"). Yang sudah nyata: sapaan (c.greeting, teks pembuka chat buatan pemilik AI), tab Story (cerita AI buatan user: ditulis / dikembangkan AI di Profil > AI Saya, lib/userchars.js charstory), like, komentar (public/cdetail.js <-> lib/charsocial.js), tombol Follow pembuat, tombol Dukung (modal kirim Gems ke pembuat, lib/support.js), nama, label (tagline), foto, pembuat (AI buatan user -> pemiliknya, bisa orang lain kalau AI-nya Publik; bawaan -> akun default nandasikma; nama/foto pembuat bisa dipencet -> profilnya),
    tanggal diperbarui, dan "Robot Terkait" (karakter lain dengan label sama).
    Memakai global index.html: allChars, openChat, img, ph, dispName, toast, store. Semua teks dari data lewat textContent.
    Dibuka lewat window.CD.open(char); ditutup oleh tombol kembali, Escape, atau pindah tab (event 'shell:tab'). */
@@ -43,7 +43,7 @@ const createdBy = c => c.creator || (c.custom ? { name: 'Pengguna', username: ''
 function userLink(el, by) {
   if (!by.username || !window.PF || typeof PF.open !== 'function') return el;
   el.classList.add('cd-lnk'); el.tabIndex = 0; el.setAttribute('role', 'link'); el.setAttribute('aria-label', 'Buka profil ' + by.name);
-  const go = () => { close(true); PF.open(by.username); };
+  const go = () => { closeSupport(); close(true); PF.open(by.username); };
   el.addEventListener('click', go);
   el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
   return el;
@@ -202,6 +202,106 @@ function followBtn(by) {
   return fl;
 }
 
+/* ---- Dukung kreator (lib/support.js): kirim Gems ke pembuat AI, penerima dapat seluruh jumlah (tanpa biaya platform). ---- */
+const CUR = 'Gems'; // nama mata uang di teks modal (sama dengan dompet di Beranda)
+const nfS = n => new Intl.NumberFormat('id-ID').format(n);
+const gemImg = cls => { const i = new Image(); i.src = '/gems.png'; i.alt = ''; i.draggable = false; if (cls) i.className = cls; return i; };
+let supEsc = null;
+function closeSupport() {
+  const ov = root.querySelector('.cds-ov'); if (ov) ov.remove();
+  if (supEsc) { document.removeEventListener('keydown', supEsc, true); supEsc = null; }
+}
+function openSupport(c) {
+  const by = createdBy(c);
+  if (!by.username) { say('Pembuat AI ini belum bisa menerima dukungan.'); return; }
+  if (!loggedIn()) { needLogin('Masuk dulu untuk mendukung kreator'); return; }
+  closeSupport();
+  const st = { pick: 5, custom: '', gems: null, received: null, isMe: false, trust: true, dayLeft: null, min: 1, max: 1000, idem: '', idemFor: 0, busy: false, err: '' };
+  const amount = () => (st.pick === 'custom' ? Math.floor(Number(st.custom)) || 0 : st.pick);
+  const ov = h('div', 'cds-ov'), card = h('div', 'cds'); ov.append(card);
+  ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-modal', 'true'); ov.setAttribute('aria-label', 'Dukung kreator');
+  ov.addEventListener('mousedown', e => { if (e.target === ov) closeSupport(); });
+  const x = btn('cds-x', null, 'Tutup'); x.append(svg('<path d="M6 6l12 12M18 6L6 18"/>')); x.onclick = closeSupport;
+  const title = h('h2', 'cds-title', 'Dukung Kreator 💗'), sub = h('p', 'cds-sub', 'Kirim ' + CUR + ' ke pembuat ' + by.name);
+
+  const who = h('div', 'cds-who');
+  const av = new Image(); av.className = 'cds-av'; av.alt = ''; av.referrerPolicy = 'no-referrer';
+  av.onerror = () => { av.onerror = null; if (typeof ph === 'function') av.src = ph(by.name); };
+  av.src = by.avatar || (typeof ph === 'function' ? ph(by.name) : '');
+  const wt = h('div', 'cds-wt'), wn = h('b', null, by.name), wr = h('small'), wc = h('span', 'cds-cnt', '–');
+  wr.append(wc, document.createTextNode(' Dukungan diterima')); wt.append(wn, wr);
+  who.append(av, wt, followBtn(by));
+
+  const lab = h('div', 'cds-lab', 'Jumlah dukungan'), tiles = h('div', 'cds-tiles');
+  const cInp = h('input', 'cds-inp'); cInp.type = 'text'; cInp.inputMode = 'numeric'; cInp.autocomplete = 'off'; cInp.placeholder = 'Jumlah ' + CUR; cInp.maxLength = 5; cInp.hidden = true;
+  const msg = h('p', 'cds-msg'); msg.setAttribute('role', 'status');
+  const foot = h('div', 'cds-foot'), bal = h('span', 'cds-bal'), balN = h('b', null, '–');
+  bal.append(document.createTextNode('Saldo: '), gemImg('cds-g'), balN); foot.append(bal);
+  const pay = btn('cds-pay'); const payG = gemImg('cds-g'), payT = h('span');
+
+  const tileEls = [];
+  for (const v of [5, 20, 50, 'custom']) {
+    const t = btn('cds-tile'); t.append(gemImg('cds-tg'), h('b', null, v === 'custom' ? 'Kustom' : String(v)));
+    if (v === 'custom') t.classList.add('cus');
+    t.onclick = () => { st.pick = v; st.err = ''; if (v === 'custom') setTimeout(() => cInp.focus(), 0); paint(); };
+    tileEls.push([v, t]); tiles.append(t);
+  }
+  cInp.addEventListener('input', () => { st.custom = cInp.value.replace(/\D/g, '').slice(0, 5); cInp.value = st.custom; st.err = ''; paint(); });
+  cInp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); send(); } });
+
+  function problem() { // alasan tombol mati (kosong = boleh kirim)
+    const n = amount();
+    if (st.gems === null) return 'Memuat…';
+    if (st.isMe) return 'Ini AI buatanmu sendiri, tidak bisa mendukung diri sendiri.';
+    if (!st.trust) return 'Akun baru belum bisa memberi dukungan (minimal berumur 24 jam).';
+    if (!n) return 'Isi jumlah dukungan.';
+    if (n < st.min) return 'Minimal ' + st.min + ' ' + CUR + '.';
+    if (n > st.max) return 'Maksimal ' + nfS(st.max) + ' ' + CUR + ' per kiriman.';
+    if (st.dayLeft !== null && n > st.dayLeft) return 'Sisa batas dukungan hari ini ' + nfS(st.dayLeft) + ' ' + CUR + '.';
+    if (n > st.gems) return CUR + ' kamu belum cukup.';
+    return '';
+  }
+  function paint() {
+    for (const [v, t] of tileEls) { const on = st.pick === v; t.classList.toggle('on', on); t.setAttribute('aria-pressed', String(on)); }
+    cInp.hidden = st.pick !== 'custom';
+    wc.textContent = st.received === null ? '–' : nfS(st.received);
+    balN.textContent = st.gems === null ? '–' : nfS(st.gems);
+    const pr = problem(), n = amount();
+    payT.textContent = (n > 0 ? nfS(n) + ' ' : '') + 'Dukung';
+    pay.disabled = !!pr || st.busy;
+    const show = !!pr && st.gems !== null && (n > 0 || st.isMe || !st.trust); // "Isi jumlah" tidak perlu dimerahkan
+    msg.className = 'cds-msg' + (st.err || show ? ' err' : '');
+    msg.textContent = st.err || (show ? pr : '');
+  }
+  async function send() {
+    if (problem() || st.busy) return;
+    const n = amount();
+    if (st.idemFor !== n || !st.idem) { st.idem = (crypto.randomUUID ? crypto.randomUUID() : 'i' + Date.now() + Math.random().toString(36).slice(2, 10)); st.idemFor = n; } // satu niat kirim = satu idem
+    st.busy = true; st.err = ''; payT.textContent = 'Mengirim…'; pay.disabled = true;
+    try {
+      const r = await api('support/send', { to: by.username, amount: n, char: c.id, idem: st.idem });
+      if (!r || !r.ok) throw new Error((r && r.error) || 'Gagal mengirim dukungan.');
+      st.idem = ''; st.busy = false;
+      try { const w = typeof loadWallet === 'function' ? loadWallet() : null; if (w && typeof saveWallet === 'function' && Number.isFinite(r.gems)) saveWallet({ ...w, gems: r.gems }); } catch (e) {}
+      closeSupport(); say('Dukungan ' + nfS(n) + ' ' + CUR + ' terkirim ke ' + by.name + ' 💗');
+    } catch (e) { st.busy = false; st.err = (e && e.message) || 'Gagal mengirim, coba lagi.'; paint(); }
+  }
+  pay.onclick = send; pay.append(payG, payT);
+  foot.append(pay);
+  card.append(x, title, sub, who, lab, tiles, cInp, h('div', 'cds-gap'), msg, foot);
+  root.append(ov); paint(); setTimeout(() => pay.focus({ preventScroll: true }), 30);
+  supEsc = e => { if (e.key === 'Escape') { e.stopPropagation(); closeSupport(); } };
+  document.addEventListener('keydown', supEsc, true);
+
+  api('support/info', { username: by.username }).then(r => {
+    if (!r || !r.ok || !ov.isConnected) return;
+    st.received = r.received || 0; st.isMe = !!r.isMe; st.trust = r.trust !== false;
+    st.gems = Number.isFinite(r.gems) ? r.gems : 0; st.dayLeft = Number.isFinite(r.dayLeft) ? r.dayLeft : null;
+    if (r.rates) { st.min = r.rates.min || 1; st.max = r.rates.max || 1000; }
+    paint();
+  }).catch(e => { if (!ov.isConnected) return; st.gems = 0; st.err = (e && e.message) || 'Gagal memuat data dukungan.'; paint(); });
+}
+
 function section(title, ...kids) { const s = h('div', 'cd-sec'); s.append(h('h2', null, title), ...kids); return s; }
 const box = text => h('div', 'cd-box', text);
 
@@ -304,7 +404,7 @@ function render(c) {
   meta.append(m1, m2);
   const card = h('div', 'cd-by'), top = h('div', 'cd-byt');
   const av = new Image(); av.className = 'cd-av'; av.alt = ''; av.referrerPolicy = 'no-referrer'; av.onerror = () => { av.onerror = null; if (typeof ph === 'function') av.src = ph(by.name); }; av.src = by.avatar || (typeof ph === 'function' ? ph(by.name) : ''); userLink(av, by);
-  const dk = btn('cd-pill o', 'Dukung'); dk.prepend(svg(I.spark)); dk.style.display = 'inline-flex'; dk.style.alignItems = 'center'; dk.style.gap = '6px'; dk.onclick = soon;
+  const dk = btn('cd-pill o', 'Dukung'); dk.prepend(svg(I.spark)); dk.style.display = 'inline-flex'; dk.style.alignItems = 'center'; dk.style.gap = '6px'; dk.onclick = () => openSupport(c);
   const fl = followBtn(by);
   top.append(av, userLink(h('div', 'cd-bn', by.name), by), dk, fl);
   card.append(top, h('p', 'cd-bio', by.bio || 'Tidak ada deskripsi.'));
@@ -332,7 +432,7 @@ function close(silent) {
 }
 /* mobile: tombol kembali melayang di atas foto (gelap transparan); setelah foto lewat, jadi solid supaya tetap terbaca di atas isi halaman */
 root.addEventListener('scroll', () => { const cv = root.querySelector('.cd-cover'); root.classList.toggle('cd-sc', !!cv && root.scrollTop > cv.offsetHeight - 80); }, { passive: true });
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && app.classList.contains('cd-on') && !document.querySelector('.modal:not(.hide)')) close(); });
-window.addEventListener('shell:tab', () => close(true)); // pindah tab (Obrolan, Profil, dst.) menutup detail
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && app.classList.contains('cd-on') && !document.querySelector('.modal:not(.hide)') && !root.querySelector('.cds-ov')) close(); });
+window.addEventListener('shell:tab', () => { closeSupport(); close(true); }); // pindah tab (Obrolan, Profil, dst.) menutup detail
 window.CD = { open, close, get current() { return cur; } };
 })();
