@@ -478,7 +478,7 @@
 
 /* ---------- Beranda: kartu AI = frame foto + info di dalamnya (lihat card() di index.html) ----------
    Awal : gradasi bawah berisi nama, label, foto pembuat (kiri) dan jumlah like/komentar (kanan).
-   Hover: frame menggelap + foto zoom; tampil foto kecil bulat, nama, label, pembuat, "Sapaan" (placeholder, ketik bertahap) dan tombol "Ngobrol sekarang".
+   Hover: frame menggelap + foto zoom; tampil foto kecil bulat, nama, label, pembuat, isi sapaan (tanpa judul; ketik bertahap) dan tombol "Ngobrol sekarang".
    Hanya mouse/fokus keyboard (kelas .hot dari JS); layar sentuh tetap tampilan awal. */
 #menu .b-tile{cursor:pointer;text-align:left;color:inherit;font:inherit}
 #menu .b-open{position:absolute;inset:0;z-index:2;display:block;width:100%;height:100%;border-radius:0}
@@ -505,7 +505,6 @@
 #menu .b-bl{font-size:11px;line-height:1.2;color:rgba(255,255,255,.78);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #menu .b-bo{font-size:11px;line-height:1.2;color:rgba(255,255,255,.58);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #menu .b-sap{flex:1;min-height:0;display:flex;flex-direction:column;gap:5px;overflow:hidden}
-#menu .b-sh{font-size:12px;font-weight:700;line-height:1.1;padding-left:7px;border-left:3px solid #7c6cf5}
 #menu .b-st{font-size:12px;line-height:1.45;color:rgba(255,255,255,.85)}
 #menu .b-st.typing::after{content:"";display:inline-block;width:1px;height:1em;margin-left:2px;background:#fff;vertical-align:-2px;animation:b-caret .8s steps(1) infinite}
 @keyframes b-caret{50%{opacity:0}}

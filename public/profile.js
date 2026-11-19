@@ -440,7 +440,7 @@ function askDeletePersona(id) {
 /* ---------- Tab AI Saya (karakter AI buatan sendiri — lib/userchars.js) ----------
    AI buatan user tampil di Beranda seperti karakter bawaan. Default PRIVAT (hanya pemiliknya); kalau diset Publik, muncul di Beranda semua orang
    dengan nama pembuatnya di halaman detail. Tanpa suara (voice) kecuali dipilih. */
-const AI_LIM = { name: 40, tagline: 40, identity: 600, personality: 600, speech: 300, rules: 400, story: 2000 };
+const AI_LIM = { name: 40, tagline: 40, identity: 600, personality: 600, speech: 300, rules: 400, story: 2000, greeting: 300 };
 const STORY_SEED_MIN = 10; // tulisan minimal sebelum AI boleh mengembangkan cerita (sama dengan server)
 async function loadAIs(force) {
   if (!atok || ai.busy || (!force && ai.items)) return false;
@@ -641,6 +641,7 @@ function openAIForm(c) {
     ...aiField('Kepribadian', 'aipers', 'personality', 4, 'Sifat dan sikapnya, mis. ceria, usil, tapi diam-diam perhatian', c),
     ...aiField('Gaya bicara (opsional)', 'aispeech', 'speech', 3, 'Cara bicaranya, mis. santai, singkat, sering bercanda', c),
     ...aiField('Aturan tambahan (opsional)', 'airules', 'rules', 3, 'Hal yang harus/tidak boleh dilakukan AI ini', c),
+    ...aiField('Sapaan (opsional)', 'aigreet', 'greeting', 3, 'Pesan pembuka: langsung dikirim AI ini saat orang membuka chat barunya. Ditulis apa adanya (tanpa AI), mis. "Oh, kamu datang juga. Aku sudah menunggu dari tadi."', c),
     aiStoryBox(c),
     aiVoiceBox(c), aiPublicBox(c), ...(aiDevOn() ? [aiDevBox(c)] : []),
     msg, act);
@@ -658,7 +659,7 @@ function openAIForm(c) {
 async function saveAI() {
   if (!aiForm) return;
   const msg = $('aimsg'), save = $('aisave'), v = id => $(id).value.trim();
-  const payload = { name: v('ainame'), tagline: v('aitag'), identity: v('aiident'), personality: v('aipers'), speech: v('aispeech'), rules: v('airules'), story: $('aistory') ? $('aistory').value.trim() : '', public: !!($('aipub') && $('aipub').checked) };
+  const payload = { name: v('ainame'), tagline: v('aitag'), identity: v('aiident'), personality: v('aipers'), speech: v('aispeech'), rules: v('airules'), story: $('aistory') ? $('aistory').value.trim() : '', greeting: v('aigreet'), public: !!($('aipub') && $('aipub').checked) };
   msg.className = 'pf-msg err';
   if (!payload.name) { msg.textContent = 'Nama AI tidak boleh kosong.'; $('ainame').focus(); return; }
   if (!payload.identity && !payload.personality) { msg.textContent = 'Isi minimal identitas atau kepribadian.'; $('aipers').focus(); return; }

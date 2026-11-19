@@ -35,7 +35,7 @@ Koleksi MongoDB `user_chars` `{_id:"u_<16hex>", ownerId, name, tagline, identity
 ## Halaman detail karakter (update)
 Ketuk karakter di Beranda sekarang membuka **halaman detail** dulu (`public/cdetail.js` + `cdetail.css`, dipasang di `index.html`); chat baru dibuka lewat tombol **Obrolan**.
 - Nyata: nama, label, foto, **"Dibuat oleh"** (AI buatan = nama pemiliknya dari `/api/chars` field `creator`; bawaan = "Neyhra"), "Diperbarui" (`updated`), Robot Terkait (label sama).
-- Placeholder ("Tidak ada deskripsi. Fitur ini belum selesai."): Sapaan, Atribut Persona, Dukung, bagikan. (Story, Komentar, likes sudah nyata, lihat bagian di bawah.)
+- Placeholder ("Tidak ada deskripsi. Fitur ini belum selesai."): Atribut Persona, Dukung, bagikan. (Sapaan, Story, Komentar, likes sudah nyata, lihat bagian di bawah.) (Story, Komentar, likes sudah nyata, lihat bagian di bawah.)
 - Tutup: tombol Kembali, Escape, atau pindah tab. Belum punya URL sendiri / tombol back browser.
 - File tambahan: `public/cdetail.js`, `public/cdetail.css`, `lib/app.js` (creator, updated), `lib/chars.js` (updatedAt).
 
@@ -90,3 +90,10 @@ Ketuk karakter di Beranda sekarang membuka **halaman detail** dulu (`public/cdet
 - Penyimpanan: field `story` di koleksi `user_chars`.
 - Catatan: satu panggilan AI bisa sampai ~30 dtk (batas fungsi Vercel 60 dtk, maksimal 2 percobaan). Belum ada moderasi cerita untuk AI publik (sama seperti identitas/kepribadian).
 - File: `lib/userchars.js`, `public/profile.js`, `public/profile.css`, `public/cdetail.js`, `public/cdetail.css`.
+
+## Sapaan (update)
+- Form AI punya kolom **Sapaan (opsional)**, maks 300 huruf, teks biasa tanpa AI. Disimpan di `user_chars.greeting` (`aichar/save` menerima `greeting`; tanpa field = tidak diubah, kosong = hapus; `aichar/list` mengembalikannya).
+- **Dipakai saat chat baru dibuka** (1-lawan-1, log obrolan karakter itu masih kosong): karakter langsung mengirim sapaan itu sebagai pesan pertamanya, murni teks dari sistem (tidak memanggil AI, tidak ada voice note). Pesan masuk log tampilan dan riwayat konteks (`h:<id>` sebagai giliran `char`), jadi AI tahu sapaannya saat user membalas. Kalau obrolan dihapus lalu dibuka lagi, sapaan muncul lagi. Kalau sapaan kosong, perilaku lama (tidak ada pesan pembuka). Berlaku hanya untuk AI buatan user; karakter bawaan belum punya sapaan.
+- **Hover kartu Beranda**: judul "Sapaan" dihapus, yang tampil hanya isinya (diketik bertahap). Sapaan kosong = placeholder lama "Tidak ada deskripsi. Fitur ini belum selesai." tetap tampil. Bagian "Sapaan" di halaman detail ikut menampilkan isi yang sama.
+- `/api/chars` mengirim `greeting` untuk AI buatan yang boleh dilihat pemanggil (sapaan memang tampil ke semua pemakai; identitas/kepribadian tetap rahasia).
+- File: `lib/userchars.js`, `lib/chars.js`, `lib/app.js`, `public/profile.js`, `public/index.html` (`card()`, `restoreChat()`), `public/shell.css`, `public/cdetail.js`.

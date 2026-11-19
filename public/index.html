@@ -1252,7 +1252,10 @@ async function restoreChat(id,tok){
     });
   }catch{}
   restoring=false;
-  if(!l.length) ensureDay(Date.now());
+  if(!l.length){ /* obrolan baru: karakter yang menyapa duluan memakai teks sapaan buatan pemiliknya (tanpa AI). Masuk log + riwayat supaya AI tahu konteksnya. */
+    const g=greetOf(allChars.find(x=>x.id===id));
+    if(g){ showThem(id,g); saveHist(id,[...loadHist(id),['char',g]]); } else ensureDay(Date.now());
+  }
   ready=true; chat.scrollTop=chat.scrollHeight; updDown();
   placeGoon();
 }
@@ -2788,11 +2791,12 @@ memModal.addEventListener('click',e=>{ if(e.target===memModal) closeMem(); });
 /* Beranda: grid semua karakter + pencarian. Daftar "Obrolan Terakhir" digambar shell.js (Shell.renderRecent). */
 const q=$('q');
 /* Kartu karakter Beranda: frame foto berisi nama, label, foto pembuat, jumlah like & komentar. Saat hover (mouse/fokus keyboard) frame menggelap + foto zoom,
-   lalu tampil panel: foto kecil, nama, label, pembuat, "Sapaan" (placeholder, teks muncul bertahap) dan tombol "Ngobrol sekarang".
+   lalu tampil panel: foto kecil, nama, label, pembuat, isi sapaan (tanpa judul "Sapaan"; teks sapaan buatan pemilik AI, atau placeholder kalau kosong; muncul bertahap) dan tombol "Ngobrol sekarang".
    Tata letak sebelum & sesudah hover sengaja beda (.b-front <-> .b-back, lihat shell.css). Layar sentuh tanpa hover hanya memakai tampilan awal.
    Tombol .b-open meliputi seluruh frame (ketuk = halaman detail, public/cdetail.js); .b-go membuka chat langsung. Angka dari /api/auth/charstats. */
 const tileStats=new Map(); /* charId -> [likes, komentar] */
 const GREET_PH='Tidak ada deskripsi. Fitur ini belum selesai.';
+const greetOf=c=>(c&&typeof c.greeting==='string'&&c.greeting.trim())||''; /* sapaan buatan pemilik AI (dari /api/chars); kosong = belum diisi */
 const nk=n=>!Number.isFinite(n)?'–':n>=1e6?(n/1e6).toFixed(1).replace(/\.0$/,'')+'jt':n>=1e3?(n/1e3).toFixed(1).replace(/\.0$/,'')+'rb':String(n);
 const mk=(tag,cls,text)=>{ const e=document.createElement(tag); if(cls) e.className=cls; if(text!=null) e.textContent=text; return e; };
 const tIcon=d=>{ const w=document.createElement('span'); w.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+d+'</svg>'; return w.firstChild; }; /* d = konstanta statis di bawah */
@@ -2816,7 +2820,8 @@ function card(c){
   /* tampilan hover */
   const back=mk('span','b-back'), head=mk('span','b-bh'), mini=img(c,'b-mini'), bt=mk('span','b-bt');
   bt.append(mk('span','b-bn',c.name),mk('span','b-bl',c.tagline||''),mk('span','b-bo','oleh '+by.name)); head.append(mini,bt);
-  const sap=mk('span','b-sap'), sh=mk('b','b-sh','Sapaan'), stx=mk('span','b-st'); sap.append(sh,stx);
+  const sap=mk('span','b-sap'), stx=mk('span','b-st'); sap.append(stx); /* tanpa judul "Sapaan": cuma isinya */
+  const gtxt=greetOf(c)||GREET_PH;
   const go=mk('button','b-go','Ngobrol sekarang'); go.type='button';
   go.onclick=e=>{ e.stopPropagation(); openChat(c,im); };
   back.append(head,sap,go);
@@ -2826,9 +2831,9 @@ function card(c){
   const type=on=>{
     clearInterval(tm); stx.classList.remove('typing'); stx.textContent='';
     if(!on) return;
-    if(matchMedia('(prefers-reduced-motion:reduce)').matches){ stx.textContent=GREET_PH; return; }
+    if(matchMedia('(prefers-reduced-motion:reduce)').matches){ stx.textContent=gtxt; return; }
     let n=0; stx.classList.add('typing');
-    tm=setInterval(()=>{ stx.textContent=GREET_PH.slice(0,++n); if(n>=GREET_PH.length){ clearInterval(tm); stx.classList.remove('typing'); } },30);
+    tm=setInterval(()=>{ stx.textContent=gtxt.slice(0,++n); if(n>=gtxt.length){ clearInterval(tm); stx.classList.remove('typing'); } },30);
   };
   const heat=on=>{ if(b.classList.contains('hot')===on) return; b.classList.toggle('hot',on); type(on); };
   b.addEventListener('mouseenter',()=>{ if(tileHover()) heat(true); });

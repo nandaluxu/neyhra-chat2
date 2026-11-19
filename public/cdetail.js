@@ -1,6 +1,6 @@
 /* Halaman detail karakter: dibuka dari kartu karakter di Beranda (bukan langsung masuk chat). Tombol "Obrolan" baru membuka chat.
    Baru TIRUAN TAMPILAN: sapaan, jumlah obrolan, kategori lengkap, atribut persona, Dukung/Follow, bagikan masih placeholder
-   ("fitur belum selesai"). Yang sudah nyata: tab Story (cerita AI buatan user: ditulis / dikembangkan AI di Profil > AI Saya, lib/userchars.js charstory), like, komentar (public/cdetail.js <-> lib/charsocial.js), tombol Follow pembuat, nama, label (tagline), foto, pembuat (AI buatan user -> pemiliknya, bisa orang lain kalau AI-nya Publik; bawaan -> akun default nandasikma; nama/foto pembuat bisa dipencet -> profilnya),
+   ("fitur belum selesai"). Yang sudah nyata: sapaan (c.greeting, teks pembuka chat buatan pemilik AI), tab Story (cerita AI buatan user: ditulis / dikembangkan AI di Profil > AI Saya, lib/userchars.js charstory), like, komentar (public/cdetail.js <-> lib/charsocial.js), tombol Follow pembuat, nama, label (tagline), foto, pembuat (AI buatan user -> pemiliknya, bisa orang lain kalau AI-nya Publik; bawaan -> akun default nandasikma; nama/foto pembuat bisa dipencet -> profilnya),
    tanggal diperbarui, dan "Robot Terkait" (karakter lain dengan label sama).
    Memakai global index.html: allChars, openChat, img, ph, dispName, toast, store. Semua teks dari data lewat textContent.
    Dibuka lewat window.CD.open(char); ditutup oleh tombol kembali, Escape, atau pindah tab (event 'shell:tab'). */
@@ -207,7 +207,8 @@ const box = text => h('div', 'cd-box', text);
 
 function panelDetail(c) {
   const p = h('div');
-  p.append(section('Sapaan', box('Tidak ada deskripsi. ' + SOON)));
+  const gr = typeof c.greeting === 'string' ? c.greeting.trim() : '';
+  p.append(section('Sapaan', box(gr || 'Tidak ada deskripsi. ' + SOON)));
   const kat = h('div'); kat.append(h('span', 'cd-chip', c.tagline || (c.custom ? (c.mine ? 'AI buatanmu' : 'AI buatan pengguna') : 'Lainnya')));
   p.append(section('Kategori', kat));
   const at = h('div', 'cd-box'); at.append(h('div', 'cd-boxh', 'Appearance + body of {{char}}'), document.createTextNode('Tidak ada deskripsi. ' + SOON));
