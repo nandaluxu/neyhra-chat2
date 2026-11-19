@@ -157,11 +157,17 @@ async function playSong(idx, list) {
     .then(j => { lyr = j.lyrics ? (j.lyrics.synced && j.lyrics.synced.length ? j.lyrics.synced : j.lyrics.plain ? [{ t: -1, text: j.lyrics.plain }] : null) : null })
     .catch(() => {})
     .finally(() => { lyrLoading = false; renderLrc() });
-  const j = await jget('/api/music/stream?id=' + encodeURIComponent(s.id) + '&clientId=' + encodeURIComponent(cid));
+  let j = await jget('/api/music/stream?id=' + encodeURIComponent(s.id) + '&clientId=' + encodeURIComponent(cid));
+  /* 'sabr' = YouTube acak mengirim format tanpa URL (bukan soal IP): ulangi otomatis sampai 2x */
+  for (let k = 0; k < 2 && !j.url && j.code === 'sabr' && qi === idx; k++) {
+    await new Promise(r => setTimeout(r, 1200));
+    j = await jget('/api/music/stream?id=' + encodeURIComponent(s.id) + '&clientId=' + encodeURIComponent(cid));
+  }
+  if (qi !== idx || cur() !== s) return; /* user sudah pindah lagu selagi menunggu */
   loading = false;
   if (!j.url) {
-    lastErr = j.code === 'bot_check' ? 'YouTube menolak dari IP server (bot check) — set env YT_COOKIE di Vercel lalu redeploy. Lihat README-MUSIK.' : (j.error || 'Stream tidak tersedia');
-    say(lastErr); renderPl(); renderSheet(); return
+    lastErr = (j.error || 'Stream tidak tersedia') + (j.detail ? ' [' + j.detail + ']' : '');
+    say(j.error || lastErr); renderPl(); renderSheet(); return
   }
   audio.muAt = Date.now(); // waktu src diganti (pagar anti-loop di event error)
   audio.src = j.url;
@@ -319,7 +325,7 @@ async function explainFail() {
   let msg = 'Gagal memutar lagu ini.';
   try {
     const r = await fetch(audio.src, { headers: { Range: 'bytes=0-1' } });
-    if (!r.ok) { const j = await r.json().catch(() => ({})); msg = (j.code === 'bot_check' ? 'YouTube menolak dari IP server (bot check) — pasang YT_COOKIE di Vercel. Cek /api/music/debug. ' : (j.error || 'Server error ' + r.status) + ' ') }
+    if (!r.ok) { const j = await r.json().catch(() => ({})); msg = (j.error || 'Server error ' + r.status) + (j.detail ? ' [' + j.detail + ']' : '') + ' — cek /api/music/debug' }
     else msg = 'Browser tidak bisa memutar format audio ini' + (audio.error ? ' (kode ' + audio.error.code + ')' : '') + '.';
   } catch (e) { msg = 'Gagal menghubungi server musik.' }
   lastErr = msg; say(msg); renderPl(); renderSheet();
