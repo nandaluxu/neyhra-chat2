@@ -308,8 +308,25 @@ function othersOf(c, by) {
   return chars().filter(x => x.id !== c.id && x.creator && x.creator.username === by.username)
     .sort((a, b) => (Date.parse(b.updated) || 0) - (Date.parse(a.updated) || 0)).slice(0, 6);
 }
+/* Gaya Karakter Lain disuntik dari JS (bukan dari cdetail.css) supaya bagian ini selalu tampil benar walau cdetail.css di browser/CDN masih versi lama. */
+const OTH_CSS = `
+#cdetail .cd-oth{margin-top:18px}
+#cdetail .cd-oth h4{font-size:14px;font-weight:700;margin:0 0 10px}
+#cdetail .cd-olist{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+#cdetail .cd-oitem{display:flex;gap:12px;width:100%;text-align:left;place-items:unset;align-items:flex-start;background:var(--bg);border-radius:12px;padding:0;overflow:hidden;min-width:0}
+#cdetail .cd-oitem:hover{background:var(--line)}
+#cdetail .cd-oitem img{width:72px;height:90px;object-fit:cover;flex:none;background:var(--line);display:block}
+#cdetail .cd-oitem > div{min-width:0;flex:1;padding:8px 8px 8px 0}
+#cdetail .cd-oitem b{display:block;font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#cdetail .cd-oitem span{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;font-size:13px;line-height:1.4;color:var(--mut);margin-top:4px}
+`;
+function ensureOthCss() {
+  if (document.getElementById('cd-oth-css')) return;
+  const s = document.createElement('style'); s.id = 'cd-oth-css'; s.textContent = OTH_CSS; document.head.append(s);
+}
 function othersBox(c, by) {
   const list = othersOf(c, by); if (!list.length) return null;
+  ensureOthCss();
   const box = h('div', 'cd-oth'), grid = h('div', 'cd-olist'); box.append(h('h4', null, 'Karakter Lain'), grid);
   for (const r of list) {
     const it = btn('cd-oitem'), im = typeof img === 'function' ? img(r) : new Image(); im.removeAttribute('class'); im.loading = 'lazy';
