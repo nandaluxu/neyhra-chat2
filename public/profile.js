@@ -933,5 +933,5 @@ function openByPath(u) { // dipakai router.js (URL awal / tombol back-forward)
   if (me && u === me.username) { want = ''; if (viewing) backToMe(); return; }
   if (!viewing || viewing !== u) { if (ready && aOn && atok && !busy) consumeWant(); else render(); }
 }
-window.PF = { open: u => { Shell.setTab('profile', { auto: false }); setTimeout(() => openUser(u), 0); }, path: pathNow, openByPath }; // PF.open dipakai tab Peringkat untuk membuka profil pemain
+window.PF = { open: u => { Shell.setTab('profile', { auto: false }); setTimeout(() => openUser(u), 0); }, follow: toggleFollow, path: pathNow, openByPath }; // PF.open dipakai tab Peringkat & halaman detail karakter untuk membuka profil; PF.follow(username, on, was) dipakai tombol Follow di detail karakter (ikut menyinkronkan hitungan & cache profil)
 })();

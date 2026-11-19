@@ -1,6 +1,6 @@
 /* Halaman detail karakter: dibuka dari kartu karakter di Beranda (bukan langsung masuk chat). Tombol "Obrolan" baru membuka chat.
    Baru TIRUAN TAMPILAN: sapaan, story, komentar, likes, kategori lengkap, atribut persona, Dukung/Follow, bagikan masih placeholder
-   ("fitur belum selesai"). Yang sudah nyata: nama, label (tagline), foto, pembuat (AI buatan user -> pemiliknya, bisa orang lain kalau AI-nya Publik; bawaan -> akun default nandasikma; nama/foto pembuat bisa dipencet -> profilnya),
+   ("fitur belum selesai"). Yang sudah nyata: tombol Follow pembuat, nama, label (tagline), foto, pembuat (AI buatan user -> pemiliknya, bisa orang lain kalau AI-nya Publik; bawaan -> akun default nandasikma; nama/foto pembuat bisa dipencet -> profilnya),
    tanggal diperbarui, dan "Robot Terkait" (karakter lain dengan label sama).
    Memakai global index.html: allChars, openChat, img, ph, dispName, toast, store. Semua teks dari data lewat textContent.
    Dibuka lewat window.CD.open(char); ditutup oleh tombol kembali, Escape, atau pindah tab (event 'shell:tab'). */
@@ -47,6 +47,35 @@ function userLink(el, by) {
   el.addEventListener('click', go);
   el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
   return el;
+}
+
+/* Tombol Follow pembuat: memakai endpoint ikuti yang sama dengan tab Profil (PF.follow -> /api/auth/follow). Status awal (sudah mengikuti / dia mengikutimu / akun sendiri)
+   diambil dari /api/auth/profile. Tanpa username (fallback Neyhra/Pengguna) atau akun sendiri = tombol disembunyikan. Belum masuk = diarahkan ke login. */
+function followBtn(by) {
+  const fl = btn('cd-pill t', '+ Follow');
+  if (!by.username) { fl.style.display = 'none'; return fl; }
+  const st = { on: false, back: false, busy: false };
+  const paint = () => { fl.textContent = st.on ? 'Mengikuti' : (st.back ? '+ Follow balik' : '+ Follow'); fl.classList.toggle('on', st.on); fl.setAttribute('aria-pressed', String(st.on)); fl.disabled = st.busy; };
+  const loggedIn = () => typeof atok === 'string' && !!atok;
+  if (loggedIn() && typeof aApi === 'function') {
+    st.busy = true; paint(); // tunggu status awal supaya tidak salah toggle
+    aApi('profile', { username: by.username }).then(r => {
+      const p = r && r.ok ? r.profile : null;
+      if (p && p.isMe) { fl.style.display = 'none'; return; }
+      if (p) { st.on = !!p.isFollowing; st.back = !!p.followsMe; }
+    }).catch(() => {}).then(() => { st.busy = false; paint(); });
+  } else paint();
+  fl.onclick = async () => {
+    if (!loggedIn()) { if (typeof toast === 'function') toast('Masuk dulu untuk mengikuti'); if (typeof openLogin === 'function') openLogin(); return; }
+    if (st.busy || !window.PF || typeof PF.follow !== 'function') return;
+    const was = st.on; st.busy = true; paint();
+    try {
+      const r = await PF.follow(by.username, !was, was);
+      st.on = !!r.isFollowing; if (typeof toast === 'function') toast(st.on ? 'Mengikuti ' + by.name : 'Berhenti mengikuti ' + by.name);
+    } catch (e) { if (typeof toast === 'function') toast((e && e.message) || 'Gagal, coba lagi.'); }
+    st.busy = false; paint();
+  };
+  return fl;
 }
 
 function section(title, ...kids) { const s = h('div', 'cd-sec'); s.append(h('h2', null, title), ...kids); return s; }
@@ -106,7 +135,7 @@ function render(c) {
   const card = h('div', 'cd-by'), top = h('div', 'cd-byt');
   const av = new Image(); av.className = 'cd-av'; av.alt = ''; av.referrerPolicy = 'no-referrer'; av.onerror = () => { av.onerror = null; if (typeof ph === 'function') av.src = ph(by.name); }; av.src = by.avatar || (typeof ph === 'function' ? ph(by.name) : ''); userLink(av, by);
   const dk = btn('cd-pill o', 'Dukung'); dk.prepend(svg(I.spark)); dk.style.display = 'inline-flex'; dk.style.alignItems = 'center'; dk.style.gap = '6px'; dk.onclick = soon;
-  const fl = btn('cd-pill t', '+ Follow'); fl.onclick = soon;
+  const fl = followBtn(by);
   top.append(av, userLink(h('div', 'cd-bn', by.name), by), dk, fl);
   card.append(top, h('p', 'cd-bio', by.bio || 'Tidak ada deskripsi.'));
   const tabs = h('div', 'cd-tabs'); tabs.setAttribute('role', 'tablist');

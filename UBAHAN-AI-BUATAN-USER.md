@@ -53,3 +53,9 @@ Ketuk karakter di Beranda sekarang membuka **halaman detail** dulu (`public/cdet
 - Halaman detail: nama di baris "Dibuat oleh", foto, dan nama di kartu pembuat bisa dipencet/Enter -> menutup detail lalu membuka profil akun itu (`PF.open(username)` di `public/profile.js`; URL jadi `/profile/<username>`). Tanpa username (fallback) = bukan tautan.
 - Karakter bawaan (`char/*.js`) sekarang punya pembuat default: akun **nandasikma** (env `DEFAULT_CREATOR` untuk mengganti). `/api/chars` mencarinya sekali bersama pemilik AI buatan (satu query `users`) dan mengirimnya sebagai `creator`. Kalau akunnya tidak ada di database, kembali ke "Neyhra" tanpa tautan.
 - File berubah: `lib/app.js`, `public/cdetail.js`, `public/cdetail.css`.
+
+## Tombol Follow di detail karakter (update)
+- Tombol "+ Follow" di kartu pembuat sekarang berfungsi: ikuti / berhenti mengikuti lewat endpoint yang sama dengan tab Profil (`POST /api/auth/follow`), dipanggil lewat `PF.follow` (= `toggleFollow` di `public/profile.js`) supaya hitungan Mengikuti/Pengikut dan cache profil ikut sinkron.
+- Status awal diambil dari `POST /api/auth/profile` (`isFollowing`, `followsMe`, `isMe`): label "+ Follow" / "+ Follow balik" / "Mengikuti". Tombol dinonaktifkan sebentar sampai status awal termuat.
+- Disembunyikan kalau pembuatnya akun sendiri atau tidak punya username (fallback Neyhra/Pengguna). Belum login: toast + overlay login. "Dukung" masih placeholder.
+- File berubah: `public/cdetail.js`, `public/cdetail.css`, `public/profile.js`.
