@@ -48,3 +48,8 @@ Ketuk karakter di Beranda sekarang membuka **halaman detail** dulu (`public/cdet
 - Hapus AI / hapus akun sekarang membersihkan `persona_picks` semua user untuk AI itu (sebelumnya hanya milik pemilik), karena AI publik bisa dipilih persona-nya oleh orang lain.
 - Kalau AI diubah publik -> privat: user lain tidak bisa chat lagi (server menjawab "Request tidak valid"); riwayat lokal mereka tetap ada di perangkat.
 - File berubah: `lib/userchars.js`, `lib/chars.js`, `lib/app.js`, `public/profile.js`, `public/profile.css`, `public/cdetail.js`.
+
+## Pembuat bisa dipencet + pembuat default (update)
+- Halaman detail: nama di baris "Dibuat oleh", foto, dan nama di kartu pembuat bisa dipencet/Enter -> menutup detail lalu membuka profil akun itu (`PF.open(username)` di `public/profile.js`; URL jadi `/profile/<username>`). Tanpa username (fallback) = bukan tautan.
+- Karakter bawaan (`char/*.js`) sekarang punya pembuat default: akun **nandasikma** (env `DEFAULT_CREATOR` untuk mengganti). `/api/chars` mencarinya sekali bersama pemilik AI buatan (satu query `users`) dan mengirimnya sebagai `creator`. Kalau akunnya tidak ada di database, kembali ke "Neyhra" tanpa tautan.
+- File berubah: `lib/app.js`, `public/cdetail.js`, `public/cdetail.css`.

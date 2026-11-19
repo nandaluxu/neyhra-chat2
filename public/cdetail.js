@@ -1,6 +1,6 @@
 /* Halaman detail karakter: dibuka dari kartu karakter di Beranda (bukan langsung masuk chat). Tombol "Obrolan" baru membuka chat.
    Baru TIRUAN TAMPILAN: sapaan, story, komentar, likes, kategori lengkap, atribut persona, Dukung/Follow, bagikan masih placeholder
-   ("fitur belum selesai"). Yang sudah nyata: nama, label (tagline), foto, pembuat (AI buatan user -> pemiliknya, bisa orang lain kalau AI-nya Publik; bawaan -> Neyhra),
+   ("fitur belum selesai"). Yang sudah nyata: nama, label (tagline), foto, pembuat (AI buatan user -> pemiliknya, bisa orang lain kalau AI-nya Publik; bawaan -> akun default nandasikma; nama/foto pembuat bisa dipencet -> profilnya),
    tanggal diperbarui, dan "Robot Terkait" (karakter lain dengan label sama).
    Memakai global index.html: allChars, openChat, img, ph, dispName, toast, store. Semua teks dari data lewat textContent.
    Dibuka lewat window.CD.open(char); ditutup oleh tombol kembali, Escape, atau pindah tab (event 'shell:tab'). */
@@ -37,7 +37,17 @@ function related(c) {
   const same = c.tagline ? all.filter(x => x.tagline === c.tagline) : [];
   return same.concat(all.filter(x => !same.includes(x))).slice(0, 3);
 }
-const createdBy = c => c.custom ? (c.creator || { name: 'Pengguna', username: '', bio: '', avatar: '' }) : { name: 'Neyhra', username: '', bio: '', avatar: '/icon.svg' };
+// pembuat: dari server (`creator`: AI buatan user = pemiliknya, karakter bawaan = akun default). Tanpa creator: bawaan -> Neyhra, buatan user -> Pengguna.
+const createdBy = c => c.creator || (c.custom ? { name: 'Pengguna', username: '', bio: '', avatar: '' } : { name: 'Neyhra', username: '', bio: '', avatar: '/icon.svg' });
+// Nama/foto pembuat bisa dipencet -> buka profil akunnya (PF.open di profile.js). Tanpa username (fallback Neyhra/Pengguna) = bukan tautan.
+function userLink(el, by) {
+  if (!by.username || !window.PF || typeof PF.open !== 'function') return el;
+  el.classList.add('cd-lnk'); el.tabIndex = 0; el.setAttribute('role', 'link'); el.setAttribute('aria-label', 'Buka profil ' + by.name);
+  const go = () => { close(true); PF.open(by.username); };
+  el.addEventListener('click', go);
+  el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
+  return el;
+}
 
 function section(title, ...kids) { const s = h('div', 'cd-sec'); s.append(h('h2', null, title), ...kids); return s; }
 const box = text => h('div', 'cd-box', text);
@@ -91,13 +101,13 @@ function render(c) {
   /* kolom kanan: judul, pembuat, tab */
   const by = createdBy(c), right = h('div', 'cd-right');
   const meta = h('div', 'cd-meta');
-  const m1 = h('span', null, 'Dibuat oleh : '); m1.append(h('b', null, by.name)); const m2 = h('span', null, 'Diperbarui: '); m2.append(h('b', null, dateText(c.updated)));
+  const m1 = h('span', null, 'Dibuat oleh : '); m1.append(userLink(h('b', null, by.name), by)); const m2 = h('span', null, 'Diperbarui: '); m2.append(h('b', null, dateText(c.updated)));
   meta.append(m1, m2);
   const card = h('div', 'cd-by'), top = h('div', 'cd-byt');
-  const av = new Image(); av.className = 'cd-av'; av.alt = ''; av.referrerPolicy = 'no-referrer'; av.onerror = () => { av.onerror = null; if (typeof ph === 'function') av.src = ph(by.name); }; av.src = by.avatar || (typeof ph === 'function' ? ph(by.name) : '');
+  const av = new Image(); av.className = 'cd-av'; av.alt = ''; av.referrerPolicy = 'no-referrer'; av.onerror = () => { av.onerror = null; if (typeof ph === 'function') av.src = ph(by.name); }; av.src = by.avatar || (typeof ph === 'function' ? ph(by.name) : ''); userLink(av, by);
   const dk = btn('cd-pill o', 'Dukung'); dk.prepend(svg(I.spark)); dk.style.display = 'inline-flex'; dk.style.alignItems = 'center'; dk.style.gap = '6px'; dk.onclick = soon;
   const fl = btn('cd-pill t', '+ Follow'); fl.onclick = soon;
-  top.append(av, h('div', 'cd-bn', by.name), dk, fl);
+  top.append(av, userLink(h('div', 'cd-bn', by.name), by), dk, fl);
   card.append(top, h('p', 'cd-bio', by.bio || 'Tidak ada deskripsi.'));
   const tabs = h('div', 'cd-tabs'); tabs.setAttribute('role', 'tablist');
   for (const [k, label] of [['detail', 'Detail'], ['story', 'Story'], ['komentar', 'Komentar(–)']]) {
