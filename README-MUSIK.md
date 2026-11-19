@@ -9,6 +9,14 @@
 > pengujian. Cara buka lagi untuk semua user: hapus pagar `devOn` di `paintMusic`/`setTab`
 > (`public/index.html`, `public/shell.js`, `public/music.js`).
 
+> 🔧 **Fix 20 Nov 2026 — pesan "bot check / IP" sering salah tuduh.** Dulu semua kegagalan stream
+> (format tanpa URL karena eksperimen SABR YouTube, client TV yang memang minta login, gagal decipher)
+> dilaporkan sebagai bot check. Sekarang tiap kegagalan punya kode sendiri (`bot_check`, `sabr`, `decipher`,
+> `no_streams`, `session`) + `detail` per client; ANDROID_VR diulang 3x untuk kasus SABR (acak per-sesi);
+> UA googlevideo memakai `cver` dari URL; DNS IPv4-dulu. Diagnosa: `/api/music/debug` (memakai jalur sungguhan)
+> dan log Vercel `[music:resolve]`.
+
+
 Tab **Musik** di rail/sidepanel: cari lagu, putar, antrean, lirik tersinkron (karaoke).
 Musik **tetap berjalan** saat pindah tab (Beranda, Minigame, dst.) — seperti Spotify.
 
