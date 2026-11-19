@@ -53,7 +53,7 @@ function userLink(el, by) {
 const S = { id: '', likes: null, liked: false, comments: null }; // null = belum termuat
 const C = { id: '', items: [], next: 0, more: false, loading: false, err: '', loaded: false }; // daftar komentar tab Komentar
 let likeBusy = false;
-const ST = { id: '', state: 'idle', text: '' }; // tab Story: idle | loading | ok | err
+const ST = { id: '', state: 'idle', text: '', attrs: [] }; // tab Story: idle | loading | ok | err
 const loggedIn = () => typeof atok === 'string' && !!atok;
 const api = (p, b) => (typeof aApi === 'function' ? aApi(p, b) : Promise.reject(new Error('Fitur tidak tersedia.')));
 const nfmt = n => (Number.isFinite(n) ? new Intl.NumberFormat('id-ID').format(n) : '–');
@@ -61,7 +61,7 @@ const needLogin = msg => { if (typeof toast === 'function') toast(msg); if (type
 const say = m => { if (typeof toast === 'function') toast(m); };
 function resetSocial(c) {
   S.id = c.id; S.likes = null; S.liked = false; S.comments = null; likeBusy = false;
-  ST.id = c.id; ST.state = 'idle'; ST.text = '';
+  ST.id = c.id; ST.state = 'idle'; ST.text = ''; ST.attrs = [];
   C.id = c.id; C.items = []; C.next = 0; C.more = false; C.loading = false; C.err = ''; C.loaded = false;
 }
 function ago(ms) {
@@ -211,22 +211,37 @@ function panelDetail(c) {
   p.append(section('Sapaan', box(gr || 'Tidak ada deskripsi. ' + SOON)));
   const kat = h('div'); kat.append(h('span', 'cd-chip', c.tagline || (c.custom ? (c.mine ? 'AI buatanmu' : 'AI buatan pengguna') : 'Lainnya')));
   p.append(section('Kategori', kat));
-  const at = h('div', 'cd-box'); at.append(h('div', 'cd-boxh', 'Appearance + body of {{char}}'), document.createTextNode('Tidak ada deskripsi. ' + SOON));
-  p.append(section('Atribut Persona', at));
+  const gd = h('div'); gd.append(h('span', 'cd-chip', c.gender === 'cowo' ? 'Cowo' : c.gender === 'cewe' ? 'Cewe' : 'Belum di set'));
+  p.append(section('Gender', gd));
+  p.append(section('Atribut Persona', h('div', 'cd-attrs')));
+  Promise.resolve().then(() => { if (ST.state === 'idle') loadStory(c); else drawAttrs(); }); // atribut ikut dimuat bersama cerita (endpoint charstory)
   return p;
+}
+/* Atribut persona: tiap atribut = judul + isi. Teks selalu lewat textContent. {{char}} -> nama AI, {{user}} -> "kamu". */
+function drawAttrs() {
+  const body = root.querySelector('.cd-attrs'); if (!body) return;
+  body.textContent = '';
+  if (ST.state === 'loading' || ST.state === 'idle') { body.append(box('Memuat…')); return; }
+  if (!ST.attrs.length) { body.append(box(cur && cur.mine ? 'Belum ada atribut. Tambahkan lewat Profil > AI Saya > Edit.' : 'Tidak ada deskripsi.' + (cur && cur.custom ? '' : ' ' + SOON))); return; }
+  const fill = t => String(t).replace(/\{\{\s*char\s*\}\}/gi, cur ? cur.name : 'karakter').replace(/\{\{\s*user\s*\}\}/gi, 'kamu');
+  for (const a of ST.attrs) {
+    const card = h('div', 'cd-box cd-attr'); card.append(h('div', 'cd-boxh', a.title));
+    for (const para of fill(a.content).split(/\n+/)) if (para.trim()) card.append(h('p', null, para.trim()));
+    body.append(card);
+  }
 }
 /* Story: cerita AI buatan user (tanpa login boleh dibaca selama AI-nya publik). Karakter bawaan belum punya cerita. Teks selalu lewat textContent. */
 async function loadStory(c) {
   if (ST.state === 'loading') return;
-  if (!c.custom) { ST.state = 'ok'; ST.text = ''; drawStory(); return; }
+  if (!c.custom) { ST.state = 'ok'; ST.text = ''; ST.attrs = []; drawStory(); drawAttrs(); return; }
   const id = c.id; ST.state = 'loading'; drawStory();
   try {
     const r = await api('charstory', { char: id });
     if (!r || !r.ok) throw new Error((r && r.error) || 'Gagal memuat cerita.');
     if (ST.id !== id) return;
-    ST.text = String(r.story || ''); ST.state = 'ok';
+    ST.text = String(r.story || ''); ST.attrs = Array.isArray(r.attrs) ? r.attrs : []; ST.state = 'ok';
   } catch (e) { if (ST.id === id) { ST.state = 'err'; ST.text = (e && e.message) || 'Gagal memuat cerita.'; } }
-  if (ST.id === id) drawStory();
+  if (ST.id === id) { drawStory(); drawAttrs(); }
 }
 function drawStory() {
   const body = root.querySelector('.cd-story'); if (!body) return;

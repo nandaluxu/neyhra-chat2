@@ -182,3 +182,11 @@ button.pf-stat:active{transform:scale(.97)}
 .pf-pub{margin-top:14px}
 .pf-vis{display:inline-block;flex:none;padding:1px 7px;border-radius:99px;font-size:10.5px;font-weight:500;line-height:1.5;vertical-align:middle;background:var(--surface);color:var(--mut)}
 .pf-vis.pub{background:var(--on);color:var(--bg)}
+
+/* Atribut persona (form AI Saya) */
+.pf-attrs{display:flex;flex-direction:column;gap:12px;margin-top:6px}
+.pf-attr{background:var(--surface);border-radius:14px;padding:10px}
+.pf-attr .pf-inp{background:var(--bg,transparent);border:1px solid rgba(128,128,128,.25)}
+.pf-attrtop{display:flex;align-items:center;gap:8px}
+.pf-attrtop .pf-inp{margin-top:0;flex:1;min-width:0}
+.pf-attr textarea.pf-inp{margin-top:8px}

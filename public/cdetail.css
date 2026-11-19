@@ -141,3 +141,8 @@
   #cdetail .cd-chat{height:48px;border-radius:14px;font-size:16px}
   #cdetail .cd-share{width:48px;height:48px;background:var(--surface)}
 }
+
+/* Atribut persona */
+#cdetail .cd-attrs{display:flex;flex-direction:column;gap:12px}
+#cdetail .cd-attr p{margin:0 0 8px}
+#cdetail .cd-attr p:last-child{margin-bottom:0}

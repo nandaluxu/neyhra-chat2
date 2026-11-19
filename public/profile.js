@@ -495,6 +495,37 @@ function panelAI(panel) {
 }
 /* Pemilih suara: AI buatan memakai suara karakter bawaan (id asli tidak pernah dikirim ke browser, hanya key + label).
    Tanpa suara = tidak bisa voice note walaupun voice dinyalakan. */
+/* Atribut persona: daftar judul + isi (maks AT_MAX). Dikirim sebagai payload.attrs; baris kosong dibuang server. */
+const AT_MAX = 6, AT_TITLE = 60, AT_CONTENT = 1200;
+function aiAttrRow(a) {
+  const row = h('div', 'pf-attr'), top = h('div', 'pf-attrtop');
+  const t = h('input', 'pf-inp pf-at'); t.maxLength = AT_TITLE; t.value = (a && a.title) || ''; t.placeholder = "Judul, mis. Elizabeth's Story"; t.autocomplete = 'off';
+  const del = btn('pf-lnk d', 'Hapus', 'aiattrdel');
+  top.append(t, del);
+  const x = h('textarea', 'pf-inp pf-ac'); x.maxLength = AT_CONTENT; x.rows = 5; x.value = (a && a.content) || '';
+  x.placeholder = 'Isi atribut. Boleh pakai {{char}} untuk nama AI ini dan {{user}} untuk nama pengguna.';
+  const cnt = h('div', 'pf-cnt', x.value.length + '/' + AT_CONTENT);
+  x.addEventListener('input', () => { cnt.textContent = x.value.length + '/' + AT_CONTENT; });
+  row.append(top, x, cnt); return row;
+}
+function aiAttrsBox(c) {
+  const wrap = h('div'), l = h('div', 'pf-lab', 'Atribut Persona (opsional)'), list = h('div', 'pf-attrs'); list.id = 'aiattrs';
+  for (const a of (c && Array.isArray(c.attrs) ? c.attrs : [])) list.append(aiAttrRow(a));
+  const add = btn('pf-lnk', '+ Tambah atribut', 'aiattradd'); add.id = 'aiattradd'; add.style.marginTop = '8px';
+  const sync = () => { add.hidden = list.children.length >= AT_MAX; };
+  list._sync = sync; sync();
+  wrap.append(l, list, add, h('div', 'pf-hint', 'Tiap atribut punya judul dan isi (latar belakang, cerita, penampilan, dll). Tampil di halaman detail, dan dikirim ke AI sekali di awal obrolan (bukan di tiap pesan). Maks ' + AT_MAX + ' atribut.'));
+  return wrap;
+}
+function aiAttrsValue() {
+  return [...document.querySelectorAll('#aiattrs .pf-attr')].map(r => ({ title: r.querySelector('.pf-at').value.trim(), content: r.querySelector('.pf-ac').value.trim() })).filter(a => a.content || a.title);
+}
+function aiGenderBox(c) {
+  const l = h('label', 'pf-lab', 'Gender'), sel = h('select', 'pf-inp'); sel.id = 'aigender';
+  for (const [val, txt] of [['', 'Belum di set'], ['cowo', 'Cowo'], ['cewe', 'Cewe']]) sel.append(new Option(txt, val));
+  sel.value = c && (c.gender === 'cowo' || c.gender === 'cewe') ? c.gender : '';
+  l.append(sel); return l;
+}
 function aiVoiceBox(c) {
   const l = h('label', 'pf-lab', 'Suara (voice note)'), sel = h('select', 'pf-inp'); sel.id = 'aivoice';
   sel.append(new Option('Tanpa suara', '')); sel.dataset.cur = c && c.voice ? c.voice.char + '|' + c.voice.key : '';
@@ -642,6 +673,8 @@ function openAIForm(c) {
     ...aiField('Gaya bicara (opsional)', 'aispeech', 'speech', 3, 'Cara bicaranya, mis. santai, singkat, sering bercanda', c),
     ...aiField('Aturan tambahan (opsional)', 'airules', 'rules', 3, 'Hal yang harus/tidak boleh dilakukan AI ini', c),
     ...aiField('Sapaan (opsional)', 'aigreet', 'greeting', 3, 'Pesan pembuka: langsung dikirim AI ini saat orang membuka chat barunya. Ditulis apa adanya (tanpa AI), mis. "Oh, kamu datang juga. Aku sudah menunggu dari tadi."', c),
+    aiGenderBox(c),
+    aiAttrsBox(c),
     aiStoryBox(c),
     aiVoiceBox(c), aiPublicBox(c), ...(aiDevOn() ? [aiDevBox(c)] : []),
     msg, act);
@@ -659,7 +692,7 @@ function openAIForm(c) {
 async function saveAI() {
   if (!aiForm) return;
   const msg = $('aimsg'), save = $('aisave'), v = id => $(id).value.trim();
-  const payload = { name: v('ainame'), tagline: v('aitag'), identity: v('aiident'), personality: v('aipers'), speech: v('aispeech'), rules: v('airules'), story: $('aistory') ? $('aistory').value.trim() : '', greeting: v('aigreet'), public: !!($('aipub') && $('aipub').checked) };
+  const payload = { name: v('ainame'), tagline: v('aitag'), identity: v('aiident'), personality: v('aipers'), speech: v('aispeech'), rules: v('airules'), story: $('aistory') ? $('aistory').value.trim() : '', greeting: v('aigreet'), gender: $('aigender') ? $('aigender').value : '', attrs: aiAttrsValue(), public: !!($('aipub') && $('aipub').checked) };
   msg.className = 'pf-msg err';
   if (!payload.name) { msg.textContent = 'Nama AI tidak boleh kosong.'; $('ainame').focus(); return; }
   if (!payload.identity && !payload.personality) { msg.textContent = 'Isi minimal identitas atau kepribadian.'; $('aipers').focus(); return; }
@@ -923,6 +956,8 @@ document.addEventListener('click', e => {
   else if (a === 'aidelok') deleteAI(b.dataset.id);
   else if (a === 'aipick') $('aifile').click();
   else if (a === 'airmpic') { if (aiForm) { aiForm.av = null; aiForm.preview = ''; paintAIPic(); } }
+  else if (a === 'aiattradd') { const l = $('aiattrs'); if (l && l.children.length < AT_MAX) { const r = aiAttrRow(); l.append(r); l._sync(); r.querySelector('.pf-at').focus(); } }
+  else if (a === 'aiattrdel') { const l = $('aiattrs'), r = b.closest('.pf-attr'); if (r) { r.remove(); if (l && l._sync) l._sync(); } }
   else if (a === 'aisave') saveAI();
   else if (a === 'aistorygen') genStory();
   else if (a === 'aistoryundo') undoStory();
