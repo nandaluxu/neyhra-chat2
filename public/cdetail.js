@@ -1,5 +1,5 @@
 /* Halaman detail karakter: dibuka dari kartu karakter di Beranda (bukan langsung masuk chat). Tombol "Obrolan" baru membuka chat.
-   Baru TIRUAN TAMPILAN: sapaan, jumlah obrolan, kategori lengkap, atribut persona, bagikan masih placeholder
+   Baru TIRUAN TAMPILAN: sapaan, jumlah obrolan, kategori lengkap, atribut persona, tombol Bagikan (modal salin tautan /chat/<id>)
    ("fitur belum selesai"). Yang sudah nyata: sapaan (c.greeting, teks pembuka chat buatan pemilik AI), tab Story (cerita AI buatan user: ditulis / dikembangkan AI di Profil > AI Saya, lib/userchars.js charstory), like, komentar (public/cdetail.js <-> lib/charsocial.js), tombol Follow pembuat, tombol Dukung (modal kirim Gems ke pembuat, lib/support.js), nama, label (tagline), foto, pembuat (AI buatan user -> pemiliknya, bisa orang lain kalau AI-nya Publik; bawaan -> akun default nandasikma; nama/foto pembuat bisa dipencet -> profilnya),
    tanggal diperbarui, dan "Robot Terkait" (karakter lain dengan label sama).
    Memakai global index.html: allChars, openChat, img, ph, dispName, toast, store. Semua teks dari data lewat textContent.
@@ -229,9 +229,53 @@ function celebrate(card, n, by) {
   d.append(h('div', 'cds-big', '💗'), h('h2', 'cds-title', 'Terkirim!'), h('p', 'cds-sub', nfS(n) + ' ' + CUR + ' untuk ' + by.name + '. Terima kasih sudah mendukung!'));
   card.append(x, d);
 }
+/* ---- Bagikan karakter: modal dengan tautan yang SUDAH ADA di router (public/router.js): /chat/<id> membuka obrolan karakter itu.
+   Gayanya disuntik dari JS (SH_CSS) supaya tidak tergantung versi cdetail.css di browser. ---- */
+const SH_CSS = `
+#cdetail .sh-ov{position:fixed;inset:0;z-index:80;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.62);overscroll-behavior:contain}
+#cdetail .sh-card{position:relative;width:min(520px,100%);background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:22px;padding:28px 24px 26px;box-shadow:0 18px 60px rgba(0,0,0,.5)}
+#cdetail .sh-x{position:absolute;top:12px;right:12px;width:34px;height:34px;border-radius:50%;color:var(--mut);display:grid;place-items:center}
+#cdetail .sh-x:hover{background:var(--surface);color:var(--ink)}
+#cdetail .sh-x svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+#cdetail .sh-t{font-size:20px;font-weight:700;margin:0 0 16px;padding-right:30px}
+#cdetail .sh-p{font-size:15px;line-height:1.45;color:var(--mut);margin:0 0 18px}
+#cdetail .sh-row{display:flex;gap:12px;align-items:center}
+#cdetail .sh-inp{flex:1;min-width:0;height:46px;padding:0 14px;border:0;outline:0;border-radius:12px;background:var(--surface);color:var(--ink);font:inherit;font-size:14.5px;text-overflow:ellipsis}
+#cdetail .sh-inp:focus{box-shadow:0 0 0 2px #7c6cff}
+#cdetail .sh-copy{flex:none;height:46px;padding:0 18px;border-radius:12px;background:#7c6cff;color:#fff;font-size:14.5px;font-weight:600;white-space:nowrap;transition:background .15s}
+#cdetail .sh-copy:hover{filter:brightness(1.08)}
+#cdetail .sh-copy.ok{background:#3aa66a}
+@media(max-width:480px){#cdetail .sh-row{flex-direction:column;align-items:stretch}}
+`;
+function openShare(c) {
+  if (!document.getElementById('cd-sh-css')) { const s = document.createElement('style'); s.id = 'cd-sh-css'; s.textContent = SH_CSS; document.head.append(s); }
+  closeSupport();
+  const url = location.origin + '/chat/' + encodeURIComponent(c.id);
+  const ov = h('div', 'sh-ov'), card = h('div', 'sh-card'); ov.append(card);
+  ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-modal', 'true'); ov.setAttribute('aria-label', 'Bagikan karakter');
+  ov.addEventListener('mousedown', e => { if (e.target === ov) closeSupport(); });
+  const x = btn('sh-x', null, 'Tutup'); x.setAttribute('aria-label', 'Tutup'); x.append(svg('<path d="M6 6l12 12M18 6L6 18"/>')); x.onclick = closeSupport;
+  const row = h('div', 'sh-row'), inp = h('input', 'sh-inp'), cp = btn('sh-copy', 'Salin tautan');
+  inp.type = 'text'; inp.readOnly = true; inp.value = url; inp.setAttribute('aria-label', 'Tautan karakter'); inp.addEventListener('focus', () => inp.select());
+  let t = 0;
+  cp.onclick = async () => {
+    let ok = false;
+    try { await navigator.clipboard.writeText(url); ok = true; } catch (e) {
+      try { inp.focus(); inp.select(); ok = document.execCommand('copy'); } catch (e2) { }
+    }
+    clearTimeout(t);
+    if (ok) { cp.textContent = 'Tersalin ✓'; cp.classList.add('ok'); say('Tautan disalin'); t = setTimeout(() => { cp.textContent = 'Salin tautan'; cp.classList.remove('ok'); }, 1800); }
+    else { inp.focus(); inp.select(); say('Tekan Ctrl+C untuk menyalin tautan'); }
+  };
+  row.append(inp, cp);
+  card.append(x, h('h2', 'sh-t', 'Bagikan Karakter'), h('p', 'sh-p', 'Anda dapat membagikan tautan ini kepada teman.'), row);
+  root.append(ov); setTimeout(() => cp.focus({ preventScroll: true }), 30);
+  supEsc = e => { if (e.key === 'Escape') { e.stopPropagation(); closeSupport(); } };
+  document.addEventListener('keydown', supEsc, true);
+}
 let supEsc = null;
 function closeSupport() {
-  const ov = root.querySelector('.cds-ov'); if (ov) ov.remove();
+  const ov = root.querySelector('.cds-ov, .sh-ov'); if (ov) ov.remove();
   if (supEsc) { document.removeEventListener('keydown', supEsc, true); supEsc = null; }
 }
 function openSupport(c) {
@@ -455,7 +499,7 @@ function render(c) {
   stat.append(sl, like);
   const act = h('div', 'cd-act');
   const go = btn('cd-chat', 'Obrolan'); go.onclick = () => { const c0 = cur; close(true); if (c0 && typeof openChat === 'function') openChat(c0, im); };
-  const share = btn('cd-share', null, 'Bagikan'); share.append(svg(I.share)); share.onclick = soon;
+  const share = btn('cd-share', null, 'Bagikan'); share.append(svg(I.share)); share.onclick = () => openShare(c);
   act.append(go, share);
   const rel = h('div', 'cd-rel'), rlist = h('div', 'cd-rlist'); rel.append(h('h3', null, 'Robot Terkait'), rlist);
   for (const r of related(c)) {
@@ -504,7 +548,7 @@ function close(silent) {
 }
 /* mobile: tombol kembali melayang di atas foto (gelap transparan); setelah foto lewat, jadi solid supaya tetap terbaca di atas isi halaman */
 root.addEventListener('scroll', () => { const cv = root.querySelector('.cd-cover'); root.classList.toggle('cd-sc', !!cv && root.scrollTop > cv.offsetHeight - 80); }, { passive: true });
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && app.classList.contains('cd-on') && !document.querySelector('.modal:not(.hide)') && !root.querySelector('.cds-ov')) close(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && app.classList.contains('cd-on') && !document.querySelector('.modal:not(.hide)') && !root.querySelector('.cds-ov, .sh-ov')) close(); });
 window.addEventListener('shell:tab', () => { closeSupport(); close(true); }); // pindah tab (Obrolan, Profil, dst.) menutup detail
 window.CD = { open, close, get current() { return cur; } };
 })();
