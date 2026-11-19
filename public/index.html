@@ -2340,7 +2340,7 @@ const charOf=id=>allChars.find(x=>x.id===id);
 const dispName=c=>(c&&store.get('alias:'+c.id))||(c&&c.name)||''; /* nama tampilan buatan user (cuma di perangkat ini) */
 
 /* ===== Hubungan & mood per karakter (EXP + level), disimpan di perangkat (rel:<id>) =====
-   Server stateless: state ikut dikirim tiap pesan. Yang disimpan cuma TOTAL EXP (r); level 1-100 dan tahap selalu dihitung dari EXP.
+   Server stateless: state ikut dikirim tiap pesan. Yang disimpan cuma TOTAL EXP (r); level 1-500 dan tahap selalu dihitung dari EXP.
    AI menilai lewat <rel>/<mood>, server mengubahnya jadi dExp (sudah di-clamp); di sini EXP diterapkan dengan batas EXP harian
    supaya hubungan tidak bisa dikebut dalam sekali duduk. Tabel tahap, kurva EXP, batas harian, dan laju mood datang dari /api/relation
    (satu sumber dengan prompt). Angka cadangan di bawah = nilai bawaan lib/relation.js kalau fetch belum selesai. */
@@ -2349,6 +2349,11 @@ fetch('/api/relation').then(r=>r.json()).then(c=>{ if(c&&Array.isArray(c.stages)
 const rClamp=(n,lo,hi)=>Math.max(lo,Math.min(hi,n));
 const idxOf=(arr,v)=>arr.reduce((b,x,i)=>v>=x.min?i:b,0);
 const relKey=id=>'rel:'+id;
+/* AI buatan dengan fitur hubungan dimatikan pembuatnya (relOff dari /api/chars): tidak ada EXP/level/tahap/mood.
+   Karakter bawaan selalu false. Dipakai relPayload/relApply/proaktif/panel supaya AI itu benar-benar polos. */
+const relOff=id=>{ const c=charOf(id); return !!(c&&c.relOff===true); };
+/* nama tahap khusus milik karakter itu (Mode lanjutan di form AI, c.relStages dari /api/chars) — fallback ke nama bawaan */
+const relStageName=(c,i,def)=>{ const a=c&&Array.isArray(c.relStages)?c.relStages[i]:''; return (typeof a==='string'&&a.trim())?a.trim():def; };
 const LV_MAX=()=>(REL&&REL.maxLevel)||100, EXP_B=()=>(REL&&REL.expBase)||25, EXP_S=()=>(REL&&REL.expStep)||3;
 const expAt=lv=>{ lv=rClamp(Math.round(lv)||1,1,LV_MAX()); return EXP_B()*(lv-1)+EXP_S()*(lv-1)*lv/2; }; /* total EXP untuk MULAI di level lv */
 const EXP_TOP=()=>expAt(LV_MAX());
@@ -2381,9 +2386,10 @@ function flashGain(id,d){
   const el=$('relgain'); if(!el) return;
   el.textContent=(d>0?'+':'')+d+' EXP'; el.classList.toggle('neg',d<0); el.classList.remove('go'); void el.offsetWidth; el.classList.add('go');
 }
-const relPayload=id=>{ const st=relLoad(id); return {rel:st.r,mood:st.m,shift:st.p}; };
+const relPayload=id=>{ if(relOff(id)) return null; const st=relLoad(id); return {rel:st.r,mood:st.m,shift:st.p}; }; /* AI tanpa fitur hubungan: field rel dikosongkan, server tidak menilai apa pun */
 /* terapkan hasil satu balasan (dExp = EXP yang didapat/hilang). Mengembalikan teks notifikasi kalau level/tahap berubah, selain itu ''. */
 function relApply(id,dExp,dMood,free){ /* free=true: EXP hadiah dari Toko, tidak kena batas harian obrolan */
+  if(relOff(id)) return ''; /* fitur hubungan mati untuk AI ini: EXP/mood diabaikan, tidak ada yang disimpan */
   const st=relLoad(id), before=st.r, today=dayKey(Date.now());
   if(st.day!==today){ st.day=today; st.gain=0; }
   let d=Math.round(Number(dExp))||0; const dm=Math.round(Number(dMood))||0;
@@ -2407,16 +2413,26 @@ function paintRel(){
   const st=relLoad(ch.id), c=charOf(ch.id)||ch, S=REL&&REL.stages, M=REL&&REL.moods;
   $('rname').textContent=dispName(c); $('rtag').textContent=c.tagline||'';
   $('rpfp').replaceWith(Object.assign(img(c,''),{id:'rpfp'}));
+  const off=relOff(ch.id);
+  $('rreset').hidden=off; /* reset tidak ada artinya saat fitur hubungan dimatikan pembuat AI ini */
+  if(off){ /* AI buatan tanpa fitur hubungan: panel menampilkan penjelasan, tanpa angka */
+    $('rstage').textContent='Hubungan nonaktif'; $('rrel').textContent='';
+    $('rfill').style.width='0%'; $('rdesc').textContent='Pembuat AI ini mematikan fitur hubungan: EXP, level, tahap kedekatan, dan mood tidak dihitung untuk karakter ini.';
+    $('rnext').textContent='';
+    $('rmood').textContent='—'; $('rmv').textContent=''; $('rmfill').style.width='0%';
+    $('rsteps').textContent='';
+    return;
+  }
   const lv=lvOf(st.r), top=LV_MAX(), cap=(REL&&REL.dailyCap)||200, maxed=lv>=top;
   const si=S?idxOf(S,lv):0, mi=M?idxOf(M,st.m):0;
   const into=st.r-expAt(lv), span=maxed?1:expAt(lv+1)-expAt(lv);
-  $('rstage').textContent=S?S[si].name:'Hubungan'; $('rrel').textContent='Lv '+lv+' / '+top;
+  $('rstage').textContent=S?relStageName(c,si,S[si].name):'Hubungan'; $('rrel').textContent='Lv '+lv+' / '+top;
   $('rfill').style.width=(maxed?100:rClamp(into/span*100,0,100))+'%'; $('rdesc').textContent=S?S[si].desc:'';
   $('rbar').querySelectorAll('u').forEach(u=>u.remove());
   const gainToday=st.day===dayKey(Date.now())?st.gain:0;
   const lines=[];
   lines.push(maxed?'Level maksimal. Hubungan kalian sudah di puncak.':'EXP '+into+' / '+span+' menuju Lv '+(lv+1));
-  if(S&&S[si+1]) lines.push('Tahap berikutnya: '+S[si+1].name+' di Lv '+S[si+1].min+' ('+(S[si+1].min-lv)+' level lagi)');
+  if(S&&S[si+1]) lines.push('Tahap berikutnya: '+relStageName(c,si+1,S[si+1].name)+' di Lv '+S[si+1].min+' ('+(S[si+1].min-lv)+' level lagi)');
   lines.push(gainToday>=cap?'Hari ini kedekatan kalian sudah naik cukup banyak. Lanjut lagi besok ya.':'EXP hari ini: '+gainToday+' / '+cap);
   $('rnext').textContent=lines.join('\n'); $('rnext').style.whiteSpace='pre-line';
   $('rmood').textContent=M?M[mi].name:'Mood'; $('rmv').textContent=st.m+' / 100'; $('rmfill').style.width=st.m+'%';
@@ -2424,7 +2440,7 @@ function paintRel(){
   const ol=$('rsteps'); ol.textContent='';
   (S||[]).forEach((x,i)=>{
     const li=document.createElement('li'), d=document.createElement('div'); li.className=i<si?'done':i===si?'cur':'lock';
-    d.textContent=x.name+' \u00b7 Lv '+x.min+(S[i+1]?'\u2013'+(S[i+1].min-1):'+');
+    d.textContent=relStageName(c,i,x.name)+' \u00b7 Lv '+x.min+(S[i+1]?'\u2013'+(S[i+1].min-1):'+');
     if(i<=si){ const sm=document.createElement('small'); sm.textContent=x.desc; d.append(sm); }
     li.append(d); ol.append(li);
   });
@@ -3044,6 +3060,7 @@ async function proCheck(){
       const l=loadLog(c.id); if(!l.length) continue;
       const lt=Number(l[l.length-1]&&l[l.length-1].t)||0; if(!lt) continue;
       const hrs=(Date.now()-lt)/3600e3; if(hrs<PRO.minH||hrs>PRO.maxH) continue; /* 4 jam - 7 hari tanpa balasan */
+      if(relOff(c.id)) continue; /* AI dengan fitur hubungan dimatikan: tidak ada konsep kedekatan, tidak menyapa duluan */
       if(lvOf(relLoad(c.id).r)<6) continue; /* minimal tahap Teman: yang belum akrab tidak menyapa duluan */
       if(lifeOf(c)==='tidur') continue; /* jam tidurnya: tidak dibangunkan */
       cand.push({c,hrs});

@@ -366,6 +366,7 @@ window.addEventListener('acct', () => { if (!atok) { att = null; renderAtt(); } 
 
 function attach() { // tombol di Inventory: siapkan hadiah di kotak ketik, belum dikirim (boleh campur barang + cincin)
   if (giving || !S || !ch || (window.GX && GX.cur)) return;
+  if (typeof relOff === 'function' && relOff(ch.id)) { closeInv(); toast('AI ini tidak memakai sistem hubungan, jadi hadiah tidak bisa diberikan kepadanya.'); return; } // fitur hubungan dimatikan pembuatnya (form AI Saya)
   const items = {}; let cnt = 0;
   for (const i of giftPool()) if ((gsel[i.id] | 0) > 0) { items[i.id] = gsel[i.id] | 0; cnt += items[i.id]; }
   if (!cnt) return;

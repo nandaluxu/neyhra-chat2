@@ -190,3 +190,9 @@ button.pf-stat:active{transform:scale(.97)}
 .pf-attrtop{display:flex;align-items:center;gap:8px}
 .pf-attrtop .pf-inp{margin-top:0;flex:1;min-width:0}
 .pf-attr textarea.pf-inp{margin-top:8px}
+
+/* Fitur hubungan (form AI Saya): saklar Mode lanjutan + kepribadian per tahap level (12 tahap Lv 1-500) */
+#airelstages{display:flex;flex-direction:column;gap:10px;margin-top:4px}
+#airelstages.hide,.pf-pub.hide{display:none}
+.pf-relst .pf-relnm{padding:9px 12px;font-size:14px}
+.pf-relst textarea.pf-inp{font-size:14.5px}

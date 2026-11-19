@@ -81,11 +81,13 @@ function localStats() {
     const st = relLoad(c.id); rows.push({ c, total: (typeof loadCnt === 'function' ? loadCnt(c.id) : l.length), mine, exp: st.r, lv: lvOf(st.r) }); /* total = seumur hidup per karakter (counter), bukan panjang log yang dipangkas 150 */
   }
   rows.sort((a, b) => b.total - a.total);
-  const best = rows.reduce((b, r) => (!b || r.lv > b.lv ? r : b), null);
+  const best = rows.filter(r => !(r.c && r.c.relOff === true)).reduce((b, r) => (!b || r.lv > b.lv ? r : b), null); /* AI dengan fitur hubungan dimatikan tidak bisa jadi "tertinggi" */
   if (typeof sentTotal === 'function') sent = sentTotal(); // total seumur hidup (tidak turun saat obrolan dihapus), lihat record() di index.html
   return { sent, chars: rows.length, rows, best, days, today };
 }
 const stageName = lv => { const S = REL && REL.stages; return S && S.length ? S[idxOf(S, lv)].name : ''; };
+/* nama tahap + nama tahap khusus milik karakter itu (Mode lanjutan di form AI, c.relStages dari /api/chars) */
+const stageOf = (c, lv) => { const S = REL && REL.stages; if (!S || !S.length) return ''; const a = c && Array.isArray(c.relStages) ? c.relStages[idxOf(S, lv)] : ''; return (typeof a === 'string' && a.trim()) ? a.trim() : S[idxOf(S, lv)].name; };
 
 /* ---------- Kerangka halaman ---------- */
 function render() {
@@ -160,7 +162,7 @@ function otherStats() {
     if (c) rows.push({ c, lv: x.lv || 1, exp: x.e || 0, total: x.m || 0 });
   }
   rows.sort((a, b) => b.total - a.total);
-  const best = rows.reduce((b, r) => (!b || r.lv > b.lv ? r : b), null);
+  const best = rows.filter(r => !(r.c && r.c.relOff === true)).reduce((b, r) => (!b || r.lv > b.lv ? r : b), null); /* AI dengan fitur hubungan dimatikan tidak bisa jadi "hubungan tertinggi" */
   const days = Array.isArray(st.days) && st.days.length === 7 ? st.days.map(Number) : [0, 0, 0, 0, 0, 0, 0];
   return { sent: st.sent || 0, chars: rows.length, rows, best, days, today: Date.now() };
 }
@@ -242,9 +244,10 @@ function panelChars(panel, own) {
   for (const r of rows) {
     const row = btn('pf-row', null, 'chat'); row.dataset.id = r.c.id;
     const im = img(r.c); im.loading = 'lazy'; im.decoding = 'async';
-    const lo = expAt(r.lv), hi = r.lv >= (REL && REL.maxLevel || 100) ? lo : expAt(r.lv + 1), pct = hi > lo ? Math.max(0, Math.min(100, (r.exp - lo) / (hi - lo) * 100)) : 100;
+    const off = !!(r.c && r.c.relOff === true); /* AI buatan tanpa fitur hubungan: baris tanpa level/tahap */
+    const lo = expAt(r.lv), hi = r.lv >= (REL && REL.maxLevel || 100) ? lo : expAt(r.lv + 1), pct = off ? 0 : (hi > lo ? Math.max(0, Math.min(100, (r.exp - lo) / (hi - lo) * 100)) : 100);
     const bd = h('span', 'pf-rb'), bar = h('span', 'pf-bar'), fill = h('i'); fill.style.width = pct + '%'; bar.append(fill);
-    bd.append(h('b', null, dispName(r.c)), h('small', null, 'Lv ' + r.lv + (stageName(r.lv) ? ' · ' + stageName(r.lv) : '') + ' · ' + nf.format(r.total) + ' pesan'), bar);
+    bd.append(h('b', null, dispName(r.c)), h('small', null, off ? 'Tanpa hubungan · ' + nf.format(r.total) + ' pesan' : 'Lv ' + r.lv + (stageOf(r.c, r.lv) ? ' · ' + stageOf(r.c, r.lv) : '') + ' · ' + nf.format(r.total) + ' pesan'), bar);
     row.append(im, bd); list.append(row);
   }
   panel.append(list);
@@ -463,6 +466,7 @@ function aiCard(c) {
   card.addEventListener('keydown', e => { if (e.target === card && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openAIForm(c); } });
   const bd = h('div', 'pf-pbd'), nm = h('div', 'pf-pnm');
   nm.append(h('b', null, c.name), h('span', 'pf-vis' + (c.public ? ' pub' : ''), c.public ? 'Publik' : 'Privat'));
+  if (c.relOn === false) nm.append(h('span', 'pf-vis', 'Tanpa hubungan')); // fitur hubungan dimatikan lewat form (saklar)
   bd.append(nm, h('small', null, c.personality || c.identity || 'Belum ada deskripsi'));
   const acts = h('div', 'pf-pacts');
   const chat = btn('pf-pdef on', 'Chat', 'aichat'); chat.dataset.id = c.id; chat.setAttribute('aria-label', 'Mulai chat dengan ' + c.name);
@@ -519,6 +523,85 @@ function aiAttrsBox(c) {
 }
 function aiAttrsValue() {
   return [...document.querySelectorAll('#aiattrs .pf-attr')].map(r => ({ title: r.querySelector('.pf-at').value.trim(), content: r.querySelector('.pf-ac').value.trim() })).filter(a => a.content || a.title);
+}
+
+/* ---------- Fitur hubungan AI ini: saklar + Mode lanjutan (kepribadian per tahap level) ----------
+   relOn=false = AI polos: tanpa EXP/level/tahap/mood (server mengabaikan state rel di /api/chat & /api/proactive,
+   client tidak menyimpan rel:<id>, hadiah toko ditolak, panel hubungan menampilkan "nonaktif").
+   Mode lanjutan (muncul hanya saat hubungan ON): atur nama tahap + kepribadian per tahap level (12 tahap Lv 1-500,
+   tabel sama dengan yang dipakai prompt, dari /api/relation). Tahap yang dikosongkan memakai bawaan. */
+let relConfP = null; // cache konfigurasi tahap: REL global index.html kalau sudah termuat, kalau tidak fetch sendiri sekali
+function relConf() {
+  relConfP ??= (async () => {
+    if (typeof REL !== 'undefined' && REL && Array.isArray(REL.stages) && REL.stages.length) return REL;
+    try { const c = await (await fetch('/api/relation')).json(); if (c && Array.isArray(c.stages) && c.stages.length) return c; } catch {}
+    return null;
+  })();
+  return relConfP;
+}
+function aiRelBox(c) {
+  const box = h('div');
+  const row = h('label', 'srow pf-pub'), tx = h('span'), b = h('b', null, 'Fitur hubungan'), i = h('i');
+  const sw = h('input', 'sw'); sw.type = 'checkbox'; sw.id = 'airel'; sw.checked = !(c && c.relOn === false);
+  const advRow = h('label', 'srow pf-pub'), atx = h('span'), ab = h('b', null, 'Mode lanjutan'), ai = h('i');
+  const adv = h('input', 'sw'); adv.type = 'checkbox'; adv.id = 'aireladv';
+  adv.checked = !!(c && Array.isArray(c.relStages) && c.relStages.some(x => x && (x.name || x.rule)));
+  const stages = h('div'); stages.id = 'airelstages';
+  const sync = () => {
+    i.textContent = sw.checked
+      ? 'AI ini ikut sistem hubungan: EXP, level, tahap kedekatan (maks Lv 500), dan mood naik-turun mengikuti obrolan.'
+      : 'AI polos: tanpa EXP, level, tahap, atau mood — dia tidak menilai kedekatan kalian.';
+    advRow.classList.toggle('hide', !sw.checked); // mode lanjutan hanya relevan kalau hubungannya aktif
+    if (!sw.checked) adv.checked = false;
+    ai.textContent = adv.checked
+      ? 'Atur kepribadian AI ini per tahap level di bawah. Tahap yang dikosongkan tetap memakai bawaan.'
+      : 'Nyala untuk mengatur kepribadian AI ini per tahap level (misal jauh lebih mesra di level tinggi).';
+    stages.classList.toggle('hide', !adv.checked || !sw.checked);
+  };
+  sw.addEventListener('change', sync);
+  adv.addEventListener('change', sync);
+  sync();
+  tx.append(b, i); row.append(tx, sw);
+  atx.append(ab, ai); advRow.append(atx, adv);
+  box.append(row, advRow, stages, h('div', 'pf-hint', 'Tanpa Mode lanjutan, AI ini memakai tahap bawaan (Kenalan → Teman → … → Kekal, Lv 1-500). Kepribadian inti di kolom atas tetap berlaku; tahap hanya mengatur seberapa dekat dan terbuka dia seiring level naik.'));
+  fillRelStages(c);
+  return box;
+}
+async function fillRelStages(c) {
+  const box = $('airelstages'); if (!box) return;
+  const conf = await relConf();
+  if (!box.isConnected) return; // form sudah ditutup saat menunggu konfigurasi
+  const st = conf && Array.isArray(conf.stages) ? conf.stages : null;
+  box.textContent = '';
+  if (!st || !st.length) { box.append(h('div', 'pf-hint', 'Daftar tahap belum termuat. Tutup dan buka lagi formnya.')); return; }
+  const cur = (c && Array.isArray(c.relStages)) ? c.relStages : [];
+  box.append(h('div', 'pf-lab', 'Kepribadian per tahap'));
+  st.forEach((s, idx) => {
+    const range = 'Lv ' + s.min + (st[idx + 1] ? '\u2013' + (st[idx + 1].min - 1) : '+');
+    const card = h('div', 'pf-attr pf-relst');
+    const top = h('div', 'pf-attrtop');
+    const nm = h('input', 'pf-inp pf-relnm'); nm.maxLength = 24; nm.value = (cur[idx] && cur[idx].name) || '';
+    nm.placeholder = s.name; nm.setAttribute('aria-label', 'Nama tahap ' + range + ' (bawaan: ' + s.name + ')');
+    const t = h('textarea', 'pf-inp'); t.rows = 2; t.maxLength = 400; t.value = (cur[idx] && cur[idx].rule) || '';
+    t.placeholder = 'Bagaimana sikapnya ke kamu di tahap ' + s.name + ' (' + range + '). Kosongkan untuk bawaan.';
+    const cnt = h('div', 'pf-cnt', t.value.length + '/400');
+    t.addEventListener('input', () => { cnt.textContent = t.value.length + '/400'; });
+    top.append(nm); card.append(top, t, cnt); box.append(card);
+  });
+}
+function aiRelValue() {
+  const on = !!($('airel') && $('airel').checked);
+  const advOn = on && !!($('aireladv') && $('aireladv').checked);
+  const rows = [...document.querySelectorAll('#airelstages .pf-relst')];
+  const out = { relOn: on };
+  // relStages selalu diganti seluruhnya: hubungan mati / Mode lanjutan mati = kembali ke bawaan (array kosong).
+  // Kalau Mode lanjutan nyala tapi daftar tahapnya sendiri belum termuat, field tidak dikirim supaya kepribadian
+  // per tahap yang sudah tersimpan tidak terhapus tanpa sengaja.
+  if (!advOn || rows.length) out.relStages = rows.map(r => ({
+    name: (r.querySelector('.pf-relnm') || { value: '' }).value.trim(),
+    rule: (r.querySelector('textarea') || { value: '' }).value.trim()
+  }));
+  return out;
 }
 function aiGenderBox(c) {
   const l = h('label', 'pf-lab', 'Gender'), sel = h('select', 'pf-inp'); sel.id = 'aigender';
@@ -675,6 +758,7 @@ function openAIForm(c) {
     ...aiField('Sapaan (opsional)', 'aigreet', 'greeting', 3, 'Pesan pembuka: langsung dikirim AI ini saat orang membuka chat barunya. Ditulis apa adanya (tanpa AI), mis. "Oh, kamu datang juga. Aku sudah menunggu dari tadi."', c),
     aiGenderBox(c),
     aiAttrsBox(c),
+    aiRelBox(c),
     aiStoryBox(c),
     aiVoiceBox(c), aiPublicBox(c), ...(aiDevOn() ? [aiDevBox(c)] : []),
     msg, act);
@@ -692,7 +776,7 @@ function openAIForm(c) {
 async function saveAI() {
   if (!aiForm) return;
   const msg = $('aimsg'), save = $('aisave'), v = id => $(id).value.trim();
-  const payload = { name: v('ainame'), tagline: v('aitag'), identity: v('aiident'), personality: v('aipers'), speech: v('aispeech'), rules: v('airules'), story: $('aistory') ? $('aistory').value.trim() : '', greeting: v('aigreet'), gender: $('aigender') ? $('aigender').value : '', attrs: aiAttrsValue(), public: !!($('aipub') && $('aipub').checked) };
+  const payload = { name: v('ainame'), tagline: v('aitag'), identity: v('aiident'), personality: v('aipers'), speech: v('aispeech'), rules: v('airules'), story: $('aistory') ? $('aistory').value.trim() : '', greeting: v('aigreet'), gender: $('aigender') ? $('aigender').value : '', attrs: aiAttrsValue(), public: !!($('aipub') && $('aipub').checked), ...aiRelValue() };
   msg.className = 'pf-msg err';
   if (!payload.name) { msg.textContent = 'Nama AI tidak boleh kosong.'; $('ainame').focus(); return; }
   if (!payload.identity && !payload.personality) { msg.textContent = 'Isi minimal identitas atau kepribadian.'; $('aipers').focus(); return; }
