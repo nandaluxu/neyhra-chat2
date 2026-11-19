@@ -68,3 +68,11 @@ Ketuk karakter di Beranda sekarang membuka **halaman detail** dulu (`public/cdet
 - Pembersihan: hapus AI buatan (`aichar/delete`, `purgeUserChars`) menghapus like & komentarnya; hapus akun menghapus semua like & komentar milik akun itu.
 - Belum ada: notifikasi ke pemilik AI saat disukai/dikomentari, laporan/moderasi komentar, jumlah obrolan (badge di foto masih "–").
 - File: `lib/charsocial.js` (baru), `lib/auth.js`, `lib/userchars.js`, `public/cdetail.js`, `public/cdetail.css`.
+
+## Kartu AI di Beranda (update)
+- Kartu = frame foto 4:5 yang berisi info (nama & label tidak lagi di bawah frame). **Tampilan awal:** gradasi bawah dengan nama, label, foto profil pembuat (kiri), jumlah like & komentar (kanan; "–" sampai angka termuat, format 1,2rb / 1,5jt).
+- **Hover (mouse) / fokus keyboard:** frame menggelap + foto zoom (zoom lama tetap); tampil foto AI kecil (bulat), nama, label, "oleh <pembuat>", bagian **Sapaan** (placeholder "Tidak ada deskripsi. Fitur ini belum selesai." muncul bertahap seperti diketik; langsung tampil penuh kalau `prefers-reduced-motion`) dan tombol **Ngobrol sekarang** (langsung membuka chat). Tata letak sebelum & sesudah hover berbeda (`.b-front` <-> `.b-back`). Layar sentuh tanpa hover hanya memakai tampilan awal.
+- Ketuk/klik frame tetap membuka halaman detail. Tile sekarang `div` + tombol `.b-open` yang menutupi frame (supaya tombol "Ngobrol sekarang" tidak bersarang di dalam `<button>`).
+- Endpoint baru `POST /api/auth/charstats` (lib/charsocial.js): `{ ok, stats: { <charId>: [likes, komentar] } }` sekali untuk semua kartu; hanya karakter yang boleh dilihat pemanggil; cache 15 dtk per instance. Like/komentar di halaman detail memperbarui kartu langsung lewat event `charstats`.
+- Foto pembuat: `creator.avatar` dari `/api/chars` (bawaan = akun default nandasikma; tanpa pembuat = ikon Neyhra).
+- File: `public/index.html` (`card()`, `loadTileStats`), `public/shell.css`, `public/cdetail.js`, `lib/charsocial.js`.

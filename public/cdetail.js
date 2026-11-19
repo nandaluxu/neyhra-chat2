@@ -76,6 +76,7 @@ function paintSocial() {
   const cc = root.querySelector('.cd-cc'); if (cc) cc.textContent = (S.comments === null ? '–' : nfmt(S.comments)) + ' Komentar';
   const lb = root.querySelector('.cd-like'); if (lb) { lb.classList.toggle('on', S.liked); lb.setAttribute('aria-pressed', String(S.liked)); lb.setAttribute('aria-label', S.liked ? 'Batal suka' : 'Suka'); }
   const tb = root.querySelector('.cd-tab[data-k="komentar"]'); if (tb) tb.textContent = 'Komentar(' + (S.comments === null ? '–' : nfmt(S.comments)) + ')';
+  if (S.likes !== null && S.comments !== null) window.dispatchEvent(new CustomEvent('charstats', { detail: { id: S.id, likes: S.likes, comments: S.comments } })); // kartu di Beranda ikut menyesuaikan
 }
 async function loadSocial(c) {
   try {

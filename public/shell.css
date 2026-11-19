@@ -475,3 +475,41 @@
 #menu .b-ctog:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 #menu .b-ctog.active::after{content:"";position:absolute;top:-2px;right:-2px;width:9px;height:9px;border-radius:50%;background:var(--ink);box-shadow:0 0 0 2px var(--bg)}
 @media(prefers-reduced-motion:reduce){#menu .b-ctog svg{transition:none}}
+
+/* ---------- Beranda: kartu AI = frame foto + info di dalamnya (lihat card() di index.html) ----------
+   Awal : gradasi bawah berisi nama, label, foto pembuat (kiri) dan jumlah like/komentar (kanan).
+   Hover: frame menggelap + foto zoom; tampil foto kecil bulat, nama, label, pembuat, "Sapaan" (placeholder, ketik bertahap) dan tombol "Ngobrol sekarang".
+   Hanya mouse/fokus keyboard (kelas .hot dari JS); layar sentuh tetap tampilan awal. */
+#menu .b-tile{cursor:pointer;text-align:left;color:inherit;font:inherit}
+#menu .b-open{position:absolute;inset:0;z-index:2;display:block;width:100%;height:100%;border-radius:0}
+#menu .b-open:focus-visible{outline:0;box-shadow:inset 0 0 0 3px #fff,inset 0 0 0 5px #7c6cf5}
+#menu .b-front{position:absolute;left:0;right:0;bottom:0;z-index:1;display:flex;flex-direction:column;gap:2px;padding:48px 12px 11px;color:#fff;pointer-events:none;
+  background:linear-gradient(to top,rgba(0,0,0,.8) 0%,rgba(0,0,0,.42) 58%,rgba(0,0,0,0) 100%);transition:opacity .25s}
+#menu .b-fn{font-size:15px;font-weight:700;letter-spacing:-.02em;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 8px rgba(0,0,0,.35)}
+#menu .b-ft{min-height:14px;font-size:11.5px;line-height:1.2;color:rgba(255,255,255,.78);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#menu .b-fm{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:7px}
+#menu .b-fs{display:flex;align-items:center;gap:10px;font-size:11.5px;font-weight:600;min-width:0}
+#menu .b-fs>span{display:inline-flex;align-items:center;gap:4px}
+#menu .b-fs b{font-weight:600}
+#menu .b-fs svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+#menu .b-av .b-cpfp,#menu .b-av .b-mini{position:static;inset:auto;width:22px;height:22px;flex:none;border-radius:50%;object-fit:cover;background:var(--line);border:1.5px solid rgba(255,255,255,.9);transform:none;transition:none}
+#menu .b-av .b-mini{width:40px;height:40px;border-width:2px}
+#menu .b-back{position:absolute;inset:0;z-index:3;display:flex;flex-direction:column;gap:10px;padding:12px;color:#fff;background:rgba(8,8,10,.78);
+  opacity:0;visibility:hidden;pointer-events:none;transition:opacity .25s,visibility .25s}
+#menu .b-tile.hot .b-back{opacity:1;visibility:visible}
+#menu .b-tile.hot .b-front{opacity:0}
+#menu .b-tile.hot .b-main{transform:scale(1.07)}
+#menu .b-bh{display:flex;align-items:center;gap:9px;min-width:0}
+#menu .b-bt{display:flex;flex-direction:column;min-width:0;gap:1px}
+#menu .b-bn{font-size:14px;font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#menu .b-bl{font-size:11px;line-height:1.2;color:rgba(255,255,255,.78);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#menu .b-bo{font-size:11px;line-height:1.2;color:rgba(255,255,255,.58);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#menu .b-sap{flex:1;min-height:0;display:flex;flex-direction:column;gap:5px;overflow:hidden}
+#menu .b-sh{font-size:12px;font-weight:700;line-height:1.1;padding-left:7px;border-left:3px solid #7c6cf5}
+#menu .b-st{font-size:12px;line-height:1.45;color:rgba(255,255,255,.85)}
+#menu .b-st.typing::after{content:"";display:inline-block;width:1px;height:1em;margin-left:2px;background:#fff;vertical-align:-2px;animation:b-caret .8s steps(1) infinite}
+@keyframes b-caret{50%{opacity:0}}
+#menu .b-go{flex:none;width:100%;height:34px;border-radius:12px;background:#7c6cf5;color:#fff;font-size:13px;font-weight:600;pointer-events:auto;transition:filter .15s}
+#menu .b-go:hover{filter:brightness(1.1)}
+#menu .b-go:focus-visible{outline:2px solid #fff;outline-offset:2px}
+@media(prefers-reduced-motion:reduce){#menu .b-front,#menu .b-back{transition:none}#menu .b-st.typing::after{animation:none}}

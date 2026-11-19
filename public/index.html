@@ -2787,15 +2787,70 @@ memModal.addEventListener('click',e=>{ if(e.target===memModal) closeMem(); });
 
 /* Beranda: grid semua karakter + pencarian. Daftar "Obrolan Terakhir" digambar shell.js (Shell.renderRecent). */
 const q=$('q');
+/* Kartu karakter Beranda: frame foto berisi nama, label, foto pembuat, jumlah like & komentar. Saat hover (mouse/fokus keyboard) frame menggelap + foto zoom,
+   lalu tampil panel: foto kecil, nama, label, pembuat, "Sapaan" (placeholder, teks muncul bertahap) dan tombol "Ngobrol sekarang".
+   Tata letak sebelum & sesudah hover sengaja beda (.b-front <-> .b-back, lihat shell.css). Layar sentuh tanpa hover hanya memakai tampilan awal.
+   Tombol .b-open meliputi seluruh frame (ketuk = halaman detail, public/cdetail.js); .b-go membuka chat langsung. Angka dari /api/auth/charstats. */
+const tileStats=new Map(); /* charId -> [likes, komentar] */
+const GREET_PH='Tidak ada deskripsi. Fitur ini belum selesai.';
+const nk=n=>!Number.isFinite(n)?'–':n>=1e6?(n/1e6).toFixed(1).replace(/\.0$/,'')+'jt':n>=1e3?(n/1e3).toFixed(1).replace(/\.0$/,'')+'rb':String(n);
+const mk=(tag,cls,text)=>{ const e=document.createElement(tag); if(cls) e.className=cls; if(text!=null) e.textContent=text; return e; };
+const tIcon=d=>{ const w=document.createElement('span'); w.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+d+'</svg>'; return w.firstChild; }; /* d = konstanta statis di bawah */
+const T_HEART='<path d="M12 20s-7-4.4-9-9a5 5 0 019-3 5 5 0 019 3c-2 4.6-9 9-9 9z"/>', T_CMT='<path d="M4 5h16v11H9l-5 4z"/>';
+const tileHover=()=>matchMedia('(hover:hover) and (pointer:fine)').matches;
+function paintTile(el,id){
+  const s=tileStats.get(id), l=el.querySelector('.b-sl'), m=el.querySelector('.b-sc');
+  if(l) l.textContent=s?nk(s[0]):'–'; if(m) m.textContent=s?nk(s[1]):'–';
+}
 function card(c){
-  const b=document.createElement('button'); b.type='button'; b.className='b-tile';
-  const av=document.createElement('span'); av.className='b-av';
-  const im=img(c); im.loading='lazy'; im.decoding='async'; av.append(im, document.createElement('i'));
-  const n=document.createElement('span'); n.className='b-name'; n.textContent=shortName(c); b.title=c.name;
-  const tg=document.createElement('span'); tg.className='b-tag'; tg.textContent=c.tagline||'';
-  b.append(av,n,tg); b.onclick=()=>{ if(window.CD) CD.open(c); else openChat(c,av); }; /* ketuk = halaman detail dulu (public/cdetail.js); tombol Obrolan di sana yang memanggil openChat */
+  const by=c.creator||{name:'Neyhra',username:'',avatar:'/icon.svg'};
+  const b=mk('div','b-tile'); b.title=c.name;
+  const av=mk('span','b-av'), im=img(c); im.className='b-main'; im.loading='lazy'; im.decoding='async';
+  const open=mk('button','b-open'); open.type='button'; open.setAttribute('aria-label','Detail '+c.name+(c.tagline?', '+c.tagline:''));
+  /* tampilan awal */
+  const front=mk('span','b-front'), meta=mk('span','b-fm'), st=mk('span','b-fs');
+  const pf=new Image(); pf.className='b-cpfp'; pf.alt=''; pf.referrerPolicy='no-referrer'; pf.title='Dibuat oleh '+by.name; pf.onerror=()=>{ pf.onerror=null; pf.src=ph(by.name||'?'); }; pf.src=by.avatar||'/icon.svg';
+  const sl=mk('span'), sc=mk('span'); sl.title='Jumlah like'; sc.title='Jumlah komentar';
+  sl.append(tIcon(T_HEART),mk('b','b-sl','–')); sc.append(tIcon(T_CMT),mk('b','b-sc','–')); st.append(sl,sc);
+  meta.append(pf,st); front.append(mk('span','b-fn',shortName(c)),mk('span','b-ft',c.tagline||''),meta);
+  /* tampilan hover */
+  const back=mk('span','b-back'), head=mk('span','b-bh'), mini=img(c,'b-mini'), bt=mk('span','b-bt');
+  bt.append(mk('span','b-bn',c.name),mk('span','b-bl',c.tagline||''),mk('span','b-bo','oleh '+by.name)); head.append(mini,bt);
+  const sap=mk('span','b-sap'), sh=mk('b','b-sh','Sapaan'), stx=mk('span','b-st'); sap.append(sh,stx);
+  const go=mk('button','b-go','Ngobrol sekarang'); go.type='button';
+  go.onclick=e=>{ e.stopPropagation(); openChat(c,im); };
+  back.append(head,sap,go);
+  av.append(im,mk('i'),front,open,back); b.append(av);
+  /* teks sapaan muncul bertahap selama hover */
+  let tm=0;
+  const type=on=>{
+    clearInterval(tm); stx.classList.remove('typing'); stx.textContent='';
+    if(!on) return;
+    if(matchMedia('(prefers-reduced-motion:reduce)').matches){ stx.textContent=GREET_PH; return; }
+    let n=0; stx.classList.add('typing');
+    tm=setInterval(()=>{ stx.textContent=GREET_PH.slice(0,++n); if(n>=GREET_PH.length){ clearInterval(tm); stx.classList.remove('typing'); } },30);
+  };
+  const heat=on=>{ if(b.classList.contains('hot')===on) return; b.classList.toggle('hot',on); type(on); };
+  b.addEventListener('mouseenter',()=>{ if(tileHover()) heat(true); });
+  b.addEventListener('mouseleave',()=>heat(false));
+  b.addEventListener('focusin',e=>{ if(e.target.matches&&e.target.matches(':focus-visible')) heat(true); });
+  b.addEventListener('focusout',e=>{ if(!b.contains(e.relatedTarget)) heat(false); });
+  b.onclick=()=>{ if(window.CD) CD.open(c); else openChat(c,im); }; /* ketuk = halaman detail dulu (public/cdetail.js); tombol Obrolan di sana / "Ngobrol sekarang" di kartu yang memanggil openChat */
+  paintTile(b,c.id);
   return b;
 }
+/* jumlah like & komentar semua kartu (satu permintaan); dipanggil setelah daftar karakter termuat */
+function loadTileStats(){
+  aApi('charstats').then(r=>{
+    if(!r||!r.ok||!r.stats) return;
+    tileStats.clear(); for(const [id,v] of Object.entries(r.stats)) if(Array.isArray(v)) tileStats.set(id,v);
+    rows.forEach(({c,el})=>{ if(!tileStats.has(c.id)) tileStats.set(c.id,[0,0]); paintTile(el,c.id); });
+  }).catch(()=>{});
+}
+addEventListener('charstats',e=>{ /* dari halaman detail: like/komentar berubah */
+  const d=e.detail||{}; if(!d.id) return; tileStats.set(d.id,[d.likes,d.comments]);
+  const r=rows.find(x=>x.c.id===d.id); if(r) paintTile(r.el,d.id);
+});
 let rows=[]; /* [{c, el}] tile di Beranda, dibuat sekali lalu cuma disembunyikan/ditampilkan saat mencari */
 let serie=''; /* chip seri yang aktif ('' = semua) */
 function buildChips(){
@@ -2862,6 +2917,7 @@ return fetch('/api/chars',atok?{headers:{Authorization:'Bearer '+atok},cache:'no
   $('allcount').textContent=cs.length+' karakter';
   renderList(); renderCont(); buildChips(); if(typeof filterAll==='function') filterAll();
   if(window.GX) GX.paintAll();
+  loadTileStats();
   if(charsFirst){ charsFirst=false; proArm(); } /* pesan proaktif: mulai mencari kandidat setelah karakter termuat (sekali) */
 }).catch(()=>{ if(charsFirst){ $('alllist').textContent='Gagal memuat karakter'; $('alllist').removeAttribute('aria-busy'); } });
 }
