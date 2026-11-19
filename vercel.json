@@ -50,6 +50,10 @@
       "destination": "/index.html"
     },
     {
+      "source": "/profile/:username",
+      "destination": "/index.html"
+    },
+    {
       "source": "/music",
       "destination": "/index.html"
     },
