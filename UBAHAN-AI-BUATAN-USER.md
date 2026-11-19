@@ -132,3 +132,9 @@ Ketuk karakter di Beranda sekarang membuka **halaman detail** dulu (`public/cdet
 - Tombol **Bagikan** di cdetail membuka modal "Bagikan Karakter": tautan memakai alamat router yang sudah ada, `<origin>/chat/<id>` (`public/router.js`), tombol "Salin tautan" (clipboard, fallback Ctrl+C). Gaya `SH_CSS` disuntik dari `public/cdetail.js`. AI privat hanya bisa dibuka pemiliknya.
 - Pembuat tanpa username (fallback Neyhra/Pengguna) = toast "belum bisa menerima dukungan". Belum login = toast + overlay login. Karakter bawaan mengirim ke akun pembuat default (nandasikma).
 - File: `lib/support.js` (baru), `lib/auth.js`, `public/cdetail.js`, `public/cdetail.css`.
+
+## Memori AI: optimasi + overlay (update)
+- **Panel detail karakter** (bukan cdetail): bagian "Kotak memori" kini hanya tombol (`#dmbtn`, dengan jumlah memori). Daftar baru muncul di overlay `#dmmodal` setelah diketuk, dan DOM daftar hanya dibuat saat overlay terbuka (`renderCharMem`). Tutup: X, klik di luar, Escape, atau ganti karakter.
+- **Ringkasan** (`/api/memory`, `lib/sessions.js summaryPrompt`): client mengirim `known` (isi 3 ingatan terakhir, dipotong 120 huruf) agar ringkasan baru hanya memuat hal BARU/berubah; prompt meminta fakta spesifik (nama, angka, tempat, janji).
+- **Anggaran ingatan** yang dipakai AI naik 1500 -> 2400 karakter (`MEM_MAX_USE` di index.html dan `cleanMemory` di `lib/app.js`, harus sama). Sebelumnya hanya ±3 ingatan terakhir yang sampai ke AI.
+- **Backoff** peringkasan otomatis yang gagal: 60 dtk, 2, 4, 8, maks 16 menit (`memFail`), sebelumnya selalu 60 dtk sehingga menembak server tiap balasan.

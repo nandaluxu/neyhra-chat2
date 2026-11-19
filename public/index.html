@@ -162,7 +162,7 @@ footer:has(#send:not(.hide)) #recbar{right:106px}
 .m-name:active{transform:scale(.96)}
 .m-name svg{width:15px;height:15px}
 .m-name:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
-#nmodal,#vmodal,#smodal,#pmodal,#mmodal,#rnmodal,#dlmodal,#pemodal{position:absolute;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(0,0,0,.45);backdrop-filter:blur(3px)}
+#nmodal,#vmodal,#smodal,#pmodal,#mmodal,#dmmodal,#rnmodal,#dlmodal,#pemodal{position:absolute;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(0,0,0,.45);backdrop-filter:blur(3px)}
 .nbox{width:100%;max-width:340px;background:var(--bg);border:1px solid var(--line);border-radius:22px;padding:20px;animation:nin .25s cubic-bezier(.2,.9,.3,1.2)}
 @keyframes nin{from{opacity:0;transform:scale(.92) translateY(8px)}}
 .nbox h2{font-size:18px;font-weight:600;letter-spacing:-.02em}
@@ -329,7 +329,7 @@ header>button:active,.mwrap>button:active{transform:scale(.88)}
   .pfp{width:40px;height:40px}
   .name{font-size:16px}
   /* kotak nama jadi bottom sheet, gampang dijangkau jempol */
-  #nmodal,#vmodal,#smodal,#mmodal,#rnmodal,#dlmodal,#pemodal{align-items:flex-end;padding:12px 12px calc(12px + env(safe-area-inset-bottom,0px))}
+  #nmodal,#vmodal,#smodal,#mmodal,#dmmodal,#rnmodal,#dlmodal,#pemodal{align-items:flex-end;padding:12px 12px calc(12px + env(safe-area-inset-bottom,0px))}
   .nbox{max-width:none;border-radius:26px;padding:22px 20px 20px}
   .nact button{padding:12px 20px}
 }
@@ -871,6 +871,14 @@ header .pfp,header .who{cursor:pointer}
       <div id="mlist"></div>
     </div>
   </div>
+  <div id="dmmodal" class="hide">
+    <div class="nbox sbox" role="dialog" aria-labelledby="dmmtitle">
+      <div class="shead"><h2 id="dmmtitle">Kotak memori</h2><button id="dmmx" type="button" aria-label="Tutup"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+      <p class="mhelp" id="dmhelp">Hal-hal yang diingat karakter ini dari obrolan kalian. Disimpan di perangkat ini saja, bisa kamu hapus tapi tidak bisa diedit.</p>
+      <div id="dmlist"></div>
+      <div class="mact" id="dmdev"></div>
+    </div>
+  </div>
   <aside id="dpanel" aria-label="Detail karakter">
     <div class="shead dp-head"><h2>Detail karakter</h2><button id="rx" type="button" aria-label="Tutup"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     <div class="dp-scroll">
@@ -896,12 +904,7 @@ header .pfp,header .who{cursor:pointer}
         <h3>Perjalanan</h3>
         <ol class="rsteps" id="rsteps"></ol>
       </div>
-      <div class="rsec" id="dmem">
-        <h3>Kotak memori <span id="dmcount"></span></h3>
-        <p class="rdesc" id="dmhelp">Hal-hal yang diingat karakter ini dari obrolan kalian.</p>
-        <div id="dmlist"></div>
-        <div class="mact" id="dmdev"></div>
-      </div>
+      <div class="sgroup" id="dmem"><button class="srow" id="dmbtn" type="button" aria-haspopup="dialog"><span><b>Kotak memori <span id="dmcount"></span></b><i>Hal-hal yang diingat karakter ini dari obrolan kalian. Ketuk untuk melihat.</i></span><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button></div>
       <div class="sgroup"><button class="srow danger" id="rreset" type="button"><span><b>Reset hubungan</b><i>Mulai dari awal lagi, seperti baru kenal. Obrolan dan memori tidak dihapus.</i></span><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 3-6.2M4 4v4h4"/></svg></button></div>
     </div>
   </aside>
@@ -1648,7 +1651,7 @@ function closeChat(){
   const an=view.animate({clipPath:[circle(reach()),circle(0)]},{duration:DUR,easing:'cubic-bezier(.7,0,.2,1)',fill:'forwards'});
   an.onfinish=()=>{app.classList.remove('open'); an.cancel(); if(window.Shell) Shell.afterClose()};
 }
-document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ if(window.GX&&GX.esc()) return; if(!pm.classList.contains('hide')) closePicker(); else if(!peModal.classList.contains('hide')) closePe(); else if(window.Shell&&Shell.detailOpen()&&!Shell.docked()) closeRel(); else if(!memModal.classList.contains('hide')) closeMem(); else if(!sm.classList.contains('hide')) closeSettings(); else if(!vm.classList.contains('hide')) closeVoice(); else if(window.Shell&&Shell.esc()) return; else if(app.classList.contains('open')&&!isDesk()) closeChat(); } });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ if(window.GX&&GX.esc()) return; if(!pm.classList.contains('hide')) closePicker(); else if(!peModal.classList.contains('hide')) closePe(); else if(window.Shell&&Shell.detailOpen()&&!Shell.docked()) closeRel(); else if(!$('dmmodal').classList.contains('hide')) closeDm(); else if(!memModal.classList.contains('hide')) closeMem(); else if(!sm.classList.contains('hide')) closeSettings(); else if(!vm.classList.contains('hide')) closeVoice(); else if(window.Shell&&Shell.esc()) return; else if(app.classList.contains('open')&&!isDesk()) closeChat(); } });
 $('back').addEventListener('click',closeChat);
 const savePlaying=()=>{ if(current&&current.save) current.save(); };
 window.addEventListener('pagehide',savePlaying);
@@ -1855,7 +1858,7 @@ function openSettings(){ paintDev(); paintMedia(); sauto.checked=autoNext; setSt
 function closeSettings(){ sm.classList.add('hide'); }
 $('setbtn').onclick=openSettings; $('sx').onclick=closeSettings;
 window.addEventListener('shell:tab',()=>{ if(!sm.classList.contains('hide')) closeSettings(); }); /* pindah tab lewat rail = keluar dari halaman Pengaturan */
-addEventListener('keydown',e=>{ if(e.key==='Escape'&&!sm.classList.contains('hide')&&!document.querySelector('#vmodal:not(.hide),#mmodal:not(.hide)')) closeSettings(); });
+addEventListener('keydown',e=>{ if(e.key==='Escape'&&!sm.classList.contains('hide')&&!document.querySelector('#vmodal:not(.hide),#mmodal:not(.hide),#dmmodal:not(.hide)')) closeSettings(); });
 sauto.onchange=()=>{ autoNext=sauto.checked; store.set('autonext',autoNext?'1':null); };
 
 /* Reset semua: tap dua kali (tombol berubah merah + teks konfirmasi). Hapus localStorage situs ini + semua audio di IndexedDB, lalu muat ulang. */
@@ -2318,8 +2321,8 @@ $('clr').onclick=()=>{
 
 /* ===== Memori: ringkasan obrolan lama per karakter, disimpan di perangkat (mem:<id>) =====
    Bubble di layar (log:) tidak disentuh. Yang dibuang hanya konteks AI (h:) bagian lama, diganti ringkasan. */
-const MEM_TRIGGER=16, MEM_KEEP=4, MEM_MAX_USE=1500, MEM_RETRY=60000;
-const memBusy={}, memEpoch={}, memTry={};
+const MEM_TRIGGER=16, MEM_KEEP=4, MEM_MAX_USE=2400, MEM_RETRY=60000;   /* MEM_MAX_USE harus <= batas cleanMemory di lib/app.js (sekarang 2400) */
+const memBusy={}, memEpoch={}, memTry={}, memFail={};
 const loadMem=id=>{try{const m=JSON.parse(store.get('mem:'+id)||'[]');return Array.isArray(m)?m.filter(e=>e&&typeof e.id==='string'&&typeof e.title==='string'&&typeof e.body==='string'):[]}catch{return []}};
 const saveMem=(id,m)=>{ const v=m.length?JSON.stringify(m):null; store.set('mem:'+id,v); const ok=store.get('mem:'+id)===v; if(window.Shell) Shell.refreshDetail(); return ok; }; /* store.set menelan error, jadi cek dengan baca ulang */
 const cleanMemEntry=e=>{ /* file impor itu data tak tepercaya */
@@ -2559,21 +2562,22 @@ function dropChunk(h,chunk){
 async function memorize(id,keep,manual){
   if(memBusy[id]) return {err:'Masih meringkas, tunggu sebentar'};
   const h=loadHist(id);
-  if(!manual&&(h.length<MEM_TRIGGER||Date.now()-(memTry[id]||0)<MEM_RETRY)) return {};
+  if(!manual&&(h.length<MEM_TRIGGER||Date.now()-(memTry[id]||0)<MEM_RETRY*2**Math.min(memFail[id]||0,4))) return {};
   const chunk=h.slice(0,h.length-keep); if(chunk.length<2) return {err:'Riwayat konteks belum cukup (minimal 2 pesan)'};
   memBusy[id]=true; memTry[id]=Date.now();
   const epoch=memEpoch[id]||0;
   try{
-    const r=await (await post('/api/memory',{clientId:cid,char:id,userName:uname,history:chunk.map(x=>[x[0]==='user'?'user':'char',String(x[1]).slice(0,600)])})).json();
+    const known=loadMem(id).slice(-3).map(e=>e.body.slice(0,120)); /* 3 ingatan terakhir (dipotong) agar ringkasan baru tidak mengulang */
+    const r=await (await post('/api/memory',{clientId:cid,char:id,userName:uname,known,history:chunk.map(x=>[x[0]==='user'?'user':'char',String(x[1]).slice(0,600)])})).json();
     if((memEpoch[id]||0)!==epoch) return {err:'Obrolan dihapus selagi diringkas, hasil dibuang'}; /* hasil dibuang */
     const title=String(r.title||'').slice(0,40), body=String(r.body||'').slice(0,500); if(!title||!body) return {err:'Respons kosong'};
     const mem=loadMem(id), e={id:'m'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),title,body,ts:Date.now(),n:chunk.length};
     mem.push(e);
     if(!saveMem(id,mem)){ toast('Penyimpanan penuh, memori tidak tersimpan'); return {err:'Penyimpanan penuh'}; } /* h: dibiarkan utuh */
-    saveHist(id,dropChunk(loadHist(id),chunk)); memTry[id]=0;
+    saveHist(id,dropChunk(loadHist(id),chunk)); memTry[id]=0; memFail[id]=0;
     memToast(id,e.id); if(!memModal.classList.contains('hide')) renderMem();
     return {ok:true};
-  }catch(e){ return {err:e.message||'Gagal meringkas'}; } /* otomatis: diam, h: utuh, dicoba lagi di balasan berikutnya (jeda MEM_RETRY) */
+  }catch(e){ if(!manual) memFail[id]=(memFail[id]||0)+1; return {err:e.message||'Gagal meringkas'}; } /* otomatis: diam, h: utuh, dicoba lagi di balasan berikutnya (jeda MEM_RETRY) */
   finally{ memBusy[id]=false; }
 }
 const maybeMemorize=id=>memorize(id,MEM_KEEP,false);
@@ -2646,10 +2650,14 @@ function renderMem(){
   mmHL='';
 }
 /* Kotak memori di panel detail karakter: lihat + hapus (tidak ada edit). Teks dari model -> textContent. */
+let dmFor='';
 function renderCharMem(id){
+  const mem=loadMem(id), c=charOf(id), nm=c?shortName(c):id;
+  $('dmcount').textContent=mem.length?('· '+mem.length):''; /* jumlah di tombol selalu mutakhir */
+  if($('dmmodal').classList.contains('hide')) return;   /* overlay tertutup: daftar tidak dibuat (hemat DOM), baru dirender saat dibuka */
+  if(dmFor!==id){ closeDm(); return; }                   /* ganti karakter selagi terbuka -> tutup */
   const box=$('dmlist'); box.textContent='';
-  const mem=loadMem(id), c=charOf(id), nm=c?shortName(c):id, used=memUse(id).used, yr=new Date().getFullYear();
-  $('dmcount').textContent=mem.length?('· '+mem.length):'';
+  const used=memUse(id).used, yr=new Date().getFullYear();
   $('dmdev').textContent='';
   if(!mem.length){ const p=document.createElement('p'); p.className='mempty'; p.textContent='Belum ada memori. '+nm+' akan menyimpannya sendiri setelah kalian ngobrol cukup lama.'; box.append(p); return; }
   for(const e of mem.slice().reverse()){ /* terbaru di atas */
@@ -2668,6 +2676,8 @@ function renderCharMem(id){
     b.onclick=async()=>{ b.disabled=true; b.textContent='Meringkas…'; const r=await memorize(id,0,true); if(r&&r.err){ b.disabled=false; b.textContent='Ringkas sekarang'; toast(r.err); } };
     $('dmdev').append(b); }
 }
+function openDm(){ if(!ch) return; dmFor=ch.id; $('dmmtitle').textContent='Kotak memori · '+shortName(ch); $('dmmodal').classList.remove('hide'); renderCharMem(ch.id); }
+function closeDm(){ $('dmmodal').classList.add('hide'); dmFor=''; }
 function openMem(id,memId){
   renderDev();
   mmFilter=''; mmHL=memId||'';
@@ -2816,6 +2826,7 @@ function renderDev(){
   }
 }
 $('membtn').onclick=()=>{ closeSettings(); openMem(); }; $('mmx').onclick=closeMem;
+$('dmbtn').onclick=openDm; $('dmmx').onclick=closeDm; $('dmmodal').addEventListener('click',e=>{ if(e.target===$('dmmodal')) closeDm(); });
 memModal.addEventListener('click',e=>{ if(e.target===memModal) closeMem(); });
 
 /* Beranda: grid semua karakter + pencarian. Daftar "Obrolan Terakhir" digambar shell.js (Shell.renderRecent). */
