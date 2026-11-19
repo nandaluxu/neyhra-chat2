@@ -302,6 +302,26 @@ function openSupport(c) {
   }).catch(e => { if (!ov.isConnected) return; st.gems = 0; st.err = (e && e.message) || 'Gagal memuat data dukungan.'; paint(); });
 }
 
+/* Karakter Lain: AI lain dari pembuat yang sama (yang boleh dilihat pemanggil, dari allChars). Maks 6, terbaru diperbarui dulu. Ketuk = buka detailnya. */
+function othersOf(c, by) {
+  if (!by.username) return [];
+  return chars().filter(x => x.id !== c.id && x.creator && x.creator.username === by.username)
+    .sort((a, b) => (Date.parse(b.updated) || 0) - (Date.parse(a.updated) || 0)).slice(0, 6);
+}
+function othersBox(c, by) {
+  const list = othersOf(c, by); if (!list.length) return null;
+  const box = h('div', 'cd-oth'), grid = h('div', 'cd-olist'); box.append(h('h4', null, 'Karakter Lain'), grid);
+  for (const r of list) {
+    const it = btn('cd-oitem'), im = typeof img === 'function' ? img(r) : new Image(); im.removeAttribute('class'); im.loading = 'lazy';
+    const gr = typeof r.greeting === 'string' ? r.greeting.trim() : '';
+    const tx = h('div'); tx.append(h('b', null, typeof dispName === 'function' ? dispName(r) : r.name), h('span', null, r.tagline || gr || 'AI buatan'));
+    it.append(im, tx);
+    it.onclick = () => { closeSupport(); cur = r; tab = 'detail'; resetSocial(r); render(r); root.scrollTop = 0; };
+    grid.append(it);
+  }
+  return box;
+}
+
 function section(title, ...kids) { const s = h('div', 'cd-sec'); s.append(h('h2', null, title), ...kids); return s; }
 const box = text => h('div', 'cd-box', text);
 
@@ -311,8 +331,10 @@ function panelDetail(c) {
   p.append(section('Sapaan', box(gr || 'Tidak ada deskripsi. ' + SOON)));
   const kat = h('div'); kat.append(h('span', 'cd-chip', c.tagline || (c.custom ? (c.mine ? 'AI buatanmu' : 'AI buatan pengguna') : 'Lainnya')));
   p.append(section('Kategori', kat));
-  const gd = h('div'); gd.append(h('span', 'cd-chip', c.gender === 'cowo' ? 'Cowo' : c.gender === 'cewe' ? 'Cewe' : 'Belum di set'));
-  p.append(section('Gender', gd));
+  if (c.gender === 'cowo' || c.gender === 'cewe') { // belum di set = bagian Gender tidak ditampilkan
+    const gd = h('div'); gd.append(h('span', 'cd-chip', c.gender === 'cowo' ? 'Cowo' : 'Cewe'));
+    p.append(section('Gender', gd));
+  }
   p.append(section('Atribut Persona', h('div', 'cd-attrs')));
   Promise.resolve().then(() => { if (ST.state === 'idle') loadStory(c); else drawAttrs(); }); // atribut ikut dimuat bersama cerita (endpoint charstory)
   return p;
@@ -408,6 +430,7 @@ function render(c) {
   const fl = followBtn(by);
   top.append(av, userLink(h('div', 'cd-bn', by.name), by), dk, fl);
   card.append(top, h('p', 'cd-bio', by.bio || 'Tidak ada deskripsi.'));
+  const oth = othersBox(c, by); if (oth) card.append(oth);
   const tabs = h('div', 'cd-tabs'); tabs.setAttribute('role', 'tablist');
   for (const [k, label] of [['detail', 'Detail'], ['story', 'Story'], ['komentar', 'Komentar(–)']]) {
     const t = btn('cd-tab', label); t.dataset.k = k; t.setAttribute('role', 'tab'); t.onclick = () => { tab = k; paintTab(cur); }; tabs.append(t);

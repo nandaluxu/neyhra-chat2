@@ -117,7 +117,7 @@ Ketuk karakter di Beranda sekarang membuka **halaman detail** dulu (`public/cdet
 - Field `gender` di tiap AI: hanya `'cowo'` atau `'cewe'`; kosong / selain itu = **"Belum di set"** (`normGender` di `lib/chars.js`).
 - Karakter bawaan: tambahkan satu baris `gender: 'cewe'` di `char/<id>.js` (contoh: `char/furina.js`). File tanpa field ini otomatis "Belum di set".
 - AI buatan user: dropdown **Gender** (Belum di set / Cowo / Cewe) di form Profil > AI Saya; disimpan di koleksi `user_chars` field `gender` lewat `aichar/save { gender }` (tanpa field = tidak diubah).
-- `/api/chars` mengirim `gender`; halaman detail (`public/cdetail.js`) menampilkan bagian **Gender** di tab Detail.
+- `/api/chars` mengirim `gender`; halaman detail (`public/cdetail.js`) menampilkan bagian **Gender** di tab Detail hanya kalau sudah di set (belum di set = bagian disembunyikan).
 - File: `char/furina.js`, `lib/chars.js`, `lib/userchars.js`, `lib/app.js`, `public/profile.js`, `public/cdetail.js`.
 
 ## Dukung kreator (update)
