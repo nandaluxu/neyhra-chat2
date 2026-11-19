@@ -33,6 +33,7 @@ const ai = { items: null, err: '', busy: false, seq: 0, max: 10 }; // tab AI Say
 let aiForm = null; // form buat/edit AI (modal)
 let voiceCat = null; // katalog suara bawaan dari /api/voices: [{ char, name, voices:[{key,label}] }]
 let frT = 0;
+let want = '';         // username dari URL (/profile/<username>) yang menunggu akun siap dimuat
 
 /* nama profil dipakai juga di Beranda (sapaan), chat dengan karakter, dan Chat Global */
 function shareName() { if (me && me.name && atok) { store.set('authname', me.name); if (typeof syncUname === 'function') syncUname(); } }
@@ -87,6 +88,7 @@ const stageName = lv => { const S = REL && REL.stages; return S && S.length ? S[
 
 /* ---------- Kerangka halaman ---------- */
 function render() {
+  window.dispatchEvent(new Event('pf:path')); // router.js: alamat /profile/<username> mengikuti profil yang tampil
   body.textContent = '';
   if (!ready && !aOn) { body.append(gate('Memuat…')); return; }
   if (!aOn) { body.append(gate('Profil belum tersedia', 'Fitur akun belum aktif di server ini, jadi profil belum bisa dipakai.')); return; }
@@ -699,6 +701,7 @@ async function load(force) {
   await fetchMe();
   if (viewing && view && view.username !== viewing) { try { const r = await aApi('profile', { username: viewing }); if (r && r.ok) view = r.profile; } catch {} }
   lastAt = Date.now(); busy = false; render();
+  consumeWant();
 }
 async function openUser(username) {
   if (!username) return;
@@ -899,5 +902,25 @@ new MutationObserver(() => { if (active() && $('smodal').classList.contains('hid
 
 ready = aOn || !!window.__acctSeen; // __acctSeen: paintAcct sudah jalan sebelum file ini dimuat (event 'acct' terlewat)
 if (ready && atok && aOn) load(true); else render();
-window.PF = { open: u => { Shell.setTab('profile', { auto: false }); setTimeout(() => openUser(u), 0); } }; // dipakai tab Peringkat untuk membuka profil pemain
+/* Alamat profil: /profile/<username>. Profil sendiri juga punya alamat (/profile/<usernameku>); /profile polos otomatis dirapikan router. */
+const UN_RE = /^[a-z0-9_.-]{3,20}$/;
+function consumeWant() { // buka profil yang diminta URL begitu akun siap (belum login: tunggu, alamat tetap)
+  if (!want || !aOn || !atok || busy) return;
+  const u = want; want = '';
+  if (me && u === me.username) { if (viewing) backToMe(); else render(); } else openUser(u);
+}
+function pathNow() {
+  if (viewing) return '/profile/' + viewing;
+  if (want) return '/profile/' + want;
+  return me && me.username && atok && view === me ? '/profile/' + me.username : '/profile';
+}
+function openByPath(u) { // dipakai router.js (URL awal / tombol back-forward)
+  u = String(u || '').toLowerCase();
+  if (!u) { want = ''; if (viewing) backToMe(); return; }
+  if (!UN_RE.test(u)) return;
+  want = u;
+  if (me && u === me.username) { want = ''; if (viewing) backToMe(); return; }
+  if (!viewing || viewing !== u) { if (ready && aOn && atok && !busy) consumeWant(); else render(); }
+}
+window.PF = { open: u => { Shell.setTab('profile', { auto: false }); setTimeout(() => openUser(u), 0); }, path: pathNow, openByPath }; // PF.open dipakai tab Peringkat untuk membuka profil pemain
 })();
