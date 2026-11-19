@@ -89,3 +89,7 @@
 #cdetail .cd-cmx{margin-top:3px;font-size:14px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
 #cdetail .cd-cmore{align-self:center;height:34px;padding:0 18px;border-radius:999px;background:var(--surface);font-size:13px;font-weight:600;color:var(--mut)}
 #cdetail .cd-cmore:disabled{opacity:.6;cursor:default}
+
+/* Tab Story */
+.cd-story-text p{margin:0 0 12px;line-height:1.65;white-space:pre-wrap;overflow-wrap:anywhere}
+.cd-story-text p:last-child{margin-bottom:0}

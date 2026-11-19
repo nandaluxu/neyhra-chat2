@@ -35,7 +35,7 @@ Koleksi MongoDB `user_chars` `{_id:"u_<16hex>", ownerId, name, tagline, identity
 ## Halaman detail karakter (update)
 Ketuk karakter di Beranda sekarang membuka **halaman detail** dulu (`public/cdetail.js` + `cdetail.css`, dipasang di `index.html`); chat baru dibuka lewat tombol **Obrolan**.
 - Nyata: nama, label, foto, **"Dibuat oleh"** (AI buatan = nama pemiliknya dari `/api/chars` field `creator`; bawaan = "Neyhra"), "Diperbarui" (`updated`), Robot Terkait (label sama).
-- Placeholder ("Tidak ada deskripsi. Fitur ini belum selesai."): Sapaan, Atribut Persona, Story, Komentar, likes, Dukung/Follow, bagikan.
+- Placeholder ("Tidak ada deskripsi. Fitur ini belum selesai."): Sapaan, Atribut Persona, Dukung, bagikan. (Story, Komentar, likes sudah nyata, lihat bagian di bawah.)
 - Tutup: tombol Kembali, Escape, atau pindah tab. Belum punya URL sendiri / tombol back browser.
 - File tambahan: `public/cdetail.js`, `public/cdetail.css`, `lib/app.js` (creator, updated), `lib/chars.js` (updatedAt).
 
@@ -76,3 +76,17 @@ Ketuk karakter di Beranda sekarang membuka **halaman detail** dulu (`public/cdet
 - Endpoint baru `POST /api/auth/charstats` (lib/charsocial.js): `{ ok, stats: { <charId>: [likes, komentar] } }` sekali untuk semua kartu; hanya karakter yang boleh dilihat pemanggil; cache 15 dtk per instance. Like/komentar di halaman detail memperbarui kartu langsung lewat event `charstats`.
 - Foto pembuat: `creator.avatar` dari `/api/chars` (bawaan = akun default nandasikma; tanpa pembuat = ikon Neyhra).
 - File: `public/index.html` (`card()`, `loadTileStats`), `public/shell.css`, `public/cdetail.js`, `lib/charsocial.js`.
+
+## Cerita (Story) + tombol ✨ AI (update)
+- Form AI (Profil > AI Saya) punya kolom **Cerita (opsional)**, maks 2000 huruf. Isinya tampil di tab **Story** halaman detail karakter (AI buatan, publik atau milik sendiri). Karakter bawaan: "Karakter ini belum punya cerita."
+- **Tombol ✨ "Kembangkan dengan AI"** di bawah kolom Cerita: user wajib menulis dulu minimal 10 huruf (ide singkat) di kolom itu; AI lalu mengembangkannya jadi 2-4 paragraf (target 600-1500 huruf) dan hasilnya menggantikan isi kolom. Ada tombol "Kembalikan tulisanku" untuk membatalkan. Hasil baru tersimpan saat tombol Simpan ditekan, jadi bisa diedit dulu.
+- **AI yang dipakai = AI yang dipakai karakter itu untuk chat**: mesin ChatGPT (`chatgpt()`, sesi anon dipakai ulang per user) dengan prompt karakter yang sama (`buildCustomPrompt`: identitas, kepribadian, gaya bicara, aturan) + blok "TUGAS KHUSUS" yang memuat ide user di antara penanda `###`. Form bisa belum disimpan: data karakter dibaca dari body request, dibersihkan dengan `cleanFields`.
+- Prompt menekankan: pertahankan semua fakta/nama dari ide user, orang ketiga, bahasa Indonesia, tanpa dialog ke user / judul / markdown / tag format chat, aman semua umur. Hasil dibersihkan (`cleanStory`: buang code fence, tag, markdown, kutip pembungkus), kalau terlalu pendek (<120) diminta ulang sekali, kalau terlalu panjang dipotong di akhir kalimat (`fitStory`).
+- Cerita **tidak masuk ke prompt chat** (hanya tampilan). Kalau mau jadi "canon" untuk obrolan, tambahkan satu baris `Cerita: ...` di `buildCustomPrompt` (`lib/chars.js`).
+- **Endpoint** (`lib/userchars.js`):
+  - `POST /api/auth/aichar/story { seed, name, tagline, identity, personality, speech, rules }` -> `{ ok, story }` (login; 10x/jam per akun; seed 10-2000 huruf, nama wajib; tidak menulis ke database).
+  - `POST /api/auth/charstory { char }` -> `{ ok, story }` (login opsional; AI privat milik orang lain = 404; id bawaan = story kosong; 120x/menit per akun/IP). Dipanggil lazy saat tab Story dibuka, jadi `/api/chars` tidak membengkak.
+  - `aichar/save` menerima `story` (tanpa field = tidak diubah, string kosong = hapus); `aichar/list` mengembalikan `story`.
+- Penyimpanan: field `story` di koleksi `user_chars`.
+- Catatan: satu panggilan AI bisa sampai ~30 dtk (batas fungsi Vercel 60 dtk, maksimal 2 percobaan). Belum ada moderasi cerita untuk AI publik (sama seperti identitas/kepribadian).
+- File: `lib/userchars.js`, `public/profile.js`, `public/profile.css`, `public/cdetail.js`, `public/cdetail.css`.

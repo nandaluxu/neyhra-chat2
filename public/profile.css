@@ -112,6 +112,16 @@ button.pf-stat:active{transform:scale(.97)}
 .pf-inp{display:block;width:100%;margin-top:6px;border:0;outline:0;background:var(--surface);color:var(--ink);border-radius:14px;padding:12px 14px;font:inherit;font-size:16px;resize:none}
 .pf-inp:focus{box-shadow:0 0 0 2px var(--ink)}
 .pf-cnt{margin-top:4px;text-align:right;font-size:11.5px;color:var(--mut)}
+.pf-storyrow{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}
+.pf-storyrow .pf-cnt{margin:0 0 0 auto}
+.pf-storyrow .hide{display:none}
+.pf-gen{display:inline-flex;align-items:center;gap:6px;background:var(--ink);color:var(--bg)}
+.pf-gen svg{width:16px;height:16px;fill:currentColor;stroke:none}
+.pf-gen:disabled{opacity:.6}
+.pf-gen.busy svg{animation:pfspark 1s ease-in-out infinite}
+@keyframes pfspark{50%{transform:scale(1.25) rotate(20deg);opacity:.6}}
+@media(prefers-reduced-motion:reduce){.pf-gen.busy svg{animation:none}}
+.pf-hint{margin-top:6px;font-size:11.5px;line-height:1.4;color:var(--mut)}
 .pf-msg{min-height:18px;margin-top:8px;font-size:13px;line-height:1.4;color:var(--mut)}
 .pf-msg.err{color:var(--rec)}
 .pf-mact{display:flex;gap:8px;margin-top:12px;justify-content:flex-end}

@@ -16,6 +16,7 @@ const btn = (cls, text, act) => { const b = h('button', cls, text); b.type = 'bu
 const ICON = {
   back: '<svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg>',
   close: '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  spark: '<svg viewBox="0 0 24 24"><path d="M12 3l2 5.5L19.5 10 14 12l-2 5.5L10 12 4.5 10 10 8.5zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/></svg>',
   trash: '<svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13a1 1 0 001 1h8a1 1 0 001-1l1-13M9 7V5a2 2 0 012-2h2a2 2 0 012 2v2"/></svg>'
 };
 const iconBtn = (cls, svg, label) => { const b = h('button', cls); b.type = 'button'; b.setAttribute('aria-label', label); b.innerHTML = svg; return b; }; // svg = konstanta statis di atas
@@ -439,7 +440,8 @@ function askDeletePersona(id) {
 /* ---------- Tab AI Saya (karakter AI buatan sendiri — lib/userchars.js) ----------
    AI buatan user tampil di Beranda seperti karakter bawaan. Default PRIVAT (hanya pemiliknya); kalau diset Publik, muncul di Beranda semua orang
    dengan nama pembuatnya di halaman detail. Tanpa suara (voice) kecuali dipilih. */
-const AI_LIM = { name: 40, tagline: 40, identity: 600, personality: 600, speech: 300, rules: 400 };
+const AI_LIM = { name: 40, tagline: 40, identity: 600, personality: 600, speech: 300, rules: 400, story: 2000 };
+const STORY_SEED_MIN = 10; // tulisan minimal sebelum AI boleh mengembangkan cerita (sama dengan server)
 async function loadAIs(force) {
   if (!atok || ai.busy || (!force && ai.items)) return false;
   ai.busy = true; ai.err = '';
@@ -581,6 +583,45 @@ function aiField(label, id, key, rows, ph, c) { // textarea berlabel + penghitun
   t.addEventListener('input', () => { cnt.textContent = t.value.length + '/' + AI_LIM[key]; });
   l.append(t); return [l, cnt];
 }
+/* Kolom Cerita: user menulis sedikit ide, tombol ✨ meminta AI-nya sendiri mengembangkannya (POST aichar/story; mesin & prompt karakter sama dengan chat).
+   Hasil menggantikan isi kolom (bisa dikembalikan lewat "Kembalikan tulisanku") dan baru tersimpan saat form disimpan. */
+function aiStoryBox(c) {
+  const wrap = h('div'), l = h('label', 'pf-lab', 'Cerita (opsional)'), t = h('textarea', 'pf-inp');
+  t.id = 'aistory'; t.maxLength = AI_LIM.story; t.rows = 6; t.value = c ? (c.story || '') : '';
+  t.placeholder = 'Tulis sedikit ide ceritanya, mis. "Luna penyihir yatim yang tinggal di menara bulan dan menunggu seseorang yang dijanjikan kembali". Lalu ketuk ✨ supaya AI mengembangkannya. Tampil di tab Story halaman detail.';
+  l.append(t);
+  const row = h('div', 'pf-storyrow'), gen = btn('pf-lnk pf-gen', null, 'aistorygen'); gen.id = 'aigen';
+  gen.setAttribute('aria-label', 'Kembangkan cerita dengan AI'); gen.innerHTML = ICON.spark + '<span>Kembangkan dengan AI</span>';
+  const undo = btn('pf-lnk hide', 'Kembalikan tulisanku', 'aistoryundo'); undo.id = 'aiundo';
+  const cnt = h('div', 'pf-cnt', t.value.length + '/' + AI_LIM.story);
+  t.addEventListener('input', () => { cnt.textContent = t.value.length + '/' + AI_LIM.story; });
+  row.append(gen, undo, cnt);
+  wrap.append(l, row, h('div', 'pf-hint', 'Tulis dulu minimal ' + STORY_SEED_MIN + ' huruf sebagai ide; AI hanya mengembangkan, bukan membuat dari kosong. Hasilnya bisa kamu edit sebelum disimpan.'));
+  return wrap;
+}
+async function genStory() {
+  if (!aiForm || aiForm.genBusy) return;
+  const t = $('aistory'), g = $('aigen'), msg = $('aimsg'), v = id => $(id).value.trim();
+  const seed = t.value.trim();
+  msg.className = 'pf-msg err';
+  if (!v('ainame')) { msg.textContent = 'Isi nama AI dulu.'; $('ainame').focus(); return; }
+  if (seed.length < STORY_SEED_MIN) { msg.textContent = 'Tulis dulu sedikit ide ceritanya (minimal ' + STORY_SEED_MIN + ' huruf), lalu ketuk ✨.'; t.focus(); return; }
+  aiForm.genBusy = true; g.disabled = true; g.classList.add('busy'); g.querySelector('span').textContent = 'AI sedang menulis…';
+  msg.className = 'pf-msg'; msg.textContent = 'Ini bisa memakan waktu sampai setengah menit.';
+  try {
+    const r = await aApi('aichar/story', { seed, name: v('ainame'), tagline: v('aitag'), identity: v('aiident'), personality: v('aipers'), speech: v('aispeech'), rules: v('airules') });
+    if (!r || !r.ok || !r.story) throw new Error((r && r.error) || 'AI belum berhasil membuat cerita.');
+    if (!$('aistory')) return; // form sudah ditutup
+    aiForm.storyBefore = seed; t.value = r.story.slice(0, AI_LIM.story); t.dispatchEvent(new Event('input'));
+    $('aiundo').classList.remove('hide'); msg.textContent = 'Cerita dibuat. Edit kalau perlu, lalu Simpan.';
+  } catch (e) { if ($('aimsg')) { msg.className = 'pf-msg err'; msg.textContent = (e && e.message) || 'Gagal membuat cerita, coba lagi.'; } }
+  if (aiForm) aiForm.genBusy = false;
+  const g2 = $('aigen'); if (g2) { g2.disabled = false; g2.classList.remove('busy'); g2.querySelector('span').textContent = 'Kembangkan dengan AI'; }
+}
+function undoStory() {
+  const t = $('aistory'); if (!t || !aiForm || aiForm.storyBefore == null) return;
+  t.value = aiForm.storyBefore; t.dispatchEvent(new Event('input')); aiForm.storyBefore = null; $('aiundo').classList.add('hide');
+}
 function openAIForm(c) {
   if (!aOn || !atok) return;
   aiForm = { id: c ? c.id : '', curAv: c ? (c.avatar || '') : '', av: undefined, preview: c ? (c.avatar ? 'cur' : '') : '' };
@@ -600,6 +641,7 @@ function openAIForm(c) {
     ...aiField('Kepribadian', 'aipers', 'personality', 4, 'Sifat dan sikapnya, mis. ceria, usil, tapi diam-diam perhatian', c),
     ...aiField('Gaya bicara (opsional)', 'aispeech', 'speech', 3, 'Cara bicaranya, mis. santai, singkat, sering bercanda', c),
     ...aiField('Aturan tambahan (opsional)', 'airules', 'rules', 3, 'Hal yang harus/tidak boleh dilakukan AI ini', c),
+    aiStoryBox(c),
     aiVoiceBox(c), aiPublicBox(c), ...(aiDevOn() ? [aiDevBox(c)] : []),
     msg, act);
   openModal(box); paintAIPic(); fillVoiceSel(); if (aiDevOn() && c) loadDevVoices(c.id);
@@ -616,7 +658,7 @@ function openAIForm(c) {
 async function saveAI() {
   if (!aiForm) return;
   const msg = $('aimsg'), save = $('aisave'), v = id => $(id).value.trim();
-  const payload = { name: v('ainame'), tagline: v('aitag'), identity: v('aiident'), personality: v('aipers'), speech: v('aispeech'), rules: v('airules'), public: !!($('aipub') && $('aipub').checked) };
+  const payload = { name: v('ainame'), tagline: v('aitag'), identity: v('aiident'), personality: v('aipers'), speech: v('aispeech'), rules: v('airules'), story: $('aistory') ? $('aistory').value.trim() : '', public: !!($('aipub') && $('aipub').checked) };
   msg.className = 'pf-msg err';
   if (!payload.name) { msg.textContent = 'Nama AI tidak boleh kosong.'; $('ainame').focus(); return; }
   if (!payload.identity && !payload.personality) { msg.textContent = 'Isi minimal identitas atau kepribadian.'; $('aipers').focus(); return; }
@@ -881,6 +923,8 @@ document.addEventListener('click', e => {
   else if (a === 'aipick') $('aifile').click();
   else if (a === 'airmpic') { if (aiForm) { aiForm.av = null; aiForm.preview = ''; paintAIPic(); } }
   else if (a === 'aisave') saveAI();
+  else if (a === 'aistorygen') genStory();
+  else if (a === 'aistoryundo') undoStory();
   else if (a === 'aidevsave') saveDevVoices();
   else if (a === 'aicancel') closeModal();
   else if (a === 'pscancel') closeModal();

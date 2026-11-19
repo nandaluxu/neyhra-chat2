@@ -1,6 +1,6 @@
 /* Halaman detail karakter: dibuka dari kartu karakter di Beranda (bukan langsung masuk chat). Tombol "Obrolan" baru membuka chat.
-   Baru TIRUAN TAMPILAN: sapaan, story, jumlah obrolan, kategori lengkap, atribut persona, Dukung/Follow, bagikan masih placeholder
-   ("fitur belum selesai"). Yang sudah nyata: like, komentar (public/cdetail.js <-> lib/charsocial.js), tombol Follow pembuat, nama, label (tagline), foto, pembuat (AI buatan user -> pemiliknya, bisa orang lain kalau AI-nya Publik; bawaan -> akun default nandasikma; nama/foto pembuat bisa dipencet -> profilnya),
+   Baru TIRUAN TAMPILAN: sapaan, jumlah obrolan, kategori lengkap, atribut persona, Dukung/Follow, bagikan masih placeholder
+   ("fitur belum selesai"). Yang sudah nyata: tab Story (cerita AI buatan user: ditulis / dikembangkan AI di Profil > AI Saya, lib/userchars.js charstory), like, komentar (public/cdetail.js <-> lib/charsocial.js), tombol Follow pembuat, nama, label (tagline), foto, pembuat (AI buatan user -> pemiliknya, bisa orang lain kalau AI-nya Publik; bawaan -> akun default nandasikma; nama/foto pembuat bisa dipencet -> profilnya),
    tanggal diperbarui, dan "Robot Terkait" (karakter lain dengan label sama).
    Memakai global index.html: allChars, openChat, img, ph, dispName, toast, store. Semua teks dari data lewat textContent.
    Dibuka lewat window.CD.open(char); ditutup oleh tombol kembali, Escape, atau pindah tab (event 'shell:tab'). */
@@ -53,6 +53,7 @@ function userLink(el, by) {
 const S = { id: '', likes: null, liked: false, comments: null }; // null = belum termuat
 const C = { id: '', items: [], next: 0, more: false, loading: false, err: '', loaded: false }; // daftar komentar tab Komentar
 let likeBusy = false;
+const ST = { id: '', state: 'idle', text: '' }; // tab Story: idle | loading | ok | err
 const loggedIn = () => typeof atok === 'string' && !!atok;
 const api = (p, b) => (typeof aApi === 'function' ? aApi(p, b) : Promise.reject(new Error('Fitur tidak tersedia.')));
 const nfmt = n => (Number.isFinite(n) ? new Intl.NumberFormat('id-ID').format(n) : '–');
@@ -60,6 +61,7 @@ const needLogin = msg => { if (typeof toast === 'function') toast(msg); if (type
 const say = m => { if (typeof toast === 'function') toast(m); };
 function resetSocial(c) {
   S.id = c.id; S.likes = null; S.liked = false; S.comments = null; likeBusy = false;
+  ST.id = c.id; ST.state = 'idle'; ST.text = '';
   C.id = c.id; C.items = []; C.next = 0; C.more = false; C.loading = false; C.err = ''; C.loaded = false;
 }
 function ago(ms) {
@@ -212,12 +214,39 @@ function panelDetail(c) {
   p.append(section('Atribut Persona', at));
   return p;
 }
-function panelSoon(label) { return section(label, box(SOON)); }
+/* Story: cerita AI buatan user (tanpa login boleh dibaca selama AI-nya publik). Karakter bawaan belum punya cerita. Teks selalu lewat textContent. */
+async function loadStory(c) {
+  if (ST.state === 'loading') return;
+  if (!c.custom) { ST.state = 'ok'; ST.text = ''; drawStory(); return; }
+  const id = c.id; ST.state = 'loading'; drawStory();
+  try {
+    const r = await api('charstory', { char: id });
+    if (!r || !r.ok) throw new Error((r && r.error) || 'Gagal memuat cerita.');
+    if (ST.id !== id) return;
+    ST.text = String(r.story || ''); ST.state = 'ok';
+  } catch (e) { if (ST.id === id) { ST.state = 'err'; ST.text = (e && e.message) || 'Gagal memuat cerita.'; } }
+  if (ST.id === id) drawStory();
+}
+function drawStory() {
+  const body = root.querySelector('.cd-story'); if (!body) return;
+  body.textContent = '';
+  if (ST.state === 'loading' || ST.state === 'idle') { body.append(box('Memuat…')); return; }
+  if (ST.state === 'err') { const b = box(ST.text), r = btn('cd-csend', 'Coba lagi'); r.onclick = () => { ST.state = 'idle'; loadStory(cur); }; b.append(document.createElement('br'), r); body.append(b); return; }
+  if (!ST.text.trim()) { body.append(box(cur && cur.mine ? 'Kamu belum menulis cerita untuk AI ini. Isi lewat Profil > AI Saya > Edit, lalu ketuk ✨ supaya AI mengembangkannya.' : cur && cur.custom ? 'Pembuat belum menulis cerita untuk AI ini.' : 'Karakter ini belum punya cerita.')); return; }
+  const card = h('div', 'cd-box cd-story-text');
+  for (const para of ST.text.split(/\n{2,}/)) if (para.trim()) card.append(h('p', null, para.trim()));
+  body.append(card);
+}
+function panelStory(c) {
+  const sec = section('Story', h('div', 'cd-story'));
+  Promise.resolve().then(() => { if (ST.state === 'idle') loadStory(c); else drawStory(); }); // setelah panel terpasang di DOM
+  return sec;
+}
 
 function paintTab(c) {
   const holder = root.querySelector('.cd-pane'); if (!holder) return;
   holder.textContent = '';
-  holder.append(tab === 'story' ? panelSoon('Story') : tab === 'komentar' ? panelComments(c) : panelDetail(c));
+  holder.append(tab === 'story' ? panelStory(c) : tab === 'komentar' ? panelComments(c) : panelDetail(c));
   root.querySelectorAll('.cd-tab').forEach(t => t.setAttribute('aria-selected', String(t.dataset.k === tab)));
 }
 
