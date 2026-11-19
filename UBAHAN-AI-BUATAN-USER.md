@@ -97,3 +97,18 @@ Ketuk karakter di Beranda sekarang membuka **halaman detail** dulu (`public/cdet
 - **Hover kartu Beranda**: judul "Sapaan" dihapus, yang tampil hanya isinya (diketik bertahap). Sapaan kosong = placeholder lama "Tidak ada deskripsi. Fitur ini belum selesai." tetap tampil. Bagian "Sapaan" di halaman detail ikut menampilkan isi yang sama.
 - `/api/chars` mengirim `greeting` untuk AI buatan yang boleh dilihat pemanggil (sapaan memang tampil ke semua pemakai; identitas/kepribadian tetap rahasia).
 - File: `lib/userchars.js`, `lib/chars.js`, `lib/app.js`, `public/profile.js`, `public/index.html` (`card()`, `restoreChat()`), `public/shell.css`, `public/cdetail.js`.
+
+## Detail karakter: layout mobile baru + perbaikan hapus obrolan (update)
+**Layout mobile (< 800px, `public/cdetail.css` + `cdetail.js`)** — desktop tidak berubah.
+- Foto penuh layar (gradasi ke latar), judul/pembuat/label menyatu di bawah foto, urutan: foto > judul > like & komentar > kartu pembuat > tab > isi > Robot Terkait. Sebelumnya judul terdorong ke bawah "Robot Terkait".
+- Tombol **Obrolan** menempel di bawah layar (sticky, selalu terjangkau); tombol kembali melayang di atas foto dan jadi solid setelah foto terlewat.
+- Kartu pembuat: baris 1 foto + nama, baris 2 tombol Dukung/Follow selebar rata (tidak lagi sempit saat nama panjang). Bio dipotong 3 baris. Tab berbentuk pill. Robot Terkait jadi carousel horizontal (kartu foto), disembunyikan kalau kosong. Mode terang & gelap dicek di 360 dan 390 px.
+
+**Bug: obrolan yang dihapus muncul lagi setelah refresh (`public/index.html`)**
+- Penyebab: sinkron akun itu *gabung* (union), tidak menimpa. `wipeChat` hanya menghapus di perangkat, sedangkan salinan di akun tetap ada, jadi sinkron berikutnya (buka aplikasi / refresh / tab aktif lagi) menarik pesan lamanya kembali (termasuk konteks AI `h:`).
+- Perbaikan: **tombstone hapus obrolan** `wipe:<id>` (= waktu hapus, ms) disimpan lokal saat hapus (`wipeChat`, dipakai tombol hapus di chat dan di daftar), ikut dikirim ke akun sebagai field `wipes` `{id: ts}` (server menyimpan JSON apa adanya, tidak perlu diubah), dan sinkron langsung dijalankan ±0,4 dtk setelah hapus.
+- Saat sinkron (`applyImport(data, {wipes:true})`): pesan/memori akun dengan waktu <= tombstone dibuang, konteks AI lama tidak dipulihkan, dan tombstone dari perangkat lain diterapkan di perangkat ini (`applyWipe`). Pesan BARU sesudah hapus (waktu lebih besar) tetap tersimpan. Tanda perubahan sinkron (`cloudsig`) ikut memuat `wipes`.
+- **Impor file cadangan** (tombol Impor di Pengaturan) tetap memulihkan pesan: tidak memakai tombstone, dan tombstone lama untuk karakter yang dipulihkan dihapus.
+- Hubungan (`rel:`) memang tidak ikut terhapus oleh "Hapus obrolan" (perilaku lama, tidak diubah). Hapus grup (`GX.clear`) tidak tercakup (grup tidak ikut sinkron akun).
+- Teruji end-to-end (Playwright + server tiruan): hapus -> akun bersih & `wipes` terkirim; refresh -> tetap kosong; pesan baru bertahan; akun berisi pesan lama + tombstone hanya di perangkat -> tidak kembali; perangkat lain ikut terhapus; impor file tetap memulihkan.
+- File: `public/index.html`, `public/cdetail.js`, `public/cdetail.css`.

@@ -254,7 +254,7 @@ function paintTab(c) {
 function render(c) {
   root.textContent = '';
   const wrap = h('div', 'cd-wrap');
-  const back = btn('cd-back', null, 'Kembali ke daftar karakter'); back.append(svg(I.back), document.createTextNode('Kembali')); back.onclick = close;
+  const back = btn('cd-back', null, 'Kembali ke daftar karakter'); back.append(svg(I.back), h('span', 'cd-backt', 'Kembali')); back.onclick = close;
   const grid = h('div', 'cd-grid');
 
   /* kolom kiri: foto, likes, tombol, robot terkait */
@@ -272,13 +272,14 @@ function render(c) {
   const go = btn('cd-chat', 'Obrolan'); go.onclick = () => { const c0 = cur; close(true); if (c0 && typeof openChat === 'function') openChat(c0, im); };
   const share = btn('cd-share', null, 'Bagikan'); share.append(svg(I.share)); share.onclick = soon;
   act.append(go, share);
-  const rel = h('div', 'cd-rel'); rel.append(h('h3', null, 'Robot Terkait'));
+  const rel = h('div', 'cd-rel'), rlist = h('div', 'cd-rlist'); rel.append(h('h3', null, 'Robot Terkait'), rlist);
   for (const r of related(c)) {
     const it = btn('cd-ritem'); const ri = typeof img === 'function' ? img(r) : new Image(); ri.removeAttribute('class'); ri.loading = 'lazy';
     const tx = h('div'); tx.append(h('b', null, r.name), h('span', null, r.tagline || 'AI buatan'));
     it.append(ri, tx); it.onclick = () => { cur = r; tab = 'detail'; resetSocial(r); render(r); root.scrollTop = 0; };
-    rel.append(it);
+    rlist.append(it);
   }
+  if (!rlist.children.length) rel.hidden = true; // tidak ada karakter lain: sembunyikan judulnya juga
   left.append(cover, stat, act, rel);
 
   /* kolom kanan: judul, pembuat, tab */
@@ -296,7 +297,8 @@ function render(c) {
   for (const [k, label] of [['detail', 'Detail'], ['story', 'Story'], ['komentar', 'Komentar(–)']]) {
     const t = btn('cd-tab', label); t.dataset.k = k; t.setAttribute('role', 'tab'); t.onclick = () => { tab = k; paintTab(cur); }; tabs.append(t);
   }
-  right.append(h('h1', 'cd-title', typeof dispName === 'function' ? dispName(c) : c.name), meta, h('p', 'cd-sub', c.tagline || ''), card, tabs, h('div', 'cd-pane'));
+  const head = h('div', 'cd-head'); head.append(h('h1', 'cd-title', typeof dispName === 'function' ? dispName(c) : c.name), meta, h('p', 'cd-sub', c.tagline || ''));
+  right.append(head, card, tabs, h('div', 'cd-pane'));
 
   grid.append(left, right); wrap.append(back, grid); root.append(wrap);
   paintTab(c); paintSocial(); loadSocial(c);
@@ -305,7 +307,7 @@ function render(c) {
 function open(c) {
   if (!c) return;
   cur = c; tab = 'detail'; resetSocial(c); render(c);
-  app.classList.add('cd-on'); root.scrollTop = 0;
+  app.classList.add('cd-on'); root.scrollTop = 0; root.classList.remove('cd-sc');
   const b = root.querySelector('.cd-back'); if (b) b.focus({ preventScroll: true });
 }
 function close(silent) {
@@ -313,6 +315,8 @@ function close(silent) {
   app.classList.remove('cd-on'); cur = null;
   if (silent !== true) { const t = document.getElementById('alllist'); if (t) t.scrollIntoView({ block: 'nearest' }); }
 }
+/* mobile: tombol kembali melayang di atas foto (gelap transparan); setelah foto lewat, jadi solid supaya tetap terbaca di atas isi halaman */
+root.addEventListener('scroll', () => { const cv = root.querySelector('.cd-cover'); root.classList.toggle('cd-sc', !!cv && root.scrollTop > cv.offsetHeight - 80); }, { passive: true });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && app.classList.contains('cd-on') && !document.querySelector('.modal:not(.hide)')) close(); });
 window.addEventListener('shell:tab', () => close(true)); // pindah tab (Obrolan, Profil, dst.) menutup detail
 window.CD = { open, close, get current() { return cur; } };

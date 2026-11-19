@@ -1913,8 +1913,15 @@ function cleanEntry(e){ /* file impor itu data tak tepercaya: pastikan bentuknya
   return o;
 }
 /* Gabungkan data cadangan ke perangkat ini (tidak menimpa yang sudah ada). Dipakai impor file JSON dan sinkron akun. */
-async function applyImport(data){
+async function applyImport(data,opts){
     let added=0, chN=0, aud=0, memAdded=0, relUp=0;
+    const rw=!!(opts&&opts.wipes); /* hanya sinkron akun yang menghormati tombstone hapus; impor file cadangan itu permintaan eksplisit (memulihkan) */
+    if(rw&&data.wipes&&typeof data.wipes==='object'){ /* tombstone dari akun/perangkat lain: terapkan juga di sini */
+      for(const [id,t] of Object.entries(data.wipes)){
+        if(!/^[\w-]{1,64}$/.test(id)||!isNum(t)||t<=0||t>Date.now()+864e5) continue;
+        if(t>wipeTs(id)){ store.set('wipe:'+id,String(Math.floor(t))); applyWipe(id,t); }
+      }
+    }
     { const n=Math.floor(Number(data.sent)); if(Number.isFinite(n)&&n>sentSaved()&&n<1e9) store.set('sent',String(n)); } /* total terkirim: ambil yang lebih besar */
     for(const c of data.chars){
       if(!c||typeof c.id!=='string'||!/^[\w-]{1,64}$/.test(c.id)||!Array.isArray(c.log)) continue;
@@ -1923,9 +1930,10 @@ async function applyImport(data){
         const bins=Array.isArray(a.bins)?a.bins.filter(isNum).slice(0,512):null;
         if(await idb.put(k,{ab:unb64(a.data),dur:isNum(a.dur)?a.dur:null,bins:bins&&bins.length?bins:null})) aud++;
       }
+      const wt=rw?wipeTs(c.id):0; /* pesan akun yang waktunya <= waktu hapus tidak boleh kembali */
       const cur=loadLog(c.id), idx=new Map(cur.map(e=>[e.t+'|'+e.r,e])); let add=0;
       for(const raw of c.log){
-        const e=cleanEntry(raw); if(!e) continue;
+        const e=cleanEntry(raw); if(!e||e.t<=wt) continue;
         const key=e.t+'|'+e.r, ex=idx.get(key);
         if(!ex){ cur.push(e); idx.set(key,e); add++; }
         else if(e.r==='vn'){ const u=[...new Set([...keysOf(ex),...keysOf(e)])]; if(u.length>keysOf(ex).length){ ex.ks=u; delete ex.k; if(ex.si==null) ex.si=0; } if(!ex.vn&&e.vn) ex.vn=e.vn; }
@@ -1933,7 +1941,7 @@ async function applyImport(data){
       cur.sort((a,b)=>a.t-b.t);
       { const n=Math.floor(Number(c.n)); store.set(cntKey(c.id),String(Math.max(loadCnt(c.id),Number.isFinite(n)&&n>0&&n<1e9?n:0,cur.length))); } /* total per karakter: terbesar antara lokal, nilai cadangan (field n), dan hasil gabungan SEBELUM dipangkas 150 */
       trimLog(cur); store.set('log:'+c.id,JSON.stringify(cur));
-      if(!store.get('h:'+c.id)&&Array.isArray(c.hist)&&c.hist.length) saveHist(c.id,c.hist.filter(h=>Array.isArray(h)&&typeof h[1]==='string'));
+      if(!wt&&!store.get('h:'+c.id)&&Array.isArray(c.hist)&&c.hist.length) saveHist(c.id,c.hist.filter(h=>Array.isArray(h)&&typeof h[1]==='string'));
       if(c.rel&&typeof c.rel==='object'){ /* hubungan: GABUNG, ambil salinan yang paling maju (EXP terbesar). Kalau cuma diisi waktu kosong, level dari perangkat lain (mis. hasil hadiah) tidak pernah pindah -> tampak "tidak sinkron" */
         const rem=relSan(c.rel); let lok=null, ada=false;
         try{ ada=!!store.get(relKey(c.id)); lok=relSan(JSON.parse(store.get(relKey(c.id))||'null')); }catch{}
@@ -1941,9 +1949,10 @@ async function applyImport(data){
       }
       if(Array.isArray(c.mem)&&c.mem.length){ /* memori digabung berdasarkan id, tidak menimpa */
         const cm=loadMem(c.id), seen=new Set(cm.map(x=>x.id)); let a=0;
-        for(const raw of c.mem.slice(0,100)){ const e=cleanMemEntry(raw); if(e&&!seen.has(e.id)){ cm.push(e); seen.add(e.id); a++; } }
+        for(const raw of c.mem.slice(0,100)){ const e=cleanMemEntry(raw); if(e&&e.ts>wt&&!seen.has(e.id)){ cm.push(e); seen.add(e.id); a++; } }
         if(a){ cm.sort((x,y)=>x.ts-y.ts); if(saveMem(c.id,cm)) memAdded+=a; }
       }
+      if(!rw&&add) store.set('wipe:'+c.id,null); /* impor file yang memulihkan pesan = tombstone lama tidak berlaku lagi */
       added+=add; if(add) chN++;
     }
     let gi=null; if(window.GX&&Array.isArray(data.groups)&&data.groups.length) gi=await GX.importData(data.groups); /* grup dari cadangan */
@@ -2049,25 +2058,26 @@ async function syncCloud(auto,opts){ /* mengembalikan true kalau akun & perangka
   try{
     const me=await aApi('me'), cts=me.cloud?me.cloud.updatedAt:null;
     if(me.uid&&ownerOf()&&ownerOf()!==me.uid){ aBusy=false; if(!auto){ sacct.classList.remove('sbusy'); setA('Obrolan di perangkat ini milik akun lain, jadi tidak digabung. Keluar lalu masuk lagi untuk membersihkannya.',true); } return false; } /* jangan pernah kirim data akun lain ke akun ini */
-    const before=await collectChars(), localSig=sigOf(JSON.stringify(before.chars));
+    const before=await collectChars(), localSig=sigOf(JSON.stringify(before.chars)+JSON.stringify(collectWipes()));
     if(auto&&cts===store.get('cloudts')&&localSig===store.get('cloudsig')){ try{ await pushStats(); }catch{} aLast=Date.now(); aBusy=false; return true; } /* tidak ada yang berubah di mana pun (statistik profil punya tanda perubahan sendiri) */
     const pulled=await aApi('pull'); let added=0, memAdded=0, relUp=0;
     if(pulled.data){ /* 1) gabungkan data akun ke perangkat ini (tidak menimpa; hubungan diambil yang paling maju) */
       const d=JSON.parse(pulled.data);
       if(d&&d.app==='neyhra-chat'&&Array.isArray(d.chars)){
-        ({added,memAdded,relUp}=await applyImport(d));
+        ({added,memAdded,relUp}=await applyImport(d,{wipes:true}));
       }
     }
     const {chars,nMsg}=await collectChars(); /* 2) simpan gabungan terbaru (kalau memang beda dengan isi akun) */
     let size=me.cloud?me.cloud.size:0, ts=cts;
     const pulledChars=pulled.data?JSON.stringify(JSON.parse(pulled.data).chars):null;
     const pulledSent=pulled.data?Math.floor(Number(JSON.parse(pulled.data).sent))||0:0;
-    if((chars.length||pulled.data)&&(JSON.stringify(chars)!==pulledChars||sentTotal()>pulledSent)){
+    const wipes=collectWipes(), pulledWipes=pulled.data?JSON.stringify(JSON.parse(pulled.data).wipes||{}):'{}';
+    if((chars.length||pulled.data)&&(JSON.stringify(chars)!==pulledChars||sentTotal()>pulledSent||JSON.stringify(wipes)!==pulledWipes)){
       if(!auto) setA('Menyimpan ke akun…');
-      const r=await aApi('push',{data:{app:'neyhra-chat',version:1,exportedAt:new Date().toISOString(),chars,sent:sentTotal()}});
+      const r=await aApi('push',{data:{app:'neyhra-chat',version:1,exportedAt:new Date().toISOString(),chars,wipes,sent:sentTotal()}});
       size=r.size; ts=r.updatedAt;
     }
-    store.set('cloudts',ts); store.set('cloudsig',sigOf(JSON.stringify(chars)));
+    store.set('cloudts',ts); store.set('cloudsig',sigOf(JSON.stringify(chars)+JSON.stringify(wipes)));
     try{ await pushStats(); }catch{} /* statistik profil ikut diperbarui; kegagalannya tidak menggagalkan sinkron */
     paintAcct(ts?{size,updatedAt:ts}:null); aLast=Date.now(); refreshStorage(); ok=true;
     if(auto){
@@ -2270,7 +2280,27 @@ $('exp').onclick=async()=>{
   }catch{ toast('Gagal ekspor obrolan'); }
   exporting=false;
 };
+/* Tombstone hapus obrolan (`wipe:<id>` = waktu hapus, ms). Sinkron akun itu GABUNG (tidak menimpa), jadi tanpa tanda ini pesan yang baru dihapus
+   ditarik balik dari akun saat sinkron berikutnya (refresh / buka aplikasi). Tombstone ikut dikirim ke akun (`wipes`), dan saat sinkron
+   pesan/memori dengan waktu <= tombstone dibuang, juga di perangkat lain. Pesan baru sesudah hapus (waktu lebih besar) tidak terpengaruh. */
+const wipeTs=id=>{ const n=Number(store.get('wipe:'+id)); return Number.isFinite(n)&&n>0?n:0; };
+function collectWipes(){
+  const o=[];
+  for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(!k||!k.startsWith('wipe:')) continue; const id=k.slice(5), n=wipeTs(id); if(/^[\w-]{1,64}$/.test(id)&&n) o.push([id,n]); }
+  o.sort((a,b)=>b[1]-a[1]); return Object.fromEntries(o.slice(0,200));
+}
+function applyWipe(id,t){ /* buang pesan/memori lama (<= t) dari perangkat ini; konteks AI (h:) ikut dibuang kalau tidak ada pesan tersisa */
+  const cur=loadLog(id), keep=cur.filter(e=>e.t>t);
+  if(keep.length!==cur.length){
+    cur.filter(e=>e.t<=t).forEach(e=>keysOf(e).forEach(k=>idb.del(k)));
+    store.set('log:'+id,keep.length?JSON.stringify(keep):null);
+    if(!keep.length){ store.set('h:'+id,null); store.set('pos:'+id,null); }
+  }
+  const m=loadMem(id), mk=m.filter(e=>e.ts>t); if(mk.length!==m.length) saveMem(id,mk);
+}
 function wipeChat(id){
+  store.set('wipe:'+id,String(Date.now()));
+  setTimeout(()=>{ if(atok&&aOn){ aLast=0; syncCloud(true); } },400); /* kirim tombstone ke akun segera (kalau gagal/ditutup, tetap terkirim di sinkron berikutnya) */
   if(current&&ch&&ch.id===id) current.stop(); openSub=null;
   loadLog(id).forEach(e=>keysOf(e).forEach(k=>idb.del(k)));
   memEpoch[id]=(memEpoch[id]||0)+1; /* peringkasan yang masih jalan -> hasilnya dibuang */

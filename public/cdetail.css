@@ -93,3 +93,51 @@
 /* Tab Story */
 .cd-story-text p{margin:0 0 12px;line-height:1.65;white-space:pre-wrap;overflow-wrap:anywhere}
 .cd-story-text p:last-child{margin-bottom:0}
+
+/* ===== Mobile (< 800px): hero foto penuh layar, judul menyatu dengan foto, urutan: foto > judul > like/komentar > pembuat > tab > isi > robot terkait.
+   Tombol Obrolan menempel di bawah layar (selalu terjangkau), tombol kembali melayang di atas foto. Desktop tidak berubah. ===== */
+@media(max-width:799px){
+  #cdetail{padding:0 0 env(safe-area-inset-bottom,0px)}
+  #cdetail .cd-wrap{max-width:none}
+  #cdetail .cd-back{display:flex;align-items:center;position:sticky;top:calc(10px + env(safe-area-inset-top,0px));z-index:6;width:40px;height:40px;padding:0;justify-content:center;border-radius:50%;
+    margin:calc(10px + env(safe-area-inset-top,0px)) 0 calc(-50px - env(safe-area-inset-top,0px)) 14px;background:rgba(0,0,0,.42);color:#fff;
+    -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+  #cdetail .cd-back:hover{background:rgba(0,0,0,.6);color:#fff}
+  #cdetail .cd-backt{display:none}
+  #cdetail.cd-sc .cd-back{background:var(--surface);color:var(--ink);box-shadow:0 2px 12px rgba(0,0,0,.2)}
+  #cdetail .cd-chip{border-radius:18px;line-height:1.35}
+  #cdetail .cd-grid{display:flex;flex-direction:column;gap:0}
+  #cdetail .cd-left,#cdetail .cd-right{display:contents} /* anak-anaknya diurutkan lewat `order` */
+  #cdetail .cd-cover{order:1;border-radius:0;aspect-ratio:4/5;max-height:56vh;min-height:300px}
+  #cdetail .cd-cover img{object-position:center 20%}
+  #cdetail .cd-cover::before{content:"";position:absolute;inset:0 0 auto 0;height:96px;background:linear-gradient(rgba(0,0,0,.34),transparent);z-index:1;pointer-events:none}
+  #cdetail .cd-cover::after{content:"";position:absolute;inset:auto 0 0 0;height:42%;background:linear-gradient(transparent,var(--bg));pointer-events:none}
+  #cdetail .cd-badge{display:none}
+  #cdetail .cd-head{order:2;position:relative;z-index:1;margin-top:-40px;padding:0 18px}
+  #cdetail h1.cd-title{font-size:clamp(24px,7vw,30px)}
+  #cdetail .cd-meta{gap:4px 14px;margin-top:10px}
+  #cdetail .cd-sub{margin-top:10px;font-size:14px;color:var(--mut);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  #cdetail .cd-sub:empty{display:none}
+  #cdetail .cd-stat{order:3;margin:16px 18px 0;border-radius:16px;padding:12px 14px 12px 16px}
+  #cdetail .cd-stat b{font-size:17px}
+  #cdetail .cd-by{order:4;margin:14px 18px 0;padding:16px;border-radius:16px}
+  #cdetail .cd-byt{flex-wrap:wrap;row-gap:12px}
+  #cdetail .cd-bn{flex:1 1 calc(100% - 64px)}
+  #cdetail .cd-byt .cd-pill{order:3;flex:1 1 calc(50% - 6px);height:38px;justify-content:center}
+  #cdetail .cd-bio{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;margin-top:12px}
+  #cdetail .cd-tabs{order:5;margin:18px 18px 0;padding:4px;gap:4px;border-radius:14px;overflow:visible}
+  #cdetail .cd-tab{height:38px;border-radius:10px}
+  #cdetail .cd-pane{order:6;padding:0 18px}
+  #cdetail .cd-pane > .cd-sec:first-child{margin-top:20px}
+  #cdetail .cd-rel{order:7;margin-top:26px}
+  #cdetail .cd-rel h3{margin:0 18px 12px}
+  #cdetail .cd-rlist{display:flex;gap:12px;overflow-x:auto;padding:0 18px 6px;scroll-snap-type:x proximity;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  #cdetail .cd-rlist::-webkit-scrollbar{display:none}
+  #cdetail .cd-ritem{flex:0 0 140px;flex-direction:column;gap:0;padding:0;margin:0;overflow:hidden;border-radius:14px;scroll-snap-align:start}
+  #cdetail .cd-ritem img{width:100%;height:176px;border-radius:0}
+  #cdetail .cd-ritem > div{flex:none;width:100%;padding:9px 11px 12px}
+  #cdetail .cd-act{order:9;position:sticky;bottom:0;z-index:7;margin:22px 0 0;padding:12px 18px calc(12px + env(safe-area-inset-bottom,0px));
+    background:var(--bg);background:color-mix(in srgb,var(--bg) 86%,transparent);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border-top:1px solid var(--line)}
+  #cdetail .cd-chat{height:48px;border-radius:14px;font-size:16px}
+  #cdetail .cd-share{width:48px;height:48px;background:var(--surface)}
+}
