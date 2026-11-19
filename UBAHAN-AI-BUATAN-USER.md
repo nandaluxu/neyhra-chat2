@@ -127,5 +127,6 @@ Ketuk karakter di Beranda sekarang membuka **halaman detail** dulu (`public/cdet
   - `POST /api/auth/support/send { to, amount, char?, idem }` -> `{ ok, gems, received, done, dayLeft }`
 - Penerima mendapat SELURUH jumlah. Pagar anti-ternak-akun (karena tanpa fee): akun pengirim minimal `ECON_TRUST_HOURS` (default 24 jam), maks 1000 Gems per kiriman dan 1000 Gems per hari (WIB; ubah di `SUPPORT` di `lib/support.js`), tidak bisa ke diri sendiri, laju 10/menit, `idem` (econ_txn), potong saldo atomik + kompensasi kalau penerima hilang.
 - Koleksi `supports { _id, from, to, charId, amount, at }` (index `to`, `from+at`); "Dukungan diterima" = jumlah dokumen `to` = pembuat. Dihapus saat akun dihapus (`purgeSupport`). Riwayat saldo: `econ_log` kind `support-out` / `support-in`; penerima dapat notifikasi (type `sys`).
+- Bagian **Karakter Lain** di kartu pembuat: maks 3 AI lain dari pembuat yang sama dalam satu baris (3 kolom; di layar sempit kartu menumpuk foto di atas teks). Gayanya disuntik dari `public/cdetail.js` (`OTH_CSS`).
 - Pembuat tanpa username (fallback Neyhra/Pengguna) = toast "belum bisa menerima dukungan". Belum login = toast + overlay login. Karakter bawaan mengirim ke akun pembuat default (nandasikma).
 - File: `lib/support.js` (baru), `lib/auth.js`, `public/cdetail.js`, `public/cdetail.css`.
