@@ -138,3 +138,7 @@ Ketuk karakter di Beranda sekarang membuka **halaman detail** dulu (`public/cdet
 - **Ringkasan** (`/api/memory`, `lib/sessions.js summaryPrompt`): client mengirim `known` (isi 3 ingatan terakhir, dipotong 120 huruf) agar ringkasan baru hanya memuat hal BARU/berubah; prompt meminta fakta spesifik (nama, angka, tempat, janji).
 - **Anggaran ingatan** yang dipakai AI naik 1500 -> 2400 karakter (`MEM_MAX_USE` di index.html dan `cleanMemory` di `lib/app.js`, harus sama). Sebelumnya hanya ±3 ingatan terakhir yang sampai ke AI.
 - **Backoff** peringkasan otomatis yang gagal: 60 dtk, 2, 4, 8, maks 16 menit (`memFail`), sebelumnya selalu 60 dtk sehingga menembak server tiap balasan.
+
+## Karakter bawaan memakai field halaman detail (update)
+- File `char/<id>.js` kini boleh punya: `tagline` (kategori), `gender`, `greeting` (sapaan, maks 300), `story` (tab Story, maks 2000), `attrs` (Atribut Persona `[{ title, content }]`, maks 6; `{{char}}` / `{{user}}`). Semua opsional; contoh lengkap: `char/furina.js`.
+- `lib/chars.js` merapikan field itu; `/api/chars` mengirim `greeting`; `charstory` mengembalikan `story` + `attrs` untuk karakter bawaan; `attrs` dikirim ke AI sekali di awal obrolan (head sesi), sama seperti AI buatan user.

@@ -436,7 +436,7 @@ function drawAttrs() {
   const body = root.querySelector('.cd-attrs'); if (!body) return;
   body.textContent = '';
   if (ST.state === 'loading' || ST.state === 'idle') { body.append(box('Memuat…')); return; }
-  if (!ST.attrs.length) { body.append(box(cur && cur.mine ? 'Belum ada atribut. Tambahkan lewat Profil > AI Saya > Edit.' : 'Tidak ada deskripsi.' + (cur && cur.custom ? '' : ' ' + SOON))); return; }
+  if (!ST.attrs.length) { body.append(box(cur && cur.mine ? 'Belum ada atribut. Tambahkan lewat Profil > AI Saya > Edit.' : 'Tidak ada deskripsi.')); return; }
   const fill = t => String(t).replace(/\{\{\s*char\s*\}\}/gi, cur ? cur.name : 'karakter').replace(/\{\{\s*user\s*\}\}/gi, 'kamu');
   for (const a of ST.attrs) {
     const card = h('div', 'cd-box cd-attr'); card.append(h('div', 'cd-boxh', a.title));
@@ -447,7 +447,6 @@ function drawAttrs() {
 /* Story: cerita AI buatan user (tanpa login boleh dibaca selama AI-nya publik). Karakter bawaan belum punya cerita. Teks selalu lewat textContent. */
 async function loadStory(c) {
   if (ST.state === 'loading') return;
-  if (!c.custom) { ST.state = 'ok'; ST.text = ''; ST.attrs = []; drawStory(); drawAttrs(); return; }
   const id = c.id; ST.state = 'loading'; drawStory();
   try {
     const r = await api('charstory', { char: id });
