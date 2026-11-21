@@ -1,0 +1,26 @@
+/* ===== Live Move Analysis (public/chessan.js) =====
+   Indikator langkah: warna di kotak tujuan + ikon di pojok kanan atas bidak yang bergerak.
+   Muncul SEKETIKA (tanpa animasi masuk), bertahan sebentar, lalu memudar perlahan. Fase "bertahan" = animation-delay
+   (dengan fill backwards, nilai awal tetap tampil selama jeda); fase fade = animation-duration. Keduanya diisi inline oleh
+   chessan.js dari CHAN.CFG (hold, fade) dan dikurangi waktu yang sudah berlalu, jadi render ulang papan tidak mengulang animasi.
+   Ikon adalah anak elemen bidak (.ch-p), jadi ikut meluncur bersama bidak selama animasi langkah. */
+.cn-sq{position:absolute;inset:0;background:var(--rc,#81b64c);opacity:0;pointer-events:none;
+  animation-name:cn-sq-out;animation-timing-function:linear;animation-fill-mode:both}
+@keyframes cn-sq-out{from{opacity:.62}to{opacity:0}}
+.cn-bg{position:absolute;top:3%;right:3%;width:36%;height:36%;display:block;font-size:0;line-height:0;pointer-events:none;z-index:3;opacity:0;
+  filter:drop-shadow(0 1px 2px rgba(0,0,0,.5));
+  animation-name:cn-bg-out;animation-timing-function:linear;animation-fill-mode:both}
+@keyframes cn-bg-out{from{opacity:1}to{opacity:0}}
+.cn-bg .cn-ic{display:block;width:100%;height:100%}
+/* ikon kecil di daftar langkah (permanen: rating tetap terlihat saat menelusuri riwayat) */
+.cn-slot{display:inline-flex;flex:none;width:15px;height:15px;align-items:center;justify-content:center;vertical-align:middle}
+.cn-slot:empty{width:0}
+.cn-slot .cn-ic{display:block;width:15px;height:15px}
+/* telusur riwayat langkah di game yang sedang berjalan */
+.cm-hview{display:flex;align-items:center;gap:8px;justify-content:space-between;margin:8px 0 0;padding:8px 12px;border-radius:12px;background:var(--surface,rgba(127,127,127,.12));font-size:12.5px}
+.cm-hview b{font-weight:700}
+.cm-hview button{flex:none}
+.cm-mvbtn{cursor:pointer}
+.ch-mv .ch-mvb{display:inline-flex;align-items:center;gap:3px;padding:2px 6px;border-radius:7px;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;text-align:left}
+.ch-mv .ch-mvb:hover{background:rgba(127,127,127,.15)}
+.ch-mv .ch-mvb.on{background:var(--ink);color:var(--bg)}

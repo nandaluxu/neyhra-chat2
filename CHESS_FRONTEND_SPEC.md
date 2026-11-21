@@ -631,3 +631,46 @@ Backend TIDAK diubah; semua sudah ditangani di `public/chessmp.js`:
    elemen SVG baru di frontend WAJIB men-set `fill`/`stroke`/`stroke-width`/`width`/`height`
    secara eksplisit per elemen (atribut presentasi dikalahkan rule CSS ini lewat pewarisan),
    kalau tidak akan muncul artefak stroke raksasa & ukuran 20×20 default.
+
+---
+
+## 12. Live Move Analysis (rating tiap langkah, jalan di klien)
+
+Menilai setiap langkah **secara otomatis saat dimainkan** — di Catur vs AI (`public/games.js`) dan Catur Multiplayer (`public/chessmp.js`) — tanpa Stockfish dan tanpa endpoint baru. Murni tampilan: **tidak memvalidasi langkah dan tidak mengubah state permainan** (aturan tetap 100% dari server). Review pasca-game di §7 (label backend: Best/Great/Excellent/Mistake/Miss/Blunder) **tidak berubah**; ini sistem terpisah dengan tujuh label sendiri.
+
+### File
+| File | Peran |
+|---|---|
+| `public/chessan-engine.js` | Engine mandiri: generator langkah (lolos perft), evaluasi (material + PST + struktur pion + mobilitas + keselamatan raja), pencarian alpha-beta (TT, null-move, LMR, quiescence+SEE), `rateMove`. Dipakai Worker dan thread utama (file yang sama). |
+| `public/chessan-worker.js` | Web Worker: menilai di luar thread UI + cache pencarian per game. |
+| `public/chessan.js` | Manajer `window.CHAN`: antrean, penyimpanan, indikator papan, ikon. Tanpa Worker otomatis jatuh ke thread utama (hasil sama). |
+| `public/chessan.css` | Indikator + ikon daftar + banner telusur. |
+| `scripts/chessan-test.mjs` (`npm run an:test`) | Perft, taktik, regresi rating, determinisme. |
+
+### Tujuh rating
+Dihitung dari **penurunan peluang menang** (`winPct(cp) = 50 + 50·(2/(1+e^(−0.00368208·cp)) − 1)`, skor mat dijepit) antara evaluasi terbaik sebelum langkah dan evaluasi setelah langkah yang dimainkan, dari sudut pemain yang melangkah:
+
+| Rating | Ikon | Warna | Syarat |
+|---|---|---|---|
+| Brilliant | `!!` | `#26c2a3` (baru) | setara langkah terbaik **dan** mengorbankan material ≥ 2 poin (diukur di ujung PV setelah tangkapan diselesaikan) **dan** posisi sesudahnya ≥ −0,5 pion **dan** belum menang telak (≤ +4 pion, kecuali pengorbanan ≥ 5 poin menuju mat) **dan** tidak ada alternatif tanpa pengorbanan yang sama kuatnya (selisih ≥ 35 cp) **dan** bukan langkah satu-satunya |
+| Best | `!` | `#81b64c` | langkah pilihan engine, atau selisih ≤ 0,25% |
+| Excellent | jempol | `#81b64c` | ≤ 2% |
+| Good | centang | `#95b776` | ≤ 5% |
+| Inaccuracy | `?!` | `#f7c631` | ≤ 10% |
+| Mistake | `?` | `#f0a037` | ≤ 20% |
+| Blunder | `??` | `#d93a32` | > 20% |
+
+Warna/ikon memakai palet penanda review di `chessmp.js`; hanya Brilliant (teal), Good, dan Inaccuracy yang baru. Pada 8 ply pertama selisih 1,5% diabaikan (evaluasi posisi awal sangat tipis).
+
+### Indikator di papan
+- Kotak tujuan diberi warna rating (`.cn-sq`) dan ikon di **pojok kanan atas bidak** (`.cn-bg`, **anak elemen `.ch-p`** sehingga ikut meluncur selama animasi langkah).
+- Muncul **seketika** (tanpa animasi masuk), bertahan `CHAN.CFG.hold` (700 ms), lalu memudar `CHAN.CFG.fade` (2600 ms). Sisa waktu dihitung dari `born`, jadi render ulang papan di tengah fade **melanjutkan**, bukan mengulang.
+- `render()` mengganti seluruh papan, maka `CHAN.attach()` dipanggil di akhir `render()` (games.js) dan `afterPaint()` (chessmp.js). Pengaman: indikator hanya dipasang bila bidak di kotak tujuan cocok dengan posisi langkah itu.
+
+### Penyimpanan & telusur riwayat
+- Rating tersimpan di `localStorage` (`chan1:<id game>`; vs AI memakai `ai:cur`), maksimal 30 game, divalidasi terhadap urutan langkah (prefix beda → dibuang) dan `CHENG.VER` (**naikkan `VER` bila perilaku penilaian berubah**).
+- Telusur: Multiplayer & vs AI — klik langkah di daftar atau tombol ‹ ›; papan dikunci (read-only) sampai "Posisi terkini". Replay Multiplayer memakai rating yang sama. Langkah baru otomatis kembali ke posisi terkini. Ikon rating juga permanen di daftar langkah.
+- Riwayat dibangun dari: langkah yang dimainkan sesi ini; `/mp/replay` (hanya bila tracker kurang, maks 1× per 15 dtk); `hist` vs AI (diparse, hanya jika `hist.length === ply`); atau penyimpanan lokal (`CHAN.resume`) untuk game vs AI > 60 ply. Papan hasil tracker **dibandingkan dengan papan server**; beda → analisis game itu dimatikan diam-diam (tidak pernah menampilkan rating yang mungkin salah).
+
+### Determinisme & performa
+Batas simpul (`CFG.nodes`, 90 000), bukan waktu; tabel hash dikosongkan tiap pencarian → dua perangkat memberi rating sama persis (dicek di `an:test`). Kira-kira 0,1–0,4 dtk per langkah di PC (pencarian posisi berikutnya dipanaskan saat senggang, jadi rating langkah biasanya siap dalam ~0,2 dtk). Menaikkan `CFG.nodes` memperdalam analisis tapi memperlambat HP.

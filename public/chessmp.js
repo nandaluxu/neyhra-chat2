@@ -80,6 +80,7 @@ let review = { loading: false, err: '', data: null, pos: null, ply: 0, gameId: '
 let replay = { loading: false, err: '', data: null, idx: -1, playing: false, gameId: '' };
 let stats = { loading: false, err: '', data: null, user: '' };
 let drag = null;                    // drag & drop aktif
+let viewPly = null;                 // menelusuri riwayat di game berjalan: posisi SETELAH langkah ke-N (null = posisi terkini)
 let pendingPaint = false;           // render ditunda sampai drag selesai
 let resignArm = 0;
 let lastTok = '';
@@ -91,7 +92,7 @@ let extBack = null;                 // callback tombol kembali saat review dibuk
 
 /* ---------- util kecil ---------- */
 const legalOf = i => (game && game.moves && game.moves[i] && game.moves[i].length) ? game.moves[i] : null;
-const canPlay = () => !!(game && game.status === 'active' && game.moves && game.yourTurn && !busyMove && !promo && view === 'game' && !drag);
+const canPlay = () => !!(game && game.status === 'active' && game.moves && game.yourTurn && !busyMove && !promo && view === 'game' && !drag && viewPly == null);
 const youName = () => (game && game.white && game.black) ? (game.you === 'w' ? game.white : game.black) : null;
 const oppOf = () => (game && game.opp) ? game.opp : (game ? (game.you === 'w' ? game.black : game.white) : null);
 const capStr = arr => arr.slice().sort((a, b) => CH_VAL[b.toLowerCase()] - CH_VAL[a.toLowerCase()]).map(p => CH_G[p.toLowerCase()]).join('');
@@ -116,6 +117,32 @@ function ago(ts) {
   if (s < 86400) return Math.floor(s / 3600) + ' jam lalu';
   if (s < 172800) return 'kemarin';
   return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+}
+/* ---------- Live Move Analysis (public/chessan.js) — murni tampilan, tidak memengaruhi aturan/state permainan ---------- */
+const CN = () => window.CHAN || null;
+const uciPromo = u => (u && u.length > 4 ? u[4].toUpperCase() : '');
+/* pastikan pelacak punya semua langkah game ini (ambil lewat /mp/replay hanya bila perlu: buka ulang di tengah game) */
+function cnSync(showLast) {
+  const C = CN(); if (!C || !game) return Promise.resolve();
+  const id = game.id, ply = game.ply || 0;
+  return C.ensure(id, ply, game.board, async () => {
+    const r = await api('replay', { id });
+    return (r.positions || []).map(p => [p.from, p.to, uciPromo(p.uci)]);
+  }).then(ok => {
+    if (!ok || view !== 'game' || !game || game.id !== id) return;
+    if (showLast && ply > 0 && viewPly == null) C.show(id, ply); else C.attach();
+  });
+}
+function hGo(p) {          // telusuri: tampilkan posisi setelah langkah ke-p (0 = awal)
+  const C = CN(); if (!C || !game || !C.ok(game.id)) return;
+  const n = game.ply || 0, cur = Math.max(0, Math.min(n, p));
+  viewPly = cur >= n ? null : cur; sel = -1;
+  render();
+  if (cur >= 1) C.show(game.id, cur); else C.clear();
+}
+function hStep(v) {
+  const n = game ? (game.ply || 0) : 0, cur = viewPly == null ? n : viewPly;
+  hGo(v === 'first' ? 0 : v === 'prev' ? cur - 1 : v === 'next' ? cur + 1 : n);
 }
 const initial = (name) => (name || '?').trim().charAt(0).toUpperCase() || '?';
 
@@ -165,7 +192,7 @@ function arrowSvg(list) {
 const flipNow = () => (view === 'game' && game) ? ((game.you === 'b') !== flip) : !!flip;
 
 /* ---------- daftar langkah SAN (penomoran aman untuk sans yang dipangkas 80 terakhir) ---------- */
-function sanRowsHtml(sans, totalPly, selPly, withLabels, movesData) {
+function sanRowsHtml(sans, totalPly, selPly, withLabels, movesData, cnGid) {
   const n = sans.length;
   if (!n) return '';
   const firstPly = (totalPly || n) - n + 1;
@@ -176,7 +203,7 @@ function sanRowsHtml(sans, totalPly, selPly, withLabels, movesData) {
     const lab = withLabels && movesData ? labelOf(movesData, ply) : null;
     const btn = '<button type="button" class="cm-mvbtn' + (selPly === ply ? ' on' : '') + '" data-cm="selmove" data-ply="' + ply + '">' +
       (lab ? '<span class="cm-lab ' + lab.k + '">' + (lab.k === 'best' ? '★' : lab.k === 'miss' ? '⚠' : '') + '</span>' : '') +
-      '<span>' + esc(sans[k]) + '</span>' + (lab && lab.acc != null ? '<small>' + lab.acc.toFixed(0) + '</small>' : '') + '</button>';
+      '<span>' + esc(sans[k]) + '</span>' + (cnGid && CN() ? CN().pill(cnGid, ply) : '') + (lab && lab.acc != null ? '<small>' + lab.acc.toFixed(0) + '</small>' : '') + '</button>';
     if (ply % 2 === 1) { cur = { no: (ply + 1) / 2, w: btn, b: '' }; rows.push(cur); }
     else if (cur) cur.b = btn;
     else rows.push({ no: (ply + 1) / 2, w: '', b: btn });
@@ -211,8 +238,9 @@ function afterPaint() {
   const b = host();
   if (view === 'game') {
     const ml = b.querySelector('.cm-mvl');
-    if (ml) ml.scrollTop = ml.scrollHeight;
+    if (ml && viewPly == null) ml.scrollTop = ml.scrollHeight;
   }
+  if (CN()) CN().attach();     // render mengganti seluruh papan: pasang lagi indikator langkah yang masih aktif
 }
 
 /* ---------- lobby ---------- */
@@ -338,11 +366,23 @@ function gameScreen() {
   };
   const arrows = [];
   if (hint && hint.best) arrows.push({ f: hint.best.from, t: hint.best.to, color: '#f5c542', op: .8 });
-  const board = boardHtml(g.board, {
-    flip: eff, last: g.last || null, check: checkIdx, sel,
-    targets: sel >= 0 ? (legalOf(sel) || []) : [],
-    interactive: canPlay(), arrows: arrowSvg(arrows)
+  // telusur riwayat (hanya tampilan): papan diambil dari pelacak analisis; interaksi dimatikan sampai kembali ke posisi terkini
+  const C = CN();
+  const vp = (viewPly != null && C && C.ok(g.id) && viewPly >= 0 && viewPly < (g.ply || 0) && C.board(g.id, viewPly)) ? viewPly : null;
+  if (vp == null) viewPly = null;
+  const board = boardHtml(vp != null ? C.board(g.id, vp) : g.board, {
+    flip: eff, last: vp != null ? C.last(g.id, vp) : (g.last || null), check: vp != null ? -1 : checkIdx, sel: vp != null ? -1 : sel,
+    targets: vp == null && sel >= 0 ? (legalOf(sel) || []) : [],
+    interactive: canPlay(), arrows: vp != null ? '' : arrowSvg(arrows)
   });
+  const hview = vp != null ? (() => {
+    const rt = C.get(g.id, vp), sn = (g.sans && g.sans.length) ? g.sans[g.sans.length - (g.ply - vp) - 1] : '';
+    return '<div class="cm-hview" role="status"><span>' + (vp === 0 ? 'Posisi awal' : 'Langkah <b>' + Math.ceil(vp / 2) + (vp % 2 ? '.' : '…') + ' ' + esc(sn || '') + '</b>' + (rt ? ' · ' + esc(C.META[rt.k].n) : '')) + '</span>' +
+      '<button class="gm-ghost" type="button" data-cm="hstep" data-v="live">Posisi terkini</button></div>';
+  })() : '';
+  const histNav = (C && C.ok(g.id) && (g.ply || 0) > 0) ?
+    '<button class="gm-ghost cm-flip" type="button" data-cm="hstep" data-v="prev" aria-label="Langkah sebelumnya">' + SVG.prev + '</button>' +
+    '<button class="gm-ghost cm-flip" type="button" data-cm="hstep" data-v="next" aria-label="Langkah berikutnya"' + (vp == null ? ' disabled' : '') + '>' + SVG.next + '</button>' : '';
   const status = g.status !== 'active'
     ? '<span>' + (g.result ? esc(g.result.score) + ' · ' + esc(REASONS[g.result.reason] || g.result.reason) : 'selesai') + '</span>'
     : yourTurn
@@ -354,18 +394,18 @@ function gameScreen() {
     '<button class="gm-ghost" type="button" data-cm="resign"' + (resignArm ? ' data-arm="1"' : '') + '>' + (g.ply < 2 ? (resignArm ? 'Tap lagi: batalkan' : 'Batalkan') : (resignArm ? 'Tap lagi: menyerah' : 'Menyerah')) + '</button>' +
     '<button class="gm-ghost" type="button" data-cm="draw">' + SVG.half.replace('<svg', '<svg style="width:13px;height:13px;vertical-align:-2px"') + ' Seri</button>' +
     '<button class="gm-ghost" type="button" data-cm="hint"' + (yourTurn ? '' : ' disabled') + '>' + (hintBusy ? 'Menghitung…' : 'Hint') + '</button>' : '') +
-    '<button class="gm-ghost cm-flip" type="button" data-cm="flip" aria-label="Putar papan">' + SVG.flip + '</button></div>';
+    histNav + '<button class="gm-ghost cm-flip" type="button" data-cm="flip" aria-label="Putar papan">' + SVG.flip + '</button></div>';
   const done = g.status !== 'active' && g.result ? '<div class="cm-pgn">' +
     '<button class="gm-ghost" type="button" data-cm="copypgn">Salin PGN</button>' +
     (g.status === 'done' ? '<button class="gm-ghost" type="button" data-cm="review" data-id="' + esc(g.id) + '">Analisis</button><button class="gm-ghost" type="button" data-cm="replay" data-id="' + esc(g.id) + '">Replay</button>' : '') +
     '<button class="gm-ghost" type="button" data-cm="lobby">Ke lobby</button></div>' : '';
   const totalPly = g.ply || (g.sans ? g.sans.length : 0);
   return back + '<div class="cm-game"><div class="cm-main">' +
-    pl(topColor) + board + pl(bottomColor) +
+    pl(topColor) + board + pl(bottomColor) + hview +
     '<div class="cm-status' + (msg[1] ? ' ' + msg[1] : '') + '" role="status">' + (msg[0] ? esc(msg[0]) : status) + drawChip + '</div>' +
     (promo ? promoHtml() : '') + acts + done +
     '</div><div class="cm-side"><div class="gm-info"><h3>Langkah (' + totalPly + ')</h3>' +
-    (g.sans && g.sans.length ? '<div class="cm-mvl">' + sanRowsHtml(g.sans, totalPly, -1, false) + '</div>' : '<p class="gm-cap">Belum ada langkah.</p>') +
+    (g.sans && g.sans.length ? '<div class="cm-mvl">' + sanRowsHtml(g.sans, totalPly, vp == null ? -1 : vp, false, null, C && C.ok(g.id) ? g.id : null) + '</div>' : '<p class="gm-cap">Belum ada langkah.</p>') +
     '</div></div></div>' + overlaysHtml();
 }
 
@@ -703,7 +743,7 @@ function replayScreen() {
     '<p class="gm-hint">' + esc((meta.white && meta.white.name) || 'Putih') + ' vs ' + esc((meta.black && meta.black.name) || 'Hitam') + (r ? ' · ' + esc(r.score) + ' (' + esc(REASONS[r.reason] || r.reason) + ')' : '') + ' · ' + N + ' langkah</p>' +
     board + ctr + slider + now +
     '<div class="cm-pgn"><button class="gm-ghost" type="button" data-cm="copypgn">Salin PGN</button></div></div>' +
-    '<div class="gm-info"><h3>Riwayat langkah</h3><div class="cm-mvlist">' + sanRowsHtml(sans, N, idx + 1, false) + '</div></div>';
+    '<div class="gm-info"><h3>Riwayat langkah</h3><div class="cm-mvlist">' + sanRowsHtml(sans, N, idx + 1, false, null, CN() && CN().ok(meta.id) ? meta.id : null) + '</div></div>';
 }
 
 /* ============================================================
@@ -914,8 +954,13 @@ async function sendMove(from, to, promoP) {
     ...(vic ? (pre.you === 'w' ? { capsW: [...pre.capsW, vic] } : { capsB: [...pre.capsB, vic] }) : {}) };
   mid.sans = [...(pre.sans || [])]; // sans diperbarui saat respons server datang
   game = mid; myPly = mid.ply;
+  viewPly = null;
+  // Live Move Analysis: catat langkah di pelacak (analisis jalan di worker; indikator muncul begitu ratingnya siap)
+  const C = CN(); let cnAdded = false;
+  if (C && C.ok(pre.id) && C.count(pre.id) === (pre.ply || 0)) cnAdded = C.add(pre.id, from, to, promoP || '');
   render();
   runAnim(planAnim(oldBoard, from, to));
+  if (cnAdded) C.show(pre.id, mid.ply);
   vibrate(10);
   try {
     const r = await api('move', { id: pre.id, from, to, ...(promoP ? { promo: promoP } : {}) });
@@ -923,8 +968,10 @@ async function sendMove(from, to, promoP) {
     msg = ['', ''];
     if (r.game.status === 'done') { stopPoll(); onGameDone(); }
     render();
+    cnSync(!cnAdded);             // sinkron dengan server (dan lengkapi bila pelacak belum punya riwayat)
     startPoll(true);              // mulai menunggu balasan lawan
   } catch (e) {
+    if (cnAdded) C.undo(pre.id);  // langkah ditolak server: buang dari pelacak
     game = pre; myPly = pre.ply || 0;
     if (e.status === 400) { msg = [e.message || 'Langkah itu tidak boleh.', 'err']; }
     else if (e.status === 409) { msg = [e.message || 'Permainan berubah.', 'err']; await fetchGame(pre.id, true); }
@@ -1018,7 +1065,9 @@ async function applySync(r) {
   if (Array.isArray(r.newMoves) && r.newMoves.length) {
     const last = r.newMoves[r.newMoves.length - 1];
     myPly = last.n;
-    hint = null;
+    hint = null; viewPly = null;
+    const C = CN(), gid = game.id;
+    if (C && C.ok(gid)) for (const m of r.newMoves) if (m.n === C.count(gid) + 1) C.add(gid, m.from, m.to, m.promo ? String(m.promo).toUpperCase() : uciPromo(m.uci));
     // animasikan berurutan (maks 3 langkah terakhir; lebih dari itu langsung final)
     const seq = r.newMoves.slice(-3);
     if (r.newMoves.length <= 3) {
@@ -1029,6 +1078,7 @@ async function applySync(r) {
         game.board = b; game.last = { f: m.from, t: m.to };
         render();
         runAnim(plan);
+        if (m === last && C) C.show(gid, m.n);
         if (seq.indexOf(m) < seq.length - 1) await sleep(300);
       }
     } else {
@@ -1036,6 +1086,7 @@ async function applySync(r) {
       render();
       const m = seq[seq.length - 1];
       runAnim(planAnim(prevBoard, m.from, m.to));
+      if (C) C.show(gid, m.n);
     }
     vibrate(12);
   }
@@ -1054,6 +1105,7 @@ async function applySync(r) {
   }
   if (r.yourTurn && game.status === 'active') await fetchGame(game.id, true); // dapatkan moves utk interaksi
   else render();
+  if (Array.isArray(r.newMoves) && r.newMoves.length) cnSync(true);    // pelacak tertinggal (mis. buka di tengah game)? lengkapi + tampilkan langkah lawan
 }
 
 async function fetchGame(id, quiet) {
@@ -1061,6 +1113,7 @@ async function fetchGame(id, quiet) {
     const r = await api('game', { id });
     if (r.game.id !== (game && game.id) && view === 'game' && game) { /* game sama saja */ }
     game = r.game; myPly = r.game.ply;
+    cnSync();
     if (view === 'game') render();
     return true;
   } catch (e) {
@@ -1139,7 +1192,8 @@ async function joinRoom() {
     const r = await api('join', { code });
     game = r.game; myPly = r.game.ply; view = 'game'; gameFrom = 'lobby';
     msg = ['', r.game.yourTurn ? 'Kamu melangkah duluan!' : 'Lawan melangkah duluan.'];
-    sel = -1; hint = null; promo = null; resultShown = false; drawShownFor = null;
+    sel = -1; hint = null; promo = null; resultShown = false; drawShownFor = null; viewPly = null;
+    cnSync();
     render(); startPoll(true);
   } catch (e) {
     msg = [e.message || 'Gagal masuk ruangan.', 'err']; render();
@@ -1211,12 +1265,17 @@ async function openReplay(id) {
   try {
     const r = await api('replay', { id });
     replay.data = r; replay.idx = -1; replay.loading = false;
+    if (CN() && r.meta) CN().track(r.meta.id, (r.positions || []).map(p => [p.from, p.to, uciPromo(p.uci)]), { board: r.positions && r.positions.length ? r.positions[r.positions.length - 1].board : undefined });
     render();
   } catch (e) {
     replay.loading = false; replay.err = e.message || 'Gagal memuat replay.'; render();
   }
 }
 function stopAuto() { clearTimeout(autoT); autoT = 0; if (replay) replay.playing = false; }
+function cnReplayShow() {   // indikator + rating tersimpan untuk posisi replay yang sedang tampil
+  const C = CN(), rp = replay.data; if (!C || !rp || !rp.meta) return;
+  if (replay.idx >= 0) C.show(rp.meta.id, replay.idx + 1); else C.clear();
+}
 function replayStep(dir) {
   const rp = replay.data;
   if (!rp) return;
@@ -1237,6 +1296,7 @@ function replayStep(dir) {
     if (ni > old && cur) runAnim(planAnim(posBeforeReplay(rp, ni), cur.from, cur.to));
     else if (prv) runAnim({ steps: [{ f: prv.to, t: prv.from }], ghosts: [] });   // mundur: bidak "kembali"
   }
+  cnReplayShow();
   if (ni >= N - 1) stopAuto();
 }
 function posBeforeReplay(rp, idx) {
@@ -1261,7 +1321,8 @@ function replayToggle() {
 /* ---------- navigasi ---------- */
 function goLobby() {
   stopPoll(); stopRoomPoll(); stopAuto();
-  view = 'lobby'; game = null; sel = -1; promo = null; hint = null;
+  view = 'lobby'; game = null; sel = -1; promo = null; hint = null; viewPly = null;
+  if (CN()) CN().clear();
   resultShown = false; drawShownFor = null;
   loadLobby();   // selalu segarkan: hasil/daftar permainan bisa saja berubah
 }
@@ -1310,8 +1371,10 @@ function onHostClick(e) {
   else if (a === 'selmove') {
     const p = +b.dataset.ply;
     if (view === 'review') { review.ply = p; render(); }
-    else if (view === 'replay' && replay.data) { replay.idx = p - 1; stopAuto(); render(); }
+    else if (view === 'replay' && replay.data) { replay.idx = p - 1; stopAuto(); render(); cnReplayShow(); }
+    else if (view === 'game') hGo(p);
   }
+  else if (a === 'hstep') hStep(b.dataset.v);
   else if (a === 'rstep') {
     const v = b.dataset.v;
     const N = review.data ? review.data.moves.length : 0;
@@ -1387,7 +1450,7 @@ function onSlider(e) {
   const v = +e.target.value;
   stopAuto();
   replay.idx = v - 1;
-  render();
+  render(); cnReplayShow();
 }
 
 /* ============================================================

@@ -166,6 +166,37 @@ function picScreen() {
 }
 
 /* ---------- Catur ---------- */
+/* ---------- Live Move Analysis (public/chessan.js) — murni tampilan; kebenaran langkah tetap dari server ---------- */
+const CH_GID = 'ai:cur';          // satu game vs AI aktif per akun; rating tersimpan di localStorage (chan1:ai:cur) dan divalidasi terhadap urutan langkah
+let chView = null;                // telusur riwayat: posisi SETELAH langkah ke-N (null = posisi terkini)
+const chCn = () => window.CHAN || null;
+const chSqIdx = n => (8 - Number(n[1])) * 8 + (n.charCodeAt(0) - 97);
+function chParseHist(hist) {      // notasi panjang server (Nb1-c3, e2xe4, e7-e8=Q, O-O) -> [[dari, ke, promo], ...]; null kalau ada yang tak terbaca
+  const out = [];
+  for (let i = 0; i < hist.length; i++) {
+    const h = String(hist[i]), w = i % 2 === 0;
+    if (h === 'O-O' || h === 'O-O-O') { out.push(w ? [60, h === 'O-O' ? 62 : 58, ''] : [4, h === 'O-O' ? 6 : 2, '']); continue; }
+    const m = /([a-h][1-8])[-x]([a-h][1-8])(?:=([QRBN]))?/.exec(h);
+    if (!m) return null;
+    out.push([chSqIdx(m[1]), chSqIdx(m[2]), m[3] || '']);
+  }
+  return out;
+}
+function chCnSync(g) {            // samakan pelacak dengan game dari server (dipanggil setelah memuat/memulai game, BUKAN di tengah langkah)
+  const C = chCn(); if (!C || !g) return;
+  if (C.ok(CH_GID) && C.count(CH_GID) === g.ply) return;
+  const list = g.hist && g.hist.length === g.ply ? chParseHist(g.hist) : null;
+  if (list) C.track(CH_GID, list, { board: g.board });
+  else if (g.ply > 0) C.resume(CH_GID, g.board);            // riwayat server terpotong (>60 ply): pakai yang tersimpan di perangkat ini
+}
+function chGo(p) {
+  const C = chCn(), g = cs && cs.game; if (!C || !g || !C.ok(CH_GID)) return;
+  const cur = Math.max(0, Math.min(g.ply, p));
+  chView = cur >= g.ply ? null : cur; chSel = -1; chPromo = null;
+  render();
+  if (cur >= 1) C.show(CH_GID, cur); else C.clear();
+}
+
 // bidak = glif Unicode penuh (digamam dua-duanya), warnanya lewat CSS .ch-p.w / .ch-p.b
 const CH_G = { k: '\u265A\uFE0E', q: '\u265B\uFE0E', r: '\u265C\uFE0E', b: '\u265D\uFE0E', n: '\u265E\uFE0E', p: '\u265F\uFE0E' };
 const CH_NAME = { k: 'raja', q: 'ratu', r: 'benteng', b: 'gajah', n: 'kuda', p: 'pion' };
@@ -205,19 +236,23 @@ function chessScreen() {
   }
 
   // papan
+  const C = chCn();
+  const vp = (chView != null && C && C.ok(CH_GID) && chView >= 0 && chView < g.ply && C.board(CH_GID, chView)) ? chView : null;   // telusur riwayat: hanya tampilan, papan dikunci
+  if (vp == null) chView = null;
+  const vb = vp != null ? C.board(CH_GID, vp) : g.board, vl = vp != null ? C.last(CH_GID, vp) : g.last;
   const yourTurn = g.active && g.turn === 'w';
   const thinking = g.active && !yourTurn; // papan tengah (cmove): lawan sedang mikir — turn 'b' dari server cuma terjadi selama jeda ini
   let board = '<div class="ch-bwrap"><div class="ch-mid"><div class="ch-board" role="grid" aria-label="Papan catur">';
   for (let i = 0; i < 64; i++) {
-    const p = g.board[i], cls = ['ch-sq', ((i >> 3) + (i & 7)) % 2 ? 'ch-d' : 'ch-l']; // semua kelas diawali ch-: kelas polos seperti .dot sudah dipakai global di index.html (titik status berkedip) dan merusak papan
-    if (g.last && (g.last.f === i || g.last.t === i)) cls.push('ch-last');
-    if (chSel === i) cls.push('ch-sel');
-    if (g.check === i) cls.push('ch-chk');
-    const tos = chSel >= 0 && g.moves && g.moves[chSel] || [];
+    const p = vb[i], cls = ['ch-sq', ((i >> 3) + (i & 7)) % 2 ? 'ch-d' : 'ch-l']; // semua kelas diawali ch-: kelas polos seperti .dot sudah dipakai global di index.html (titik status berkedip) dan merusak papan
+    if (vl && (vl.f === i || vl.t === i)) cls.push('ch-last');
+    if (vp == null && chSel === i) cls.push('ch-sel');
+    if (vp == null && g.check === i) cls.push('ch-chk');
+    const tos = vp == null && chSel >= 0 && g.moves && g.moves[chSel] || [];
     if (tos.includes(i)) cls.push(p !== '.' ? 'ch-cap' : 'ch-dot');
-    if (yourTurn && chMine(i, g)) cls.push('ch-mine'); // bidakmu yang bisa jalan: boleh diseret (touch-action:none hanya di kotak ini, sisanya tetap bisa scroll)
+    if (vp == null && yourTurn && chMine(i, g)) cls.push('ch-mine'); // bidakmu yang bisa jalan: boleh diseret (touch-action:none hanya di kotak ini, sisanya tetap bisa scroll)
     const name = p !== '.' ? CH_NAME[p.toLowerCase()] + ' ' + (chIsW(p) ? 'putih' : 'hitam') : 'kosong';
-    board += '<button type="button" class="' + cls.join(' ') + '" data-act="csq" data-i="' + i + '" aria-label="' + sq2name(i) + ', ' + name + '"' + (yourTurn ? '' : ' disabled') + '>' +
+    board += '<button type="button" class="' + cls.join(' ') + '" data-act="csq" data-i="' + i + '" aria-label="' + sq2name(i) + ', ' + name + '"' + (yourTurn && vp == null ? '' : ' disabled') + '>' +
       ((i & 7) === 0 ? '<i class="ch-co r" aria-hidden="true">' + (8 - (i >> 3)) + '</i>' : '') + ((i >> 3) === 7 ? '<i class="ch-co f" aria-hidden="true">' + 'abcdefgh'[i & 7] + '</i>' : '') +
       (p !== '.' ? '<span class="ch-p ' + (chIsW(p) ? 'ch-w' : 'ch-b') + '" aria-hidden="true">' + CH_G[p.toLowerCase()] + '</span>' : '') + '</button>';
   }
@@ -240,8 +275,18 @@ function chessScreen() {
   };
 
   // daftar langkah (berpasangan: putih hitam)
-  const pairs = [];
-  for (let i = 0; i < g.hist.length; i += 2) pairs.push('<div class="ch-mv"><span>' + (i / 2 + 1) + '.</span><span>' + esc(g.hist[i]) + '</span><span>' + esc(g.hist[i + 1] || '') + '</span></div>');
+  const pairs = [], first = g.ply - g.hist.length + 1, tracked = !!(C && C.ok(CH_GID));
+  const cell = k => k >= g.hist.length ? '<span></span>' : tracked
+    ? '<button type="button" class="ch-mvb' + (vp === first + k ? ' on' : '') + '" data-act="cview" data-p="' + (first + k) + '">' + esc(g.hist[k]) + C.pill(CH_GID, first + k) + '</button>'
+    : '<span>' + esc(g.hist[k]) + '</span>';
+  for (let i = 0; i < g.hist.length; i += 2) pairs.push('<div class="ch-mv"><span>' + (i / 2 + 1) + '.</span>' + cell(i) + cell(i + 1) + '</div>');
+  const hview = vp != null ? (() => {
+    const rt = C.get(CH_GID, vp), sn = g.hist[vp - first] || '';
+    return '<div class="cm-hview" role="status"><span>' + (vp === 0 ? 'Posisi awal' : 'Langkah <b>' + esc(sn) + '</b>' + (rt ? ' · ' + esc(C.META[rt.k].n) : '')) + '</span>' +
+      '<button class="gm-ghost" type="button" data-act="cstep" data-v="live">Posisi terkini</button></div>';
+  })() : '';
+  const histNav = tracked && g.ply > 0 ? '<button class="gm-ghost cm-flip" type="button" data-act="cstep" data-v="prev" aria-label="Langkah sebelumnya">' + SVG.back + '</button>' +
+    '<button class="gm-ghost cm-flip" type="button" data-act="cstep" data-v="next" aria-label="Langkah berikutnya"' + (vp == null ? ' disabled' : '') + '><span style="display:inline-block;transform:scaleX(-1);line-height:0">' + SVG.back + '</span></button>' : '';
 
   // hasil
   const r = g.result;
@@ -260,8 +305,8 @@ function chessScreen() {
     '<button type="button" class="ch-prx" data-act="cancelpromo">Batal</button></div>' : '';
 
   return back + '<div class="ch-stage"><div class="ch-main">' +
-    strip(false) + (oc ? '<div class="ch-say" id="chsay" aria-live="polite">' + chSayInner() + '</div>' : '') + board + strip(true) + msgEl + promo +
-    (g.active ? '<div class="ch-acts"><button class="gm-ghost" type="button" data-act="cresign"' + (chArm ? ' data-arm="1"' : '') + '>' + (chArm ? 'Tap lagi: menyerah' : 'Menyerah') + '</button></div>' : '') +
+    strip(false) + (oc ? '<div class="ch-say" id="chsay" aria-live="polite">' + chSayInner() + '</div>' : '') + board + strip(true) + hview + msgEl + promo +
+    (g.active ? '<div class="ch-acts">' + histNav + '<button class="gm-ghost" type="button" data-act="cresign"' + (chArm ? ' data-arm="1"' : '') + '>' + (chArm ? 'Tap lagi: menyerah' : 'Menyerah') + '</button></div>' : (histNav ? '<div class="ch-acts">' + histNav + '</div>' : '')) +
     result + '</div>' +
     '<div class="ch-side"><div class="gm-info"><h3>Langkah (' + g.hist.length + ')</h3>' + (pairs.length ? '<div class="ch-hist">' + pairs.join('') + '</div>' : '<p class="gm-cap">Belum ada langkah.</p>') +
     '<p class="gm-cap">Menang +' + nf.format(lv[String(g.level)].prize) + ' coin (seri 40%). Maksimal ' + d.cap + ' kemenangan berhadiah per hari (sekarang ' + d.wins + '/' + d.cap + ').</p></div></div></div>' + chResultHtml(g, d);
@@ -323,6 +368,7 @@ function render() {
   body.innerHTML = screen === 'guess' ? guessScreen() : screen === 'pic' ? picScreen() : screen === 'chess' ? chessScreen() : hub();
   if (chHold) { chHold.remove(); chHold = null; }                             // ghost bidak yang ditahan di kotak tujuan sampai papan baru tampil
   if (chPlan) { const p = chPlan; chPlan = null; if (screen === 'chess' && body.querySelector('.ch-board')) chPlay(p); } // animasi langkah (dibuat di cmove)
+  if (screen === 'chess' && chCn()) chCn().attach();                           // render mengganti seluruh papan: pasang lagi indikator langkah yang masih aktif (Live Move Analysis)
   if (!intro && screen === 'pic' && ps && ps.game && ps.game.active && active() && $('gmpin') && !msg[1]) $('gmpin').focus({ preventScroll: true });
   if (intro) { /* layar pembuka: jangan fokus ke input (keyboard HP jangan langsung muncul) */ }
   else if (screen === 'guess' && st.game && st.game.active && active()) { const i = $('gmin'); if (i && !msg[1]) i.focus({ preventScroll: true }); }
@@ -348,7 +394,7 @@ async function fetchPic() {
 }
 async function callC(path, data) {
   const r = await aApi(path, data);
-  if (r && r.ok) { cs = r; csFail = ''; saveWallet(r); nqToast(r); return true; }
+  if (r && r.ok) { cs = r; csFail = ''; saveWallet(r); nqToast(r); if (path === 'chess' || path === 'chess/start') { chView = null; chCnSync(r.game); } return true; }
   return false;
 }
 async function fetchChess() {
@@ -604,6 +650,7 @@ async function cmove(from, to, promo, drop) {
   busy = true; chSel = -1; chPromo = null;
   chSayTok++; chSaying = false; // pemain main cepat: ocehan yang belum sempat muncul dibuang, tidak menumpuk jadi spam
   const pre = cs.game, oldBoard = String(pre.board);
+  chView = null;
   if (navigator.vibrate) try { navigator.vibrate(10) } catch {}
   let moved = false, painted = false;
   try {
@@ -616,12 +663,20 @@ async function cmove(from, to, promo, drop) {
       const vic = oldBoard[to] !== '.' ? oldBoard[to] : (oldBoard[from] === 'P' && (to & 7) !== (from & 7) ? 'p' : ''); // bidak yang kamu tangkap (pion en passant tidak ada di kotak tujuan)
       const mid = { ...pre, board: chMidBoard(oldBoard, from, to, promo), turn: 'b', moves: null, check: -1, last: { f: from, t: to }, ...(vic ? { capsW: [...pre.capsW, vic] } : {}) };
       cs.game = mid;
+      // Live Move Analysis: catat langkahmu DAN balasan AI sekarang, jadi keduanya sudah dinilai selagi AI "mikir"
+      const C = chCn(), aiMoved = fin.ply === pre.ply + 2 && fin.last;
+      let cnOk = false;
+      if (C && C.ok(CH_GID) && C.count(CH_GID) === pre.ply) {
+        cnOk = C.add(CH_GID, from, to, promo || '');
+        if (cnOk && aiMoved) { const ap = oldBoard && mid.board[fin.last.f] === 'p' && (fin.last.t >> 3) === 7 ? String(fin.board[fin.last.t]).toUpperCase() : ''; if (!C.add(CH_GID, fin.last.f, fin.last.t, ap)) cnOk = 'user'; }
+      }
       msg = ['', ''];
       if (!chReduce()) {
         chPlan = chUserPlan(oldBoard, from, to, promo);
         if (drop) { chPlan.steps = chPlan.steps.filter(x => x.f !== from); chPlan.ghosts = []; if (!chPlan.steps.length) chPlan = null; } // diseret: bidak sudah di tujuan, hanya benteng rokade yang meluncur
       }
       painted = true; render();
+      if (cnOk) C.show(CH_GID, pre.ply + 1);
       const revealAt = Date.now() + think + (chReduce() ? 60 : CH_T.ai + 80); // saat bidak AI mendarat
       chLock = Math.max(chLock, revealAt); // papan terkunci sampai bidak AI mendarat
       csay(revealAt); // ocehan dibuat SEKARANG, paralel dengan jeda mikir; muncul setelah AI melangkah
@@ -633,7 +688,9 @@ async function cmove(from, to, promo, drop) {
         if (fin.result) msg = fin.result.won === 'w' ? ['Menang! ' + (CH_END[fin.result.reason] || '')] : fin.result.won === 'd' ? ['Seri.'] : ['Kalah. ' + (CH_END[fin.result.reason] || '')];
         else msg = ['AI: ' + (aiNote || sq2name(from) + ' ok') + (fin.check >= 0 ? ' · kamu diskak!' : ''), ''];
         if (!chReduce() && aiNote) chPlan = chAiPlan(mid.board, fin);
+        chView = null;
         render();
+        if (cnOk === true && aiMoved) C.show(CH_GID, fin.ply);
       }
     }
   } catch (e) {
@@ -779,7 +836,9 @@ body.addEventListener('click', e => {
   else if (a === 'cresclose') { if (chRes) chRes.open = false; render(); }
   else if (a === 'crev') chOpenReview();
   else if (a === 'cagain') { const g = cs && cs.game; if (g) { chOpp = g.opp || ''; chRes = null; cstart(g.level); } }
-  else if (a === 'chnew') { chRes = null; intro = true; msg = ['', '']; chSel = -1; chPromo = null; render(); } // kembali ke pilihan tingkat
+  else if (a === 'cview') chGo(Number(b.dataset.p));
+  else if (a === 'cstep') { const g = cs && cs.game; if (g) { const cur = chView == null ? g.ply : chView, v = b.dataset.v; chGo(v === 'prev' ? cur - 1 : v === 'next' ? cur + 1 : g.ply); } }
+  else if (a === 'chnew') { chView = null; if (chCn()) chCn().clear(); chRes = null; intro = true; msg = ['', '']; chSel = -1; chPromo = null; render(); } // kembali ke pilihan tingkat
   else if (a === 'copp') { chOpp = b.dataset.id || ''; try { localStorage.setItem('chessOpp', chOpp); } catch {} render(); }
   else if (a === 'cvoice') { const blob = chPendingAudio; chPendingAudio = null; if (blob) chVoicePlay(blob, false); chSayPaint(); }
   else if (a === 'cstart') cstart(b.dataset.lv);
