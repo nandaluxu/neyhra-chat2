@@ -674,3 +674,25 @@ Warna/ikon memakai palet penanda review di `chessmp.js`; hanya Brilliant (teal),
 
 ### Determinisme & performa
 Batas simpul (`CFG.nodes`, 90 000), bukan waktu; tabel hash dikosongkan tiap pencarian → dua perangkat memberi rating sama persis (dicek di `an:test`). Kira-kira 0,1–0,4 dtk per langkah di PC (pencarian posisi berikutnya dipanaskan saat senggang, jadi rating langkah biasanya siap dalam ~0,2 dtk). Menaikkan `CFG.nodes` memperdalam analisis tapi memperlambat HP.
+
+---
+
+## 13. Suara Catur (`public/chesssfx.js`)
+
+Efek suara untuk Catur vs AI dan Catur Multiplayer. **Disintesis di browser dengan WebAudio — tanpa file audio, tanpa dependency** (pola sama dengan Word Search). Gagal/diblokir/tanpa `AudioContext` => diam, tidak pernah melempar error.
+
+| Peristiwa | Bunyi | Dipicu di |
+|---|---|---|
+| Langkah biasa | ketukan kayu | langkah sendiri, langkah lawan, replay maju 1 langkah, telusur riwayat 1 langkah |
+| Tangkapan (termasuk en passant) | ketukan lebih berat + ketukan kedua | idem |
+| Rokade | dua ketukan | idem |
+| Promosi | ketukan + arpeggio naik | idem |
+| Skak | ping tinggi | saat kamu diskak (vs AI: `fin.check`; MP: `r.check`) atau lawanmu diskak (respons `move`) |
+| Mulai game | dua nada naik | `cstart` (vs AI), join/host-match (MP) |
+| Menang / Kalah / Seri | arpeggio naik / tiga nada turun / dua nada | `onGameDone` (MP), `fin.result` & `cresign` (vs AI); tertunda 450 ms agar tidak menimpa bunyi langkah |
+| Sting rating | Brilliant = kilau, Blunder = nada turun (rating lain senyap) | saat indikator Live Move Analysis muncul (`chessan.js`) |
+
+- Jenis langkah dihitung dari papan **sebelum** langkah: `CHSFX.kind(papan, dari, ke)`.
+- Toggle: tombol speaker di baris aksi game (`data-act="csnd"` di games.js, `data-cm="snd"` di chessmp.js, juga di kontrol Replay). Tersimpan di `localStorage` kunci `chsfx` (`'0'` = mati, default nyala). Menyalakan kembali memainkan satu ketukan contoh (sekaligus membuka AudioContext lewat gestur pengguna, syarat autoplay browser).
+- Level tiap bunyi dikalibrasi (`LEVEL` di chesssfx.js) supaya setara (puncak ≈ 0,3–0,45 setelah kompresor); noise ketukan deterministik (bukan `Math.random`) sehingga bunyinya selalu sama.
+- Telusur riwayat yang melompat (klik langkah jauh) sengaja **tidak** berbunyi; hanya langkah satu-satu.

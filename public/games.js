@@ -285,6 +285,7 @@ function chessScreen() {
     return '<div class="cm-hview" role="status"><span>' + (vp === 0 ? 'Posisi awal' : 'Langkah <b>' + esc(sn) + '</b>' + (rt ? ' · ' + esc(C.META[rt.k].n) : '')) + '</span>' +
       '<button class="gm-ghost" type="button" data-act="cstep" data-v="live">Posisi terkini</button></div>';
   })() : '';
+  const snd = window.CHSFX ? CHSFX.btn('data-act="csnd"') : '';
   const histNav = tracked && g.ply > 0 ? '<button class="gm-ghost cm-flip" type="button" data-act="cstep" data-v="prev" aria-label="Langkah sebelumnya">' + SVG.back + '</button>' +
     '<button class="gm-ghost cm-flip" type="button" data-act="cstep" data-v="next" aria-label="Langkah berikutnya"' + (vp == null ? ' disabled' : '') + '><span style="display:inline-block;transform:scaleX(-1);line-height:0">' + SVG.back + '</span></button>' : '';
 
@@ -306,7 +307,7 @@ function chessScreen() {
 
   return back + '<div class="ch-stage"><div class="ch-main">' +
     strip(false) + (oc ? '<div class="ch-say" id="chsay" aria-live="polite">' + chSayInner() + '</div>' : '') + board + strip(true) + hview + msgEl + promo +
-    (g.active ? '<div class="ch-acts">' + histNav + '<button class="gm-ghost" type="button" data-act="cresign"' + (chArm ? ' data-arm="1"' : '') + '>' + (chArm ? 'Tap lagi: menyerah' : 'Menyerah') + '</button></div>' : (histNav ? '<div class="ch-acts">' + histNav + '</div>' : '')) +
+    (g.active ? '<div class="ch-acts">' + snd + histNav + '<button class="gm-ghost" type="button" data-act="cresign"' + (chArm ? ' data-arm="1"' : '') + '>' + (chArm ? 'Tap lagi: menyerah' : 'Menyerah') + '</button></div>' : (histNav || snd ? '<div class="ch-acts">' + snd + histNav + '</div>' : '')) +
     result + '</div>' +
     '<div class="ch-side"><div class="gm-info"><h3>Langkah (' + g.hist.length + ')</h3>' + (pairs.length ? '<div class="ch-hist">' + pairs.join('') + '</div>' : '<p class="gm-cap">Belum ada langkah.</p>') +
     '<p class="gm-cap">Menang +' + nf.format(lv[String(g.level)].prize) + ' coin (seri 40%). Maksimal ' + d.cap + ' kemenangan berhadiah per hari (sekarang ' + d.wins + '/' + d.cap + ').</p></div></div></div>' + chResultHtml(g, d);
@@ -479,6 +480,7 @@ async function cstart(lv) {
     if (await callC('chess/start', { level: Number(lv), ...(chOpp && chChars().some(c => c.id === chOpp) ? { opp: chOpp } : {}) })) { started = true; chRes = null; intro = false; chSel = -1; chPromo = null; msg = ['', 'Kamu putih. Mulai dengan melangkah pion dua kotak (e2-e4 misalnya).']; }
   } catch (e) { msg = [e.message || 'Gagal memulai, coba lagi.', 'err']; }
   chSayTok++; chSaying = false; busy = false; render();
+  if (started && window.CHSFX) CHSFX.start();
   if (started) csay(); // sapaan pembuka dari lawan (kalau dia mau)
 }
 /* ---------- Catur: lawan karakter ----------
@@ -676,6 +678,7 @@ async function cmove(from, to, promo, drop) {
         if (drop) { chPlan.steps = chPlan.steps.filter(x => x.f !== from); chPlan.ghosts = []; if (!chPlan.steps.length) chPlan = null; } // diseret: bidak sudah di tujuan, hanya benteng rokade yang meluncur
       }
       painted = true; render();
+      if (window.CHSFX) CHSFX.move(CHSFX.kind(oldBoard, from, to));
       if (cnOk) C.show(CH_GID, pre.ply + 1);
       const revealAt = Date.now() + think + (chReduce() ? 60 : CH_T.ai + 80); // saat bidak AI mendarat
       chLock = Math.max(chLock, revealAt); // papan terkunci sampai bidak AI mendarat
@@ -690,6 +693,11 @@ async function cmove(from, to, promo, drop) {
         if (!chReduce() && aiNote) chPlan = chAiPlan(mid.board, fin);
         chView = null;
         render();
+        if (window.CHSFX) {
+          if (aiMoved) CHSFX.move(CHSFX.kind(mid.board, fin.last.f, fin.last.t));
+          if (fin.check >= 0) setTimeout(() => CHSFX.check(), 90);                                   // kamu diskak
+          if (fin.result) setTimeout(() => CHSFX.end(fin.result.won === 'w' ? 'win' : fin.result.won === 'd' ? 'draw' : 'lose'), 450);
+        }
         if (cnOk === true && aiMoved) C.show(CH_GID, fin.ply);
       }
     }
@@ -704,7 +712,7 @@ async function cresign() {
   if (busy || !cs || !cs.game || !cs.game.active) return;
   busy = true;
   let done = false;
-  try { await callC('chess/resign'); done = true; chResOpen(cs.game); msg = ['Kamu menyerah. Coba lagi dengan tingkat yang lebih ringan?', '']; }
+  try { await callC('chess/resign'); done = true; if (window.CHSFX) CHSFX.end('lose'); chResOpen(cs.game); msg = ['Kamu menyerah. Coba lagi dengan tingkat yang lebih ringan?', '']; }
   catch (e) { msg = [e.message || 'Gagal menyerah, coba lagi.', 'err']; }
   busy = false; render();
   if (done) csay();
@@ -837,6 +845,7 @@ body.addEventListener('click', e => {
   else if (a === 'crev') chOpenReview();
   else if (a === 'cagain') { const g = cs && cs.game; if (g) { chOpp = g.opp || ''; chRes = null; cstart(g.level); } }
   else if (a === 'cview') chGo(Number(b.dataset.p));
+  else if (a === 'csnd') { if (window.CHSFX) CHSFX.toggle(); render(); }
   else if (a === 'cstep') { const g = cs && cs.game; if (g) { const cur = chView == null ? g.ply : chView, v = b.dataset.v; chGo(v === 'prev' ? cur - 1 : v === 'next' ? cur + 1 : g.ply); } }
   else if (a === 'chnew') { chView = null; if (chCn()) chCn().clear(); chRes = null; intro = true; msg = ['', '']; chSel = -1; chPromo = null; render(); } // kembali ke pilihan tingkat
   else if (a === 'copp') { chOpp = b.dataset.id || ''; try { localStorage.setItem('chessOpp', chOpp); } catch {} render(); }

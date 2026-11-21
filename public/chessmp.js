@@ -135,9 +135,10 @@ function cnSync(showLast) {
 }
 function hGo(p) {          // telusuri: tampilkan posisi setelah langkah ke-p (0 = awal)
   const C = CN(); if (!C || !game || !C.ok(game.id)) return;
-  const n = game.ply || 0, cur = Math.max(0, Math.min(n, p));
+  const n = game.ply || 0, cur = Math.max(0, Math.min(n, p)), prev = viewPly == null ? n : viewPly;
   viewPly = cur >= n ? null : cur; sel = -1;
   render();
+  if (window.CHSFX && Math.abs(cur - prev) === 1) { const lo = Math.min(cur, prev), bb = C.board(game.id, lo), l = C.last(game.id, lo + 1); CHSFX.move(cur > prev && bb && l ? CHSFX.kind(bb, l.f, l.t) : 'move'); }
   if (cur >= 1) C.show(game.id, cur); else C.clear();
 }
 function hStep(v) {
@@ -394,7 +395,7 @@ function gameScreen() {
     '<button class="gm-ghost" type="button" data-cm="resign"' + (resignArm ? ' data-arm="1"' : '') + '>' + (g.ply < 2 ? (resignArm ? 'Tap lagi: batalkan' : 'Batalkan') : (resignArm ? 'Tap lagi: menyerah' : 'Menyerah')) + '</button>' +
     '<button class="gm-ghost" type="button" data-cm="draw">' + SVG.half.replace('<svg', '<svg style="width:13px;height:13px;vertical-align:-2px"') + ' Seri</button>' +
     '<button class="gm-ghost" type="button" data-cm="hint"' + (yourTurn ? '' : ' disabled') + '>' + (hintBusy ? 'Menghitung…' : 'Hint') + '</button>' : '') +
-    histNav + '<button class="gm-ghost cm-flip" type="button" data-cm="flip" aria-label="Putar papan">' + SVG.flip + '</button></div>';
+    (window.CHSFX ? CHSFX.btn('data-cm="snd"') : '') + histNav + '<button class="gm-ghost cm-flip" type="button" data-cm="flip" aria-label="Putar papan">' + SVG.flip + '</button></div>';
   const done = g.status !== 'active' && g.result ? '<div class="cm-pgn">' +
     '<button class="gm-ghost" type="button" data-cm="copypgn">Salin PGN</button>' +
     (g.status === 'done' ? '<button class="gm-ghost" type="button" data-cm="review" data-id="' + esc(g.id) + '">Analisis</button><button class="gm-ghost" type="button" data-cm="replay" data-id="' + esc(g.id) + '">Replay</button>' : '') +
@@ -732,7 +733,7 @@ function replayScreen() {
     '<button type="button" class="cm-rpb" data-cm="step" data-v="prev" aria-label="Sebelumnya"' + (idx <= -1 ? ' disabled' : '') + '>' + SVG.prev + '</button>' +
     '<button type="button" class="cm-rpb play" data-cm="play" aria-label="' + (playing ? 'Jeda' : 'Putar otomatis') + '">' + (playing ? SVG.pause : SVG.play) + '</button>' +
     '<button type="button" class="cm-rpb" data-cm="step" data-v="next" aria-label="Berikutnya"' + (idx >= N - 1 ? ' disabled' : '') + '>' + SVG.next + '</button>' +
-    '<button type="button" class="cm-rpb" data-cm="step" data-v="last" aria-label="Posisi akhir"' + (idx >= N - 1 ? ' disabled' : '') + '>' + SVG.last + '</button></div>';
+    '<button type="button" class="cm-rpb" data-cm="step" data-v="last" aria-label="Posisi akhir"' + (idx >= N - 1 ? ' disabled' : '') + '>' + SVG.last + '</button>' + (window.CHSFX ? CHSFX.btn('data-cm="snd"') : '') + '</div>';
   const slider = '<div class="cm-rp-slider"><span>awal</span><input type="range" min="0" max="' + N + '" value="' + (idx + 1) + '" data-cm-slider aria-label="Garis waktu permainan"><span>' + N + '</span></div>';
   const now = cur
     ? '<div class="cm-rp-now">' + Math.ceil(cur.ply / 2) + (cur.color === 'w' ? '. <b>' + esc(cur.san) + '</b> (putih)' : '… <b>' + esc(cur.san) + '</b> (hitam)') + '</div>'
@@ -960,12 +961,14 @@ async function sendMove(from, to, promoP) {
   if (C && C.ok(pre.id) && C.count(pre.id) === (pre.ply || 0)) cnAdded = C.add(pre.id, from, to, promoP || '');
   render();
   runAnim(planAnim(oldBoard, from, to));
+  if (window.CHSFX) CHSFX.move(CHSFX.kind(oldBoard, from, to));
   if (cnAdded) C.show(pre.id, mid.ply);
   vibrate(10);
   try {
     const r = await api('move', { id: pre.id, from, to, ...(promoP ? { promo: promoP } : {}) });
     game = r.game; myPly = r.game.ply;
     msg = ['', ''];
+    if (r.game.status === 'active' && r.game.check >= 0 && window.CHSFX) CHSFX.check();   // lawanmu sedang diskak
     if (r.game.status === 'done') { stopPoll(); onGameDone(); }
     render();
     cnSync(!cnAdded);             // sinkron dengan server (dan lengkapi bila pelacak belum punya riwayat)
@@ -1021,6 +1024,8 @@ async function doHint() {
   hintBusy = false; render();
 }
 function onGameDone() {
+  const rs = game && game.result;
+  if (rs && rs.won && window.CHSFX) setTimeout(() => CHSFX.end(rs.won === 'd' ? 'draw' : rs.won === game.you ? 'win' : 'lose'), 450);
   resultShown = false;           // biarkan overlaysHtml menampilkan modal sekali untuk hasil ini
   hint = null; sel = -1; promo = null;
   vibrate([30, 60, 30]);
@@ -1074,6 +1079,7 @@ async function applySync(r) {
       let b = prevBoard;
       for (const m of seq) {
         const plan = planAnim(b, m.from, m.to);
+        if (window.CHSFX) CHSFX.move(CHSFX.kind(b, m.from, m.to));
         b = midBoard(b, m.from, m.to, m.promo);
         game.board = b; game.last = { f: m.from, t: m.to };
         render();
@@ -1086,9 +1092,11 @@ async function applySync(r) {
       render();
       const m = seq[seq.length - 1];
       runAnim(planAnim(prevBoard, m.from, m.to));
+      if (window.CHSFX) CHSFX.move(CHSFX.kind(prevBoard, m.from, m.to));
       if (C) C.show(gid, m.n);
     }
     vibrate(12);
+    if (r.status === 'active' && r.check >= 0 && window.CHSFX) setTimeout(() => CHSFX.check(), 90);   // kamu diskak
   }
   game.board = r.board; game.last = r.last; game.check = r.check;
   game.turn = r.turn; game.ply = r.ply != null ? r.ply : myPly;
@@ -1139,7 +1147,7 @@ function startRoomPoll() {
       if (r.status === 'matched' && r.gameId) {
         stopRoomPoll(); room = null;
         await fetchGame(r.gameId);
-        if (game) { view = 'game'; gameFrom = 'lobby'; msg = ['', 'Permainan dimulai!']; render(); startPoll(true); }
+        if (game) { view = 'game'; gameFrom = 'lobby'; msg = ['', 'Permainan dimulai!']; render(); startPoll(true); if (window.CHSFX) CHSFX.start(); }
         return;
       }
       if (r.status === 'gone') { stopRoomPoll(); room = null; msg = ['Kode ruangan sudah hangus atau dibatalkan.', 'err']; view = 'lobby'; loadLobby(); return; }
@@ -1195,6 +1203,7 @@ async function joinRoom() {
     sel = -1; hint = null; promo = null; resultShown = false; drawShownFor = null; viewPly = null;
     cnSync();
     render(); startPoll(true);
+    if (window.CHSFX) CHSFX.start();
   } catch (e) {
     msg = [e.message || 'Gagal masuk ruangan.', 'err']; render();
   }
@@ -1296,6 +1305,7 @@ function replayStep(dir) {
     if (ni > old && cur) runAnim(planAnim(posBeforeReplay(rp, ni), cur.from, cur.to));
     else if (prv) runAnim({ steps: [{ f: prv.to, t: prv.from }], ghosts: [] });   // mundur: bidak "kembali"
   }
+  if (window.CHSFX && Math.abs(ni - old) === 1) { const c2 = ni > old ? rp.positions[ni] : null; CHSFX.move(c2 ? CHSFX.kind(posBeforeReplay(rp, ni), c2.from, c2.to) : 'move'); }
   cnReplayShow();
   if (ni >= N - 1) stopAuto();
 }
@@ -1375,6 +1385,7 @@ function onHostClick(e) {
     else if (view === 'game') hGo(p);
   }
   else if (a === 'hstep') hStep(b.dataset.v);
+  else if (a === 'snd') { if (window.CHSFX) CHSFX.toggle(); render(); }
   else if (a === 'rstep') {
     const v = b.dataset.v;
     const N = review.data ? review.data.moves.length : 0;

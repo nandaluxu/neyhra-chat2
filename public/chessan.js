@@ -200,7 +200,7 @@ function onResult(d) {
 let IND = null, cleanT = 0;
 const listeners = [];
 function fire(gid, ply, r) {
-  if (IND && IND.gid === gid && IND.ply === ply && IND.born == null) { IND.born = Date.now(); attach(); }
+  if (IND && IND.gid === gid && IND.ply === ply && IND.born == null) { IND.born = Date.now(); attach(); if (window.CHSFX) CHSFX.rating(r.k); }
   fillPills();
   for (const f of listeners) { try { f({ gid, ply, r }); } catch {} }
 }
@@ -210,6 +210,7 @@ function show(gid, ply) {
   G.want = ply; touch(gid);
   IND = { gid, ply, born: G.rate[ply - 1] ? Date.now() : null };
   attach(); pump();
+  if (IND.born != null && window.CHSFX) CHSFX.rating(G.rate[ply - 1].k);
 }
 function clear() { IND = null; attach(); }
 function boardEl() { return document.querySelector('#gmbody .ch-board'); }
