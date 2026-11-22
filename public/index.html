@@ -668,9 +668,11 @@ header .pfp,header .who{cursor:pointer}
     </div>
     <label class="srch"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg><input id="q" type="search" placeholder="Cari nama atau judul" autocomplete="off" enterkeyhint="search"></label>
     <section class="b-cont hide" id="bcont" aria-label="Lanjut ngobrol"><div class="b-head"><h2>Lanjut ngobrol</h2></div><div class="b-strip" id="bstrip"></div></section>
+    <section class="b-cont b-rec hide" id="brec" aria-label="Rekomendasi untukmu"><div class="b-head"><h2>Rekomendasi untukmu</h2></div><div class="b-strip" id="brecstrip"></div></section>
     </div><div class="m-main">
     <div class="b-head"><h2>Semua karakter</h2><span id="allcount"></span><button type="button" class="b-ctog hide" id="chiptog" aria-controls="bchips" aria-expanded="true"><svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg>Filter</button></div>
     <div class="b-chips" id="bchips" role="group" aria-label="Filter seri"></div>
+    <nav class="b-az hide" id="bidx" aria-label="Indeks abjad"></nav>
     <div class="bgrid" id="alllist" aria-busy="true"><span class="b-tile sk" aria-hidden="true"></span><span class="b-tile sk" aria-hidden="true"></span><span class="b-tile sk" aria-hidden="true"></span><span class="b-tile sk" aria-hidden="true"></span><span class="b-tile sk" aria-hidden="true"></span><span class="b-tile sk" aria-hidden="true"></span></div>
     <div class="all-empty hide" id="allempty"><p>Nggak ada karakter yang cocok.</p><button type="button" id="qclear">Hapus pencarian</button></div>
     </div></div>
@@ -3080,13 +3082,27 @@ function loadTileStats(){
     if(!r||!r.ok||!r.stats) return;
     tileStats.clear(); for(const [id,v] of Object.entries(r.stats)) if(Array.isArray(v)) tileStats.set(id,v);
     rows.forEach(({c,el})=>{ if(!tileStats.has(c.id)) tileStats.set(c.id,[0,0]); paintTile(el,c.id); });
+    renderCont();
   }).catch(()=>{});
 }
 addEventListener('charstats',e=>{ /* dari halaman detail: like/komentar berubah */
   const d=e.detail||{}; if(!d.id) return; tileStats.set(d.id,[d.likes,d.comments]);
   const r=rows.find(x=>x.c.id===d.id); if(r) paintTile(r.el,d.id);
 });
-let rows=[]; /* [{c, el}] tile di Beranda, dibuat sekali lalu cuma disembunyikan/ditampilkan saat mencari */
+let rows=[]; /* [{c, el, L}] tile di Beranda (urut A-Z), dibuat sekali lalu cuma disembunyikan/ditampilkan saat mencari */
+let heads=[]; /* [{L, el}] penanda huruf di grid */
+/* Urutan abjad: karakter bawaan + AI publik buatan user digabung jadi satu daftar. Nama yang dipakai = nama tampilan (alias lokal kalau ada), tanpa aksen/simbol di depan.
+   Nama berawalan non-latin/angka/simbol dikelompokkan di "#" paling bawah. */
+const azName=c=>String(dispName(c)||c.name||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/^[^\p{L}\p{N}]+/u,'');
+const azLetter=c=>{ const f=azName(c).charAt(0).toUpperCase(); return /[A-Z]/.test(f)?f:'#'; };
+const azCmp=(a,b)=>{ const la=azLetter(a), lb=azLetter(b); if((la==='#')!==(lb==='#')) return la==='#'?1:-1; return azName(a).localeCompare(azName(b),'id',{sensitivity:'base',numeric:true})||String(a.id).localeCompare(String(b.id)); };
+function buildAz(){ /* baris huruf untuk lompat cepat; cuma huruf yang ada isinya */
+  const nav=$('bidx'); if(!nav) return; nav.textContent='';
+  nav.classList.toggle('hide',rows.length<10||heads.length<2);
+  heads.forEach(({L,el})=>{ const b=mk('button',null,L); b.type='button'; b.dataset.l=L; b.setAttribute('aria-label','Loncat ke huruf '+(L==='#'?'angka dan simbol':L));
+    b.onclick=()=>el.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion:reduce)').matches?'auto':'smooth',block:'start'}); nav.append(b); });
+}
+function azPaint(cnt){ const nav=$('bidx'); if(nav) nav.querySelectorAll('button').forEach(b=>{ b.disabled=!cnt[b.dataset.l]; }); }
 let serie=''; /* chip seri yang aktif ('' = semua) */
 function buildChips(){
   const box=$('bchips'); if(!box) return; const m=new Map();
@@ -3109,8 +3125,9 @@ function paintChipTog(){
 }
 $('chiptog').onclick=()=>{ store.set('chips',chipsOff()?null:'0'); paintChipTog(); };
 function filterAll(){
-  const k=q.value.trim().toLowerCase(); let n=0;
-  rows.forEach(({c,el})=>{ const ok=(!k||(c.name+' '+(c.tagline||'')).toLowerCase().includes(k))&&(!serie||(c.tagline||'').trim()===serie); el.classList.toggle('hide',!ok); if(ok) n++; });
+  const fold=s=>String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); const k=fold(q.value.trim()); let n=0; const cnt={};
+  rows.forEach(({c,el,L})=>{ const ok=(!k||fold(c.name+' '+(c.tagline||'')).includes(k))&&(!serie||(c.tagline||'').trim()===serie); el.classList.toggle('hide',!ok); if(ok){ n++; cnt[L]=(cnt[L]||0)+1; } });
+  heads.forEach(({L,el})=>el.classList.toggle('hide',!cnt[L])); azPaint(cnt);
   $('allempty').classList.toggle('hide',n>0);
   $('allcount').textContent=n+' karakter';
   renderCont(); /* strip "Lanjut ngobrol" disembunyikan selama mencari */
@@ -3118,7 +3135,8 @@ function filterAll(){
 /* "Lanjut ngobrol": jalan pintas ke obrolan terakhir langsung dari Beranda (maks 8, terbaru dulu) */
 function renderCont(){
   const box=$('bcont'), st=$('bstrip'); if(!box||!allChars.length) return;
-  const items=allChars.map(c=>{ const l=loadLog(c.id), e=l[l.length-1]; return e?{c,e}:null; }).filter(Boolean).sort((a,b)=>(b.e.t||0)-(a.e.t||0)).slice(0,8);
+  const logs=allChars.map(c=>[c,loadLog(c.id)]);
+  const items=logs.map(([c,l])=>{ const e=l[l.length-1]; return e?{c,e}:null; }).filter(Boolean).sort((a,b)=>(b.e.t||0)-(a.e.t||0)).slice(0,8);
   box.classList.toggle('hide',!items.length||!!q.value.trim());
   st.textContent='';
   for(const {c,e} of items){
@@ -3127,6 +3145,48 @@ function renderCont(){
     const n=document.createElement('b'); n.textContent=shortName(c);
     const p=document.createElement('small'); p.textContent=(e.ks||e.k)?'🎙 Voice note':((e.r==='me'?'Kamu: ':'')+String(e.x||'').replace(/\*/g,'').replace(/\s+/g,' ').trim());
     b.title=dispName(c); b.append(av,n,p); b.onclick=()=>openChat(c,av); st.append(b);
+  }
+  renderRec(logs);
+}
+/* ===== Rekomendasi untukmu: dihitung dari siapa yang paling sering kamu ajak ngobrol (jumlah pesanmu; yang lebih baru bobotnya lebih besar).
+   Kandidat = karakter yang BELUM pernah kamu ajak ngobrol dan mirip dengan yang sering: satu seri/label (+3), satu pembuat AI buatan user (+1,2),
+   gender sama sebagai bonus kecil; like jadi penambah tipis. Kurang dari 4 yang cocok -> dilengkapi yang paling banyak di-like. Tanpa riwayat = disembunyikan. ===== */
+function renderRec(logs){
+  const box=$('brec'), st=$('brecstrip'); if(!box) return;
+  const now=Date.now(), sig=[], seen=new Set();
+  for(const [c,l] of logs){
+    if(!l.length) continue; seen.add(c.id);
+    const n=l.reduce((a,e)=>a+(e&&e.r==='me'?1:0),0); if(!n) continue;
+    const days=Math.max(0,(now-(l[l.length-1].t||0))/864e5);
+    sig.push([c,Math.log2(1+n)*(.5+.5*Math.exp(-days/30))]);
+  }
+  const cre=c=>c&&c.custom&&c.creator?(c.creator.username||c.creator.name||''):'', tg=c=>String((c&&c.tagline)||'').trim();
+  const likes=c=>(tileStats.get(c.id)||[0])[0]||0;
+  const cand=[];
+  if(sig.length) for(const c of allChars){
+    if(seen.has(c.id)) continue;
+    let s=0,bw=0,best=null,why='',g=0,gb=null,gbw=0;
+    for(const [t,w] of sig){
+      let sim=0,r=''; const cc=cre(c);
+      if(tg(c)&&tg(c)===tg(t)){ sim+=3; r='seri'; }
+      if(cc&&cc===cre(t)){ sim+=1.2; r=r||'pembuat'; }
+      if(sim&&c.gender&&c.gender===t.gender) sim+=.5;
+      if(!sim){ if(c.gender&&c.gender===t.gender){ g+=w; if(w>gbw){ gbw=w; gb=t; } } continue; } const v=w*sim; s+=v; if(v>bw){ bw=v; best=t; why=r; }
+    }
+    cand.push({c,s:s>0?s+Math.log10(1+likes(c))*.4:0,best,why,g,gb});
+  }
+  let pick=cand.filter(x=>x.s>0).sort((a,b)=>b.s-a.s||azCmp(a.c,b.c)).slice(0,6);
+  const fill=(list,why)=>{ const ids=new Set(pick.map(x=>x.c.id)); list.filter(x=>!ids.has(x.c.id)).slice(0,4-pick.length).forEach(x=>pick.push({...x,best:why==='mirip'?x.gb:x.best,why})); };
+  if(sig.length&&pick.length<4) fill(cand.filter(x=>x.g>0).sort((a,b)=>b.g-a.g||likes(b.c)-likes(a.c)||azCmp(a.c,b.c)),'mirip'); /* selera sama: gender yang sering kamu ajak ngobrol */
+  if(sig.length&&pick.length<4) fill(cand.filter(x=>likes(x.c)>0).sort((a,b)=>likes(b.c)-likes(a.c)),'populer');
+  box.classList.toggle('hide',!pick.length||!!q.value.trim());
+  st.textContent='';
+  for(const {c,best,why} of pick){
+    const b=document.createElement('button'); b.type='button'; b.className='b-cc';
+    const av=document.createElement('span'); av.className='b-cav'; const im=img(c); im.loading='lazy'; av.append(im);
+    const n=document.createElement('b'); n.textContent=shortName(c);
+    const p=document.createElement('small'); p.textContent=why==='seri'?'Satu seri dengan '+shortName(best):why==='pembuat'?'Satu pembuat dengan '+shortName(best):why==='mirip'?'Mirip '+shortName(best):'Lagi disukai banyak orang';
+    b.title=dispName(c)+' · '+p.textContent; b.append(av,n,p); b.onclick=()=>openChat(c,av); st.append(b);
   }
 }
 $('bstrip').addEventListener('wheel',e=>{ /* roda mouse biasa (vertikal) menggeser baris ke samping selama masih ada ruang geser; di ujung, halaman yang scroll */
@@ -3148,7 +3208,12 @@ return fetch('/api/chars',atok?{headers:{Authorization:'Bearer '+atok},cache:'no
   if(!Array.isArray(cs)) throw 0;
   allChars=cs;
   $('alllist').textContent=''; $('alllist').removeAttribute('aria-busy');
-  rows=cs.map((c,i)=>{ const el=card(c); el.style.setProperty('--i',Math.min(i,12)); return {c,el}; }); $('alllist').append(...rows.map(r=>r.el));
+  rows=[]; heads=[]; { const frag=document.createDocumentFragment(); let cur='';
+    [...cs].sort(azCmp).forEach((c,i)=>{ const L=azLetter(c);
+      if(L!==cur){ cur=L; const hd=mk('h3','b-letter',L); hd.id='az-'+(L==='#'?'num':L); frag.append(hd); heads.push({L,el:hd}); }
+      const el=card(c); el.style.setProperty('--i',Math.min(i,12)); rows.push({c,el,L}); frag.append(el); });
+    $('alllist').append(frag); }
+  buildAz();
   $('allcount').textContent=cs.length+' karakter';
   renderList(); renderCont(); buildChips(); if(typeof filterAll==='function') filterAll();
   if(window.GX) GX.paintAll();

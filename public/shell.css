@@ -536,3 +536,18 @@
    Sebelumnya hampir semua 10 sehingga yang di atas hanya ditentukan urutan HTML. Selektor pakai #app supaya menang dari file CSS lain. */
 #app #mwmodal,#app #rnmodal,#app #dlmodal{z-index:14}
 #app #mtoast,#app #ltoast{z-index:40}
+
+/* ---------- Beranda: urutan abjad, indeks A-Z, rekomendasi ---------- */
+.b-letter{grid-column:1/-1;display:flex;align-items:center;gap:12px;margin:8px 0 -2px;font-size:13px;font-weight:700;letter-spacing:.08em;color:var(--mut);scroll-margin-top:16px}
+.b-letter::after{content:"";flex:1;height:1px;background:var(--line)}
+.b-letter:first-child{margin-top:0}
+.b-letter.hide{display:none}
+.b-az{flex:none;display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;margin:0 -20px 14px;padding:2px 20px}
+.b-az::-webkit-scrollbar{display:none}
+.b-az.hide{display:none}
+.b-az button{flex:none;min-width:30px;height:30px;padding:0 6px;border-radius:99px;font-size:12.5px;font-weight:650;color:var(--ink);background:transparent;transition:background .15s,opacity .15s}
+@media(hover:hover){.b-az button:hover{background:var(--surface)}}
+.b-az button:disabled{opacity:.25;pointer-events:none}
+@media(min-width:800px){.b-az{margin:0 0 16px;padding:2px 0;flex-wrap:wrap;overflow:visible}}
+#menu .b-rec .b-head{margin-top:22px}
+@media(max-width:799px){.b-letter{scroll-margin-top:84px}} /* kotak cari menempel di atas (sticky) di HP */
