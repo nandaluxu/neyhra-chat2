@@ -1,0 +1,81 @@
+/* ===== Beranda: penyegaran tampilan =====
+   CSS saja, dimuat SETELAH shell.css. Semua selektor diawali "#app #menu" supaya menang dari lapisan v1/v2/v3 di shell.css tanpa !important.
+   Tidak ada ID/kelas yang diubah, jadi JS di index.html tetap jalan. Mau kembali ke tampilan lama: hapus <link> home.css di index.html.
+   Aksen: violet logo (#6a5af0) dipakai hemat: fokus, chip aktif, tombol utama, hover. Selebihnya tetap hitam-putih seperti sebelumnya. */
+
+#app #menu{
+  --acc:#6a5af0; --acc-t:#5646dd; --acc-s:color-mix(in srgb,#6a5af0 11%,var(--bg));
+  font-family:"Plus Jakarta Sans",Inter,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+@media(prefers-color-scheme:dark){#app #menu{--acc-t:#a99dff;--acc-s:color-mix(in srgb,#6a5af0 24%,var(--bg))}}
+#app #menu :is(button,input){font-family:inherit}
+
+/* ---------- Sapaan: satu sub-baris saja (sebelumnya dobel dengan "Pilih siapa yang mau diajak ngobrol.") ---------- */
+#app #menu #mtitle{font-weight:800;letter-spacing:-.045em}
+#app #menu #mtitle.greet{font-size:clamp(26px,7.8vw,32px);line-height:1.08;letter-spacing:-.04em}
+#app #menu #mtitle.greet .tw+.tw{margin-top:4px;font-size:.62em;font-weight:600;letter-spacing:-.01em;color:var(--mut)}
+#app #menu #mtitle.greet~.m-sub{display:none}
+#app #menu .m-sub{margin-top:8px;font-size:15px;font-weight:500}
+#app #menu .m-pills{margin-top:14px}
+#app #menu .m-set{border-radius:99px;box-shadow:none;background:var(--acc-s);color:var(--acc-t);font-weight:700}
+#app #menu .m-set:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+
+/* ---------- Pencarian ---------- */
+#app #menu .srch{height:52px;border-radius:18px;background:var(--surface);box-shadow:none;transition:background .15s,box-shadow .15s}
+#app #menu .srch:focus-within{background:var(--bg);box-shadow:inset 0 0 0 2px var(--acc)}
+@media(max-width:799px){ /* HP: kotak cari lengket di atas, ring --bg 8px menutupi isi yang lewat di bawahnya */
+  #app #menu .srch{box-shadow:0 0 0 8px var(--bg)}
+  #app #menu .srch:focus-within{box-shadow:inset 0 0 0 2px var(--acc),0 0 0 8px var(--bg)}
+}
+
+/* ---------- Judul bagian + jumlah ---------- */
+#app #menu .b-head h2{font-size:18px;font-weight:800;letter-spacing:-.03em}
+#app #menu .b-head #allcount{background:var(--acc-s);color:var(--acc-t);font-weight:700}
+#app #menu .b-head .b-ctog{font-weight:700}
+
+/* ---------- Lanjut ngobrol & Rekomendasi ---------- */
+#app #menu .b-cc{border-radius:18px;background:var(--surface);box-shadow:none;transition:background .15s,transform .2s}
+#app #menu .b-cav img{border-radius:14px}
+#app #menu .b-cc b{font-weight:700}
+#app #menu .b-cc:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+@media(hover:hover){#app #menu .b-cc:hover{background:var(--acc-s)}}
+
+/* ---------- Filter seri, indeks A-Z, pembatas huruf ---------- */
+#app #menu .b-chip{padding:7px 13px;font-size:12.5px;font-weight:700}
+#app #menu .b-chip.on{background:var(--acc);color:#fff}
+#app #menu .b-chip:focus-visible{outline-color:var(--acc)}
+#app #menu .b-az button{min-width:28px;height:28px;font-weight:700;color:var(--mut)}
+@media(hover:hover){#app #menu .b-az button:hover:not(:disabled){background:var(--acc-s);color:var(--acc-t)}}
+#app #menu .b-letter{font-size:15px;font-weight:800;letter-spacing:-.02em;color:var(--ink)}
+
+/* ---------- Kartu karakter ---------- */
+#app #menu .b-av{border-radius:24px}
+#app #menu .b-front{padding:56px 14px 13px;background:linear-gradient(to top,rgba(10,8,24,.86) 0%,rgba(10,8,24,.5) 52%,rgba(10,8,24,0) 100%)}
+#app #menu .b-fn{font-size:16px;font-weight:800;letter-spacing:-.03em}
+#app #menu .b-ft{font-weight:500}
+#app #menu .b-fs{font-weight:700}
+#app #menu .b-go{height:38px;border-radius:14px;background:var(--acc);font-weight:700}
+#app #menu .b-open:focus-visible{box-shadow:inset 0 0 0 3px #fff,inset 0 0 0 5px var(--acc)}
+@media(hover:hover){
+  #app #menu .b-tile:hover .b-av{box-shadow:inset 0 0 0 1px rgba(128,128,128,.14),0 16px 32px color-mix(in srgb,var(--acc) 30%,transparent)}
+}
+#app #menu .all-empty button{margin-top:10px;padding:10px 18px;border-radius:99px;background:var(--acc);color:#fff;font-size:13.5px;font-weight:700}
+
+/* ---------- HP: rapatkan jarak supaya kartu karakter naik ke layar pertama ---------- */
+@media(max-width:799px){
+  #app #menu .m-hero{margin-top:16px;margin-bottom:14px}
+  #app #menu .b-head{margin-top:20px;margin-bottom:10px}
+  #app #menu .b-cont .b-head{margin-top:18px;margin-bottom:8px}
+  #app #menu .b-az{margin-bottom:4px}
+}
+
+/* ---------- Desktop: panel kiri tanpa kotak abu-abu tebal ---------- */
+@media(min-width:800px){
+  #app #menu #mtitle.greet{font-size:38px}
+  #app #menu #mtitle:not(.greet){font-size:56px}
+  #app #menu .m-side{padding:6px 4px 0 0;border-radius:0;background:none}
+  #app #menu .m-side .m-set{background:var(--acc-s)}
+  #app #menu .m-side .srch,#app #menu .m-side .b-cc{background:var(--surface)}
+  #app #menu .m-side .srch:focus-within{background:var(--bg)}
+  #app #menu .m-side .b-cc:hover{background:var(--acc-s)}
+}
