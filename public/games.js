@@ -508,8 +508,8 @@ const chSayPaint = () => { const el = $('chsay'); if (el) el.innerHTML = chSayIn
 async function csay(revealAt = 0) {
   const g = cs && cs.game; if (!g || !g.opp) return;
   const tok = ++chSayTok, t = setTimeout(() => { if (tok === chSayTok) { chSaying = true; chSayPaint(); } }, 800); // titik mengetik baru muncul kalau server memang sedang membuat komentar
-  // suara ikut pengaturan bawaan chat (switch Voice, bahasa JP/ID, suara karakter, kecepatan); kalau voice mati, server tidak membuat teks suara
-  const vo = chVoiceOn() ? { on: true, lang: typeof voiceLang !== 'undefined' && voiceLang === 'id' ? 'id' : 'jp' } : { on: false };
+  // suara ikut pengaturan bawaan chat (switch Voice, bahasa voice, suara karakter, kecepatan); kalau voice mati, server tidak membuat teks suara. Bahasa dilewatkan apa adanya — server memfilternya ke daftar sah.
+  const vo = chVoiceOn() ? { on: true, lang: (typeof voiceLang !== 'undefined' && voiceLang) || 'jp' } : { on: false };
   let r = null;
   try { r = await aApi('chess/say', { voice: vo }); } catch {}
   clearTimeout(t);

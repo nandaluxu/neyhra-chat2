@@ -778,7 +778,7 @@ header .pfp,header .who{cursor:pointer}
         <small id="vhint">Butuh kode untuk menyalakan voice. Belum punya? Tanya owner dulu, nanti dikasih petunjuknya.</small>
       </div>
       <span class="vlab">Bahasa voice</span>
-      <div class="seg" id="seg-l"><button type="button" data-v="id">Indonesia</button><button type="button" data-v="jp">Jepang</button></div>
+      <div class="seg x3" id="seg-l"><button type="button" data-v="id">Indonesia</button><button type="button" data-v="jp">Jepang</button><button type="button" data-v="en">Inggris</button><button type="button" data-v="ko">Korea</button><button type="button" data-v="zh">Mandarin</button></div>
       <span class="vlab">Subtitle</span>
       <div class="seg" id="seg-s"><button type="button" data-v="both">Indonesia + Jepang</button><button type="button" data-v="auto">Ikuti bahasa voice</button><button type="button" data-v="id">Indonesia saja</button><button type="button" data-v="jp">Jepang saja</button></div>
       <div class="nact"><button id="vdone" type="button">Selesai</button></div>
@@ -1009,8 +1009,8 @@ function addVN(m, takes, t, g){
   t=t||Date.now(); ensureDay(t);
   const owner=g?g.owner:ch&&ch.id, posId=g?'g:'+g.gid:owner, list=Array.isArray(takes)?takes.slice():[takes||{}];
   let si=Math.min(Math.max(m.si||0,0),list.length-1), pre=list[si];
-  const text = (m.lang==='jp'&&m.jp) ? m.jp : m.id;
-  const est = Math.max(2, Math.round(text.split(' ').length*0.42));
+  const text = (m.lang&&m.lang!=='id'&&m.jp) ? m.jp : m.id; /* teks bahasa voice: untuk voice Indonesia subtitlenya Jepang, bahasa lain memakai teksnya sendiri */
+  const est = Math.max(2, Math.round(/[\u4e00-\u9fff]/.test(text)&&!/[\u3040-\u30ff\uac00-\ud7a3]/.test(text) ? text.replace(/\s/g,'').length*0.32 : text.split(' ').length*0.42)); /* Mandarin: hitung per aksara (tanpa spasi), lainnya per kata */
   let dur = (pre&&pre.dur)||est;
   const barsFor=(p,dd)=>{ const n=Math.min(30,Math.max(20,Math.round(dd*4))); return (p&&p.bins)?reduce(p.bins,n):Array.from({length:n},(_,i)=>.2+Math.abs(Math.sin(i*1.9+text.length))*.7); };
   const barHTML=hs=>hs.map((h,i)=>`<i style="height:${(h*100).toFixed(1)}%;--k:${i}"></i>`).join('');
@@ -1147,8 +1147,9 @@ function typingBubble(){
 /* ===== Pengaturan voice (diatur di Pengaturan, tersimpan di localStorage) ===== */
 const store={get(k){try{return localStorage.getItem(k)}catch{return null}},set(k,v){try{v==null?localStorage.removeItem(k):localStorage.setItem(k,v)}catch{}}};
 const rpOn=()=>store.get('rp')==='1'; /* Mode roleplay (Pengaturan) */
-const SUBS={both:'Indonesia + Jepang',id:'Indonesia saja',jp:'Jepang saja',auto:'Ikuti bahasa voice'};
-let voiceLang=store.get('vl')==='id'?'id':'jp';
+const SUBS={both:'Indonesia + Jepang',id:'Indonesia saja',jp:'Jepang saja',auto:'Ikuti bahasa voice'}; /* kunci opsi subtitle (label tombolnya dinamis, lihat paintVoice) */
+const VL={id:'Indonesia',jp:'Jepang',en:'Inggris',ko:'Korea',zh:'Mandarin'}; /* bahasa voice note; selain Indonesia, blok subtitle ikut bahasa voice itu */
+let voiceLang=VL[store.get('vl')]?store.get('vl'):'jp';
 let subLang=SUBS[store.get('sl')]?store.get('sl'):'both';
 let vcode=store.get('vcode')||'';           /* kode yang sudah terbukti benar */
 let voiceOn=store.get('von')==='1'&&!!vcode; /* voice cuma bisa nyala kalau sudah punya kode */
@@ -1159,9 +1160,11 @@ const voiceKeyOf=id=>{ const vs=charVoices(id); if(vs.length<2) return undefined
 /* 3 karakter yang terakhir dibuka tampil di atas menu. Murni client side: cuma daftar id di localStorage perangkat ini. */
 let recent=(()=>{ try{ const r=JSON.parse(store.get('recent')||'[]'); return Array.isArray(r)?r.filter(x=>typeof x==='string').slice(0,10):[]; }catch{ return []; } })();
 const touchRecent=id=>{ recent=[id,...recent.filter(x=>x!==id)].slice(0,10); store.set('recent',JSON.stringify(recent)); };
-/* teks subtitle sesuai pengaturan; 'auto' = ikut bahasa voice note itu sendiri */
+/* teks subtitle sesuai pengaturan; 'auto' = ikut bahasa voice note itu sendiri.
+   Voice Indonesia: <vn>-nya bahasa Indonesia, subtitlenya blok Jepang (m.jp) — perilaku lama.
+   Voice lain (jp/en/ko/zh): <vn> dan subtitle sama-sama bahasa itu, jadi mode selain 'id'/'both' menampilkan m.jp. */
 const subText=m=>{
-  const mode=subLang==='auto'?m.lang:subLang;
+  const mode=subLang==='auto'?((m.lang&&m.lang!=='id')?'jp':'id'):subLang;
   const parts=mode==='both'?[m.id,m.jp]:mode==='jp'?[m.jp]:[m.id];
   return parts.filter(Boolean).join('\n')||m.id;
 };
@@ -1518,7 +1521,11 @@ function paintVoice(){
   const on=voiceOn&&!!vcode;
   vsw.setAttribute('aria-checked',on);
   $('voicebtn').classList.toggle('on',on);
-  $('vlabel').textContent=on?'Voice nyala · '+(voiceLang==='id'?'Indonesia':'Jepang'):'Voice mati';
+  $('vlabel').textContent=on?'Voice nyala · '+(VL[voiceLang]||'Jepang'):'Voice mati';
+  /* label opsi subtitle mengikuti bahasa blok subtitle: voice Indonesia/Jepang -> Jepang, bahasa lain -> bahasa voice itu sendiri */
+  const sn=(voiceLang==='id'||voiceLang==='jp')?'Jepang':(VL[voiceLang]||'Jepang');
+  $('seg-s').querySelector('[data-v=both]').textContent='Indonesia + '+sn;
+  $('seg-s').querySelector('[data-v=jp]').textContent=sn+' saja';
   $('seg-l').querySelectorAll('button').forEach(b=>b.classList.toggle('sel',b.dataset.v===voiceLang));
   $('seg-s').querySelectorAll('button').forEach(b=>b.classList.toggle('sel',b.dataset.v===subLang));
 }
@@ -1546,7 +1553,7 @@ async function submitCode(){
 vcok.onclick=submitCode;
 vcinp.addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();submitCode()} });
 vcinp.addEventListener('input',()=>{ if(vhint.id==='verr'){vhint.id='vhint';vhint.textContent=HINT} });
-$('seg-l').onclick=e=>{ const b=e.target.closest('button'); if(!b) return; voiceLang=b.dataset.v==='id'?'id':'jp'; store.set('vl',voiceLang); paintVoice(); };
+$('seg-l').onclick=e=>{ const b=e.target.closest('button'); if(!b||!VL[b.dataset.v]) return; voiceLang=b.dataset.v; store.set('vl',voiceLang); paintVoice(); };
 $('seg-s').onclick=e=>{ const b=e.target.closest('button'); if(!b||!SUBS[b.dataset.v]) return; subLang=b.dataset.v; store.set('sl',subLang); paintVoice(); };
 $('voicebtn').onclick=()=>{ closeSettings(); openVoice(); };
 $('vdone').onclick=closeVoice;
@@ -2274,7 +2281,7 @@ $('exp').onclick=async()=>{
       for(let j=0;j<ks.length;j++){ const a=await idb.get(ks[j]); if(a&&a.ab){ const nm=base+(j?'-v'+(j+1):'')+'.mp3'; files.push({name:nm,data:new Uint8Array(a.ab)}); names.push(nm); } }
       out.push(head+ch.name+': [Voice note] '+(names.length?'('+names.join(', ')+')':'(audio tidak tersimpan)'));
       if(e.x) out.push('    Indonesia: '+body(e.x));
-      if(e.jp) out.push('    Jepang: '+body(e.jp));
+      if(e.jp) out.push('    '+((e.lang&&e.lang!=='id'&&VL[e.lang])?VL[e.lang]:'Jepang')+': '+body(e.jp)); /* label bahasa blok subtitle: voice Indonesia tetap Jepang, bahasa lain namanya sendiri */
     }
     const txt=out.join('\n')+'\n', d=new Date();
     const base=safeName(ch.name)+'-'+d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0');

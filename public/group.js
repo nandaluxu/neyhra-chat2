@@ -21,6 +21,7 @@ const CFG = {
   MSGMAX: 400, AUDMAX: 30  // maks pesan per grup, dan maks voice note yang audionya disimpan
 };
 const SECRET = 3761943960696751; // hash dari kode rahasia (huruf besar/kecil dan spasi diabaikan)
+const LN = { id: 'Indonesia', jp: 'Jepang', en: 'Inggris', ko: 'Korea', zh: 'Mandarin' }; // label bahasa voice note (untuk ekspor); selaras dengan VL di index.html
 const PRESETS = [
   ['Kafe', 'Mereka nongkrong di kafe'],
   ['Kelas', 'Mereka sekelas dan lagi istirahat di kelas'],
@@ -766,7 +767,7 @@ GX.exportChat = async () => {
       for (let j = 0; j < ks.length; j++) { const a = await idb.get(ks[j]); if (a && a.ab) { const nm = base + (j ? '-v' + (j + 1) : '') + '.mp3'; files.push({ name: nm, data: new Uint8Array(a.ab) }); names.push(nm); } }
       out.push(head + who + ': [Voice note] ' + (names.length ? '(' + names.join(', ') + ')' : '(audio belum dibuat atau tidak tersimpan)'));
       if (m.text) out.push('    Indonesia: ' + body(m.text));
-      if (m.jp) out.push('    Jepang: ' + body(m.jp));
+      if (m.jp) out.push('    ' + ((m.lang && m.lang !== 'id' && LN[m.lang]) ? LN[m.lang] : 'Jepang') + ': ' + body(m.jp)); /* label bahasa blok subtitle: voice Indonesia tetap Jepang, bahasa lain namanya sendiri */
     }
     const txt = out.join('\n') + '\n', d = new Date();
     const base = safeName(g.name) + '-' + d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0');
