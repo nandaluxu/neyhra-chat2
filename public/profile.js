@@ -537,7 +537,9 @@ function relConf() {
     try { const c = await (await fetch('/api/relation')).json(); if (c && Array.isArray(c.stages) && c.stages.length) return c; } catch {}
     return null;
   })();
-  return relConfP;
+  const p = relConfP;
+  p.then(v => { if (!v && relConfP === p) relConfP = null; }); // gagal dimuat: jangan di-cache, form berikutnya mencoba lagi
+  return p;
 }
 function aiRelBox(c) {
   const box = h('div');
@@ -564,29 +566,34 @@ function aiRelBox(c) {
   tx.append(b, i); row.append(tx, sw);
   atx.append(ab, ai); advRow.append(atx, adv);
   box.append(row, advRow, stages, h('div', 'pf-hint', 'Tanpa Mode lanjutan, AI ini memakai tahap bawaan (Kenalan → Teman → … → Kekal, Lv 1-500). Kepribadian inti di kolom atas tetap berlaku; tahap hanya mengatur seberapa dekat dan terbuka dia seiring level naik.'));
-  fillRelStages(c);
+  fillRelStages(c, stages);
   return box;
 }
-async function fillRelStages(c) {
-  const box = $('airelstages'); if (!box) return;
+async function fillRelStages(c, box) {
+  box = box || $('airelstages'); if (!box) return;
+  box.textContent = '';
+  box.append(h('div', 'pf-hint', 'Memuat daftar tahap…'));
   const conf = await relConf();
-  if (!box.isConnected) return; // form sudah ditutup saat menunggu konfigurasi
+  // form sudah ditutup saat menunggu konfigurasi? (box dibuat sebelum form masuk ke halaman, jadi cek lewat modal/form, bukan isConnected di awal)
+  if (!box.isConnected && !document.getElementById('ainame')) return;
   const st = conf && Array.isArray(conf.stages) ? conf.stages : null;
   box.textContent = '';
   if (!st || !st.length) { box.append(h('div', 'pf-hint', 'Daftar tahap belum termuat. Tutup dan buka lagi formnya.')); return; }
   const cur = (c && Array.isArray(c.relStages)) ? c.relStages : [];
-  box.append(h('div', 'pf-lab', 'Kepribadian per tahap'));
+  box.append(h('div', 'pf-lab', 'Kepribadian per tahap level'));
+  box.append(h('div', 'pf-hint', 'Tiap tahap berlaku di rentang level tertentu (Lv 1 sampai ' + (conf.maxLevel || 500) + '). Begitu level hubungan masuk ke rentang itu, sifat AI mengikuti isi kolomnya. Kolom kosong = pakai bawaan.'));
   st.forEach((s, idx) => {
     const range = 'Lv ' + s.min + (st[idx + 1] ? '\u2013' + (st[idx + 1].min - 1) : '+');
     const card = h('div', 'pf-attr pf-relst');
     const top = h('div', 'pf-attrtop');
+    const lvl = h('span', 'pf-rellv', range); // rentang level selalu terlihat (placeholder hilang kalau nama diisi)
     const nm = h('input', 'pf-inp pf-relnm'); nm.maxLength = 24; nm.value = (cur[idx] && cur[idx].name) || '';
     nm.placeholder = s.name; nm.setAttribute('aria-label', 'Nama tahap ' + range + ' (bawaan: ' + s.name + ')');
     const t = h('textarea', 'pf-inp'); t.rows = 2; t.maxLength = 400; t.value = (cur[idx] && cur[idx].rule) || '';
     t.placeholder = 'Bagaimana sikapnya ke kamu di tahap ' + s.name + ' (' + range + '). Kosongkan untuk bawaan.';
     const cnt = h('div', 'pf-cnt', t.value.length + '/400');
     t.addEventListener('input', () => { cnt.textContent = t.value.length + '/400'; });
-    top.append(nm); card.append(top, t, cnt); box.append(card);
+    top.append(lvl, nm); card.append(top, t, cnt); box.append(card);
   });
 }
 function aiRelValue() {
