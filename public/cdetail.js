@@ -417,6 +417,77 @@ function othersBox(c, by) {
 function section(title, ...kids) { const s = h('div', 'cd-sec'); s.append(h('h2', null, title), ...kids); return s; }
 const box = text => h('div', 'cd-box', text);
 
+/* ---- Mode dev: voiceId (Fish Audio) untuk AI buatan pengguna MANA PUN (bukan cuma milikmu) ----
+   Memakai endpoint dev/aivoice/{list,set} (lib/userchars.js) yang dijaga kode dev di SERVER; UI ini hanya pagar tampilan (devOn()).
+   voiceId mentah tidak pernah dikirim ke pengguna biasa. Suara dev DITAMBAHKAN ke suara bawaan yang dipilih pemilik AI (voiceRef);
+   mengosongkan daftar hanya menghapus suara dev, pilihan pemilik tidak tersentuh. */
+const devActive = () => typeof devOn === 'function' && devOn();
+async function devCodeAsk() {
+  if (typeof devCodeMem === 'undefined') return '';
+  if (!devCodeMem) { const v = prompt('Masukkan kode dev:'); if (!v || !v.trim()) return ''; devCodeMem = v.trim(); }
+  return devCodeMem;
+}
+const VID_RE = /^[\w-]{8,64}$/;   // sama dengan validasi server
+const voiceLines = list => (list || []).map(v => (v.label ? v.label + ' | ' : '') + v.id).join('\n');
+function parseVoiceLines(text) {
+  const out = [], lines = text.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const x = lines[i].trim(); if (!x) continue;
+    const k = x.lastIndexOf('|'), label = k < 0 ? '' : x.slice(0, k).trim(), id = (k < 0 ? x : x.slice(k + 1)).trim();
+    if (!VID_RE.test(id)) return { error: 'Baris ' + (i + 1) + ': voiceId tidak valid (8–64 huruf/angka/_/-, tanpa spasi).' };
+    out.push({ label, id });
+  }
+  if (out.length > 6) return { error: 'Maksimal 6 suara per AI.' };
+  return { voices: out };
+}
+function devVoiceSection(c) {
+  const wrap = h('div', 'cd-dv'), stat = h('div', 'cd-box'), open = btn('cd-pill o', 'Atur voiceId'), ed = h('div'), ta = h('textarea');
+  const msg = h('div', 'cd-dvm'), row = h('div', 'cd-dvr'), save = btn('cd-pill o', 'Simpan');
+  const paintStat = () => { stat.textContent = c.novoice ? 'AI ini belum punya suara, jadi belum bisa voice note / TTS.' : 'AI ini sudah punya suara' + (c.voices ? ' (' + c.voices.length + ' pilihan di pemilih suara).' : ' (1 pilihan).'); };
+  paintStat();
+  ta.rows = 4; ta.spellcheck = false; ta.autocapitalize = 'off'; ta.setAttribute('aria-label', 'Daftar voiceId');
+  ta.placeholder = 'Satu suara per baris: Label | voiceId\nmis. Normal | c438f4ef85b848c295a505a7ae2f1278';
+  msg.setAttribute('role', 'status');
+  const say2 = (t, err) => { msg.textContent = t || ''; msg.classList.toggle('err', !!err); };
+  let busy = false;
+  ed.hidden = true; ed.append(ta); row.append(save); ed.append(row);
+  open.style.marginTop = '10px';
+  open.onclick = async () => {
+    if (busy) return;
+    const code = await devCodeAsk(); if (!code) { say2('Kode dev dibutuhkan.', true); return; }
+    busy = true; say2('Memuat…');
+    try {
+      const r = await api('dev/aivoice/list', { code, id: c.id });
+      if (!r || !r.ok) throw new Error((r && r.error) || 'Gagal memuat.');
+      const d = (r.chars || [])[0];
+      ta.value = d ? voiceLines(d.voices) : ''; ed.hidden = false; open.style.display = 'none';   // style.display, bukan [hidden]: .cd-pill memaksa display:inline-flex
+      say2(d && d.voices.length ? 'Suara dev tersimpan: ' + d.voices.length + '. Ditambahkan ke suara bawaan pilihan pemilik AI.' : 'Belum ada suara dev. Isi lalu Simpan; langsung berlaku untuk semua pengguna AI ini.');
+    } catch (e) { if (e && e.status === 403) devCodeMem = null; say2((e && e.message) || 'Gagal memuat suara dev.', true); }
+    finally { busy = false; }
+  };
+  save.onclick = async () => {
+    if (busy) return;
+    const p = parseVoiceLines(ta.value); if (p.error) { say2(p.error, true); return; }
+    if (!p.voices.length && !confirm('Hapus semua suara dev AI ini? (pilihan suara bawaan pemilik tidak ikut terhapus)')) return;
+    const code = await devCodeAsk(); if (!code) { say2('Kode dev dibutuhkan.', true); return; }
+    busy = true; save.disabled = true; say2('Menyimpan…');
+    try {
+      const r = await api('dev/aivoice/set', { code, id: c.id, voices: p.voices });
+      if (!r || !r.ok) throw new Error((r && r.error) || 'Gagal menyimpan.');
+      ta.value = voiceLines(r.voices);
+      say2('Tersimpan (' + r.voices.length + ' suara). Memperbarui daftar karakter…');
+      if (typeof window.reloadChars === 'function') { try { await window.reloadChars(); } catch { /* daftar akan menyusul di muat ulang berikutnya */ } }
+      const n = chars().find(x => x.id === c.id);   // reloadChars mengganti objek: salin status suara terbaru ke objek yang sedang tampil
+      if (n) { c.novoice = n.novoice; c.voices = n.voices; } else if (r.voices.length) { delete c.novoice; }
+      paintStat(); say2('Tersimpan (' + r.voices.length + ' suara).');
+      say('Suara dev tersimpan');
+    } catch (e) { if (e && e.status === 403) devCodeMem = null; say2((e && e.message) || 'Gagal menyimpan suara dev.', true); }
+    finally { busy = false; save.disabled = false; }
+  };
+  wrap.append(stat, open, ed, msg);
+  return section('Suara dev (Mode dev)', wrap);
+}
+
 function panelDetail(c) {
   const p = h('div');
   const gr = typeof c.greeting === 'string' ? c.greeting.trim() : '';
@@ -428,6 +499,7 @@ function panelDetail(c) {
     p.append(section('Gender', gd));
   }
   p.append(section('Atribut Persona', h('div', 'cd-attrs')));
+  if (c.custom && devActive()) p.append(devVoiceSection(c));    // Mode dev: voiceId untuk AI buatan pengguna mana pun
   Promise.resolve().then(() => { if (ST.state === 'idle') loadStory(c); else drawAttrs(); }); // atribut ikut dimuat bersama cerita (endpoint charstory)
   return p;
 }

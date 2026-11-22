@@ -184,3 +184,10 @@
 #cdetail .cds-pay:hover:not(:disabled){filter:brightness(1.08)}
 #cdetail .cds-pay:disabled{opacity:.5;cursor:default}
 #cdetail .cds-pay .cds-g{width:18px;height:18px}
+
+/* Mode dev: voiceId AI buatan pengguna (devVoiceSection di cdetail.js) */
+#cdetail .cd-dv textarea{display:block;width:100%;margin-top:10px;border:1px solid rgba(128,128,128,.25);outline:0;background:var(--bg,transparent);color:var(--ink);border-radius:12px;padding:12px 14px;font:13.5px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;resize:vertical;min-height:92px}
+#cdetail .cd-dv textarea:focus-visible{border-color:var(--ac)}
+#cdetail .cd-dv .cd-dvr{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px}
+#cdetail .cd-dv .cd-dvm{font-size:13px;color:var(--mut);margin-top:8px;min-height:1.2em}
+#cdetail .cd-dv .cd-dvm.err{color:#d93a32}
