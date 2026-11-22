@@ -1,6 +1,6 @@
 /* Halaman detail karakter: dibuka dari kartu karakter di Beranda (bukan langsung masuk chat). Tombol "Obrolan" baru membuka chat.
    Baru TIRUAN TAMPILAN: sapaan, jumlah obrolan, kategori lengkap, atribut persona, tombol Bagikan (modal salin tautan /chat/<id>)
-   ("fitur belum selesai"). Yang sudah nyata: sapaan (c.greeting, teks pembuka chat buatan pemilik AI), tab Story (cerita AI buatan user: ditulis / dikembangkan AI di Profil > AI Saya, lib/userchars.js charstory), like, komentar (public/cdetail.js <-> lib/charsocial.js), tombol Follow pembuat, tombol Dukung (modal kirim Gems ke pembuat, lib/support.js), nama, label (tagline), foto, pembuat (AI buatan user -> pemiliknya, bisa orang lain kalau AI-nya Publik; bawaan -> akun default nandasikma; nama/foto pembuat bisa dipencet -> profilnya),
+   ("fitur belum selesai"). Yang sudah nyata: sapaan (c.greeting, teks pembuka chat buatan pemilik AI), tab Galeri (foto kiriman pengguna: unggah file atau URL gambar, public/cdetail.js <-> lib/chargallery.js), tab Story (cerita AI buatan user: ditulis / dikembangkan AI di Profil > AI Saya, lib/userchars.js charstory), like, komentar (public/cdetail.js <-> lib/charsocial.js), tombol Follow pembuat, tombol Dukung (modal kirim Gems ke pembuat, lib/support.js), nama, label (tagline), foto, pembuat (AI buatan user -> pemiliknya, bisa orang lain kalau AI-nya Publik; bawaan -> akun default nandasikma; nama/foto pembuat bisa dipencet -> profilnya),
    tanggal diperbarui, dan "Robot Terkait" (karakter lain dengan label sama).
    Memakai global index.html: allChars, openChat, img, ph, dispName, toast, store. Semua teks dari data lewat textContent.
    Dibuka lewat window.CD.open(char); ditutup oleh tombol kembali, Escape, atau pindah tab (event 'shell:tab'). */
@@ -53,6 +53,7 @@ function userLink(el, by) {
 const S = { id: '', likes: null, liked: false, comments: null }; // null = belum termuat
 const C = { id: '', items: [], next: 0, more: false, loading: false, err: '', loaded: false }; // daftar komentar tab Komentar
 let likeBusy = false;
+const G = { id: '', items: [], next: 0, more: false, loading: false, err: '', loaded: false, total: null }; // tab Galeri
 const ST = { id: '', state: 'idle', text: '', attrs: [] }; // tab Story: idle | loading | ok | err
 const loggedIn = () => typeof atok === 'string' && !!atok;
 const api = (p, b) => (typeof aApi === 'function' ? aApi(p, b) : Promise.reject(new Error('Fitur tidak tersedia.')));
@@ -62,6 +63,7 @@ const say = m => { if (typeof toast === 'function') toast(m); };
 function resetSocial(c) {
   S.id = c.id; S.likes = null; S.liked = false; S.comments = null; likeBusy = false;
   ST.id = c.id; ST.state = 'idle'; ST.text = ''; ST.attrs = [];
+  G.id = c.id; G.items = []; G.next = 0; G.more = false; G.loading = false; G.err = ''; G.loaded = false; G.total = null;
   C.id = c.id; C.items = []; C.next = 0; C.more = false; C.loading = false; C.err = ''; C.loaded = false;
 }
 function ago(ms) {
@@ -275,7 +277,7 @@ function openShare(c) {
 }
 let supEsc = null;
 function closeSupport() {
-  const ov = root.querySelector('.cds-ov, .sh-ov'); if (ov) ov.remove();
+  const ov = root.querySelector('.cds-ov, .sh-ov, .gl-ov'); if (ov) ov.remove();
   if (supEsc) { document.removeEventListener('keydown', supEsc, true); supEsc = null; }
 }
 function openSupport(c) {
@@ -516,6 +518,205 @@ function drawAttrs() {
     body.append(card);
   }
 }
+/* ---- Galeri (lib/chargallery.js): foto kiriman pengguna yang terkait karakter ini. Membaca boleh tamu; menambah butuh login.
+   Dua cara menambah: unggah file (dikecilkan di browser jadi JPEG maks 1280px) atau tempel URL gambar https. Gaya disuntik dari JS (GAL_CSS) seperti OTH_CSS. ---- */
+const GAL_CSS = `
+#cdetail .gl-form{display:flex;flex-direction:column;gap:10px;margin-bottom:14px}
+#cdetail .gl-modes{display:flex;gap:6px}
+#cdetail .gl-mode{flex:1;height:36px;border-radius:10px;font-size:13px;font-weight:600;color:var(--mut);background:var(--bg)}
+#cdetail .gl-mode[aria-pressed="true"]{background:var(--ac);color:#fff}
+#cdetail .gl-inp{width:100%;height:42px;padding:0 12px;border:1px solid var(--line);outline:0;border-radius:10px;background:var(--bg);color:var(--ink);font:inherit;font-size:14px}
+#cdetail .gl-inp:focus{border-color:var(--ac)}
+#cdetail .gl-pick{height:42px;border-radius:10px;border:1px dashed var(--line);color:var(--mut);font-size:14px;font-weight:600}
+#cdetail .gl-pick:hover{border-color:var(--ac);color:var(--ink)}
+#cdetail .gl-prev{display:none;justify-content:center;background:var(--bg);border-radius:10px;overflow:hidden}
+#cdetail .gl-prev.on{display:flex}
+#cdetail .gl-prev img{max-width:100%;max-height:220px;object-fit:contain;display:block}
+#cdetail .gl-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+#cdetail .gl-note{font-size:12px;color:var(--mut);line-height:1.4}
+#cdetail .gl-msg{font-size:12.5px;color:var(--mut);min-height:1em}
+#cdetail .gl-msg.err{color:#e5534b}
+#cdetail .gl-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+@media(min-width:560px){#cdetail .gl-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+#cdetail .gl-th{position:relative;aspect-ratio:1/1;border-radius:12px;overflow:hidden;background:var(--surface);padding:0;display:block;width:100%}
+#cdetail .gl-th img{width:100%;height:100%;object-fit:cover;display:block}
+#cdetail .gl-th.bad::after{content:"Gambar tidak bisa dimuat";position:absolute;inset:0;display:grid;place-items:center;padding:8px;text-align:center;font-size:12px;color:var(--mut)}
+#cdetail .gl-th.bad img{display:none}
+#cdetail .gl-ov{position:fixed;inset:0;z-index:85;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:16px;background:rgba(0,0,0,.86);overscroll-behavior:contain}
+#cdetail .gl-big{max-width:min(960px,100%);max-height:72vh;object-fit:contain;border-radius:10px;background:#111}
+#cdetail .gl-bad{color:#ddd;font-size:14px;padding:40px 0}
+#cdetail .gl-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center;color:#eee;font-size:13px}
+#cdetail .gl-bar a,#cdetail .gl-bar button{color:#fff;font-size:13px;font-weight:600;padding:6px 14px;border-radius:999px;border:1px solid rgba(255,255,255,.4);text-decoration:none}
+#cdetail .gl-bar .gl-del{border-color:#e5534b;color:#ff8f88}
+#cdetail .gl-x,#cdetail .gl-nav{position:absolute;display:grid;place-items:center;width:40px;height:40px;border-radius:50%;color:#fff;background:rgba(255,255,255,.14)}
+#cdetail .gl-x{top:12px;right:12px}
+#cdetail .gl-nav{top:50%;transform:translateY(-50%)}
+#cdetail .gl-nav.p{left:10px}#cdetail .gl-nav.n{right:10px}
+#cdetail .gl-x svg,#cdetail .gl-nav svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+`;
+function ensureGalCss() {
+  if (document.getElementById('cd-gl-css')) return;
+  const s = document.createElement('style'); s.id = 'cd-gl-css'; s.textContent = GAL_CSS; document.head.append(s);
+}
+function paintGalTab() { const tb = root.querySelector('.cd-tab[data-k="galeri"]'); if (tb) tb.textContent = G.total === null ? 'Galeri' : 'Galeri(' + nfmt(G.total) + ')'; }
+async function loadGallery() {
+  if (G.loading || !cur) return;
+  const id = cur.id; G.loading = true; G.err = ''; drawGallery();
+  try {
+    const r = await api('chargallery', { char: id, ...(G.next ? { before: G.next } : {}) });
+    if (!r || !r.ok) throw new Error((r && r.error) || 'Gagal memuat galeri.');
+    if (G.id !== id) return;
+    G.items.push(...r.items); G.more = !!r.more; G.next = r.next || 0; G.total = r.total; G.loaded = true;
+  } catch (e) { if (G.id === id) G.err = (e && e.message) || 'Gagal memuat galeri.'; }
+  if (G.id === id) { G.loading = false; drawGallery(); paintGalTab(); }
+}
+// gambar dari luar: tanpa referrer, dimuat malas; gagal -> penanda "tidak bisa dimuat"
+function galImg(it, cls) {
+  const im = new Image(); if (cls) im.className = cls; im.alt = 'Foto galeri oleh ' + it.user.name; im.referrerPolicy = 'no-referrer'; im.decoding = 'async';
+  return im;
+}
+function galThumb(it) {
+  const t = btn('gl-th'), im = galImg(it); im.loading = 'lazy';
+  im.onerror = () => { t.classList.add('bad'); };
+  im.src = it.url; t.append(im); t.setAttribute('aria-label', 'Buka foto oleh ' + it.user.name);
+  t.onclick = () => openLight(it);
+  return t;
+}
+function drawGallery() {
+  const list = root.querySelector('.gl-list'); if (!list) return;
+  list.textContent = '';
+  if (G.items.length) { const grid = h('div', 'gl-grid'); for (const it of G.items) grid.append(galThumb(it)); list.append(grid); }
+  if (G.err) list.append(box(G.err));
+  else if (!G.loaded) list.append(box('Memuat…'));
+  else if (!G.items.length) list.append(box('Belum ada foto. Jadilah yang pertama menambahkan!'));
+  if (G.more) { const m = btn('cd-cmore', G.loading ? 'Memuat…' : 'Muat lebih banyak'); m.disabled = G.loading; m.onclick = loadGallery; list.append(m); }
+}
+function openLight(it) {
+  ensureGalCss(); closeSupport();
+  let i = Math.max(0, G.items.findIndex(x => x.id === it.id));
+  const ov = h('div', 'gl-ov'), stage = h('div'), bar = h('div', 'gl-bar');
+  ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-modal', 'true'); ov.setAttribute('aria-label', 'Foto galeri');
+  ov.addEventListener('mousedown', e => { if (e.target === ov) closeSupport(); });
+  const x = btn('gl-x', null, 'Tutup'); x.append(svg('<path d="M6 6l12 12M18 6L6 18"/>')); x.onclick = closeSupport;
+  const pv = btn('gl-nav p', null, 'Sebelumnya'); pv.append(svg('<path d="M15 6l-6 6 6 6"/>'));
+  const nx = btn('gl-nav n', null, 'Berikutnya'); nx.append(svg('<path d="M9 6l6 6-6 6"/>'));
+  const go = d => { const j = i + d; if (j >= 0 && j < G.items.length) { i = j; paint(); } };
+  pv.onclick = () => go(-1); nx.onclick = () => go(1);
+  function paint() {
+    const cu = G.items[i]; if (!cu) { closeSupport(); return; }
+    stage.textContent = ''; bar.textContent = '';
+    const im = galImg(cu, 'gl-big');
+    im.onerror = () => { im.replaceWith(h('div', 'gl-bad', 'Gambar tidak bisa dimuat.')); };
+    im.src = cu.url; stage.append(im);
+    bar.append(userLink(h('b', null, cu.user.name), cu.user), h('span', null, ago(cu.at)));
+    if (cu.kind === 'url') { const a = h('a', null, 'Buka sumber'); a.href = cu.url; a.target = '_blank'; a.rel = 'noopener noreferrer nofollow'; bar.append(a); }
+    if (cu.canDelete) {
+      const del = btn('gl-del', 'Hapus'); let armed = false;
+      del.onclick = async () => {
+        if (!armed) { armed = true; del.textContent = 'Yakin?'; setTimeout(() => { if (armed && !del.disabled) { armed = false; del.textContent = 'Hapus'; } }, 3000); return; }
+        del.disabled = true;
+        try {
+          const r = await api('chargallery/delete', { id: cu.id });
+          if (!r || !r.ok) throw new Error((r && r.error) || 'Gagal.');
+          G.items = G.items.filter(y => y.id !== cu.id); G.total = r.total; paintGalTab(); drawGallery();
+          if (!G.items.length) { closeSupport(); return; }
+          i = Math.min(i, G.items.length - 1); paint();
+        } catch (e) { say((e && e.message) || 'Gagal, coba lagi.'); armed = false; del.disabled = false; del.textContent = 'Hapus'; }
+      };
+      bar.append(del);
+    }
+    pv.style.display = i > 0 ? '' : 'none'; nx.style.display = i < G.items.length - 1 ? '' : 'none';
+  }
+  ov.append(x, pv, nx, stage, bar); root.append(ov); paint();
+  supEsc = e => {
+    if (e.key === 'Escape') { e.stopPropagation(); closeSupport(); }
+    else if (e.key === 'ArrowLeft') go(-1); else if (e.key === 'ArrowRight') go(1);
+  };
+  document.addEventListener('keydown', supEsc, true);
+}
+// unggah: kecilkan ke maks 1280px lalu JPEG; target <= ±390 KB (batas server 400 KB)
+const GAL_MAX_CHARS = 525000;
+function toJpegBig(file) {
+  return new Promise((res, rej) => {
+    if (!/^image\//.test(file.type)) { rej(new Error('Pilih file gambar.')); return; }
+    const url = URL.createObjectURL(file), im = new Image();
+    im.onload = () => {
+      URL.revokeObjectURL(url);
+      const w0 = im.naturalWidth, h0 = im.naturalHeight;
+      if (!w0 || !h0) { rej(new Error('Foto tidak bisa dibaca.')); return; }
+      let k = Math.min(1, 1280 / Math.max(w0, h0));
+      for (let tries = 0; tries < 4; tries++, k *= .8) {
+        const w = Math.max(1, Math.round(w0 * k)), hh = Math.max(1, Math.round(h0 * k));
+        const c = document.createElement('canvas'); c.width = w; c.height = hh;
+        const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, w, hh); g.drawImage(im, 0, 0, w, hh);
+        let q = .86, out = c.toDataURL('image/jpeg', q);
+        while (out.length > GAL_MAX_CHARS && q > .45) { q -= .1; out = c.toDataURL('image/jpeg', q); }
+        if (out.length <= GAL_MAX_CHARS) { res(out); return; }
+      }
+      rej(new Error('Foto terlalu besar, coba foto lain.'));
+    };
+    im.onerror = () => { URL.revokeObjectURL(url); rej(new Error('Foto tidak bisa dibaca.')); };
+    im.src = url;
+  });
+}
+function galForm(c) {
+  const f = h('div', 'cd-box gl-form'), modes = h('div', 'gl-modes');
+  const st = { mode: 'file', data: '', url: '', busy: false };
+  const bF = btn('gl-mode', 'Unggah foto'), bU = btn('gl-mode', 'Dari URL'); modes.append(bF, bU);
+  const pick = btn('gl-pick', 'Pilih foto dari perangkat'), fi = h('input'); fi.type = 'file'; fi.accept = 'image/*'; fi.hidden = true;
+  const ui = h('input', 'gl-inp'); ui.type = 'url'; ui.placeholder = 'https://… (alamat gambar)'; ui.maxLength = 500; ui.autocomplete = 'off'; ui.spellcheck = false; ui.setAttribute('aria-label', 'URL gambar');
+  const prev = h('div', 'gl-prev'), pim = new Image(); pim.alt = 'Pratinjau'; pim.referrerPolicy = 'no-referrer'; prev.append(pim);
+  const msg = h('div', 'gl-msg'), row = h('div', 'gl-row'), send = btn('cd-csend', 'Kirim');
+  msg.setAttribute('role', 'status');
+  const note = h('small', 'gl-note', 'Unggah foto yang terkait karakter ini. Maks 12 foto per orang.'); row.append(note, send);
+  const say2 = (t, err) => { msg.textContent = t || ''; msg.classList.toggle('err', !!err); };
+  const ready = () => st.mode === 'file' ? !!st.data : /^https:\/\//i.test(st.url);
+  const paint = () => {
+    bF.setAttribute('aria-pressed', String(st.mode === 'file')); bU.setAttribute('aria-pressed', String(st.mode === 'url'));
+    pick.style.display = st.mode === 'file' ? '' : 'none'; ui.style.display = st.mode === 'url' ? '' : 'none';
+    const src = st.mode === 'file' ? st.data : (/^https:\/\//i.test(st.url) ? st.url : '');
+    prev.classList.toggle('on', !!src); if (src && pim.getAttribute('src') !== src) pim.src = src; if (!src) pim.removeAttribute('src');
+    send.disabled = st.busy || !ready();
+  };
+  bF.onclick = () => { st.mode = 'file'; say2(''); paint(); };
+  bU.onclick = () => { st.mode = 'url'; say2(''); paint(); };
+  pick.onclick = () => fi.click();
+  fi.onchange = async () => {
+    const file = fi.files && fi.files[0]; fi.value = ''; if (!file) return;
+    say2('Memproses foto…');
+    try { st.data = await toJpegBig(file); say2(''); } catch (e) { st.data = ''; say2((e && e.message) || 'Foto tidak bisa dibaca.', true); }
+    paint();
+  };
+  pim.onerror = () => { if (pim.getAttribute('src')) say2('Gambar tidak bisa dimuat dari sana. Pastikan itu alamat langsung ke gambar.', true); };
+  pim.onload = () => { if (st.mode === 'url') say2(''); };
+  ui.addEventListener('input', () => { st.url = ui.value.trim(); say2(''); paint(); });
+  ui.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); send.click(); } });
+  send.onclick = async () => {
+    if (st.busy || !ready()) return;
+    st.busy = true; paint(); say2('Mengirim…');
+    try {
+      const r = await api('chargallery/add', { char: c.id, ...(st.mode === 'file' ? { image: st.data } : { url: st.url }) });
+      if (!r || !r.ok) throw new Error((r && r.error) || 'Gagal mengirim.');
+      if (G.id === c.id) { G.items.unshift(r.item); G.total = r.total; G.loaded = true; paintGalTab(); drawGallery(); }
+      st.data = ''; st.url = ''; ui.value = ''; say2('Foto ditambahkan ✓');
+    } catch (e) { say2((e && e.message) || 'Gagal mengirim, coba lagi.', true); }
+    st.busy = false; paint();
+  };
+  f.append(modes, pick, fi, ui, prev, row, msg); paint();
+  return f;
+}
+function panelGallery(c) {
+  ensureGalCss();
+  const sec = section('Galeri');
+  if (loggedIn()) sec.append(galForm(c));
+  else {
+    const b = box('Masuk untuk menambahkan foto ke galeri.'), lg = btn('cd-csend', 'Masuk'); lg.onclick = () => needLogin('Masuk dulu untuk menambah foto');
+    b.append(document.createElement('br'), lg); b.classList.add('cd-clogin'); b.style.marginBottom = '14px'; sec.append(b);
+  }
+  sec.append(h('div', 'gl-list'));
+  Promise.resolve().then(() => { if (!G.loaded && !G.loading) loadGallery(); else drawGallery(); }); // setelah panel terpasang di DOM
+  return sec;
+}
 /* Story: cerita AI buatan user (tanpa login boleh dibaca selama AI-nya publik). Karakter bawaan belum punya cerita. Teks selalu lewat textContent. */
 async function loadStory(c) {
   if (ST.state === 'loading') return;
@@ -547,7 +748,8 @@ function panelStory(c) {
 function paintTab(c) {
   const holder = root.querySelector('.cd-pane'); if (!holder) return;
   holder.textContent = '';
-  holder.append(tab === 'story' ? panelStory(c) : tab === 'komentar' ? panelComments(c) : panelDetail(c));
+  holder.append(tab === 'story' ? panelStory(c) : tab === 'galeri' ? panelGallery(c) : tab === 'komentar' ? panelComments(c) : panelDetail(c));
+  paintGalTab();
   root.querySelectorAll('.cd-tab').forEach(t => t.setAttribute('aria-selected', String(t.dataset.k === tab)));
 }
 
@@ -596,7 +798,7 @@ function render(c) {
   card.append(top, h('p', 'cd-bio', by.bio || 'Tidak ada deskripsi.'));
   const oth = othersBox(c, by); if (oth) card.append(oth);
   const tabs = h('div', 'cd-tabs'); tabs.setAttribute('role', 'tablist');
-  for (const [k, label] of [['detail', 'Detail'], ['story', 'Story'], ['komentar', 'Komentar(–)']]) {
+  for (const [k, label] of [['detail', 'Detail'], ['story', 'Story'], ['galeri', 'Galeri'], ['komentar', 'Komentar(–)']]) {
     const t = btn('cd-tab', label); t.dataset.k = k; t.setAttribute('role', 'tab'); t.onclick = () => { tab = k; paintTab(cur); }; tabs.append(t);
   }
   const head = h('div', 'cd-head'); head.append(h('h1', 'cd-title', typeof dispName === 'function' ? dispName(c) : c.name), meta, h('p', 'cd-sub', c.tagline || ''));
@@ -619,7 +821,7 @@ function close(silent) {
 }
 /* mobile: tombol kembali melayang di atas foto (gelap transparan); setelah foto lewat, jadi solid supaya tetap terbaca di atas isi halaman */
 root.addEventListener('scroll', () => { const cv = root.querySelector('.cd-cover'); root.classList.toggle('cd-sc', !!cv && root.scrollTop > cv.offsetHeight - 80); }, { passive: true });
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && app.classList.contains('cd-on') && !document.querySelector('.modal:not(.hide)') && !root.querySelector('.cds-ov, .sh-ov')) close(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && app.classList.contains('cd-on') && !document.querySelector('.modal:not(.hide)') && !root.querySelector('.cds-ov, .sh-ov, .gl-ov')) close(); });
 window.addEventListener('shell:tab', () => { closeSupport(); close(true); }); // pindah tab (Obrolan, Profil, dst.) menutup detail
 window.CD = { open, close, get current() { return cur; } };
 })();
