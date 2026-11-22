@@ -1,0 +1,44 @@
+/* ===== Chat: penyegaran tampilan =====
+   CSS saja, dimuat setelah home.css. Selektor diawali "#app #chatview" (menang dari index.html/shell.css tanpa !important);
+   chat grup (.row.grow) tidak disentuh. Tidak ada ID/kelas yang diubah. Kembali ke tampilan lama: hapus <link> chat.css di index.html. */
+
+#app #chatview{
+  --acc:#6a5af0; --acc-t:#5646dd; --acc-s:color-mix(in srgb,#6a5af0 11%,var(--bg));
+  font-family:"Plus Jakarta Sans",Inter,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+@media(prefers-color-scheme:dark){#app #chatview{--acc-t:#a99dff;--acc-s:color-mix(in srgb,#6a5af0 24%,var(--bg))}}
+#app #chatview :is(button,input,textarea){font-family:inherit}
+
+/* ---------- Header: foto berbingkai violet, nama lebih tegas ---------- */
+#app #chatview .pfp{box-shadow:0 0 0 2px var(--bg),0 0 0 3.5px var(--acc)}
+#app #chatview .name{font-weight:800;letter-spacing:-.02em}
+#app #chatview .status{font-weight:500}
+@media(hover:hover){#app #chatview header>button:hover{background:var(--acc-s);color:var(--acc-t)}}
+#app #chatview header>button:focus-visible{outline:2px solid var(--acc);outline-offset:-2px}
+
+/* ---------- Gelembung: pesanmu violet, balasan karakter tetap netral ---------- */
+#app #chatview .bub:not(.sbub){padding:10px 14px 7px;border-radius:20px;border-bottom-left-radius:6px}
+#app #chatview .me .bub:not(.sbub){background:var(--acc);color:#fff;border-bottom-left-radius:20px;border-bottom-right-radius:6px}
+#app #chatview .txt{font-size:15px;line-height:1.45}
+#app #chatview .ts{font-weight:500}
+#app #chatview .me .ts{opacity:.75}
+#app #chatview .day{padding:4px 12px;border-radius:99px;background:var(--surface);font-weight:600;margin:6px 0}
+
+/* ---------- Voice note: tombol & gelombang ikut aksen; di gelembung violet dibuat putih ---------- */
+#app #chatview .play{background:var(--acc);color:#fff}
+#app #chatview .wave i{--on:var(--acc)}
+#app #chatview .me .play{background:#fff;color:var(--acc)}
+#app #chatview .me .wave i{--on:#fff;--off:rgba(255,255,255,.4)}
+#app #chatview .me .dur{color:rgba(255,255,255,.8)}
+
+/* ---------- Mengetik, saran balasan, tombol ke bawah ---------- */
+#app #chatview .typing-b i{background:var(--acc)}
+#app #chatview .qr-chip{border-color:color-mix(in srgb,var(--acc) 35%,var(--line));color:var(--acc-t);font-weight:600}
+#app #chatview .qr-chip:focus-visible{outline-color:var(--acc)}
+#app #chatview #down{color:var(--acc-t)}
+
+/* ---------- Kotak ketik: fokus violet, tombol kirim violet ---------- */
+#app #chatview #inp{transition:background .15s,box-shadow .15s}
+#app #chatview #inp:focus{background:var(--bg);box-shadow:inset 0 0 0 2px var(--acc)}
+#app #chatview #send{background:var(--acc);color:#fff}
+#app #chatview #send:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
