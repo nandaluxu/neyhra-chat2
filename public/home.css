@@ -1,65 +1,160 @@
-/* ===== Beranda: penyegaran tampilan =====
-   CSS saja, dimuat SETELAH shell.css. Semua selektor diawali "#app #menu" supaya menang dari lapisan v1/v2/v3 di shell.css tanpa !important.
-   Tidak ada ID/kelas yang diubah, jadi JS di index.html tetap jalan. Mau kembali ke tampilan lama: hapus <link> home.css di index.html.
-   Aksen: violet logo (#6a5af0) dipakai hemat: fokus, chip aktif, tombol utama, hover. Selebihnya tetap hitam-putih seperti sebelumnya. */
+/* ===== Beranda v2: monokrom + animasi =====
+   CSS saja, dimuat SETELAH shell.css. Semua selektor diawali "#app #menu" supaya menang dari lapisan di shell.css tanpa !important.
+   Tidak ada ID/kelas yang diubah, jadi JS di index.html tetap jalan. Kembali ke tampilan lama: hapus <link> home.css di index.html.
+   Tanpa warna aksen: semuanya turunan --ink / --bg / --surface / --line, jadi otomatis ikut mode terang & gelap.
+   Animasi utama: kisi titik di latar yang "menyala" mengikuti kursor (HP/touch: menyapu sendiri), kilau di kartu saat hover, skeleton shimmer. */
 
 #app #menu{
-  --acc:#6a5af0; --acc-t:#5646dd; --acc-s:color-mix(in srgb,#6a5af0 11%,var(--bg));
+  --ring:color-mix(in srgb,var(--ink) 9%,transparent);
+  --ring-2:color-mix(in srgb,var(--ink) 22%,transparent);
+  --soft:color-mix(in srgb,var(--ink) 5%,var(--bg));
+  --ease:cubic-bezier(.2,.9,.25,1);
   font-family:"Plus Jakarta Sans",Inter,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
 }
-@media(prefers-color-scheme:dark){#app #menu{--acc-t:#a99dff;--acc-s:color-mix(in srgb,#6a5af0 24%,var(--bg))}}
 #app #menu :is(button,input){font-family:inherit}
 
-/* ---------- Sapaan: satu sub-baris saja (sebelumnya dobel dengan "Pilih siapa yang mau diajak ngobrol.") ---------- */
+/* ---------- Latar: kisi titik + sorot yang mengikuti kursor (pengganti orb) ---------- */
+#app #menu .orb{
+  left:0;right:0;top:0;bottom:auto;width:auto;height:min(100%,760px);
+  border-radius:0;filter:none;z-index:-1;pointer-events:none;
+  background-color:transparent;
+  background-size:22px 22px;background-position:center top;
+  animation:none;
+}
+#app #menu .o1{
+  background-image:radial-gradient(circle,color-mix(in srgb,var(--ink) 15%,transparent) 1px,transparent 1.5px);
+  -webkit-mask-image:linear-gradient(to bottom,#000 0%,rgba(0,0,0,.55) 45%,transparent 92%);
+          mask-image:linear-gradient(to bottom,#000 0%,rgba(0,0,0,.55) 45%,transparent 92%);
+}
+#app #menu .o2{
+  background-image:radial-gradient(circle,color-mix(in srgb,var(--ink) 70%,transparent) 1.2px,transparent 1.9px);
+  -webkit-mask-image:radial-gradient(closest-side,#000 0%,rgba(0,0,0,.5) 45%,transparent 100%);
+          mask-image:radial-gradient(closest-side,#000 0%,rgba(0,0,0,.5) 45%,transparent 100%);
+  -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
+  -webkit-mask-size:460px 460px;mask-size:460px 460px;
+  -webkit-mask-position:calc(var(--px,50%) - 230px) calc(var(--py,140px) - 230px);
+          mask-position:calc(var(--px,50%) - 230px) calc(var(--py,140px) - 230px);
+  opacity:.9;
+}
+/* tanpa kursor (HP) atau kursor belum masuk: sorot menyapu pelan dari kiri ke kanan */
+#app #menu:not(.hv) .o2{animation:h-sweep 11s ease-in-out infinite alternate}
+@keyframes h-sweep{
+  from{-webkit-mask-position:-12% 0%;mask-position:-12% 0%}
+  to{-webkit-mask-position:112% 30%;mask-position:112% 30%}
+}
+
+/* ---------- Atas: logo, saldo, online ---------- */
+#app #menu .m-wallet,#app #menu .m-online{background:var(--soft);box-shadow:inset 0 0 0 1px var(--ring)}
+#app #menu .m-word{font-weight:800;letter-spacing:-.04em}
+
+/* ---------- Sapaan ---------- */
 #app #menu #mtitle{font-weight:800;letter-spacing:-.045em}
-#app #menu #mtitle.greet{font-size:clamp(26px,7.8vw,32px);line-height:1.08;letter-spacing:-.04em}
-#app #menu #mtitle.greet .tw+.tw{margin-top:4px;font-size:.62em;font-weight:600;letter-spacing:-.01em;color:var(--mut)}
+#app #menu #mtitle.greet{font-size:clamp(28px,8vw,34px);line-height:1.06;letter-spacing:-.045em}
+#app #menu #mtitle.greet .tw+.tw{margin-top:6px;font-size:.58em;font-weight:600;letter-spacing:-.01em;color:var(--mut)}
 #app #menu #mtitle.greet~.m-sub{display:none}
 #app #menu .m-sub{margin-top:8px;font-size:15px;font-weight:500}
-#app #menu .m-pills{margin-top:14px}
-#app #menu .m-set{border-radius:99px;box-shadow:none;background:var(--acc-s);color:var(--acc-t);font-weight:700}
-#app #menu .m-set:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+#app #menu .m-pills{margin-top:16px;animation:rise2 .8s .9s var(--ease) backwards}
+
+/* tombol "Chat global": pil dengan cincin tipis, hover = balik warna */
+#app #menu .m-set{
+  gap:8px;padding:10px 16px 10px 13px;border-radius:99px;
+  background:var(--soft);color:var(--ink);font-weight:700;
+  box-shadow:inset 0 0 0 1px var(--ring);
+  transition:background .2s,color .2s,transform .25s var(--ease),box-shadow .2s;
+}
+@media(hover:hover){#app #menu .m-set:hover{background:var(--ink);color:var(--bg);box-shadow:none;transform:translateY(-1px)}}
+#app #menu .m-set:active{transform:scale(.97)}
+#app #menu .m-set:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
 
 /* ---------- Pencarian ---------- */
-#app #menu .srch{height:52px;border-radius:18px;background:var(--surface);box-shadow:none;transition:background .15s,box-shadow .15s}
-#app #menu .srch:focus-within{background:var(--bg);box-shadow:inset 0 0 0 2px var(--acc)}
+#app #menu .srch{
+  height:52px;padding:0 18px;border-radius:16px;background:var(--surface);
+  box-shadow:inset 0 0 0 1px var(--ring);
+  transition:background .2s,box-shadow .25s,color .2s;
+  animation:rise2 .8s 1s var(--ease) backwards;
+}
+#app #menu .srch svg{transition:transform .35s var(--ease),color .2s}
+#app #menu .srch:focus-within{background:var(--bg);color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--ink),0 12px 30px -14px color-mix(in srgb,var(--ink) 45%,transparent)}
+#app #menu .srch:focus-within svg{transform:scale(1.12) rotate(-8deg)}
 @media(max-width:799px){ /* HP: kotak cari lengket di atas, ring --bg 8px menutupi isi yang lewat di bawahnya */
-  #app #menu .srch{box-shadow:0 0 0 8px var(--bg)}
-  #app #menu .srch:focus-within{box-shadow:inset 0 0 0 2px var(--acc),0 0 0 8px var(--bg)}
+  #app #menu .srch{box-shadow:inset 0 0 0 1px var(--ring),0 0 0 8px var(--bg)}
+  #app #menu .srch:focus-within{box-shadow:inset 0 0 0 1.5px var(--ink),0 0 0 8px var(--bg)}
 }
 
 /* ---------- Judul bagian + jumlah ---------- */
 #app #menu .b-head h2{font-size:18px;font-weight:800;letter-spacing:-.03em}
-#app #menu .b-head #allcount{background:var(--acc-s);color:var(--acc-t);font-weight:700}
-#app #menu .b-head .b-ctog{font-weight:700}
+#app #menu .b-head #allcount{
+  padding:2px 9px;border-radius:99px;background:var(--soft);box-shadow:inset 0 0 0 1px var(--ring);
+  color:var(--mut);font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;
+}
+#app #menu .b-head .b-ctog{font-weight:700;box-shadow:inset 0 0 0 1px var(--ring)}
 
 /* ---------- Lanjut ngobrol & Rekomendasi ---------- */
-#app #menu .b-cc{border-radius:18px;background:var(--surface);box-shadow:none;transition:background .15s,transform .2s}
+#app #menu .b-cc{
+  border-radius:18px;background:var(--surface);box-shadow:inset 0 0 0 1px var(--ring);
+  transition:background .2s,box-shadow .25s,transform .3s var(--ease);
+}
 #app #menu .b-cav img{border-radius:14px}
 #app #menu .b-cc b{font-weight:700}
-#app #menu .b-cc:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
-@media(hover:hover){#app #menu .b-cc:hover{background:var(--acc-s)}}
+#app #menu .b-cc:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+@media(hover:hover){#app #menu .b-cc:hover{background:var(--bg);box-shadow:inset 0 0 0 1px var(--ring-2),0 10px 24px -14px color-mix(in srgb,var(--ink) 55%,transparent)}}
 
 /* ---------- Filter seri, indeks A-Z, pembatas huruf ---------- */
-#app #menu .b-chip{padding:7px 13px;font-size:12.5px;font-weight:700}
-#app #menu .b-chip.on{background:var(--acc);color:#fff}
-#app #menu .b-chip:focus-visible{outline-color:var(--acc)}
+#app #menu .b-chip{padding:7px 13px;font-size:12.5px;font-weight:700;box-shadow:inset 0 0 0 1px var(--ring);transition:background .2s,color .2s,transform .2s var(--ease),box-shadow .2s}
+#app #menu .b-chip:active{transform:scale(.95)}
+#app #menu .b-chip.on{background:var(--ink);color:var(--bg);box-shadow:none}
+#app #menu .b-chip:focus-visible{outline-color:var(--ink)}
 #app #menu .b-az button{min-width:28px;height:28px;font-weight:700;color:var(--mut)}
-@media(hover:hover){#app #menu .b-az button:hover:not(:disabled){background:var(--acc-s);color:var(--acc-t)}}
+@media(hover:hover){#app #menu .b-az button:hover:not(:disabled){background:var(--ink);color:var(--bg)}}
 #app #menu .b-letter{font-size:15px;font-weight:800;letter-spacing:-.02em;color:var(--ink)}
 
 /* ---------- Kartu karakter ---------- */
-#app #menu .b-av{border-radius:24px}
-#app #menu .b-front{padding:56px 14px 13px;background:linear-gradient(to top,rgba(10,8,24,.86) 0%,rgba(10,8,24,.5) 52%,rgba(10,8,24,0) 100%)}
+#app #menu .b-av{border-radius:22px;box-shadow:none}
+/* cincin tipis di atas foto (box-shadow inset ketutup gambar, jadi pakai pseudo) */
+#app #menu .b-av::before{content:"";position:absolute;inset:0;z-index:2;border-radius:inherit;pointer-events:none;box-shadow:inset 0 0 0 1px rgba(128,128,128,.22)}
+/* kilau menyapu saat hover */
+#app #menu .b-av::after{
+  content:"";position:absolute;inset:-10% -60%;z-index:4;pointer-events:none;
+  background:linear-gradient(105deg,transparent 40%,rgba(255,255,255,.2) 50%,transparent 60%);
+  transform:translateX(-70%);transition:none;
+}
+@media(hover:hover){
+  #app #menu .b-tile:hover .b-av::after{transform:translateX(70%);transition:transform 1s var(--ease)}
+  #app #menu .b-tile:hover{transform:translateY(-5px)}
+  #app #menu .b-tile:hover .b-av{box-shadow:0 22px 38px -16px rgba(0,0,0,.45)}
+}
+#app #menu .b-front{padding:56px 14px 13px;background:linear-gradient(to top,rgba(0,0,0,.84) 0%,rgba(0,0,0,.48) 52%,rgba(0,0,0,0) 100%)}
 #app #menu .b-fn{font-size:16px;font-weight:800;letter-spacing:-.03em}
 #app #menu .b-ft{font-weight:500}
 #app #menu .b-fs{font-weight:700}
-#app #menu .b-go{height:38px;border-radius:14px;background:var(--acc);font-weight:700}
-#app #menu .b-open:focus-visible{box-shadow:inset 0 0 0 3px #fff,inset 0 0 0 5px var(--acc)}
-@media(hover:hover){
-  #app #menu .b-tile:hover .b-av{box-shadow:inset 0 0 0 1px rgba(128,128,128,.14),0 16px 32px color-mix(in srgb,var(--acc) 30%,transparent)}
+/* sisi belakang (hover): kaca buram gelap */
+#app #menu .b-back{background:rgba(8,8,10,.66);-webkit-backdrop-filter:blur(14px) saturate(1.15);backdrop-filter:blur(14px) saturate(1.15)}
+#app #menu .b-tile.hot .b-bh,#app #menu .b-tile.hot .b-sap,#app #menu .b-tile.hot .b-go{animation:h-up .45s var(--ease) backwards}
+#app #menu .b-tile.hot .b-sap{animation-delay:.05s}
+#app #menu .b-tile.hot .b-go{animation-delay:.1s}
+@keyframes h-up{from{opacity:0;transform:translateY(8px)}}
+/* tombol utama: putih di atas kaca gelap, panah geser saat hover */
+#app #menu .b-go{
+  display:flex;align-items:center;justify-content:center;gap:6px;
+  height:38px;border-radius:14px;background:#fff;color:#111;font-weight:700;
+  transition:background .15s,transform .2s var(--ease);
 }
-#app #menu .all-empty button{margin-top:10px;padding:10px 18px;border-radius:99px;background:var(--acc);color:#fff;font-size:13.5px;font-weight:700}
+#app #menu .b-go::after{content:"\2192";display:inline-block;transition:transform .25s var(--ease)}
+#app #menu .b-go:hover{filter:none;background:#ececee}
+#app #menu .b-go:hover::after{transform:translateX(4px)}
+#app #menu .b-go:active{transform:scale(.97)}
+#app #menu .b-go:focus-visible{outline:2px solid #fff;outline-offset:2px}
+#app #menu .b-open:focus-visible{box-shadow:inset 0 0 0 3px #fff,inset 0 0 0 5px #111}
+
+/* skeleton: shimmer, bukan kedip */
+#app #menu .b-tile.sk{
+  background:linear-gradient(100deg,var(--surface) 30%,color-mix(in srgb,var(--ink) 9%,var(--surface)) 50%,var(--surface) 70%);
+  background-size:260% 100%;animation:h-shimmer 1.5s linear infinite;
+}
+@keyframes h-shimmer{from{background-position:130% 0}to{background-position:-130% 0}}
+
+#app #menu .all-empty button{margin-top:10px;padding:10px 18px;border-radius:99px;background:var(--ink);color:var(--bg);font-size:13.5px;font-weight:700;transition:transform .2s var(--ease)}
+#app #menu .all-empty button:active{transform:scale(.96)}
 
 /* ---------- HP: rapatkan jarak supaya kartu karakter naik ke layar pertama ---------- */
 @media(max-width:799px){
@@ -71,11 +166,20 @@
 
 /* ---------- Desktop: panel kiri tanpa kotak abu-abu tebal ---------- */
 @media(min-width:800px){
-  #app #menu #mtitle.greet{font-size:38px}
+  #app #menu #mtitle.greet{font-size:40px}
   #app #menu #mtitle:not(.greet){font-size:56px}
   #app #menu .m-side{padding:6px 4px 0 0;border-radius:0;background:none}
-  #app #menu .m-side .m-set{background:var(--acc-s)}
+  #app #menu .m-side .m-set{background:var(--soft)}
   #app #menu .m-side .srch,#app #menu .m-side .b-cc{background:var(--surface)}
   #app #menu .m-side .srch:focus-within{background:var(--bg)}
-  #app #menu .m-side .b-cc:hover{background:var(--acc-s)}
+  #app #menu .m-side .b-cc:hover{background:var(--bg)}
+}
+
+/* ---------- Hormati "kurangi gerakan" ---------- */
+@media(prefers-reduced-motion:reduce){
+  #app #menu:not(.hv) .o2{animation:none}
+  #app #menu .b-tile.sk{animation:none}
+  #app #menu .m-pills,#app #menu .srch,#app #menu .b-tile.hot .b-bh,#app #menu .b-tile.hot .b-sap,#app #menu .b-tile.hot .b-go{animation:none}
+  #app #menu .b-av::after{display:none}
+  #app #menu .b-tile:hover{transform:none}
 }

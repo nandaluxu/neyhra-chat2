@@ -3377,5 +3377,21 @@ document.addEventListener('visibilitychange',()=>{ if(!document.hidden) setTimeo
 <script src="/tools/tools.js"></script>
 <script src="/login.js"></script>
 <script src="/router.js"></script>
+<script>
+/* Beranda: sorot kisi titik mengikuti kursor (visual saja; touch/HP tidak butuh JS, sorot menyapu sendiri lewat CSS) */
+(function(){
+  var m=document.getElementById('menu');
+  if(!m||!matchMedia('(hover:hover) and (pointer:fine)').matches||matchMedia('(prefers-reduced-motion:reduce)').matches) return;
+  var raf=0,x=0,y=0;
+  function paint(){ raf=0; m.style.setProperty('--px',x+'px'); m.style.setProperty('--py',y+'px'); }
+  m.addEventListener('pointermove',function(e){
+    var r=m.getBoundingClientRect();
+    x=e.clientX-r.left; y=e.clientY-r.top+m.scrollTop;
+    if(!m.classList.contains('hv')) m.classList.add('hv');
+    if(!raf) raf=requestAnimationFrame(paint);
+  },{passive:true});
+  m.addEventListener('pointerleave',function(){ m.classList.remove('hv'); });
+})();
+</script>
 </body>
 </html>
