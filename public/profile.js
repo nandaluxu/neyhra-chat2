@@ -467,6 +467,8 @@ function aiCard(c) {
   const bd = h('div', 'pf-pbd'), nm = h('div', 'pf-pnm');
   nm.append(h('b', null, c.name), h('span', 'pf-vis' + (c.public ? ' pub' : ''), c.public ? 'Publik' : 'Privat'));
   if (c.relOn === false) nm.append(h('span', 'pf-vis', 'Tanpa hubungan')); // fitur hubungan dimatikan lewat form (saklar)
+  if (c.lifeOn === false) nm.append(h('span', 'pf-vis', 'Tanpa status tidur'));
+  if (c.autoOn === false) nm.append(h('span', 'pf-vis', 'Tanpa chat otomatis'));
   bd.append(nm, h('small', null, c.personality || c.identity || 'Belum ada deskripsi'));
   const acts = h('div', 'pf-pacts');
   const chat = btn('pf-pdef on', 'Chat', 'aichat'); chat.dataset.id = c.id; chat.setAttribute('aria-label', 'Mulai chat dengan ' + c.name);
@@ -609,6 +611,31 @@ function aiRelValue() {
     rule: (r.querySelector('textarea') || { value: '' }).value.trim()
   }));
   return out;
+}
+/* ---------- Status & chat otomatis AI ini: dua saklar (default aktif) ----------
+   lifeOn=false: tanpa jadwal tidur — header chat selalu "online", balasan tidak pernah berlagak ngantuk/baru bangun, sapaan otomatis tidak dibatasi jam tidur.
+   autoOn=false: AI tidak pernah menyapa duluan (pesan proaktif); server menolak /api/proactive untuk AI ini dan client tidak memilihnya. */
+function aiLifeBox(c) {
+  const box = h('div');
+  const mk = (id, title, on, offTxt, onTxt) => {
+    const row = h('label', 'srow pf-pub'), tx = h('span'), b = h('b', null, title), i = h('i');
+    const sw = h('input', 'sw'); sw.type = 'checkbox'; sw.id = id; sw.checked = on;
+    const sync = () => { i.textContent = sw.checked ? onTxt : offTxt; };
+    sw.addEventListener('change', sync); sync();
+    tx.append(b, i); row.append(tx, sw); return row;
+  };
+  box.append(
+    mk('ailife', 'Status tidur', !(c && c.lifeOn === false),
+      'AI ini selalu online: tidak punya jam tidur, tidak pernah ngantuk atau baru bangun.',
+      'AI ini punya jam tidur sendiri: saat tidur/ngantuk, status di chat berubah dan balasannya ikut menyesuaikan.'),
+    mk('aiauto', 'Chat otomatis', !(c && c.autoOn === false),
+      'AI ini tidak akan menyapa duluan, hanya membalas kalau kamu yang mulai chat.',
+      'AI ini bisa menyapa duluan kalau kamu lama tidak membalas (syarat: sudah akrab, dan tidak sedang tidur).')
+  );
+  return box;
+}
+function aiLifeValue() {
+  return { lifeOn: !!($('ailife') && $('ailife').checked), autoOn: !!($('aiauto') && $('aiauto').checked) };
 }
 function aiGenderBox(c) {
   const l = h('label', 'pf-lab', 'Gender'), sel = h('select', 'pf-inp'); sel.id = 'aigender';
@@ -766,6 +793,7 @@ function openAIForm(c) {
     aiGenderBox(c),
     aiAttrsBox(c),
     aiRelBox(c),
+    aiLifeBox(c),
     aiStoryBox(c),
     aiVoiceBox(c), aiPublicBox(c), ...(aiDevOn() ? [aiDevBox(c)] : []),
     msg, act);
@@ -783,7 +811,7 @@ function openAIForm(c) {
 async function saveAI() {
   if (!aiForm) return;
   const msg = $('aimsg'), save = $('aisave'), v = id => $(id).value.trim();
-  const payload = { name: v('ainame'), tagline: v('aitag'), identity: v('aiident'), personality: v('aipers'), speech: v('aispeech'), rules: v('airules'), story: $('aistory') ? $('aistory').value.trim() : '', greeting: v('aigreet'), gender: $('aigender') ? $('aigender').value : '', attrs: aiAttrsValue(), public: !!($('aipub') && $('aipub').checked), ...aiRelValue() };
+  const payload = { name: v('ainame'), tagline: v('aitag'), identity: v('aiident'), personality: v('aipers'), speech: v('aispeech'), rules: v('airules'), story: $('aistory') ? $('aistory').value.trim() : '', greeting: v('aigreet'), gender: $('aigender') ? $('aigender').value : '', attrs: aiAttrsValue(), public: !!($('aipub') && $('aipub').checked), ...aiRelValue(), ...aiLifeValue() };
   msg.className = 'pf-msg err';
   if (!payload.name) { msg.textContent = 'Nama AI tidak boleh kosong.'; $('ainame').focus(); return; }
   if (!payload.identity && !payload.personality) { msg.textContent = 'Isi minimal identitas atau kepribadian.'; $('aipers').focus(); return; }

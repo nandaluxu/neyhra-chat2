@@ -3236,7 +3236,7 @@ window.addEventListener('shell:tab',e=>{ if(e.detail==='home') renderCont(); });
 const hourNow=()=>{const d=new Date();return d.getHours()+d.getMinutes()/60};
 const lifeIn=(h,s,e)=>s<=e?(h>=s&&h<e):(h>=s||h<e); /* rentang tidur bisa melewati tengah malam */
 function lifeOf(c){
-  if(!c||!Array.isArray(c.sleep)||!Number.isFinite(c.sleep[0])||!Number.isFinite(c.sleep[1])) return 'bangun';
+  if(!c||c.lifeOff===true||!Array.isArray(c.sleep)||!Number.isFinite(c.sleep[0])||!Number.isFinite(c.sleep[1])) return 'bangun';
   const h=hourNow(),sv=c.sleep[0],ev=c.sleep[1];
   if(lifeIn(h,sv,ev)) return 'tidur';
   if(lifeIn(h,ev,(ev+0.75)%24)) return 'baru bangun';
@@ -3303,6 +3303,7 @@ async function proCheck(){
       const lt=Number(l[l.length-1]&&l[l.length-1].t)||0; if(!lt) continue;
       const hrs=(Date.now()-lt)/3600e3; if(hrs<PRO.minH||hrs>PRO.maxH) continue; /* 4 jam - 7 hari tanpa balasan */
       if(relOff(c.id)) continue; /* AI dengan fitur hubungan dimatikan: tidak ada konsep kedekatan, tidak menyapa duluan */
+      if(c.autoOff===true) continue; /* chat otomatis dimatikan pembuat AI (AI Saya): tidak menyapa duluan */
       if(lvOf(relLoad(c.id).r)<6) continue; /* minimal tahap Teman: yang belum akrab tidak menyapa duluan */
       if(lifeOf(c)==='tidur') continue; /* jam tidurnya: tidak dibangunkan */
       cand.push({c,hrs});
@@ -3361,7 +3362,7 @@ document.addEventListener('visibilitychange',()=>{ if(!document.hidden) setTimeo
 <script src="/g2048.js"></script>
 <script src="/wordsearch.js"></script>
 <script src="/scenario.js"></script>
-<script src="/profile.js?v=20261119h"></script>
+<script src="/profile.js?v=20261123a"></script>
 <script src="/cdetail.js?v=20261123a"></script>
 <script src="/notify.js?v=20261119g"></script>
 <script src="/shop.js"></script>
