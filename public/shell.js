@@ -469,6 +469,7 @@ syncTabs(); renderRecent();
       if (!target || target.classList.contains('hide')) return;
       const b = document.createElement('button'); b.type = 'button'; b.setAttribute('role', 'menuitem'); if (it.danger) b.className = 'danger';
       b.innerHTML = '<svg viewBox="0 0 24 24"><path d="' + it.d + '"/></svg><span></span>'; b.lastChild.textContent = it.label;
+      if (it.id === 'pinbtn') { const pn = document.getElementById('pinn'); if (pn && !pn.classList.contains('hide') && pn.textContent) { const c = document.createElement('em'); c.className = 'hm-cnt'; c.textContent = pn.textContent; b.append(c); } } // lencana jumlah pin ikut tampil di menu HP
       b.addEventListener('click', e => {
         e.stopPropagation();
         if (it.id === 'clr') { // hapus obrolan: konfirmasi tap dua kali, dilakukan di dalam menu supaya menu tetap terbuka di antara dua tap

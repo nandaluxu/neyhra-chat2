@@ -512,3 +512,7 @@
 #menu .b-go:hover{filter:brightness(1.1)}
 #menu .b-go:focus-visible{outline:2px solid #fff;outline-offset:2px}
 @media(prefers-reduced-motion:reduce){#menu .b-front,#menu .b-back{transition:none}#menu .b-st.typing::after{animation:none}}
+
+/* Lencana jumlah pesan disematkan di menu titik tiga (HP) */
+#hmenu .hm-cnt{margin-left:auto;min-width:20px;height:20px;padding:0 6px;border-radius:99px;background:var(--rec);color:#fff;font-size:11px;font-weight:700;font-style:normal;line-height:20px;text-align:center;font-variant-numeric:tabular-nums}
+#hmenu{width:212px}
