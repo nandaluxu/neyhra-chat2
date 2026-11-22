@@ -226,7 +226,7 @@
   #dpanel{position:absolute;inset:0;z-index:6;transform:translateX(100%);transition:transform .3s cubic-bezier(.2,.9,.2,1),visibility 0s .3s;visibility:hidden;border-left:0}
   #app.dp-on #dpanel{transform:none;visibility:visible;transition-delay:0s}
   #lpclose,#lpopen{display:none}
-  header>#find,header>#exp,header>#clr,header>#vmore,header>#gmore,header>#dtoggle{display:none!important}
+  header>#find,header>#exp,header>#clr,header>#vmore,header>#gmore,header>#dtoggle,header>#pinbtn{display:none!important}
   #hmore{display:grid}
   #ltoast{bottom:calc(76px + env(safe-area-inset-bottom,0px))}
 }

@@ -448,6 +448,7 @@ syncTabs(); renderRecent();
   if (!hb || !hm) return;
   const ITEMS = [
     { id: 'find', label: 'Cari di obrolan', d: 'M16 16l4.5 4.5M11 4.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13z' },
+    { id: 'pinbtn', label: 'Pesan disematkan', d: 'M12 17v5M9 3h6l-1 6 3 3v2H7v-2l3-3z' },
     { id: 'dtoggle', label: 'Profil & hubungan', d: 'M12 11v5M12 8h.01M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z' },
     { id: 'vmore', label: 'Pilih suara', d: 'M4 9v6h4l5 4V5L8 9zM16.5 8.5a5 5 0 0 1 0 7' },
     { id: 'gmore', label: 'Panel grup', d: 'M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM3 19c0-3 2.7-5 6-5s6 2 6 5M16 5.5a3 3 0 0 1 0 5.5M18 14c2 .6 3 2.3 3 5' },

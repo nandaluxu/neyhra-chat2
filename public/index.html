@@ -469,6 +469,18 @@ header>button:active,.mwrap>button:active{transform:scale(.88)}
 .mdrow small{display:block;font-size:11.5px;color:var(--mut)}
 .mdrow small.err{color:var(--rec)}
 .mdrow .mdel:disabled{opacity:.5}
+/* ===== Pesan disematkan: tanda pin di gelembung + lencana jumlah di tombol header ===== */
+#pinbtn{position:relative}
+#pinn{position:absolute;top:-2px;right:-2px;min-width:17px;height:17px;padding:0 4px;border-radius:99px;background:var(--rec);color:#fff;font-size:10.5px;font-weight:700;font-style:normal;line-height:17px;text-align:center;font-variant-numeric:tabular-nums;pointer-events:none}
+.row.pinned>.bub,.row.pinned>.vcol>.bub:first-child{position:relative}
+.row.pinned>.bub::after,.row.pinned>.vcol>.bub:first-child::after{content:"";position:absolute;top:-4px;right:-4px;width:11px;height:11px;border-radius:3.5px;background:var(--ink);border:2px solid var(--bg);box-shadow:0 0 0 1px var(--line);pointer-events:none}
+#selbar #selpin{background:var(--ink);color:var(--bg)}
+/* Tulis memori: form di modal sendiri */
+#mwin,#mwbody{display:block;width:100%;margin-top:10px;border:0;outline:0;background:var(--surface);color:var(--ink);border-radius:14px;padding:12px 15px;font:inherit;font-size:15px}
+#mwbody{resize:vertical;min-height:88px;line-height:1.45}
+#mwin:focus,#mwbody:focus{box-shadow:0 0 0 2px var(--ink)}
+#mwcnt{display:block;margin-top:4px;font-size:11.5px;color:var(--mut);text-align:right;font-variant-numeric:tabular-nums}
+#mwok{background:var(--ink);color:var(--bg)}
 #mtoast{position:absolute;left:50%;top:calc(12px + env(safe-area-inset-top,0px));z-index:30;transform:translate(-50%,-10px);max-width:calc(100% - 28px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:99px;font-size:13px;font-weight:500;box-shadow:0 4px 16px rgba(0,0,0,.18);opacity:0;pointer-events:none;transition:opacity .25s,transform .25s}
 #mtoast.show{opacity:1;transform:translate(-50%,0);pointer-events:auto;cursor:pointer}
 /* ===== Profil karakter: hubungan & mood (klik foto/nama di header chat) ===== */
@@ -744,6 +756,7 @@ header .pfp,header .who{cursor:pointer}
     <img class="pfp" id="hpfp" alt="">
     <div class="who"><div class="name" id="hname"></div><div class="status" id="status">online</div><span class="relgain" id="relgain" aria-hidden="true"></span></div>
     <button id="find" type="button" title="Cari di obrolan" aria-label="Cari di obrolan"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg></button>
+    <button id="pinbtn" type="button" title="Pesan disematkan" aria-label="Pesan disematkan" aria-haspopup="dialog"><svg viewBox="0 0 24 24"><path d="M12 17v5M9 3h6l-1 6 3 3v2H7v-2l3-3z"/></svg><em id="pinn" class="hide"></em></button>
     <button id="exp" type="button" title="Ekspor obrolan" aria-label="Ekspor obrolan"><svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 19h14"/></svg></button>
     <button id="clr" type="button" title="Hapus obrolan" aria-label="Hapus obrolan"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12h10l1-12M9 7V4h6v3"/></svg></button>
     <button id="vmore" type="button" class="hide" title="Pilih suara" aria-label="Pilih suara karakter" aria-haspopup="dialog"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="12" cy="19" r="1.9"/></svg></button>
@@ -866,7 +879,7 @@ header .pfp,header .who{cursor:pointer}
   <div id="mmodal" class="hide">
     <div class="nbox sbox" role="dialog" aria-labelledby="mmtitle">
       <div class="shead"><h2 id="mmtitle">Memori</h2><button id="mmx" type="button" aria-label="Tutup"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
-      <p class="mhelp">Setelah ngobrol cukup lama, karakter menyimpan ringkasannya di sini. Disimpan di perangkat ini saja, bisa kamu hapus tapi tidak bisa diedit. Teks obrolan dikirim ke ChatGPT saat diringkas, dan ringkasannya ikut terkirim setiap kali karakter membalas.</p>
+      <p class="mhelp">Setelah ngobrol cukup lama, karakter menyimpan ringkasannya di sini. Disimpan di perangkat ini saja, bisa kamu hapus tapi tidak bisa diedit. Teks obrolan dikirim ke ChatGPT saat diringkas, dan ringkasannya ikut terkirim setiap kali karakter membalas. Kamu juga bisa menulis memori sendiri lewat tombol Tulis memori.</p>
       <div id="mdev" class="hide"></div>
       <div class="mchips hide" id="mchips"></div>
       <div id="mlist"></div>
@@ -875,9 +888,26 @@ header .pfp,header .who{cursor:pointer}
   <div id="dmmodal" class="hide">
     <div class="nbox sbox" role="dialog" aria-labelledby="dmmtitle">
       <div class="shead"><h2 id="dmmtitle">Kotak memori</h2><button id="dmmx" type="button" aria-label="Tutup"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
-      <p class="mhelp" id="dmhelp">Hal-hal yang diingat karakter ini dari obrolan kalian. Disimpan di perangkat ini saja, bisa kamu hapus tapi tidak bisa diedit.</p>
+      <p class="mhelp" id="dmhelp">Hal-hal yang diingat karakter ini dari obrolan kalian. Disimpan di perangkat ini saja, bisa kamu hapus tapi tidak bisa diedit. Tombol Tulis memori untuk menulis sendiri, Ringkas sekarang untuk meringkas riwayat tanpa menunggu.</p>
       <div id="dmlist"></div>
       <div class="mact" id="dmdev"></div>
+    </div>
+  </div>
+  <div id="pnmodal" class="hide">
+    <div class="nbox sbox" role="dialog" aria-labelledby="pntitle">
+      <div class="shead"><h2 id="pntitle">Pesan disematkan</h2><button id="pnx" type="button" aria-label="Tutup"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+      <p class="mhelp">Pesan obrolan yang kamu simpan sendiri — catatan penting, silsilah keluarga RPG, atau apa pun. Disimpan di perangkat ini, ikut sinkron akun, dan tetap ada meski pesan atau obrolannya dihapus. Cara sematkan: klik kanan pesan (desktop) atau tekan lama lalu Mode seleksi (HP).</p>
+      <div id="pnlist"></div>
+    </div>
+  </div>
+  <div id="mwmodal" class="hide">
+    <div class="nbox" role="dialog" aria-labelledby="mwtitle">
+      <h2 id="mwtitle">Tulis memori</h2>
+      <p id="mwsub" class="mhelp">Memori yang kamu tulis ikut terkirim ke AI sebagai ingatan, sama seperti ringkasan otomatis.</p>
+      <input id="mwin" maxlength="40" placeholder="Judul singkat (maks 40)" autocomplete="off" enterkeyhint="next">
+      <textarea id="mwbody" maxlength="500" rows="4" placeholder="Isi memori (maks 500) — misal: keluarganya punya dua kakak, ayahnya pemimpin guild" enterkeyhint="done"></textarea>
+      <small id="mwcnt">0/500</small>
+      <div class="nact"><button id="mwc" type="button">Batal</button><button id="mwok" type="button">Simpan</button></div>
     </div>
   </div>
   <aside id="dpanel" aria-label="Detail karakter">
@@ -1259,6 +1289,7 @@ async function restoreChat(id,tok){
     });
   }catch{}
   restoring=false;
+  try{ markPinRows(); pinPaint(); }catch{} /* tanda pin di gelembung + lencana jumlah di tombol header */
   if(!l.length){ /* obrolan baru: karakter yang menyapa duluan memakai teks sapaan buatan pemiliknya (tanpa AI). Masuk log + riwayat supaya AI tahu konteksnya. */
     const g=greetOf(allChars.find(x=>x.id===id));
     if(g){ showThem(id,g); saveHist(id,[...loadHist(id),['char',g]]); } else ensureDay(Date.now());
@@ -1659,7 +1690,7 @@ function closeChat(){
   const an=view.animate({clipPath:[circle(reach()),circle(0)]},{duration:DUR,easing:'cubic-bezier(.7,0,.2,1)',fill:'forwards'});
   an.onfinish=()=>{app.classList.remove('open'); an.cancel(); if(window.Shell) Shell.afterClose()};
 }
-document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ if(window.GX&&GX.esc()) return; if(!pm.classList.contains('hide')) closePicker(); else if(!peModal.classList.contains('hide')) closePe(); else if(window.Shell&&Shell.detailOpen()&&!Shell.docked()) closeRel(); else if(!$('dmmodal').classList.contains('hide')) closeDm(); else if(!memModal.classList.contains('hide')) closeMem(); else if(!sm.classList.contains('hide')) closeSettings(); else if(!vm.classList.contains('hide')) closeVoice(); else if(window.Shell&&Shell.esc()) return; else if(app.classList.contains('open')&&!isDesk()) closeChat(); } });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ if(window.GX&&GX.esc()) return; if(!pm.classList.contains('hide')) closePicker(); else if(!peModal.classList.contains('hide')) closePe(); else if(window.Shell&&Shell.detailOpen()&&!Shell.docked()) closeRel(); else if(!$('mwmodal').classList.contains('hide')) closeMw(); else if(!$('pnmodal').classList.contains('hide')) closePin(); else if(!$('dmmodal').classList.contains('hide')) closeDm(); else if(!memModal.classList.contains('hide')) closeMem(); else if(!sm.classList.contains('hide')) closeSettings(); else if(!vm.classList.contains('hide')) closeVoice(); else if(window.Shell&&Shell.esc()) return; else if(app.classList.contains('open')&&!isDesk()) closeChat(); } });
 $('back').addEventListener('click',closeChat);
 const savePlaying=()=>{ if(current&&current.save) current.save(); };
 window.addEventListener('pagehide',savePlaying);
@@ -1706,23 +1737,25 @@ function removeEntries(id,ts){
 }
 const ctxOv=document.createElement('div'); ctxOv.id='ctxov'; ctxOv.className='hide';
 ctxOv.innerHTML='<div id="ctxmenu" role="menu" aria-label="Menu pesan">'
+ +'<button type="button" role="menuitem" data-a="pin"><svg viewBox="0 0 24 24"><path d="M12 17v5M9 3h6l-1 6 3 3v2H7v-2l3-3z"/></svg><span>Sematkan</span></button>'
  +'<button type="button" role="menuitem" data-a="copy"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 012-2h10"/></svg><span>Salin teks</span></button>'
  +'<button type="button" role="menuitem" data-a="del"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12h10l1-12M9 7V4h6v3"/></svg><span>Hapus pesan ini</span></button>'
  +'<button type="button" role="menuitem" data-a="sel"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/></svg><span>Mode seleksi</span></button>'
  +'</div>';
 document.body.appendChild(ctxOv);
 const selbar=document.createElement('div'); selbar.id='selbar'; selbar.className='hide'; selbar.setAttribute('role','toolbar'); selbar.setAttribute('aria-label','Mode seleksi pesan');
-selbar.innerHTML='<b id="seln">0 dipilih</b><button type="button" id="selcopy" class="hide">Salin</button><button type="button" id="seldel" disabled>Hapus</button><button type="button" id="selx">Batal</button>';
+selbar.innerHTML='<b id="seln">0 dipilih</b><button type="button" id="selpin">Sematkan</button><button type="button" id="selcopy" class="hide">Salin</button><button type="button" id="seldel" disabled>Hapus</button><button type="button" id="selx">Batal</button>';
 $('chatview').appendChild(selbar);
 let selOn=false, ctxRow=null, ctxArm=0, delArm=0;
 const selN=()=>chat.querySelectorAll('.row.sel[data-t]').length;
-function updSel(){ const n=selN(); $('seln').textContent=n+' pesan dipilih'; $('selcopy').classList.toggle('hide',n!==1); $('seldel').disabled=!n; resetDelArm(); }
+function updSel(){ const n=selN(); $('seln').textContent=n+' pesan dipilih'; $('selpin').classList.toggle('hide',!n); $('selcopy').classList.toggle('hide',n!==1); $('seldel').disabled=!n; resetDelArm(); }
 function resetDelArm(){ clearTimeout(delArm); delArm=0; const b=$('seldel'); b.classList.remove('arm'); b.textContent='Hapus'; }
 function closeCtx(){ ctxOv.classList.add('hide'); ctxRow=null; clearTimeout(ctxArm); ctxArm=0; const d=$('ctxmenu').querySelector('[data-a=del]'); d.classList.remove('arm'); d.querySelector('span').textContent='Hapus pesan ini'; }
 function openCtx(x,y,row){
   if(!row||!row.dataset.t||selOn) return;
   ctxRow=row; ctxOv.classList.remove('hide');
   const m=$('ctxmenu'), r=m.getBoundingClientRect();
+  if(ch){ const pb=m.querySelector('[data-a=pin]'); if(pb) pb.querySelector('span').textContent=isPinned(ch.id,Number(row.dataset.t))?'Lepas sematan':'Sematkan'; }
   m.style.left=Math.min(Math.max(8,x),innerWidth-r.width-8)+'px';
   m.style.top=Math.min(Math.max(8,y),innerHeight-r.height-8)+'px';
 }
@@ -1758,6 +1791,18 @@ ctxOv.addEventListener('click',e=>{
   if(e.target===ctxOv){ closeCtx(); return; }
   const b=e.target.closest('button[data-a]'); if(!b||!ctxRow||!ch) return;
   const t=Number(ctxRow.dataset.t);
+  if(b.dataset.a==='pin'){ /* sematkan/lepas: salinan pesan disimpan terpisah (pin:<id>), tetap ada walau pesan dihapus */
+    if(isPinned(ch.id,t)){ pinRemove(ch.id,t); ctxRow.classList.remove('pinned'); toast('Sematan dilepas'); }
+    else{
+      const en=loadLog(ch.id).find(x=>x.t===t);
+      if(!en){ toast('Pesan tidak ditemukan'); closeCtx(); return; }
+      const r=pinAdd(ch.id,en);
+      if(r.err){ toast(r.err); closeCtx(); return; }
+      ctxRow.classList.add('pinned'); toast('Pesan disematkan');
+    }
+    pinPaint(); if(!$('pnmodal').classList.contains('hide')) renderPin();
+    closeCtx(); return;
+  }
   if(b.dataset.a==='copy'){
     const en=loadLog(ch.id).find(x=>x.t===t);
     copyText(en?(en.u||en.x):''); toast('Teks disalin'); closeCtx(); /* pesan ilustrasi: yang disalin alamat gambarnya */
@@ -1777,6 +1822,14 @@ $('seldel').onclick=()=>{
   if(!delArm){ b.classList.add('arm'); b.textContent='Tap lagi: hapus '+n; delArm=setTimeout(resetDelArm,2600); return; }
   const ts=[...chat.querySelectorAll('.row.sel[data-t]')].map(r=>Number(r.dataset.t));
   removeEntries(ch.id,ts); toast(ts.length+' pesan dihapus'); exitSel();
+};
+/* Sematkan semua pesan yang dipilih (mode seleksi: tekan lama di HP, klik kanan -> Mode seleksi di desktop) */
+$('selpin').onclick=()=>{
+  const ts=[...chat.querySelectorAll('.row.sel[data-t]')].map(r=>Number(r.dataset.t)); if(!ts.length||!ch) return;
+  const l=loadLog(ch.id); let n=0, err='';
+  for(const t of ts){ const en=l.find(x=>x.t===t); if(!en) continue; const r=pinAdd(ch.id,en); if(r.ok) n++; else if(r.err) err=r.err; }
+  markPinRows(); pinPaint(); if(!$('pnmodal').classList.contains('hide')) renderPin();
+  if(n){ toast(n+' pesan disematkan'); exitSel(); } else toast(err||'Tidak ada pesan yang bisa disematkan');
 };
 /* klik di mode seleksi: pilih/batal pilih pesan; tap area kosong = selesai (capture: tombol play dll tidak jalan) */
 chat.addEventListener('click',e=>{
@@ -1901,11 +1954,11 @@ const busyData=on=>$('sdata').classList.toggle('sbusy',on);
 /* Kumpulkan obrolan per karakter dari localStorage (tanpa audio — voice note tidak ikut sinkron). Dipakai sinkron akun. */
 async function collectChars(){
     const names=Object.fromEntries(allChars.map(c=>[c.id,c.name])), ids=[];
-    for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k.startsWith('log:')||k.startsWith('mem:')||k.startsWith('rel:')){ const i=k.slice(4); if(!ids.includes(i)) ids.push(i); } } /* rel: ikut discan: hubungan karakter yang obrolannya sudah dihapus tetap ikut tersimpan ke akun */
+    for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k.startsWith('log:')||k.startsWith('mem:')||k.startsWith('rel:')||k.startsWith('pin:')){ const i=k.slice(4); if(!ids.includes(i)) ids.push(i); } } /* rel:/pin: ikut discan: hubungan & pesan disematkan milik obrolan yang sudah dihapus tetap ikut tersimpan ke akun */
     const chars=[]; let nMsg=0;
     for(const id of ids){
-      const log=loadLog(id), mem=loadMem(id); if(!log.length&&!mem.length&&!store.get(relKey(id))) continue;
-      nMsg+=log.length; chars.push({id,name:names[id]||id,n:loadCnt(id),log,hist:loadHist(id),...(mem.length?{mem}:{}),...(store.get(relKey(id))?{rel:relSan(relLoad(id))}:{})});
+      const log=loadLog(id), mem=loadMem(id), pin=loadPin(id); if(!log.length&&!mem.length&&!pin.length&&!store.get(relKey(id))) continue;
+      nMsg+=log.length; chars.push({id,name:names[id]||id,n:loadCnt(id),log,hist:loadHist(id),...(mem.length?{mem}:{}),...(pin.length?{pin}:{}),...(store.get(relKey(id))?{rel:relSan(relLoad(id))}:{})});
     }
   return {chars,nMsg};
 }
@@ -1923,9 +1976,15 @@ function cleanEntry(e){ /* file impor itu data tak tepercaya: pastikan bentuknya
   }
   return o;
 }
+const cleanPinEntry=e=>{ /* file impor itu data tak tepercaya: salinan pesan disematkan juga divalidasi */
+  if(!e||typeof e!=='object'||!isNum(e.t)||typeof e.x!=='string'||!['me','them','vn','scene'].includes(e.r)) return null;
+  const o={t:e.t,r:e.r,x:e.x.slice(0,8000),ts:isNum(e.ts)?e.ts:0};
+  if(e.r==='vn'){ if(typeof e.jp==='string') o.jp=e.jp.slice(0,8000); if(typeof e.lang==='string') o.lang=e.lang.slice(0,8); }
+  return o.x.trim()?o:null;
+};
 /* Gabungkan data cadangan ke perangkat ini (tidak menimpa yang sudah ada). Dipakai impor file JSON dan sinkron akun. */
 async function applyImport(data,opts){
-    let added=0, chN=0, aud=0, memAdded=0, relUp=0;
+    let added=0, chN=0, aud=0, memAdded=0, relUp=0, pinUp=0;
     const rw=!!(opts&&opts.wipes); /* hanya sinkron akun yang menghormati tombstone hapus; impor file cadangan itu permintaan eksplisit (memulihkan) */
     if(rw&&data.wipes&&typeof data.wipes==='object'){ /* tombstone dari akun/perangkat lain: terapkan juga di sini */
       for(const [id,t] of Object.entries(data.wipes)){
@@ -1963,12 +2022,17 @@ async function applyImport(data,opts){
         for(const raw of c.mem.slice(0,100)){ const e=cleanMemEntry(raw); if(e&&e.ts>wt&&!seen.has(e.id)){ cm.push(e); seen.add(e.id); a++; } }
         if(a){ cm.sort((x,y)=>x.ts-y.ts); if(saveMem(c.id,cm)) memAdded+=a; }
       }
+      if(Array.isArray(c.pin)&&c.pin.length){ /* pesan disematkan digabung per pesan asal (t), salinan paling baru (ts terbesar) menang; tidak ikut tombstone hapus obrolan: salinannya memang disimpan terpisah */
+        const by=new Map(loadPin(c.id).map(x=>[x.t,x])); let a=0;
+        for(const raw of c.pin.slice(0,200)){ const e=cleanPinEntry(raw); if(!e) continue; const ex=by.get(e.t); if(!ex||e.ts>ex.ts){ by.set(e.t,e); a++; } }
+        if(a){ const p=[...by.values()].sort((x,y)=>(x.ts||0)-(y.ts||0)).slice(-PIN_MAX); if(savePin(c.id,p)) pinUp+=a; }
+      }
       if(!rw&&add) store.set('wipe:'+c.id,null); /* impor file yang memulihkan pesan = tombstone lama tidak berlaku lagi */
       added+=add; if(add) chN++;
     }
     let gi=null; if(window.GX&&Array.isArray(data.groups)&&data.groups.length) gi=await GX.importData(data.groups); /* grup dari cadangan */
     if(gi){ added+=gi.msgs; aud+=gi.aud; }
-  return {added,chN,aud,memAdded,relUp,gi};
+  return {added,chN,aud,memAdded,relUp,pinUp,gi};
 }
 async function importJSON(file){
   busyData(true); setStat('Membaca file…');
@@ -1976,8 +2040,8 @@ async function importJSON(file){
     if(file.size>300*1048576) throw 0;
     const data=JSON.parse(await file.text());
     if(!data||data.app!=='neyhra-chat'||!Array.isArray(data.chars)) throw 0;
-    const {added,chN,aud,memAdded,relUp,gi}=await applyImport(data);
-    setStat(added||aud||memAdded||(gi&&gi.groups)||relUp?'Impor selesai: '+added+' pesan baru dari '+chN+' karakter'+(gi&&gi.groups?' dan '+gi.groups+' grup':'')+', '+aud+' audio'+(memAdded?' dan '+memAdded+' memori':'')+' ditambahkan.'+(relUp?' Hubungan '+relUp+' karakter diperbarui (ambil yang paling maju).':''):'Nggak ada yang baru, semua sudah ada di perangkat ini.');
+    const {added,chN,aud,memAdded,relUp,pinUp,gi}=await applyImport(data);
+    setStat(added||aud||memAdded||pinUp||(gi&&gi.groups)||relUp?'Impor selesai: '+added+' pesan baru dari '+chN+' karakter'+(gi&&gi.groups?' dan '+gi.groups+' grup':'')+', '+aud+' audio'+(memAdded?' dan '+memAdded+' memori':'')+(pinUp?' dan '+pinUp+' pesan disematkan':'')+' ditambahkan.'+(relUp?' Hubungan '+relUp+' karakter diperbarui (ambil yang paling maju).':''):'Nggak ada yang baru, semua sudah ada di perangkat ini.');
     refreshStorage();
   }catch{ setStat('File nggak valid. Pilih file JSON cadangan aplikasi ini.'); }
   busyData(false);
@@ -1991,7 +2055,7 @@ let atok=store.get('authtok')||'', aOn=false;
 /* Pemilik data di perangkat ini (`dataowner` = uid akun, bukan nama tampilan yang bisa diganti). Dicatat saat masuk, dihapus bersama data saat Keluar.
    Tujuannya: obrolan/hubungan milik satu akun tidak pernah tergabung ke akun LAIN (mis. pinjam akun teman, sesi habis, lalu masuk ke akunmu). */
 const ownerOf=()=>store.get('dataowner');
-const hasLocalData=()=>{ try{ for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(/^(log|mem|rel|h|alias):/.test(k)||k==='groups') return true; } }catch{} return false; };
+const hasLocalData=()=>{ try{ for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(/^(log|mem|rel|pin|h|alias):/.test(k)||k==='groups') return true; } }catch{} return false; };
 const setA=(t,err)=>{ astat.textContent=t||''; astat.classList.toggle('err',!!err); };
 const aApi=async(path,body)=>{
   try{ return await (await post('/api/auth/'+path,body||{},atok?{Authorization:'Bearer '+atok}:undefined)).json(); }
@@ -2071,11 +2135,11 @@ async function syncCloud(auto,opts){ /* mengembalikan true kalau akun & perangka
     if(me.uid&&ownerOf()&&ownerOf()!==me.uid){ aBusy=false; if(!auto){ sacct.classList.remove('sbusy'); setA('Obrolan di perangkat ini milik akun lain, jadi tidak digabung. Keluar lalu masuk lagi untuk membersihkannya.',true); } return false; } /* jangan pernah kirim data akun lain ke akun ini */
     const before=await collectChars(), localSig=sigOf(JSON.stringify(before.chars)+JSON.stringify(collectWipes()));
     if(auto&&cts===store.get('cloudts')&&localSig===store.get('cloudsig')){ try{ await pushStats(); }catch{} aLast=Date.now(); aBusy=false; return true; } /* tidak ada yang berubah di mana pun (statistik profil punya tanda perubahan sendiri) */
-    const pulled=await aApi('pull'); let added=0, memAdded=0, relUp=0;
+    const pulled=await aApi('pull'); let added=0, memAdded=0, relUp=0, pinUp=0;
     if(pulled.data){ /* 1) gabungkan data akun ke perangkat ini (tidak menimpa; hubungan diambil yang paling maju) */
       const d=JSON.parse(pulled.data);
       if(d&&d.app==='neyhra-chat'&&Array.isArray(d.chars)){
-        ({added,memAdded,relUp}=await applyImport(d,{wipes:true}));
+        ({added,memAdded,relUp,pinUp}=await applyImport(d,{wipes:true}));
       }
     }
     const {chars,nMsg}=await collectChars(); /* 2) simpan gabungan terbaru (kalau memang beda dengan isi akun) */
@@ -2095,7 +2159,7 @@ async function syncCloud(auto,opts){ /* mengembalikan true kalau akun & perangka
       if(added&&app.classList.contains('open')) toast('Ada pesan baru dari akunmu. Buka ulang chat untuk melihatnya.');
       else if(relUp) toast('Hubungan '+relUp+' karakter diperbarui dari akunmu.');
     }else{
-      setA('Selesai: '+added+' pesan baru diambil'+(memAdded?', '+memAdded+' memori':'')+(relUp?', hubungan '+relUp+' karakter diperbarui':'')+'; '+chars.length+' karakter ('+nMsg+' pesan) tersimpan di akun.');
+      setA('Selesai: '+added+' pesan baru diambil'+(memAdded?', '+memAdded+' memori':'')+(pinUp?', '+pinUp+' pesan disematkan':'')+(relUp?', hubungan '+relUp+' karakter diperbarui':'')+'; '+chars.length+' karakter ('+nMsg+' pesan) tersimpan di akun.');
       if(added&&!(opts&&opts.noReload)){ toast('Obrolan diperbarui, memuat ulang…'); setTimeout(()=>location.reload(),1300); }
     }
   }catch(e){ if(!auto) setA(e.status===401?'Sesi berakhir, masuk lagi.':(e.message||'Gagal sinkron.'),true); }
@@ -2330,13 +2394,23 @@ $('clr').onclick=()=>{
 /* ===== Memori: ringkasan obrolan lama per karakter, disimpan di perangkat (mem:<id>) =====
    Bubble di layar (log:) tidak disentuh. Yang dibuang hanya konteks AI (h:) bagian lama, diganti ringkasan. */
 const MEM_TRIGGER=16, MEM_KEEP=4, MEM_MAX_USE=2400, MEM_RETRY=60000;   /* MEM_MAX_USE harus <= batas cleanMemory di lib/app.js (sekarang 2400) */
-const memBusy={}, memEpoch={}, memTry={}, memFail={};
+const memBusy={}, memEpoch={}, memTry={}, memFail={}; let memWarnAt=0;
 const loadMem=id=>{try{const m=JSON.parse(store.get('mem:'+id)||'[]');return Array.isArray(m)?m.filter(e=>e&&typeof e.id==='string'&&typeof e.title==='string'&&typeof e.body==='string'):[]}catch{return []}};
 const saveMem=(id,m)=>{ const v=m.length?JSON.stringify(m):null; store.set('mem:'+id,v); const ok=store.get('mem:'+id)===v; if(window.Shell) Shell.refreshDetail(); return ok; }; /* store.set menelan error, jadi cek dengan baca ulang */
+/* Tulis memori sendiri (semua user, bukan cuma dev): masuk ke mem:<id> seperti ringkasan otomatis, ditandai mn:1 supaya di UI terlihat "ditulis tangan" */
+function writeMemEntry(id,title,body){
+  const tidy=(t,n)=>String(t||'').replace(/[\u0000-\u001f<>]/g,' ').replace(/\s+/g,' ').trim().slice(0,n);
+  title=tidy(title,40); body=tidy(body,500);
+  if(!title||!body) return {err:'Judul dan isinya wajib diisi'};
+  const mem=loadMem(id), e={id:'m'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),title,body,ts:Date.now(),n:0,mn:1};
+  mem.push(e);
+  if(!saveMem(id,mem)) return {err:'Penyimpanan penuh, memori tidak tersimpan'};
+  return {ok:true,e};
+}
 const cleanMemEntry=e=>{ /* file impor itu data tak tepercaya */
   if(!e||typeof e!=='object'||!isKey(e.id)||typeof e.title!=='string'||typeof e.body!=='string') return null;
   const tidy=(t,n)=>t.replace(/[\u0000-\u001f<>]/g,' ').replace(/\s+/g,' ').trim().slice(0,n), title=tidy(e.title,40), body=tidy(e.body,500);
-  return title&&body?{id:e.id,title,body,ts:isNum(e.ts)?e.ts:0,n:isNum(e.n)?Math.max(0,Math.min(40,Math.round(e.n))):0}:null;
+  return title&&body?{id:e.id,title,body,ts:isNum(e.ts)?e.ts:0,n:isNum(e.n)?Math.max(0,Math.min(40,Math.round(e.n))):0,...(e.mn===true?{mn:true}:{})}:null;
 };
 /* memori yang ikut dikirim ke server: terbaru dulu, sampai muat MEM_MAX_USE (juga dipakai menu untuk label "belum dipakai") */
 function memUse(id){
@@ -2601,7 +2675,10 @@ async function memorize(id,keep,manual){
     saveHist(id,dropChunk(loadHist(id),chunk)); memTry[id]=0; memFail[id]=0;
     memToast(id,e.id); if(!memModal.classList.contains('hide')) renderMem();
     return {ok:true};
-  }catch(e){ if(!manual) memFail[id]=(memFail[id]||0)+1; return {err:e.message||'Gagal meringkas'}; } /* otomatis: diam, h: utuh, dicoba lagi di balasan berikutnya (jeda MEM_RETRY) */
+  }catch(e){ if(!manual) memFail[id]=(memFail[id]||0)+1; /* otomatis: diam, h: utuh, dicoba lagi di balasan berikutnya (jeda MEM_RETRY) */
+    /* gagal berkali-kali: kasih tahu sekali-sekali saja (maks 30 menit sekali), supaya "memori tidak pernah kesimpan" tidak lagi tanpa gejala */
+    if(!manual&&(memFail[id]||0)>=2&&Date.now()-memWarnAt>18e5){ memWarnAt=Date.now(); toast('Memori belum tersimpan, akan dicoba lagi otomatis. Bisa dipaksa lewat "Ringkas sekarang" di Kotak memori.'); }
+    return {err:e.message||'Gagal meringkas'}; }
   finally{ memBusy[id]=false; }
 }
 const maybeMemorize=id=>memorize(id,MEM_KEEP,false);
@@ -2657,7 +2734,7 @@ function renderMem(){
       const el=document.createElement('div'); el.className='ment'+(used.has(e.id)?'':' dim')+(e.id===mmHL?' hl':''); el.dataset.m=e.id;
       const d=new Date(e.ts||0), when=e.ts?d.toLocaleDateString('id-ID',{day:'numeric',month:'short',year:d.getFullYear()===yr?undefined:'numeric'}):'';
       const h4=document.createElement('h4'); h4.textContent=e.title;
-      const dt=document.createElement('span'); dt.className='mdate'; dt.textContent=[when,used.has(e.id)?'':'belum dipakai'].filter(Boolean).join(' · ');
+      const dt=document.createElement('span'); dt.className='mdate'; dt.textContent=[when,e.mn?'ditulis tangan':(used.has(e.id)?'':'belum dipakai')].filter(Boolean).join(' · ');
       const bd=document.createElement('p'); bd.className='mbody'; const pre=document.createElement('b'); pre.textContent=nm+' mengingat:'; /* prefix cuma saat tampil, data tetap netral */
       bd.append(pre,' '+e.body);
       const act=document.createElement('div'); act.className='mact'; const del=document.createElement('button'); del.type='button'; del.className='mdel'; act.appendChild(del);
@@ -2668,6 +2745,10 @@ function renderMem(){
       const act=document.createElement('div'); act.className='mact'; const all2=document.createElement('button'); all2.type='button'; all2.className='mdel'; act.appendChild(all2);
       memArm(all2,'Hapus semua memori '+nm,()=>{ saveMem(g.id,[]); renderMem(); });
       body.appendChild(act);
+    }
+    { /* tulis memori untuk karakter ini: sama seperti ringkasan otomatis, tapi ditulis tangan (semua user) */
+      const act=document.createElement('div'); act.className='mact'; const w=document.createElement('button'); w.type='button'; w.className='mdel'; w.textContent='Tulis memori'; act.appendChild(w);
+      w.onclick=()=>openMw(g.id); body.appendChild(act);
     }
     grp.append(head,body); mlist.appendChild(grp);
   }
@@ -2683,12 +2764,12 @@ function renderCharMem(id){
   const box=$('dmlist'); box.textContent='';
   const used=memUse(id).used, yr=new Date().getFullYear();
   $('dmdev').textContent='';
-  if(!mem.length){ const p=document.createElement('p'); p.className='mempty'; p.textContent='Belum ada memori. '+nm+' akan menyimpannya sendiri setelah kalian ngobrol cukup lama.'; box.append(p); return; }
+  if(!mem.length){ const p=document.createElement('p'); p.className='mempty'; p.textContent='Belum ada memori. '+nm+' akan menyimpannya sendiri setelah kalian ngobrol cukup lama, atau tulis sendiri lewat tombol Tulis memori di bawah.'; box.append(p); } /* tombol tetap dirender supaya user bisa menulis langsung */
   for(const e of mem.slice().reverse()){ /* terbaru di atas */
     const el=document.createElement('div'); el.className='ment'+(used.has(e.id)?'':' dim'); el.dataset.m=e.id;
     const d=new Date(e.ts||0), when=e.ts?d.toLocaleDateString('id-ID',{day:'numeric',month:'short',year:d.getFullYear()===yr?undefined:'numeric'}):'';
     const h4=document.createElement('h4'); h4.textContent=e.title;
-    const dt=document.createElement('span'); dt.className='mdate'; dt.textContent=[when,used.has(e.id)?'':'belum dipakai'].filter(Boolean).join(' · ');
+    const dt=document.createElement('span'); dt.className='mdate'; dt.textContent=[when,e.mn?'ditulis tangan':(used.has(e.id)?'':'belum dipakai')].filter(Boolean).join(' · ');
     const bd=document.createElement('p'); bd.className='mbody'; const pre=document.createElement('b'); pre.textContent=nm+' mengingat:'; bd.append(pre,' '+e.body);
     const act=document.createElement('div'); act.className='mact'; const del=document.createElement('button'); del.type='button'; del.className='mdel'; act.append(del);
     memArm(del,'Hapus',()=>{ saveMem(id,loadMem(id).filter(x=>x.id!==e.id)); }); /* saveMem memanggil Shell.refreshDetail -> render ulang */
@@ -2696,12 +2777,91 @@ function renderCharMem(id){
   }
   if(mem.length>1){ const act=document.createElement('div'); act.className='mact'; const b=document.createElement('button'); b.type='button'; b.className='mdel'; act.append(b);
     memArm(b,'Hapus semua memori '+nm,()=>saveMem(id,[])); box.append(act); }
-  if(devOn()){ const b=document.createElement('button'); b.type='button'; b.className='mdel'; b.textContent='Ringkas sekarang';
+  { /* Tulis memori (semua user): memori tulisan sendiri, ditandai "ditulis tangan" */
+    const w=document.createElement('button'); w.type='button'; w.className='mdel'; w.textContent='Tulis memori'; w.onclick=()=>openMw(id); $('dmdev').append(w); }
+  { /* Ringkas sekarang (semua user, dulu cuma Mode dev): paksa meringkas riwayat konteks tanpa menunggu 16 pesan */
+    const b=document.createElement('button'); b.type='button'; b.className='mdel'; b.textContent='Ringkas sekarang';
     b.onclick=async()=>{ b.disabled=true; b.textContent='Meringkas…'; const r=await memorize(id,0,true); if(r&&r.err){ b.disabled=false; b.textContent='Ringkas sekarang'; toast(r.err); } };
     $('dmdev').append(b); }
 }
 function openDm(){ if(!ch) return; dmFor=ch.id; $('dmmtitle').textContent='Kotak memori · '+shortName(ch); $('dmmodal').classList.remove('hide'); renderCharMem(ch.id); }
 function closeDm(){ $('dmmodal').classList.add('hide'); dmFor=''; }
+/* ===== Tulis memori: form judul + isi, untuk semua user (dulu ringkasan cuma otomatis/dev) ===== */
+let mwFor='';
+function openMw(id){
+  if(!id) return;
+  mwFor=id; const c=charOf(id);
+  $('mwsub').textContent='Memori untuk '+(c?c.name:id)+' — ikut terkirim ke AI sebagai ingatan, sama seperti ringkasan otomatis.';
+  $('mwin').value=''; $('mwbody').value=''; mwCnt();
+  $('mwmodal').classList.remove('hide');
+  setTimeout(()=>{ try{ $('mwin').focus(); }catch{} },60);
+}
+function closeMw(){ $('mwmodal').classList.add('hide'); mwFor=''; }
+function mwCnt(){ $('mwcnt').textContent=$('mwbody').value.length+'/500'; }
+$('mwbody').addEventListener('input',mwCnt);
+function mwSave(){
+  const id=mwFor; if(!id) return closeMw();
+  const r=writeMemEntry(id,$('mwin').value,$('mwbody').value);
+  if(r&&r.err){ toast(r.err); return; }
+  closeMw(); toast('Memori tersimpan');
+  if(!$('dmmodal').classList.contains('hide')) renderCharMem(id);
+  if(!memModal.classList.contains('hide')) renderMem();
+}
+$('mwok').onclick=mwSave; $('mwc').onclick=closeMw;
+$('mwmodal').addEventListener('click',e=>{ if(e.target===$('mwmodal')) closeMw(); });
+/* ===== Pesan disematkan (pin:<id>): salinan pesan yang disimpan user, terpisah dari log ===== */
+const PIN_MAX=100;
+const loadPin=id=>{ try{ const p=JSON.parse(store.get('pin:'+id)||'[]'); return Array.isArray(p)?p.filter(e=>e&&isNum(e.t)&&typeof e.x==='string'&&['me','them','vn','scene'].includes(e.r)):[] }catch{ return [] } };
+const savePin=(id,p)=>{ const v=p.length?JSON.stringify(p):null; store.set('pin:'+id,v); const ok=store.get('pin:'+id)===v; if(ok&&window.Shell) Shell.touch(); return ok; }; /* store.set menelan error, cek baca ulang */
+const isPinned=(id,t)=>loadPin(id).some(e=>e.t===t);
+function pinAdd(id,e){ /* e = entri log asli; salinan disimpan terpisah supaya tetap ada walau pesannya dihapus */
+  if(!String(e&&e.x||'').trim()) return {err:'Pesan ini tidak bisa disematkan'};
+  const p=loadPin(id); if(p.some(x=>x.t===e.t)) return {already:true};
+  if(p.length>=PIN_MAX) return {err:'Batas '+PIN_MAX+' pesan disematkan per karakter. Lepas yang lain dulu.'};
+  const o={t:e.t,r:e.r,x:String(e.x).slice(0,8000),ts:Date.now()};
+  if(e.r==='vn'){ if(typeof e.jp==='string') o.jp=e.jp.slice(0,8000); if(typeof e.lang==='string') o.lang=e.lang.slice(0,8); }
+  p.push(o);
+  if(!savePin(id,p)) return {err:'Penyimpanan penuh'};
+  return {ok:true};
+}
+const pinRemove=(id,t)=>{ savePin(id,loadPin(id).filter(e=>e.t!==t)); };
+function markPinRows(){ /* tanda pin di gelembung yang tampil sekarang */
+  if(!ch) return;
+  const set=new Set(loadPin(ch.id).map(e=>e.t));
+  chat.querySelectorAll('.row[data-t]').forEach(r=>{ r.classList.toggle('pinned',set.has(Number(r.dataset.t))); });
+}
+function pinPaint(){ /* lencana jumlah pin di tombol header */
+  const n=$('pinn'); if(!n) return;
+  const c=ch?loadPin(ch.id).length:0;
+  n.textContent=c>99?'99+':String(c); n.classList.toggle('hide',!c);
+}
+function renderPin(){
+  const box=$('pnlist'); box.textContent='';
+  if(!ch) return;
+  const c=charOf(ch.id), nm=c?shortName(c):ch.id;
+  $('pntitle').textContent='Pesan disematkan · '+nm;
+  const p=loadPin(ch.id).slice().reverse(); /* pin terbaru di atas */
+  if(!p.length){ const e=document.createElement('p'); e.className='mempty'; e.textContent='Belum ada pesan yang disematkan di sini. Klik kanan pesan (desktop) atau tekan lama lalu pilih Sematkan (HP).'; box.appendChild(e); return; }
+  const yr=new Date().getFullYear();
+  for(const e of p){
+    const el=document.createElement('div'); el.className='ment'; el.dataset.t=e.t;
+    const d=new Date(e.ts||e.t||0), when=d.toLocaleDateString('id-ID',{day:'numeric',month:'short',year:d.getFullYear()===yr?undefined:'numeric'});
+    const h4=document.createElement('h4'); h4.textContent=(e.r==='me'?'Pesanmu':'Pesan '+nm);
+    const dt=document.createElement('span'); dt.className='mdate'; dt.textContent=when;
+    const bd=document.createElement('p'); bd.className='mbody'; rpRender(bd,e.x);
+    const act=document.createElement('div'); act.className='mact';
+    const cp=document.createElement('button'); cp.type='button'; cp.className='mdel'; cp.textContent='Salin';
+    cp.onclick=()=>{ copyText(e.x); toast('Teks disalin'); };
+    const del=document.createElement('button'); del.type='button'; del.className='mdel';
+    memArm(del,'Lepas sematan',()=>{ pinRemove(ch.id,e.t); renderPin(); pinPaint(); markPinRows(); });
+    act.append(cp,del);
+    el.append(h4,dt,bd,act); box.appendChild(el);
+  }
+}
+function openPin(){ if(!ch||(window.GX&&GX.cur)){ toast('Buka chat karakter dulu'); return; } renderPin(); $('pnmodal').classList.remove('hide'); }
+function closePin(){ $('pnmodal').classList.add('hide'); }
+$('pinbtn').onclick=openPin; $('pnx').onclick=closePin;
+$('pnmodal').addEventListener('click',e=>{ if(e.target===$('pnmodal')) closePin(); });
 function openMem(id,memId){
   renderDev();
   mmFilter=''; mmHL=memId||'';
