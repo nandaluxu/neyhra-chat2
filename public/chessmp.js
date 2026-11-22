@@ -69,6 +69,8 @@ let flip = false;                   // orientasi papan (default: aku di bawah)
 let promo = null;                   // { from, to } menunggu pilihan bidak promosi
 let hint = null;                    // { best, engine, evalCp, mate } hint aktif
 let hintBusy = false;
+/* Hint hanya untuk Mode dev (devOn() dari index.html). User biasa: tombol & panah hint tidak ada. */
+const hintOk = () => typeof devOn === 'function' && devOn();
 let busyMove = false;               // request move sedang berjalan (jangan double-submit)
 let msg = ['', ''];                 // [teks, kelas 'ok'|'err']
 let drawShownFor = null;            // tawaran seri yang modalnya sudah pernah ditampilkan
@@ -366,7 +368,7 @@ function gameScreen() {
       '<span class="cm-turnchip' + (turn ? (c === g.you ? ' me' : '') : '') + '">' + (turn ? (c === g.you ? 'Giliranmu' : 'Lawan') : (c === 'w' ? 'putih' : 'hitam')) + '</span></span></div>';
   };
   const arrows = [];
-  if (hint && hint.best) arrows.push({ f: hint.best.from, t: hint.best.to, color: '#f5c542', op: .8 });
+  if (hintOk() && hint && hint.best) arrows.push({ f: hint.best.from, t: hint.best.to, color: hint.k === 'brilliant' ? '#26c2a3' : '#f5c542', op: .85 });
   // telusur riwayat (hanya tampilan): papan diambil dari pelacak analisis; interaksi dimatikan sampai kembali ke posisi terkini
   const C = CN();
   const vp = (viewPly != null && C && C.ok(g.id) && viewPly >= 0 && viewPly < (g.ply || 0) && C.board(g.id, viewPly)) ? viewPly : null;
@@ -394,7 +396,7 @@ function gameScreen() {
     (g.status === 'active' ?
     '<button class="gm-ghost" type="button" data-cm="resign"' + (resignArm ? ' data-arm="1"' : '') + '>' + (g.ply < 2 ? (resignArm ? 'Tap lagi: batalkan' : 'Batalkan') : (resignArm ? 'Tap lagi: menyerah' : 'Menyerah')) + '</button>' +
     '<button class="gm-ghost" type="button" data-cm="draw">' + SVG.half.replace('<svg', '<svg style="width:13px;height:13px;vertical-align:-2px"') + ' Seri</button>' +
-    '<button class="gm-ghost" type="button" data-cm="hint"' + (yourTurn ? '' : ' disabled') + '>' + (hintBusy ? 'Menghitung…' : 'Hint') + '</button>' : '') +
+    (hintOk() ? '<button class="gm-ghost" type="button" data-cm="hint"' + (yourTurn ? '' : ' disabled') + '>' + (hintBusy ? 'Menghitung…' : 'Hint') + '</button>' : '') : '') +
     (window.CHSFX ? CHSFX.btn('data-cm="snd"') : '') + histNav + '<button class="gm-ghost cm-flip" type="button" data-cm="flip" aria-label="Putar papan">' + SVG.flip + '</button></div>';
   const done = g.status !== 'active' && g.result ? '<div class="cm-pgn">' +
     '<button class="gm-ghost" type="button" data-cm="copypgn">Salin PGN</button>' +
@@ -1010,14 +1012,41 @@ async function doDraw(act) {
   } catch (e) { msg = [e.message || 'Gagal memproses tawaran.', 'err']; render(); }
   busyMove = false;
 }
+/* notasi ringkas dari papan: Nf3, Bxe5, exd5, e8=Q, O-O (tanpa disambiguasi / tanda skak) */
+function sanLite(bd, from, to, promo) {
+  const p = bd[from]; if (!p || p === '.') return sqName(from) + sqName(to);
+  const q = p.toLowerCase(), cap = bd[to] !== '.' || (q === 'p' && (from & 7) !== (to & 7));
+  if (q === 'k' && Math.abs((from & 7) - (to & 7)) === 2) return (to & 7) > (from & 7) ? 'O-O' : 'O-O-O';
+  if (q === 'p') return (cap ? 'abcdefgh'[from & 7] + 'x' : '') + sqName(to) + (promo ? '=' + String(promo).toUpperCase() : '');
+  return q.toUpperCase() + (cap ? 'x' : '') + sqName(to);
+}
+const evTxt = (cp, mate) => mate != null ? (mate > 0 ? 'menang dalam ' + mate : 'kalah dalam ' + (-mate)) : ((cp || 0) / 100).toFixed(2);
+/* Hint dev: engine dalam di browser (CHAN.hint: pencarian ~700rb simpul, divalidasi penilai Best/Brilliant yang sama
+   dengan Live Move Analysis). Kalau pelacak/engine tidak tersedia -> jatuh ke /mp/hint server. */
 async function doHint() {
-  if (!game || game.status !== 'active' || hintBusy) return;
+  if (!hintOk() || !game || game.status !== 'active' || hintBusy) return;
   hintBusy = true; msg = ['', '']; render();
+  const gid = game.id, ply = game.ply || 0, bd0 = game.board;
   try {
-    const r = await api('hint', { id: game.id });
-    hint = r;
-    const ev = r.best ? (r.mate != null ? (r.mate > 0 ? 'menang dalam ' + r.mate : 'kalah dalam ' + (-r.mate)) : ((r.best.evalCp || 0) / 100).toFixed(2)) : '';
-    msg = [r.best ? 'Terbaik: ' + r.best.san + ' (' + sqName(r.best.from) + '→' + sqName(r.best.to) + ')' + (ev ? ' · eval ' + ev : '') : 'Tidak ada langkah.', 'ok'];
+    let done = false;
+    const C = CN();
+    if (C && C.hint && C.ok(gid) && C.count(gid) === ply) {
+      const r = await C.hint(gid);
+      if (!game || game.id !== gid || (game.ply || 0) !== ply) { hintBusy = false; render(); return; }   // posisi sudah berubah selagi menghitung
+      if (r && r.from != null) {
+        const san = sanLite(bd0, r.from, r.to, r.promo);
+        hint = { best: { san, uci: r.uci, from: r.from, to: r.to, ...(r.promo ? { promo: r.promo } : {}), evalCp: r.cp, ...(r.mate != null ? { mate: r.mate } : {}) }, engine: 'neyhra-d' + r.depth, evalCp: r.cp, mate: r.mate, k: r.k };
+        const tag = r.k === 'brilliant' ? 'Brilliant!! ' : 'Best ';
+        msg = [tag + san + ' (' + sqName(r.from) + '→' + sqName(r.to) + ') · eval ' + evTxt(r.cp, r.mate) + ' · d' + r.depth + (r.s ? ' · korbankan ' + r.s + ' poin' : ''), 'ok'];
+        done = true;
+      }
+    }
+    if (!done) {
+      const r = await api('hint', { id: gid });
+      hint = r;
+      const ev = r.best ? evTxt(r.best.evalCp, r.mate) : '';
+      msg = [r.best ? 'Terbaik: ' + r.best.san + ' (' + sqName(r.best.from) + '→' + sqName(r.best.to) + ')' + (ev ? ' · eval ' + ev : '') : 'Tidak ada langkah.', 'ok'];
+    }
   } catch (e) {
     msg = [e.status === 429 ? 'Terlalu sering minta hint — tunggu sebentar.' : (e.message || 'Gagal menghitung hint.'), 'err'];
   }
@@ -1371,7 +1400,7 @@ function onHostClick(e) {
   else if (a === 'draw') doDraw('offer');
   else if (a === 'drawaccept') doDraw('accept');
   else if (a === 'drawdecline') doDraw('decline');
-  else if (a === 'hint') doHint();
+  else if (a === 'hint') { if (hintOk()) doHint(); }
   else if (a === 'flip') { flip = !flip; render(); }
   else if (a === 'pickpromo') { if (promo) { const { from, to } = promo; promo = null; sendMove(from, to, b.dataset.p); } }
   else if (a === 'cancelpromo') { promo = null; render(); }
@@ -1495,6 +1524,8 @@ function resetAll() {
 }
 function suspend() { stopPoll(); stopRoomPoll(); stopAuto(); }   // keluar tab games / layar: timer berhenti, state tetap
 
+/* Mode dev dimatikan: buang hint aktif & sembunyikan tombolnya */
+window.addEventListener('devmode', () => { if (!hintOk()) hint = null; if (view === 'game') render(); });
 window.addEventListener('shell:tab', e => {
   if (e.detail === 'games') { attachOnce(); if (view !== 'lobby' && view !== 'host') return; /* layar games.js di-set hub; pengguna menekan kartu untuk kembali */ }
   else suspend();

@@ -12,13 +12,14 @@
      show(gid, ply)                tampilkan indikator langkah ke-ply (menunggu bila ratingnya belum selesai)
      attach()                      pasang indikator aktif ke papan di DOM (dipanggil setelah tiap render)
      pill(gid, ply)                HTML ikon kecil untuk daftar langkah (terisi otomatis saat rating selesai)
+     hint(gid)                     (Mode dev) langkah terkuat untuk posisi sekarang -> Promise<{from,to,promo,uci,k,cp,mate?,depth,...}|null>
      icon(kunci, ukuran) / META    ikon + warna + nama tiap rating
    Rating disimpan di localStorage per game, jadi tetap muncul saat riwayat ditelusuri & dibuka ulang. */
 (() => {
 'use strict';
 const E = window.CHENG;
 if (!E) return;
-const CFG = { enabled: true, nodes: E.NODES, hold: 700, fade: 2600, keep: 30 };   // hold + fade = lama indikator tampil (ms)
+const CFG = { enabled: true, nodes: E.NODES, hold: 700, fade: 2600, keep: 30, hintNodes: 700000, hintDepth: 18 };   // hold + fade = lama indikator tampil (ms)
 const TOTAL = () => CFG.hold + CFG.fade;
 const LS = 'chan' + E.VER + ':';
 
@@ -260,8 +261,41 @@ function fillPills() {
   });
 }
 
+
+/* ---------- hint dev: worker sendiri (tidak mengganggu antrean rating), cadangan di thread utama ---------- */
+let hw = null, hjob = 0, hwait = null;
+function hintWorker() {
+  if (hw) return hw;
+  try {
+    hw = new Worker('/chessan-worker.js?v=2');
+    hw.onmessage = ev => { const d = ev.data || {}; if (hwait && d.job === hwait.job) { const w = hwait; hwait = null; clearTimeout(w.t); w.done(d.hint || null); } };
+    hw.onerror = () => { try { hw.terminate(); } catch {} hw = null; if (hwait) { const w = hwait; hwait = null; clearTimeout(w.t); w.done(undefined); } };
+  } catch { hw = null; }
+  return hw;
+}
+/* hint(gid, {deepNodes, maxDepth}) -> Promise<{from,to,promo,uci,k,s?,cp,mate?,depth,nodes,agree}|null>; null = tidak ada langkah / tidak bisa */
+function hint(gid, opt) {
+  opt = opt || {};
+  const G = games.get(gid); if (!G || G.bad || !CFG.enabled) return Promise.resolve(null);
+  const moves = G.moves.slice(), deepNodes = opt.deepNodes || CFG.hintNodes, maxDepth = opt.maxDepth || CFG.hintDepth;
+  const local = () => new Promise(res => setTimeout(() => {
+    try {
+      const pos = E.newPos(); for (const mv of moves) if (E.applyMove(pos, mv[0], mv[1], mv[2] || null) == null) return res(null);
+      const h = E.hint(pos, { full: {} }, { deepNodes, maxDepth }); if (h) delete h.m; res(h);
+    } catch { res(null); }
+  }, 0));
+  const w = hintWorker(); if (!w) return local();
+  if (hwait) { clearTimeout(hwait.t); hwait.done(null); hwait = null; }
+  return new Promise(res => {
+    const job = ++hjob;
+    const t = setTimeout(() => { if (hwait && hwait.job === job) { hwait = null; try { hw.terminate(); } catch {} hw = null; res(null); } }, 30000);
+    hwait = { job, t, done: v => v === undefined ? local().then(res) : res(v) };
+    try { w.postMessage({ cmd: 'hint', job, gid: gid + '#h', moves, deepNodes, maxDepth }); } catch { clearTimeout(t); hwait = null; local().then(res); }
+  });
+}
+
 window.CHAN = {
-  CFG, META, icon, pill, track, add, undo, ensure, resume, get, board, last, count, ok, show, clear, attach, fillPills,
+  CFG, META, icon, pill, track, add, undo, ensure, resume, get, board, last, count, ok, show, clear, attach, fillPills, hint,
   onRate: f => { listeners.push(f); },
   has: gid => games.has(gid),
   /* ringkasan jumlah tiap rating satu pemain (0 = putih / 1 = hitam) — untuk tampilan ringkas bila dibutuhkan */

@@ -639,5 +639,34 @@ function rateMove(pos, m, memo, opt) {
   return out;
 }
 
-G.CHENG = { VER, MATE, newPos, fromFen, applyMove, findMove, legalMoves, make, unmake, boardStr, uci, sqName, perft, search, rateMove, winPct, evaluate, see, NODES };
+
+/* ---------- Hint "brutal" (Mode dev) ----------
+   1) pencarian dalam (default 700rb simpul, sampai kedalaman 18) mencari langkah terkuat;
+   2) hasilnya divalidasi dengan penilai langkah yang SAMA dengan Live Move Analysis (rateMove),
+      supaya langkah yang disarankan benar-benar dinilai Best / Brilliant kalau dimainkan;
+   3) kalau langkah dalam itu tidak dinilai Best oleh penilai, dipakai langkah terbaik penilai.
+   Hasil: { m, uci, from, to, promo, k, s?, cp, mate, depth, nodes, legal, agree } atau null (tidak ada langkah). */
+function hint(pos, memo, opt) {
+  opt = opt || {};
+  memo = memo || { full: {} };
+  const base = opt.nodes || NODES, key = pos.hhi + ':' + pos.hlo + ':' + pos.n;
+  let full = memo.full[key];
+  if (!full) full = memo.full[key] = search(pos, { nodes: base });
+  if (full.score == null || !full.legal) return null;
+  let deep = full;
+  if (full.legal > 1) deep = search(pos, { nodes: opt.deepNodes || 700000, maxDepth: opt.maxDepth || 18 });
+  if (deep.score == null || !deep.best) deep = full;
+  const cands = [deep.best]; if (full.best !== deep.best) cands.push(full.best);
+  const rated = [];
+  for (const m of cands) { const r = full.legal === 1 ? { k: 'best', e: full.score, f: 1 } : rateMove(pos, m, memo, { nodes: base }); if (r) rated.push({ m, r }); }
+  const pick = rated.find(x => x.r.k === 'brilliant') || rated.find(x => x.r.k === 'best') || { m: full.best, r: rated.length ? rated[rated.length - 1].r : null };
+  const m = pick.m, r = pick.r, cp = r && r.e != null ? r.e : full.score;
+  const pr = (m >> 12) & 7;
+  const out = { m, uci: uci(m), from: m & 63, to: (m >> 6) & 63, promo: pr ? 'nbrq'[pr - 2].toUpperCase() : '', k: r ? r.k : 'best', cp, depth: deep.depth, nodes: deep.nodes, legal: full.legal, agree: deep.best === full.best };
+  if (r && r.s != null) out.s = r.s;
+  if (Math.abs(cp) > MATE - 1000) out.mate = (cp > 0 ? 1 : -1) * Math.max(1, Math.ceil((MATE - Math.abs(cp)) / 2));
+  return out;
+}
+
+G.CHENG = { hint, VER, MATE, newPos, fromFen, applyMove, findMove, legalMoves, make, unmake, boardStr, uci, sqName, perft, search, rateMove, winPct, evaluate, see, NODES };
 })(typeof self !== 'undefined' ? self : globalThis);
