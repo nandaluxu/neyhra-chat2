@@ -71,6 +71,64 @@ let hint = null;                    // { best, engine, evalCp, mate } hint aktif
 let hintBusy = false;
 /* Hint hanya untuk Mode dev (devOn() dari index.html). User biasa: tombol & panah hint tidak ada. */
 const hintOk = () => typeof devOn === 'function' && devOn();
+
+/* ---------- Chat dalam permainan (server: /mp/chat; riwayat ikut /mp/game & /mp/sync) ---------- */
+let chatList = [], chatGid = null, chatDraft = '', chatBusy = false, chatUntil = 0;
+const chatKnown = () => { let c = chatList.length ? chatList[0].n - 1 : 0; for (const m of chatList) { if (m.n === c + 1) c = m.n; else if (m.n > c + 1) break; } return c; };   // n tertinggi tanpa celah (dikirim ke sync)
+function chatItemsHtml(g) {
+  if (!chatList.length) return '<p class="gm-cap">Belum ada pesan. Sapa lawanmu!</p>';
+  return chatList.map(m => '<div class="cm-cm' + (m.by === g.you ? ' me' : '') + '"><span>' + esc(m.text) + '</span></div>').join('');
+}
+function chatHtml(g) {
+  if (g.status === 'aborted') return '';
+  return '<div class="gm-info cm-chat"><h3>Chat</h3><div class="cm-chatlog" id="cmchatlog" role="log" aria-live="polite">' + chatItemsHtml(g) + '</div>' +
+    '<div class="cm-chatrow"><input id="cmchat" maxlength="200" autocomplete="off" autocapitalize="sentences" placeholder="Tulis pesan…" aria-label="Pesan chat" enterkeyhint="send" value="' + esc(chatDraft) + '">' +
+    '<button class="gm-btn" type="button" data-cm="chatsend"' + (chatBusy ? ' disabled' : '') + '>Kirim</button></div></div>';
+}
+function resetChatFor(id) { if (chatGid !== id) { chatGid = id; chatList = []; chatDraft = ''; chatBusy = false; } }
+function mergeChat(arr, notify) {
+  if (!Array.isArray(arr) || !arr.length) return false;
+  const seen = new Set(chatList.map(m => m.n)), added = [];
+  for (const m of arr) if (m && Number.isInteger(m.n) && !seen.has(m.n)) { chatList.push({ n: m.n, by: m.by, text: String(m.text || ''), ts: m.ts }); added.push(m); seen.add(m.n); }
+  if (!added.length) return false;
+  chatList.sort((a, b) => a.n - b.n);
+  if (chatList.length > 100) chatList = chatList.slice(-100);
+  if (notify && game) { const o = added.filter(m => m.by !== game.you); if (o.length) onOppChat(o[o.length - 1]); }
+  return true;
+}
+function onOppChat(m) {
+  vibrate(10);
+  const lg = document.getElementById('cmchatlog');
+  const r = lg && lg.getBoundingClientRect();
+  const visible = r && r.bottom > 0 && r.top < (window.innerHeight || 0);
+  if (!visible && !document.hidden) toast('💬 ' + ((oppOf() && oppOf().name) || 'Lawan') + ': ' + String(m.text).slice(0, 60));
+}
+/* perbarui hanya daftar pesan (tanpa render ulang papan, supaya input tidak kehilangan fokus) */
+function paintChat() {
+  const lg = document.getElementById('cmchatlog'); if (!lg || !game) return false;
+  const stick = lg.scrollHeight - lg.scrollTop - lg.clientHeight < 30;
+  lg.innerHTML = chatItemsHtml(game);
+  if (stick) lg.scrollTop = lg.scrollHeight;
+  return true;
+}
+async function doChat() {
+  if (chatBusy || !game) return;
+  const text = chatDraft.replace(/\s+/g, ' ').trim().slice(0, 200);
+  if (!text) return;
+  const gid = game.id; chatBusy = true;
+  const btn = () => host() && host().querySelector('[data-cm="chatsend"]');
+  if (btn()) btn().disabled = true;
+  try {
+    const r = await api('chat', { id: gid, text });
+    if (game && game.id === gid) { chatDraft = ''; mergeChat([r.msg]); }
+  } catch (e) {
+    toast(e.status === 429 ? 'Terlalu cepat, tunggu sebentar.' : (e.message || 'Pesan gagal terkirim.'));
+  }
+  chatBusy = false;
+  if (btn()) btn().disabled = false;
+  const ci = document.getElementById('cmchat');
+  if (ci) { ci.value = chatDraft; paintChat(); const lg = document.getElementById('cmchatlog'); if (lg) lg.scrollTop = lg.scrollHeight; ci.focus(); }
+}
 let busyMove = false;               // request move sedang berjalan (jangan double-submit)
 let msg = ['', ''];                 // [teks, kelas 'ok'|'err']
 let drawShownFor = null;            // tawaran seri yang modalnya sudah pernah ditampilkan
@@ -228,6 +286,10 @@ function render() {
   const b = host();
   if (!b) return;
   const gm = $('games'); if (gm) gm.classList.toggle('ch-ingame', view === 'game' || view === 'review' || view === 'replay'); // HP: header Minigame disembunyikan agar papan tampil utuh
+  // chat: simpan fokus input & posisi gulir supaya render ulang (langkah lawan, dst.) tidak memutus pengetikan
+  const ci0 = view === 'game' ? b.querySelector('#cmchat') : null, lg0 = view === 'game' ? b.querySelector('#cmchatlog') : null;
+  const keep = ci0 ? { focus: document.activeElement === ci0, s: ci0.selectionStart, e: ci0.selectionEnd } : null;
+  const stick = lg0 ? lg0.scrollHeight - lg0.scrollTop - lg0.clientHeight < 30 : true, top0 = lg0 ? lg0.scrollTop : 0;
   b.innerHTML = view === 'game' ? gameScreen()
     : view === 'host' ? hostScreen()
     : view === 'review' ? reviewScreen()
@@ -235,6 +297,10 @@ function render() {
     : view === 'stats' ? statsScreen()
     : lobbyScreen();
   afterPaint();
+  if (view === 'game') {
+    const lg = b.querySelector('#cmchatlog'); if (lg) lg.scrollTop = stick ? lg.scrollHeight : top0;
+    if (keep && keep.focus) { const ci = b.querySelector('#cmchat'); if (ci) { ci.focus(); try { ci.setSelectionRange(keep.s, keep.e); } catch {} } }
+  }
 }
 
 function afterPaint() {
@@ -409,7 +475,7 @@ function gameScreen() {
     (promo ? promoHtml() : '') + acts + done +
     '</div><div class="cm-side"><div class="gm-info"><h3>Langkah (' + totalPly + ')</h3>' +
     (g.sans && g.sans.length ? '<div class="cm-mvl">' + sanRowsHtml(g.sans, totalPly, vp == null ? -1 : vp, false, null, C && C.ok(g.id) ? g.id : null) + '</div>' : '<p class="gm-cap">Belum ada langkah.</p>') +
-    '</div></div></div>' + overlaysHtml();
+    '</div>' + chatHtml(g) + '</div></div>' + overlaysHtml();
 }
 
 function promoHtml() {
@@ -1059,6 +1125,7 @@ function onGameDone() {
   hint = null; sel = -1; promo = null;
   vibrate([30, 60, 30]);
   stopPoll();
+  chatUntil = Date.now() + 300000; startPoll(false);
 }
 
 /* ============================================================
@@ -1067,6 +1134,8 @@ function onGameDone() {
    (untuk menangkap tawaran seri / menyerah), berhenti saat game
    selesai atau tab tidak aktif. 429 -> mundur otomatis.
    ============================================================ */
+/* polling berjalan saat game aktif, dan 5 menit setelah selesai supaya chat penutup ("gg") tetap sampai */
+const pollWanted = () => !!game && (game.status === 'active' || (game.status === 'done' && Date.now() < chatUntil));
 function stopPoll() { pollGen++; clearTimeout(pollT); pollT = 0; }
 function startPoll(immediate) {
   stopPoll();
@@ -1074,13 +1143,13 @@ function startPoll(immediate) {
   const tick = async () => {
     if (gen !== pollGen) return;
     if (view !== 'game' || !game || !inTab()) return;          // berhenti sendiri saat keluar layar
-    if (game.status !== 'active') return;
+    if (!pollWanted()) return;
     if (document.hidden) { pollT = setTimeout(tick, 3000); return; }
     try {
-      const r = await api('sync', { id: game.id, ply: myPly });
+      const r = await api('sync', { id: game.id, ply: myPly, chat: chatKnown() });
       if (gen !== pollGen) return;
       applySync(r);
-      if (gen !== pollGen || !game || game.status !== 'active') return;
+      if (gen !== pollGen || !game || !pollWanted()) return;
       pollT = setTimeout(tick, pollFast > Date.now() ? 5200 : (r.yourTurn ? 4000 : 2500));
     } catch (e) {
       if (gen !== pollGen) return;
@@ -1095,6 +1164,12 @@ function startPoll(immediate) {
 
 async function applySync(r) {
   if (!game || r.id !== game.id) return;
+  // tidak ada perubahan papan/status? cukup perbarui chat (tanpa render ulang: input chat tetap fokus)
+  const sigOf = (b_, ply_, t_, st_, ck_, yt_, on_, dr_, rv_) => [b_, ply_, t_, st_, ck_, yt_, on_, dr_ ? dr_.by + ':' + dr_.mine : '', rv_ ? 1 : 0].join('|');
+  const sigBefore = sigOf(game.board, game.ply, game.turn, game.status, game.check, game.yourTurn, game.opp && game.opp.online, game.draw, game.reviewed);
+  const sigAfter = sigOf(r.board, r.ply != null ? r.ply : myPly, r.turn, r.status, r.check, r.yourTurn !== undefined ? r.yourTurn : game.yourTurn, r.oppOnline !== undefined ? r.oppOnline : (game.opp && game.opp.online), r.draw !== undefined ? r.draw : game.draw, r.reviewed !== undefined ? r.reviewed : game.reviewed);
+  const gotChat = mergeChat(r.chat, true);
+  if (sigBefore === sigAfter && !(Array.isArray(r.newMoves) && r.newMoves.length) && !(r.yourTurn && game.status === 'active' && !game.moves)) { if (gotChat) paintChat(); return; }
   const prevBoard = game.board;
   if (Array.isArray(r.newMoves) && r.newMoves.length) {
     const last = r.newMoves[r.newMoves.length - 1];
@@ -1150,6 +1225,7 @@ async function fetchGame(id, quiet) {
     const r = await api('game', { id });
     if (r.game.id !== (game && game.id) && view === 'game' && game) { /* game sama saja */ }
     game = r.game; myPly = r.game.ply;
+    resetChatFor(game.id); mergeChat(game.chat, chatList.length > 0);
     cnSync();
     if (view === 'game') render();
     return true;
@@ -1386,7 +1462,7 @@ function onHostClick(e) {
   else if (a === 'copypgn') { if (view === 'replay' && replay.data && replay.data.meta) { copyText(replay.data.meta.pgn || ''); toast('PGN disalin'); } else if (game && game.pgn) { copyText(game.pgn); toast('PGN disalin'); } }
   else if (a === 'reloadlobby') { msg = ['', '']; loadLobby(0); }
   else if (a === 'moregames') loadLobby(lobby.page + 1);
-  else if (a === 'open') { msg = ['', '']; fetchGame(b.dataset.id).then(ok => { if (ok) { view = 'game'; gameFrom = 'lobby'; sel = -1; resultShown = false; drawShownFor = null; render(); if (game.status === 'active') startPoll(true); } }); }
+  else if (a === 'open') { msg = ['', '']; fetchGame(b.dataset.id).then(ok => { if (ok) { view = 'game'; gameFrom = 'lobby'; sel = -1; resultShown = false; drawShownFor = null; render(); if (game.status === 'active') startPoll(true); else if (game.status === 'done' && game.chatN > 0) { chatUntil = Date.now() + 180000; startPoll(false); } } }); }
   else if (a === 'review') { msg = ['', '']; resultShown = true; openReview(b.dataset.id); }
   else if (a === 'replay') { msg = ['', '']; resultShown = true; openReplay(b.dataset.id); }
   else if (a === 'openstats') { msg = ['', '']; gameFrom = 'lobby'; openStats(''); }
@@ -1400,6 +1476,7 @@ function onHostClick(e) {
   else if (a === 'draw') doDraw('offer');
   else if (a === 'drawaccept') doDraw('accept');
   else if (a === 'drawdecline') doDraw('decline');
+  else if (a === 'chatsend') doChat();
   else if (a === 'hint') { if (hintOk()) doHint(); }
   else if (a === 'flip') { flip = !flip; render(); }
   else if (a === 'pickpromo') { if (promo) { const { from, to } = promo; promo = null; sendMove(from, to, b.dataset.p); } }
@@ -1428,9 +1505,10 @@ function onHostClick(e) {
   else if (a === 'play') replayToggle();
 }
 function onHostKey(e) {
-  if (e.key !== 'Enter') return;
+  if (e.key !== 'Enter' || e.isComposing) return;
   const t = e.target;
-  if (t && t.id === 'cmjoin') { e.preventDefault(); joinRoom(); }
+  if (t && t.id === 'cmchat') { e.preventDefault(); chatDraft = t.value; doChat(); }
+  else if (t && t.id === 'cmjoin') { e.preventDefault(); joinRoom(); }
   else if (t && t.id === 'cmuser') { e.preventDefault(); openStats((t.value || '').trim().toLowerCase()); }
   else if (t && t.classList && t.classList.contains('cm-graph')) { /* grafik: biarkan click handler */ }
 }
@@ -1507,7 +1585,7 @@ function attachOnce() {
   b.addEventListener('click', onHostClick);
   b.addEventListener('click', onHostKeyClick);
   b.addEventListener('keydown', onHostKey);
-  b.addEventListener('input', e => { if (e.target && e.target.id === 'cmjoin') { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z2-9]/g, '').slice(0, 6); } });
+  b.addEventListener('input', e => { if (e.target && e.target.id === 'cmchat') chatDraft = e.target.value; if (e.target && e.target.id === 'cmjoin') { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z2-9]/g, '').slice(0, 6); } });
   b.addEventListener('change', e => { if (e.target && e.target.dataset && e.target.dataset.cmSlider != null) onSlider(e); });
   b.addEventListener('pointermove', e => { const g = e.target && e.target.closest && e.target.closest('[data-cm-graph]'); if (g) onGraphMove(e, g); });
   b.addEventListener('click', e => { const g = e.target && e.target.closest && e.target.closest('[data-cm-graph]'); if (g) onGraph(e, g); });

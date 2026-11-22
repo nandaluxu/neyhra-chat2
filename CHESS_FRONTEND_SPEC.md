@@ -696,3 +696,10 @@ Efek suara untuk Catur vs AI dan Catur Multiplayer. **Disintesis di browser deng
 - Toggle: tombol speaker di baris aksi game (`data-act="csnd"` di games.js, `data-cm="snd"` di chessmp.js, juga di kontrol Replay). Tersimpan di `localStorage` kunci `chsfx` (`'0'` = mati, default nyala). Menyalakan kembali memainkan satu ketukan contoh (sekaligus membuka AudioContext lewat gestur pengguna, syarat autoplay browser).
 - Level tiap bunyi dikalibrasi (`LEVEL` di chesssfx.js) supaya setara (puncak ≈ 0,3–0,45 setelah kompresor); noise ketukan deterministik (bukan `Math.random`) sehingga bunyinya selalu sama.
 - Telusur riwayat yang melompat (klik langkah jauh) sengaja **tidak** berbunyi; hanya langkah satu-satu.
+
+## Chat dalam permainan
+
+- `POST /api/auth/mp/chat` body `{ id, text }` -> `{ ok, msg: { n, by: 'w'|'b', text, ts } }`. Teks dibersihkan server (karakter kontrol/bidi dibuang, spasi dirapatkan, maks 200 huruf). Hanya dua pemain game itu; game `aborted` -> 409; batas 20 pesan / 30 detik per pengguna (429).
+- Riwayat (100 pesan terakhir) disimpan di dokumen game (`chat`, `chatN`). `/mp/game` memuat 50 terakhir (`chat`, `chatN`).
+- `/mp/sync` menerima `chat` (n tertinggi tanpa celah yang sudah diketahui klien) dan membalas `chat: [...]` berisi pesan yang lebih baru plus `chatN`.
+- Klien terus polling sync 5 menit setelah game selesai supaya "gg" tetap sampai.
