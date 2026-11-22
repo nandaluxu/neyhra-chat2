@@ -116,6 +116,7 @@ function syncTabs() {
   $('lptabs').classList.toggle('hide', !on);
   if (!on && mode === 'group') mode = 'char';
   $('lptabs').querySelectorAll('button').forEach(b => b.classList.toggle('sel', b.dataset.v === mode));
+  const lq = $('lpq'); if (lq) lq.placeholder = mode === 'group' ? 'Cari grup' : 'Cari semua obrolan';
   const nb = $('lpnew');
   if (on && mode === 'group' && window.GX && GX.newBtn) {
     const btn = GX.newBtn();
@@ -158,23 +159,48 @@ function buildItem(en) {
   return el;
 }
 
+/* Pencarian di panel Obrolan Terakhir: cocokkan nama obrolan + (mode Karakter) isi semua pesan/transkrip. Kotak cari Beranda (#q) terpisah: hanya karakter AI. */
+const lpq = $('lpq');
+const lpKey = () => (lpq ? lpq.value.trim().toLowerCase() : '');
 function draw() {
   syncTabs();
   if (tab() !== 'recent') return;
   if (menuFor) { dirty = true; return; } // menu lagi terbuka: gambar ulang setelah ditutup
   const fk = document.activeElement && document.activeElement.closest && document.activeElement.closest('#lplist .lp-item');
   const fkey = fk && fk.dataset.key, st = lplist.scrollTop;
-  const items = buildEntries(mode);
+  const k = lpKey();
+  let items = buildEntries(mode);
+  if (k) items = items.filter(en => en.name.toLowerCase().includes(k) || (en.c && String(en.c.name || '').toLowerCase().includes(k)));
   const frag = document.createDocumentFragment();
   items.forEach(en => frag.append(buildItem(en)));
-  lplist.textContent = ''; lplist.append(frag); lplist.scrollTop = st;
+  let nHit = 0;
+  if (k && mode === 'char' && window.XSearch) { // isi semua obrolan (teks + transkrip voice note), terbaru dulu
+    const r = XSearch.find(k); nHit = r.total;
+    if (r.total) {
+      const hd = document.createElement('h4'); hd.className = 'lp-sec'; hd.textContent = 'Di dalam obrolan · ' + r.total + ' hasil';
+      frag.append(hd);
+      r.hits.forEach(x => frag.append(XSearch.hitButton(x, k)));
+      if (r.total > r.hits.length) { const mo = document.createElement('p'); mo.className = 'x-more'; mo.textContent = '+' + (r.total - r.hits.length) + ' hasil lain, persempit kata kuncinya'; frag.append(mo); }
+    }
+  }
+  lplist.textContent = ''; lplist.append(frag); lplist.scrollTop = k ? 0 : st;
   if (fkey) { const n = [...lplist.children].find(x => x.dataset.key === fkey); if (n) n.focus({ preventScroll: true }); }
-  const em = $('lpempty'), empty = !items.length;
+  const em = $('lpempty'), empty = !items.length && !nHit;
   em.classList.toggle('hide', !empty);
   if (empty) {
-    em.querySelector('p').textContent = mode === 'group' ? 'Belum ada grup. Tap "Buat grup" di atas.' : 'Belum ada obrolan. Pilih karakter dari Beranda untuk mulai ngobrol.';
-    $('lpempty-home').classList.toggle('hide', mode === 'group');
+    em.querySelector('p').textContent = k
+      ? (mode === 'group' ? 'Nggak ada grup yang cocok dengan pencarianmu.' : ([...k].length < 2 ? 'Nggak ada obrolan yang cocok. Ketik minimal 2 huruf untuk mencari isi pesan.' : 'Nggak ada obrolan atau pesan yang cocok dengan pencarianmu.'))
+      : (mode === 'group' ? 'Belum ada grup. Tap "Buat grup" di atas.' : 'Belum ada obrolan. Pilih karakter dari Beranda untuk mulai ngobrol.');
+    $('lpempty-home').classList.toggle('hide', mode === 'group' || !!k);
   }
+}
+if (lpq) {
+  let qT = 0;
+  lpq.addEventListener('input', () => { clearTimeout(qT); qT = setTimeout(renderRecent, 140); });
+  lpq.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && lpq.value) { e.stopPropagation(); lpq.value = ''; renderRecent(); }
+    else if (e.key === 'Enter') { e.preventDefault(); const f = lplist.querySelector('.lp-item, .x-hit'); if (f) { lpq.blur(); f.click(); } }
+  });
 }
 
 function openEntry(en, avEl) {

@@ -74,9 +74,10 @@ new MutationObserver(() => { // keluar chat -> aksen dibuang setelah animasi tut
   else if (!ch) { accFor = null; clearAccent(); }
 }).observe(app, { attributes: true, attributeFilter: ['class'] });
 
-/* ================= 2. Cari isi semua obrolan (Beranda) ================= */
-const xs = h('div'); xs.id = 'xs'; xs.className = 'hide'; $('alllist').prepend(xs);
-q.placeholder = 'Cari nama, judul, atau isi obrolan';
+/* ================= 2. Cari isi semua obrolan (tab Obrolan Terakhir) =================
+   Pencarian di Beranda (#q) HANYA untuk karakter AI (nama/judul). Pencarian isi obrolan dipindah ke kotak cari di panel
+   Obrolan Terakhir (#lpq, digambar shell.js) lewat window.XSearch di bawah. */
+q.placeholder = 'Cari karakter AI';
 const MAXHIT = 30;
 function snippet(text, p, len) {
   const a = Math.max(0, p - 28), b = Math.min(text.length, p + len + 60), box = h('span', 'x-sn');
@@ -95,9 +96,10 @@ function jump(c, i, from) {
     setTimeout(() => { r.scrollIntoView({ block: 'center' }); r.classList.add('xjump'); setTimeout(() => r.classList.remove('xjump'), 2300); }, 150);
   }, 60);
 }
-function searchAll() {
-  const k = q.value.trim().toLowerCase(); xs.textContent = '';
-  if ([...k].length < 2) { xs.classList.add('hide'); return; }
+/* cari k di semua log obrolan; hasil terbaru dulu. Mengembalikan { total, hits:[{c,i,e,t,p}] } (hits dipotong MAXHIT) */
+function findAll(k) {
+  k = String(k || '').trim().toLowerCase();
+  if ([...k].length < 2) return { total: 0, hits: [], k };
   const res = [];
   for (const c of allChars) {
     const l = loadLog(c.id);
@@ -109,24 +111,19 @@ function searchAll() {
       }
     }
   }
-  if (!res.length) { xs.classList.add('hide'); return; }
   res.sort((a, b) => (b.e.t || 0) - (a.e.t || 0));
-  xs.classList.remove('hide'); xs.append(h('h4', null, 'Di dalam obrolan · ' + res.length + ' hasil'));
-  for (const r of res.slice(0, MAXHIT)) {
-    const b = h('button', 'x-hit'); b.type = 'button';
-    const av = img(r.c, 'x-av'), bd = h('span', 'x-bd'), top = h('span', 'x-top');
-    top.append(h('b', null, (r.e.r === 'me' ? 'Kamu → ' : '') + r.c.name), h('small', null, r.e.t ? dayLabel(r.e.t) + ' · ' + now(r.e.t) : ''));
-    bd.append(top, snippet(r.t, r.p, k.length)); b.append(av, bd);
-    b.onclick = () => jump(r.c, r.i, av);
-    xs.append(b);
-  }
-  if (res.length > MAXHIT) xs.append(h('p', 'x-more', '+' + (res.length - MAXHIT) + ' hasil lain, persempit kata kuncinya'));
+  return { total: res.length, hits: res.slice(0, MAXHIT), k };
 }
-q.addEventListener('input', () => { searchAll(); if (!xs.classList.contains('hide')) $('allempty').classList.add('hide'); }); // jalan setelah filterAll bawaan
-q.addEventListener('keydown', e => { // Enter tanpa karakter yang cocok -> buka hasil pertama
-  if (e.key !== 'Enter' || rows.some(r => !r.el.classList.contains('hide'))) return;
-  const b = xs.querySelector('.x-hit'); if (b) { q.blur(); b.click(); }
-});
+/* satu tombol hasil (foto, nama, waktu, cuplikan bertanda) */
+function hitButton(r, k) {
+  const b = h('button', 'x-hit'); b.type = 'button';
+  const av = img(r.c, 'x-av'), bd = h('span', 'x-bd'), top = h('span', 'x-top');
+  top.append(h('b', null, (r.e.r === 'me' ? 'Kamu → ' : '') + r.c.name), h('small', null, r.e.t ? dayLabel(r.e.t) + ' · ' + now(r.e.t) : ''));
+  bd.append(top, snippet(r.t, r.p, k.length)); b.append(av, bd);
+  b.onclick = () => jump(r.c, r.i, av);
+  return b;
+}
+window.XSearch = { find: findAll, hitButton, MAXHIT };
 
 /* ================= 3. Ringkasan harian ================= */
 const STOP = new Set(('yang dan di ke dari ini itu aku kamu kau dia ada apa kok sih deh dong nih tuh aja saja juga udah sudah belum lagi bisa mau gak nggak ga tidak bukan atau tapi tetapi karena kalau kalo jadi untuk buat dengan sama pada dalam akan lebih sangat banget lah kan ya yaa iya oke halo hai hei terus lalu habis abis mulai masih cuma hanya dulu nanti tadi kemarin besok hari gimana bagaimana kenapa kapan siapa dimana mana kita kami mereka saya gue gw lo lu nya dah tau tahu pun pernah harus perlu boleh coba kayak seperti gitu gini begitu begini the and you bgt ajaa kok kek tuh yaudah ya').split(' '));
