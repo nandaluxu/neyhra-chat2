@@ -162,7 +162,7 @@ footer:has(#send:not(.hide)) #recbar{right:106px}
 .m-name:active{transform:scale(.96)}
 .m-name svg{width:15px;height:15px}
 .m-name:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
-#nmodal,#vmodal,#smodal,#pmodal,#mmodal,#dmmodal,#rnmodal,#dlmodal,#pemodal{position:absolute;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(0,0,0,.45);backdrop-filter:blur(3px)}
+#nmodal,#vmodal,#smodal,#pmodal,#mmodal,#dmmodal,#rnmodal,#dlmodal,#pemodal,#pnmodal{position:absolute;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(0,0,0,.45);backdrop-filter:blur(3px)}
 .nbox{width:100%;max-width:340px;background:var(--bg);border:1px solid var(--line);border-radius:22px;padding:20px;animation:nin .25s cubic-bezier(.2,.9,.3,1.2)}
 @keyframes nin{from{opacity:0;transform:scale(.92) translateY(8px)}}
 .nbox h2{font-size:18px;font-weight:600;letter-spacing:-.02em}
@@ -329,7 +329,7 @@ header>button:active,.mwrap>button:active{transform:scale(.88)}
   .pfp{width:40px;height:40px}
   .name{font-size:16px}
   /* kotak nama jadi bottom sheet, gampang dijangkau jempol */
-  #nmodal,#vmodal,#smodal,#mmodal,#dmmodal,#rnmodal,#dlmodal,#pemodal{align-items:flex-end;padding:12px 12px calc(12px + env(safe-area-inset-bottom,0px))}
+  #nmodal,#vmodal,#smodal,#mmodal,#dmmodal,#rnmodal,#dlmodal,#pemodal,#pnmodal{align-items:flex-end;padding:12px 12px calc(12px + env(safe-area-inset-bottom,0px))}
   .nbox{max-width:none;border-radius:26px;padding:22px 20px 20px}
   .nact button{padding:12px 20px}
 }
@@ -475,6 +475,10 @@ header>button:active,.mwrap>button:active{transform:scale(.88)}
 .row.pinned>.bub,.row.pinned>.vcol>.bub:first-child{position:relative}
 .row.pinned>.bub::after,.row.pinned>.vcol>.bub:first-child::after{content:"";position:absolute;top:-4px;right:-4px;width:11px;height:11px;border-radius:3.5px;background:var(--ink);border:2px solid var(--bg);box-shadow:0 0 0 1px var(--line);pointer-events:none}
 #selbar #selpin{background:var(--ink);color:var(--bg)}
+/* Modal Pesan disematkan: jarak antar tombol + kartu pesan tidak terlalu rapat */
+#pnlist .mact{gap:6px}
+#pnlist .ment{margin-top:8px}
+#pnlist .ment:first-child{margin-top:12px}
 /* Tulis memori: form di modal sendiri */
 #mwin,#mwbody{display:block;width:100%;margin-top:10px;border:0;outline:0;background:var(--surface);color:var(--ink);border-radius:14px;padding:12px 15px;font:inherit;font-size:15px}
 #mwbody{resize:vertical;min-height:88px;line-height:1.45}
