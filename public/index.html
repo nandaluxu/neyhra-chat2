@@ -1467,7 +1467,7 @@ async function submit(opt){
     pendArm(); refresh(); return;
   }
   if(pend.length) await pendFlush(true); /* hadiah/gambar/skenario saat masih ada antrean teks: antreannya dikirim dulu */
-  const useVoice=voiceOn&&!!vcode&&canVoice(ch&&ch.id), lang=voiceLang; let okReply=false, relNote='', lastReply='';
+  const useVoice=voiceOn&&!!vcode&&canVoice(ch&&ch.id), lang=voiceLang; let okReply=false, relNote='', lastReply='', r=null; /* r di luar try: dipakai lagi setelahnya (r.qr / r.nq) */
   /* Pesan gambar: bubble user (gambar + caption) langsung tampil SAAT DIKIRIM, tidak menunggu /api/vision selesai. Kalau pembacaan gagal, bubble dicabut lagi. Dicatat ke log setelah berhasil. */
   const vt=Date.now(); let vrow=null;
   if(vf&&ch&&ch.id===chId&&app.classList.contains('open')&&!(window.GX&&GX.cur)) vrow=VISION.render({img:vf.thumb,x:text,t:vt});
@@ -1486,7 +1486,7 @@ async function submit(opt){
   }
   try{
     const hist=loadHist(ch.id);
-    const r=await (await post('/api/chat',{clientId:cid,char:ch.id,message:text,userName:uname,history:hist,voice:{on:useVoice,lang},memory:memUse(chId).list,rel:relPayload(chId),qr:true,...engPayload(),...(rpOn()?{rp:true}:{}),...(vd?{vision:vd}:{}),...(gf?{gift:{items:gf.items,...(gf.say?{text:gf.say}:{})}}:{}),...(window.SCN?SCN.body(chId):{})},window.SCN?SCN.headers():{})).json();
+    r=await (await post('/api/chat',{clientId:cid,char:ch.id,message:text,userName:uname,history:hist,voice:{on:useVoice,lang},memory:memUse(chId).list,rel:relPayload(chId),qr:true,...engPayload(),...(rpOn()?{rp:true}:{}),...(vd?{vision:vd}:{}),...(gf?{gift:{items:gf.items,...(gf.say?{text:gf.say}:{})}}:{}),...(window.SCN?SCN.body(chId):{})},window.SCN?SCN.headers():{})).json();
     saveHist(chId,[...loadHist(chId),['user',vf?('[mengirim gambar: '+vd.slice(0,350)+']'+(text?' '+text:'')):gf?gf.hist:text],['char',r.id]]); okReply=true; lastReply=r.id;
     relNote=gf?(gf.note||''):relApply(chId,r.dExp!=null?r.dExp:(Math.round(Number(r.dRel))||0)*3,r.dMood); /* hadiah: EXP/mood sudah dihitung server (shop.js), angka penilaian AI diabaikan supaya tidak dobel */ /* hubungan & mood: angka dari balasan AI (sudah di-clamp server) */ /* baca ulang h: karena peringkasan di latar bisa saja baru membuang bagian lamanya */
     if(!useVoice){ t.remove(); showThemSafe(chId,r.id); } /* pindah chat saat menunggu: balasan masuk log karakter aslinya, tidak nyasar */
@@ -1494,8 +1494,8 @@ async function submit(opt){
   }catch(e){ t.remove(); toast(e.message); if(window.SCN&&SCN.onErr) SCN.onErr(e); }
   setStatus(idleStat(),false); busy=false; refresh();
   if(relNote) toast(relNote);
-  if(okReply){
-    if(Array.isArray(r.qr)&&ch&&ch.id===chId) qrPaint(r.qr); else qrPaint(); /* chip saran balasan (hanya kalau masih di chat yang sama) */
+  if(okReply&&r){
+    if(Array.isArray(r.qr)&&stillHere(chId)) qrPaint(r.qr); else qrPaint(); /* chip saran balasan (hanya kalau masih di chat yang sama) */
     if(Array.isArray(r.nq)) r.nq.forEach((t,i)=>setTimeout(()=>toast(t),600+i*2300)); /* misi selesai / piala baru */
     maybeMemorize(chId);
     if(window.SCENE&&SCENE.auto) SCENE.auto(chId,lastReply); /* Scene Capture otomatis: AI menilai setelah balasan tampil (public/scene.js). Maks satu per giliran. */
