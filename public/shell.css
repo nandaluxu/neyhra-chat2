@@ -525,3 +525,14 @@
 #lplist .x-more{margin-top:4px}
 .lp-srch,.lp-srch:focus-within{position:static;box-shadow:none}
 .lp-srch:focus-within{box-shadow:0 0 0 2px var(--ink)}
+
+/* ---------- Urutan tumpukan overlay (angka besar = di atas) ----------
+   10  modal biasa (Pengaturan, Memori, Kotak memori, Pesan disematkan, Persona, Inventory, dll.)
+   12  lapisan penuh (Ringkasan harian, panel info Chat global)
+   14  dialog kecil yang dibuka DI ATAS modal lain: Tulis memori (dari Memori / Kotak memori), Ganti nama, Hapus obrolan
+   20  menu titik tiga (#hmenu, #lpmenu), login
+   30  modal kuantitas toko
+   40  toast: selalu paling atas, tidak pernah tertutup modal
+   Sebelumnya hampir semua 10 sehingga yang di atas hanya ditentukan urutan HTML. Selektor pakai #app supaya menang dari file CSS lain. */
+#app #mwmodal,#app #rnmodal,#app #dlmodal{z-index:14}
+#app #mtoast,#app #ltoast{z-index:40}
