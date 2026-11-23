@@ -116,3 +116,21 @@
 @keyframes clnod{0%,100%{transform:translateY(0) scale(1.012)}40%{transform:translateY(4px) scale(1.012)}}
 @keyframes clthink{0%,100%{transform:rotate(-3.5deg) translateX(-2px)}50%{transform:rotate(3.5deg) translateX(2px)}}
 @keyframes cldot{0%,60%,100%{transform:translateY(0);opacity:.45}30%{transform:translateY(-4px);opacity:1}}
+
+/* ---------- Koreksi ucapan: Ulang / Edit / Kirim ---------- */
+#callui .cl-edit{display:none;width:100%;max-width:340px;margin-top:auto;min-height:84px;padding:10px 14px;border-radius:16px;box-sizing:border-box;
+  background:var(--surface);color:var(--ink);border:1px solid var(--line);font:inherit;font-size:15px;line-height:1.4;resize:none;outline:none}
+#callui .cl-edit:focus{border-color:var(--ink)}
+#callui.editing .cl-edit{display:block}
+#callui.editing .cl-you{display:none}
+#callui .cl-act{display:none;gap:8px;justify-content:center;width:100%;max-width:340px;margin-top:10px}
+#callui.hastxt .cl-act,#callui.editing .cl-act{display:flex}
+#callui .cl-act button{flex:1;height:38px;padding:0 10px;border-radius:99px;background:var(--surface);color:var(--ink);border:1px solid var(--line);font-size:13px;font-weight:600}
+#callui .cl-act button:active{transform:scale(.96)}
+#callui .cl-act .cl-sendnow{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+#callui .cl-cancel{display:none}
+#callui.editing .cl-cancel{display:block}
+#callui.editing .cl-redo,#callui.editing .cl-fix{display:none}
+/* subtitle ucapan dimatikan: barisan tombol yang mengisi ruang kosong, bukan tombol telepon */
+#callui.nosubme.hastxt .cl-act{margin-top:auto}
+#callui.nosubme.hastxt .cl-btns,#callui.nosubme.editing .cl-btns{margin-top:14px}

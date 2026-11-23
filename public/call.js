@@ -12,6 +12,9 @@
      default; nyalakan di Pengaturan > Telepon kalau mau. Pengaturan itu baru muncul setelah fitur dibuka lewat kode rahasia.
    - Pakai jalur yang sama dengan chat biasa (/api/chat, /api/tts, riwayat, memori, hubungan), jadi percakapannya
      tetap tercatat di obrolan sebagai bubble teks + voice note. Tanpa voice nyala, balasan dibacakan lewat suara browser.
+   - Salah ucap / salah tangkap? Selagi giliranmu dan ada teks tertangkap, muncul tiga tombol di bawah subtitle:
+     Ulang (hapus teks lalu ngomong lagi), Edit (koreksi teks ucapanmu dengan mengetik; hitung mundur kirim berhenti selama mengedit),
+     Kirim (kirim sekarang tanpa menunggu jeda diam). Saat mengedit: Enter = kirim, Shift+Enter = baris baru, Esc = batal.
    Dimuat setelah script utama di index.html, jadi store, post, record, dst. langsung bisa dipakai (pola group.js). */
 (() => {
 'use strict';
@@ -156,6 +159,8 @@ function build() {
     '<div class="cl-status" aria-live="polite"></div>' +
     '<div class="cl-cap"></div>' +
     '<div class="cl-you"></div>' +
+    '<textarea class="cl-edit" rows="3" maxlength="1500" placeholder="Ketik koreksi ucapanmu…" aria-label="Edit teks ucapanmu"></textarea>' +
+    '<div class="cl-act"><button type="button" class="cl-redo">Ulang</button><button type="button" class="cl-fix">Edit</button><button type="button" class="cl-cancel">Batal</button><button type="button" class="cl-sendnow">Kirim</button></div>' +
     '<div class="cl-bar"><i></i></div>' +
     '<div class="cl-note"></div>' +
     '<div class="cl-btns">' +
@@ -165,9 +170,17 @@ function build() {
   app.append(el);
   ui = { el, name: el.querySelector('.cl-name'), time: el.querySelector('.cl-time'), av: el.querySelector('.cl-avwrap'), status: el.querySelector('.cl-status'),
     cap: el.querySelector('.cl-cap'), you: el.querySelector('.cl-you'), bar: el.querySelector('.cl-bar i'), note: el.querySelector('.cl-note'),
-    mute: el.querySelector('.cl-mute'), end: el.querySelector('.cl-end'), noteT: 0 };
+    mute: el.querySelector('.cl-mute'), end: el.querySelector('.cl-end'), noteT: 0,
+    edit: el.querySelector('.cl-edit'), redo: el.querySelector('.cl-redo'), fix: el.querySelector('.cl-fix'), cancel: el.querySelector('.cl-cancel'), sendnow: el.querySelector('.cl-sendnow') };
   ui.end.onclick = () => end();
   ui.mute.onclick = toggleMute;
+  ui.redo.onclick = redo; ui.fix.onclick = startEdit; ui.cancel.onclick = cancelEdit;
+  ui.sendnow.onclick = () => (S && S.editing ? sendEdit() : sendNow());
+  ui.edit.onkeydown = e => { // tombol keyboard di kolom edit tidak boleh bocor ke pintasan aplikasi
+    e.stopPropagation(); if (e.isComposing) return;
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendEdit(); } else if (e.key === 'Escape') { e.preventDefault(); cancelEdit(); }
+  };
+  ui.edit.onkeyup = ui.edit.onkeypress = e => e.stopPropagation();
   return ui;
 }
 function note(t) { if (!ui) return; ui.note.textContent = t; ui.note.classList.add('show'); clearTimeout(ui.noteT); ui.noteT = setTimeout(() => ui.note.classList.remove('show'), 3200); }
@@ -176,19 +189,21 @@ function paint() {
   const n = S.c ? (typeof dispName === 'function' ? dispName(S.c) : S.c.name) : '';
   const txt = {
     connecting: 'Berdering…',
-    listening: S.muted ? 'Mikrofon dimatikan' : (full() ? 'Mendengarkan…' : 'Giliranmu, ngomong aja'),
+    listening: S.editing ? 'Mengedit ucapanmu' : S.muted ? 'Mikrofon dimatikan' : (full() ? 'Mendengarkan…' : 'Giliranmu, ngomong aja'),
     thinking: n + ' lagi mikir…',
     speaking: n + ' lagi bicara. Tunggu giliranmu'
   }[S.state] || '';
   ui.status.textContent = txt;
   ui.el.dataset.state = S.state; ui.el.classList.toggle('muted', S.muted); ui.el.classList.toggle('nohint', !S.hint); ui.el.classList.toggle('nosub', !S.sub); ui.el.classList.toggle('nosubme', !S.subMe);
-  ui.mute.setAttribute('aria-pressed', S.muted ? 'true' : 'false'); ui.mute.disabled = S.state !== 'listening';
+  ui.mute.setAttribute('aria-pressed', S.muted ? 'true' : 'false'); ui.mute.disabled = S.state !== 'listening' || !!S.editing;
   paintYou();
 }
 function paintYou() {
   if (!ui || !S) return;
   const t = S.state === 'listening' ? full() : '';
   ui.you.textContent = t.length > 160 ? '…' + t.slice(-158) : t;
+  ui.el.classList.toggle('editing', !!S.editing && S.state === 'listening');
+  ui.el.classList.toggle('hastxt', !S.editing && t.length >= CFG.MIN_CHARS); // tombol Ulang / Edit / Kirim hanya muncul kalau ada teks tertangkap
 }
 const full = () => S ? join(S.fin, join(S.cur.f, S.cur.i)) : '';
 
@@ -209,7 +224,7 @@ async function start() {
   const u = build();
   u.name.textContent = typeof dispName === 'function' ? dispName(c) : c.name;
   u.av.textContent = ''; u.av.append(img(c, 'cl-av'));
-  u.cap.textContent = ''; u.you.textContent = ''; u.time.textContent = '0:00'; u.bar.style.width = '0%'; u.note.classList.remove('show');
+  u.cap.textContent = ''; u.you.textContent = ''; u.edit.value = ''; u.el.classList.remove('hastxt', 'editing'); u.time.textContent = '0:00'; u.bar.style.width = '0%'; u.note.classList.remove('show');
   clearTimeout(u.hideT); u.el.classList.remove('hide'); void u.el.offsetWidth; u.el.classList.add('on');
   hold(); // chat di belakang layar tidak bisa dikirimi apa pun selama telepon
   paint();
@@ -245,16 +260,49 @@ function end(why) {
 }
 
 function toggleMute() {
-  if (!S || S.state !== 'listening') return;
+  if (!S || S.state !== 'listening' || S.editing) return;
   S.muted = !S.muted;
   if (S.muted) { try { S.rec && S.rec.abort(); } catch {} S.rec = null; }
   else { S.last = full() ? Date.now() : 0; listen(); }
   paint();
 }
 
+/* ---------- Koreksi ucapan: Ulang / Edit / Kirim ---------- */
+function stopRec(s) { const r = s.rec; s.rec = null; try { r && r.abort(); } catch {} } // s.rec dikosongkan DULU supaya onend/onresult sesi lama diabaikan
+function redo() { // hapus teks yang tertangkap lalu dengarkan dari awal
+  if (!S || S.state !== 'listening' || S.editing) return;
+  const s = S; stopRec(s); s.fin = ''; s.cur = { f: '', i: '' }; s.last = 0;
+  paint(); if (!s.muted) { listen(); note('Dihapus, silakan ngomong lagi'); }
+}
+function sendNow() { // kirim sekarang tanpa menunggu jeda diam
+  if (!S || S.state !== 'listening' || S.editing) return;
+  const t = full(); if (t.length < CFG.MIN_CHARS) return;
+  turn(t);
+}
+function startEdit() { // teks ucapan jadi bisa diketik; mikrofon dan hitung mundur kirim berhenti sampai Kirim / Batal
+  if (!S || S.state !== 'listening' || S.editing || !ui) return;
+  const s = S, t = full(); stopRec(s);
+  s.editing = true; s.editOrig = t; s.fin = t; s.cur = { f: '', i: '' }; s.last = 0;
+  ui.edit.value = t; paint();
+  try { ui.edit.focus(); ui.edit.setSelectionRange(t.length, t.length); } catch {}
+}
+function sendEdit() {
+  if (!S || !S.editing || !ui) return;
+  const s = S, t = ui.edit.value.replace(/\s+/g, ' ').trim().slice(0, CFG.MAX_SAY);
+  if (t.length < CFG.MIN_CHARS) { note('Teksnya kosong. Tulis dulu, atau tekan Batal'); return; }
+  s.editing = false; try { ui.edit.blur(); } catch {}
+  turn(t);
+}
+function cancelEdit() { // batal: balik ke teks tangkapan mic sebelum diedit, lalu lanjut mendengarkan
+  if (!S || !S.editing || !ui) return;
+  const s = S; s.editing = false; try { ui.edit.blur(); } catch {}
+  s.fin = s.editOrig || ''; s.cur = { f: '', i: '' }; s.last = s.fin ? Date.now() : 0;
+  paint(); if (!s.muted) listen();
+}
+
 /* ---------- Mendengarkan ---------- */
 function listen() {
-  if (!S || S.ended || S.muted || S.rec || S.state !== 'listening') return;
+  if (!S || S.ended || S.muted || S.rec || S.editing || S.state !== 'listening') return;
   const s = S, r = new SR(), born = Date.now();
   s.rec = r; s.cur = { f: '', i: '' };
   r.lang = store.get('sttlang') || 'id-ID'; r.continuous = true; r.interimResults = true; r.maxAlternatives = 1;
@@ -293,7 +341,7 @@ function onTick() {
   ui.time.textContent = clock((Date.now() - s.t0) / 1000);
   if (s.state === 'listening') s.busySince = 0; else if (!s.busySince) s.busySince = Date.now();
   if (s.busySince && Date.now() - s.busySince > 120000) { s.busySince = 0; s.gen++; s.state = 'listening'; s.last = 0; try { s.stopAudio && s.stopAudio(); s.stopTts && s.stopTts(); } catch {} note('Respons terlalu lama, giliranmu lagi'); paint(); listen(); return; } // jaring pengaman
-  if (s.state !== 'listening' || s.muted) { ui.bar.style.width = '0%'; gest(''); return; }
+  if (s.state !== 'listening' || s.muted || s.editing) { ui.bar.style.width = '0%'; gest(''); return; } // mengedit: hitung mundur kirim berhenti
   const txt = full();
   if (txt.length < CFG.MIN_CHARS || !s.last) { ui.bar.style.width = '0%'; gest(''); return; }
   const idle = Date.now() - s.last;
