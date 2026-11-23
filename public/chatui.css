@@ -1,0 +1,80 @@
+/* ===== Perapihan UI layar chat (hanya layout, jarak, bentuk, bayangan; TANPA warna baru: semua pakai variabel yang sudah ada) =====
+   Dimuat paling akhir. Selektor diawali #chatview supaya menang dari index.html/shell.css tanpa !important.
+   Padding kiri-kanan #chat sengaja tidak disentuh (desktop memakai --g untuk menengahkan kolom). */
+
+/* ---------- Header ---------- */
+#chatview header{gap:1px;border-bottom:1px solid color-mix(in srgb,var(--line) 70%,transparent);box-shadow:0 1px 0 color-mix(in srgb,var(--ink) 2%,transparent),0 8px 20px -18px color-mix(in srgb,var(--ink) 40%,transparent);position:relative;z-index:3}
+#chatview header .pfp{box-shadow:0 0 0 1px var(--line);transition:transform .25s cubic-bezier(.2,.9,.3,1.3)}
+@media(hover:hover){#chatview header .pfp:hover{transform:scale(1.06)}}
+#chatview header .name{font-weight:700;font-size:15.5px;letter-spacing:-.015em}
+#chatview header .status{font-size:12px;letter-spacing:.005em}
+#chatview header>button{color:var(--mut);transition:background .18s,color .18s,transform .15s}
+#chatview header>#back,#chatview header>#lpopen{color:var(--ink)}
+@media(hover:hover){#chatview header>button:hover{color:var(--ink)}}
+#chatview header>button svg{stroke-width:1.8}
+
+/* ---------- Area pesan ---------- */
+#chatview #chat{gap:10px;scroll-padding-bottom:16px}
+@media(max-width:799px){#chatview #chat{padding-top:18px;padding-bottom:20px}}
+/* hari: jadi pil kecil yang rapi, bukan teks mengambang */
+#chatview .day{padding:4px 13px;border-radius:99px;background:var(--surface);box-shadow:inset 0 0 0 1px var(--line);font-size:11px;font-weight:600;letter-spacing:.02em;margin:6px 0 4px}
+
+/* pesan beruntun dari pihak yang sama dirapatkan (jarak 4px), pesan antar pihak lebih lega (10px) */
+#chatview .row.me+.row.me,#chatview .row.them+.row.them{margin-top:-6px}
+
+/* bubble: sedikit lebih besar, hairline halus pada bubble lawan, bayangan tipis pada bubble kamu */
+#chatview .bub{padding:10px 14px 7px;border-radius:20px;border-bottom-left-radius:6px;line-height:1.4}
+#chatview .row.them .bub{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--line) 85%,transparent)}
+#chatview .row.me .bub{border-bottom-left-radius:20px;border-bottom-right-radius:6px;box-shadow:0 6px 14px -10px color-mix(in srgb,var(--ink) 70%,transparent)}
+#chatview .txt{font-size:15px;line-height:1.48;letter-spacing:-.003em}
+#chatview .ts{font-size:10.5px;margin-top:4px;letter-spacing:.02em;font-variant-numeric:tabular-nums}
+#chatview .me .ts{opacity:.6}
+
+/* sudut menyambung untuk bubble teks beruntun (seperti grup pesan di aplikasi chat modern) */
+#chatview .row.them:has(+.row.them)>.bub{border-bottom-left-radius:7px}
+#chatview .row.them+.row.them>.bub{border-top-left-radius:7px}
+#chatview .row.me:has(+.row.me)>.bub{border-bottom-right-radius:7px}
+#chatview .row.me+.row.me>.bub{border-top-right-radius:7px}
+
+/* voice note */
+#chatview .vn{gap:11px}
+#chatview .play{width:36px;height:36px;box-shadow:0 4px 10px -5px color-mix(in srgb,var(--ink) 70%,transparent)}
+#chatview .wave{height:34px}
+#chatview .dur{font-weight:600;color:var(--mut)}
+#chatview .sub{font-size:13.5px;line-height:1.48}
+
+/* sedang mengetik & berpikir */
+#chatview .typing-b{padding:8px 4px}
+#chatview .think-t{font-size:12.5px;letter-spacing:.005em}
+
+/* ---------- Kolom ketik ---------- */
+#chatview footer{gap:8px;border-top:0;box-shadow:0 -10px 24px -22px color-mix(in srgb,var(--ink) 55%,transparent)}
+/* padding hanya di HP: di desktop padding kiri-kanan footer dipakai --g untuk menengahkan kolom */
+@media(max-width:799px){#chatview footer{padding:10px 12px;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px))}html.kb #chatview footer{padding-bottom:10px}}
+#chatview #inp{padding:13px 18px;border-radius:23px;box-shadow:inset 0 0 0 1px var(--line);transition:box-shadow .2s,background .2s}
+#chatview #inp:focus{box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--ink) 38%,transparent);background:var(--bg)}
+#chatview footer>button{transition:background .15s,transform .15s,box-shadow .2s}
+#chatview #send,#chatview #mic{box-shadow:0 6px 14px -8px color-mix(in srgb,var(--ink) 75%,transparent)}
+#chatview footer>button:active{transform:scale(.92)}
+#chatview #add:hover,#chatview #plusbtn:hover,#chatview #scnbtn:hover{background:var(--surface)}
+#chatview #plusbtn,#chatview #scnbtn{color:var(--mut);box-shadow:inset 0 0 0 1px var(--line)}
+@media(hover:hover){#chatview #plusbtn:hover,#chatview #scnbtn:hover{color:var(--ink)}}
+
+/* saran balasan cepat */
+#chatview #qrrow{left:12px;right:12px;gap:7px;padding:2px 2px 4px}
+#chatview .qr-chip{padding:9px 16px;border-radius:19px 19px 19px 6px;font-size:13.5px;font-weight:500;background:var(--bg);box-shadow:0 6px 18px -10px color-mix(in srgb,var(--ink) 60%,transparent),inset 0 0 0 1px var(--line);border-color:transparent}
+@media(hover:hover){#chatview .qr-chip:hover{background:var(--surface)}}
+
+/* tombol ke pesan terbaru + toast */
+#chatview #down{right:16px;width:38px;height:38px;box-shadow:0 8px 20px -8px color-mix(in srgb,var(--ink) 60%,transparent)}
+#chatview #toast{padding:7px 15px;font-weight:500}
+
+/* mode seleksi tetap rapi */
+#chatview #selbar{box-shadow:0 -10px 24px -22px color-mix(in srgb,var(--ink) 55%,transparent);border-top:0}
+
+/* ---------- Tombol "*" (aksi/narasi) di kiri kolom ketik ---------- */
+#chatview #starbtn{width:44px;height:44px;border-radius:50%;flex:none;color:var(--mut);background:var(--surface);box-shadow:inset 0 0 0 1px var(--line);transition:background .15s,color .15s,transform .15s}
+#chatview #starbtn svg{width:19px;height:19px;stroke-width:2}
+@media(hover:hover){#chatview #starbtn:hover{color:var(--ink);background:var(--bg)}}
+#chatview #starbtn:active{transform:scale(.9);color:var(--ink)}
+#chatview #starbtn:focus-visible{outline:2px solid var(--ink);outline-offset:2px}

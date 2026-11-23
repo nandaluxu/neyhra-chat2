@@ -599,6 +599,7 @@ header .pfp,header .who{cursor:pointer}
 <link rel="stylesheet" href="/notify.css">
 <link rel="stylesheet" href="/music.css">
 <link rel="stylesheet" href="/login.css">
+<link rel="stylesheet" href="/chatui.css">
 </head>
 <body>
 <div id="app">
@@ -672,7 +673,7 @@ header .pfp,header .who{cursor:pointer}
     </div>
     <label class="srch"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg><input id="q" type="search" placeholder="Cari nama atau judul" autocomplete="off" enterkeyhint="search"></label>
     <section class="b-cont hide" id="bcont" aria-label="Lanjut ngobrol"><div class="b-head"><h2>Lanjut ngobrol</h2></div><div class="b-strip" id="bstrip"></div></section>
-    <section class="b-cont b-rec hide" id="brec" aria-label="Rekomendasi untukmu"><div class="b-head"><h2>Rekomendasi untukmu</h2></div><div class="b-strip" id="brecstrip"></div></section>
+    <section class="b-cont b-rec hide" id="brec" aria-label="Rekomendasi untukmu"><div class="b-head"><h2>Rekomendasi untukmu</h2><button type="button" class="b-ctog" id="brecmix" title="Acak ulang rekomendasi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15.5-6.2L21 8M21 3v5h-5M21 12a9 9 0 0 1-15.5 6.2L3 16M3 21v-5h5"/></svg>Acak</button></div><div class="b-strip" id="brecstrip"></div></section>
     </div><div class="m-main">
     <div class="b-head"><h2>Semua karakter</h2><span id="allcount"></span><button type="button" class="b-ctog hide" id="chiptog" aria-controls="bchips" aria-expanded="true"><svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg>Filter</button></div>
     <div class="b-chips" id="bchips" role="group" aria-label="Filter seri"></div>
@@ -778,6 +779,7 @@ header .pfp,header .who{cursor:pointer}
   <main id="chat"></main>
   <footer>
     <div id="qrrow" class="hide" role="listbox" aria-label="Saran balasan cepat"></div>
+    <button id="starbtn" type="button" title="Aksi / narasi: sisipkan *…* (atau bungkus teks yang diblok)" aria-label="Sisipkan tanda bintang untuk aksi atau narasi"><svg viewBox="0 0 24 24"><path d="M12 5v14M5.2 8.5l13.6 7M18.8 8.5l-13.6 7"/></svg></button>
     <textarea id="inp" rows="1" placeholder="Ketik pesan" enterkeyhint="enter" autocapitalize="sentences"></textarea>
     <button id="plusbtn" type="button" class="hide" title="Tambah" aria-label="Menu tambahan: inventory dan skenario skrip" aria-haspopup="menu" aria-expanded="false"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
     <button id="scnbtn" type="button" class="hide" title="Skenario Skrip" aria-label="Skenario Skrip"><svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="10.5" rx="1.6"/><path d="M4.8 10L4 6.3a1.6 1.6 0 011.2-1.9l12.3-2.9a1.6 1.6 0 011.9 1.2l.8 3.6"/><path d="M8.6 8.9L7.4 5.4M12.7 8l-1.2-3.5M16.8 7l-1.2-3.5"/></svg></button>
@@ -1508,7 +1510,25 @@ function refresh(){ sendB.disabled=busy||(!inp.value.trim()&&!(window.SHOP&&SHOP
 /* Saat layar chat tersembunyi (display:none, mis. tab Beranda di desktop) scrollHeight = 0; jangan dikunci jadi 0px, kembalikan ke tinggi CSS (44px) */
 function grow(){ inp.style.height='auto'; const h=inp.scrollHeight; inp.style.height=h?Math.min(Math.max(h,44),136)+'px':''; }
 { let lw=inp.offsetWidth; new ResizeObserver(()=>{ const w=inp.offsetWidth; if(w!==lw){ lw=w; if(w) grow(); } }).observe(inp); } /* baru kelihatan -> hitung ulang (draft panjang) */
-inp.addEventListener('input',()=>{ refresh(); grow(); if(pendT) pendArm(); }); /* masih ada antrean = user masih mengetik: tunda jawaban AI lagi */
+inp.addEventListener('input',()=>{ refresh(); grow(); if(pendT) pendArm(); });
+/* Tombol "*" (aksi/narasi roleplay): tanpa blok -> sisipkan ** dan kursor di tengah; ada blok -> bungkus jadi *teks* (blok tetap aktif, tekan lagi = lepas bintangnya) */
+{ const sb=$('starbtn'); if(sb){
+  sb.addEventListener('pointerdown',e=>e.preventDefault()); /* jaga fokus & blok di kolom ketik (keyboard HP tidak menutup) */
+  sb.addEventListener('click',()=>{
+    const v=inp.value; let a=inp.selectionStart, b=inp.selectionEnd; if(a==null){ a=b=v.length; }
+    let out, na, nb;
+    if(a===b){ out=v.slice(0,a)+'**'+v.slice(b); na=nb=a+1; }
+    else{
+      const sel=v.slice(a,b);
+      if(sel.length>=2&&sel[0]==='*'&&sel[sel.length-1]==='*'){ const t=sel.slice(1,-1); out=v.slice(0,a)+t+v.slice(b); na=a; nb=a+t.length; } /* blok sudah berbintang: lepas */
+      else if(v[a-1]==='*'&&v[b]==='*'){ out=v.slice(0,a-1)+sel+v.slice(b+1); na=a-1; nb=na+sel.length; } /* blok di dalam *...*: lepas */
+      else{ out=v.slice(0,a)+'*'+sel+'*'+v.slice(b); na=a+1; nb=b+1; }
+    }
+    inp.value=out; inp.focus(); try{ inp.setSelectionRange(na,nb); }catch{}
+    inp.dispatchEvent(new Event('input',{bubbles:true})); /* refresh tombol kirim, tinggi kolom, draft */
+  });
+} }
+ /* masih ada antrean = user masih mengetik: tunda jawaban AI lagi */
 /* HP: Enter = baris baru, kirim lewat tombol (seperti WhatsApp). Desktop: Enter kirim, Shift+Enter baris baru */
 const COARSE=matchMedia('(pointer:coarse)').matches;
 inp.enterKeyHint=COARSE?'enter':'send';
@@ -3152,47 +3172,73 @@ function renderCont(){
   }
   renderRec(logs);
 }
-/* ===== Rekomendasi untukmu: dihitung dari siapa yang paling sering kamu ajak ngobrol (jumlah pesanmu; yang lebih baru bobotnya lebih besar).
-   Kandidat = karakter yang BELUM pernah kamu ajak ngobrol dan mirip dengan yang sering: satu seri/label (+3), satu pembuat AI buatan user (+1,2),
-   gender sama sebagai bonus kecil; like jadi penambah tipis. Kurang dari 4 yang cocok -> dilengkapi yang paling banyak di-like. Tanpa riwayat = disembunyikan. ===== */
+/* ===== Rekomendasi untukmu: campuran acak dari beberapa "keranjang" supaya tiap kali buka Beranda isinya beda dan variatif (maks 8).
+   Keranjang: mirip (satu seri/pembuat/gender dengan yang sering diajak ngobrol), populer (di-like banyak), kejutan (acak murni, termasuk yang belum
+   dilirik), dan kangen (pernah diajak ngobrol tapi sudah lama tidak disapa). Tiap keranjang diambil dengan undian berbobot (bukan urutan tetap),
+   lalu diselang-seling; batas per seri/pembuat menjaga supaya tidak didominasi satu kelompok. Seed berganti tiap kembali ke Beranda atau tombol
+   "Acak" ditekan; selama seed sama hasilnya stabil (tidak berkedip saat daftar dirender ulang). Tanpa riwayat tetap tampil (populer + kejutan). ===== */
+let recSeed=(Math.random()*4294967296)>>>0;
+const recRng=seed=>{ let a=seed>>>0; return ()=>{ a=(a+0x6D2B79F5)>>>0; let t=Math.imul(a^(a>>>15),1|a); t=(t+Math.imul(t^(t>>>7),61|t))^t; return ((t^(t>>>14))>>>0)/4294967296; }; };
+/* undian berbobot tanpa pengembalian (Efraimidis-Spirakis): kunci = rand^(1/bobot), urut turun */
+const recDraw=(arr,wf,rnd)=>arr.map(x=>({x,k:Math.pow(rnd(),1/Math.max(1e-6,wf(x)))})).sort((a,b)=>b.k-a.k).map(o=>o.x);
 function renderRec(logs){
   const box=$('brec'), st=$('brecstrip'); if(!box) return;
-  const now=Date.now(), sig=[], seen=new Set();
+  const rnd=recRng(recSeed), now=Date.now(), sig=[], seen=new Set(), last=new Map();
   for(const [c,l] of logs){
-    if(!l.length) continue; seen.add(c.id);
+    if(!l.length) continue; seen.add(c.id); last.set(c.id,l[l.length-1].t||0);
     const n=l.reduce((a,e)=>a+(e&&e.r==='me'?1:0),0); if(!n) continue;
     const days=Math.max(0,(now-(l[l.length-1].t||0))/864e5);
     sig.push([c,Math.log2(1+n)*(.5+.5*Math.exp(-days/30))]);
   }
   const cre=c=>c&&c.custom&&c.creator?(c.creator.username||c.creator.name||''):'', tg=c=>String((c&&c.tagline)||'').trim();
   const likes=c=>(tileStats.get(c.id)||[0])[0]||0;
-  const cand=[];
-  if(sig.length) for(const c of allChars){
-    if(seen.has(c.id)) continue;
-    let s=0,bw=0,best=null,why='',g=0,gb=null,gbw=0;
+  const fresh=allChars.filter(c=>!seen.has(c.id));
+  /* keranjang 1: mirip */
+  const mirip=[];
+  if(sig.length) for(const c of fresh){
+    let s=0,bw=0,best=null,why='',g=0,gb=null,gbw=0; const cc=cre(c);
     for(const [t,w] of sig){
-      let sim=0,r=''; const cc=cre(c);
-      if(tg(c)&&tg(c)===tg(t)){ sim+=3; r='seri'; }
-      if(cc&&cc===cre(t)){ sim+=1.2; r=r||'pembuat'; }
+      let sim=0,r=''; if(tg(c)&&tg(c)===tg(t)){ sim+=3; r='seri'; } if(cc&&cc===cre(t)){ sim+=1.2; r=r||'pembuat'; }
       if(sim&&c.gender&&c.gender===t.gender) sim+=.5;
-      if(!sim){ if(c.gender&&c.gender===t.gender){ g+=w; if(w>gbw){ gbw=w; gb=t; } } continue; } const v=w*sim; s+=v; if(v>bw){ bw=v; best=t; why=r; }
+      if(!sim){ if(c.gender&&c.gender===t.gender){ g+=w; if(w>gbw){ gbw=w; gb=t; } } continue; }
+      const v=w*sim; s+=v; if(v>bw){ bw=v; best=t; why=r; }
     }
-    cand.push({c,s:s>0?s+Math.log10(1+likes(c))*.4:0,best,why,g,gb});
+    if(s>0) mirip.push({c,best,why,w:s+.2});
+    else if(g>0) mirip.push({c,best:gb,why:'mirip',w:.15+g*.25}); /* seleranya sama, tapi bobot kecil: sesekali saja muncul */
   }
-  let pick=cand.filter(x=>x.s>0).sort((a,b)=>b.s-a.s||azCmp(a.c,b.c)).slice(0,6);
-  const fill=(list,why)=>{ const ids=new Set(pick.map(x=>x.c.id)); list.filter(x=>!ids.has(x.c.id)).slice(0,4-pick.length).forEach(x=>pick.push({...x,best:why==='mirip'?x.gb:x.best,why})); };
-  if(sig.length&&pick.length<4) fill(cand.filter(x=>x.g>0).sort((a,b)=>b.g-a.g||likes(b.c)-likes(a.c)||azCmp(a.c,b.c)),'mirip'); /* selera sama: gender yang sering kamu ajak ngobrol */
-  if(sig.length&&pick.length<4) fill(cand.filter(x=>likes(x.c)>0).sort((a,b)=>likes(b.c)-likes(a.c)),'populer');
-  box.classList.toggle('hide',!pick.length||!!q.value.trim());
+  /* keranjang 2: populer (bobot like, tetap ada peluang bagi yang 0 like) */
+  const populer=fresh.map(c=>({c,why:'populer',w:.4+Math.log2(1+likes(c))}));
+  /* keranjang 3: kejutan (rata, termasuk karakter yang belum pernah dilirik) */
+  const kejutan=fresh.map(c=>({c,why:'kejutan',w:1}));
+  /* keranjang 4: kangen (obrolan terakhir > 5 hari lalu; makin lama makin besar peluangnya) */
+  const kangen=allChars.filter(c=>seen.has(c.id)&&(now-(last.get(c.id)||0))>5*864e5).map(c=>({c,why:'kangen',w:Math.min(6,(now-(last.get(c.id)||0))/864e5/10+.3)}));
+  let buckets=[mirip,populer,kejutan,kangen].map(b=>recDraw(b,x=>x.w,rnd));
+  /* urutan keranjang diacak per seed lalu diselang-seling; keranjang "mirip" dikasih 2 jatah bila ada riwayat */
+  const order=[0,1,2,3,0].filter(i=>buckets[i].length).sort(()=>rnd()-.5);
+  const MAX=8, pick=[], ids=new Set(), cnt=new Map(), bump=k=>{ if(k) cnt.set(k,(cnt.get(k)||0)+1); };
+  const okLimit=c=>{ const a=cre(c), t=tg(c); return (!a||(cnt.get(a)||0)<2)&&(!t||(cnt.get(t)||0)<3); };
+  for(let pass=0;pass<2&&pick.length<MAX;pass++){ /* pass 0: patuhi batas keberagaman; pass 1: longgar kalau pilihan habis */
+    let moved=true;
+    while(pick.length<MAX&&moved){ moved=false;
+      for(const i of order){ if(pick.length>=MAX) break; const b=buckets[i];
+        const k=b.findIndex(x=>!ids.has(x.c.id)&&(pass||okLimit(x.c))); if(k<0) continue;
+        const [x]=b.splice(k,1); ids.add(x.c.id); pick.push(x); bump(cre(x.c)); bump(tg(x.c)); moved=true; }
+    }
+  }
+  /* sedikit acak urutan akhir supaya yang "mirip" tidak selalu paling kiri */
+  for(let i=pick.length-1;i>0;i--){ if(rnd()<.5) continue; const j=Math.floor(rnd()*(i+1)); [pick[i],pick[j]]=[pick[j],pick[i]]; }
+  const hasQ=!!q.value.trim();
+  box.classList.toggle('hide',!pick.length||hasQ);
   st.textContent='';
   for(const {c,best,why} of pick){
     const b=document.createElement('button'); b.type='button'; b.className='b-cc';
     const av=document.createElement('span'); av.className='b-cav'; const im=img(c); im.loading='lazy'; av.append(im);
     const n=document.createElement('b'); n.textContent=shortName(c);
-    const p=document.createElement('small'); p.textContent=why==='seri'?'Satu seri dengan '+shortName(best):why==='pembuat'?'Satu pembuat dengan '+shortName(best):why==='mirip'?'Mirip '+shortName(best):'Lagi disukai banyak orang';
+    const p=document.createElement('small'); p.textContent=why==='seri'&&best?'Satu seri dengan '+shortName(best):why==='pembuat'&&best?'Satu pembuat dengan '+shortName(best):why==='mirip'&&best?'Mirip '+shortName(best):why==='kangen'?'Udah lama nggak ngobrol':why==='kejutan'?'Coba kenalan, siapa tahu cocok':'Lagi disukai banyak orang';
     b.title=dispName(c)+' · '+p.textContent; b.append(av,n,p); b.onclick=()=>openChat(c,av); st.append(b);
   }
 }
+$('brecmix')&&$('brecmix').addEventListener('click',()=>{ recSeed=(Math.random()*4294967296)>>>0; renderCont(); const s=$('brecstrip'); if(s) s.scrollLeft=0; });
 $('bstrip').addEventListener('wheel',e=>{ /* roda mouse biasa (vertikal) menggeser baris ke samping selama masih ada ruang geser; di ujung, halaman yang scroll */
   const el=e.currentTarget; if(Math.abs(e.deltaY)<=Math.abs(e.deltaX)||el.scrollWidth<=el.clientWidth) return;
   const max=el.scrollWidth-el.clientWidth, d=e.deltaY, x=el.scrollLeft;
@@ -3228,7 +3274,7 @@ return fetch('/api/chars',atok?{headers:{Authorization:'Bearer '+atok},cache:'no
 loadAllChars();
 window.reloadChars=loadAllChars;
 let charsTok=atok; addEventListener('acct',()=>{ if(charsTok!==atok){ charsTok=atok; loadAllChars(); } }); /* masuk/keluar akun: AI buatan akun itu muncul/hilang */
-window.addEventListener('shell:tab',e=>{ if(e.detail==='home') renderCont(); }); /* selesai ngobrol lalu balik ke Beranda: strip ikut segar */
+window.addEventListener('shell:tab',e=>{ if(e.detail==='home'){ recSeed=(Math.random()*4294967296)>>>0; renderCont(); } }); /* selesai ngobrol lalu balik ke Beranda: strip ikut segar */
 
 
 /* ===== Ritme hidup: tiap karakter punya jam tidur sendiri (jadwal `sleep` dari /api/chars, dihitung server dari id karakter).
