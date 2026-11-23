@@ -160,7 +160,7 @@ function build() {
     '<div class="cl-cap"></div>' +
     '<div class="cl-you"></div>' +
     '<textarea class="cl-edit" rows="3" maxlength="1500" placeholder="Ketik koreksi ucapanmu…" aria-label="Edit teks ucapanmu"></textarea>' +
-    '<div class="cl-act"><button type="button" class="cl-redo">Ulang</button><button type="button" class="cl-fix">Edit</button><button type="button" class="cl-cancel">Batal</button><button type="button" class="cl-sendnow">Kirim</button></div>' +
+    '<div class="cl-act"><button type="button" class="cl-redo" aria-label="Ulang ucapan" title="Ulang ucapan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 109-9 9 9 0 00-6.4 2.6L3 8"/><path d="M3 3v5h5"/></svg></button><button type="button" class="cl-fix" aria-label="Edit teks" title="Edit teks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg></button><button type="button" class="cl-cancel" aria-label="Batal edit" title="Batal edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button><button type="button" class="cl-sendnow" aria-label="Kirim" title="Kirim"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/></svg></button></div>' +
     '<div class="cl-bar"><i></i></div>' +
     '<div class="cl-note"></div>' +
     '<div class="cl-btns">' +

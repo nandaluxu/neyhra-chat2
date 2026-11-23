@@ -126,11 +126,13 @@
 #callui .cl-act{display:none;gap:8px;justify-content:center;width:100%;max-width:340px;margin-top:10px}
 #callui.hastxt .cl-act,#callui.editing .cl-act{display:flex}
 #callui .cl-act button{flex:1;height:38px;padding:0 10px;border-radius:99px;background:var(--surface);color:var(--ink);border:1px solid var(--line);font-size:13px;font-weight:600}
+#callui .cl-act button{display:grid;place-items:center}
+#callui .cl-act svg{width:18px;height:18px}
 #callui .cl-act button:active{transform:scale(.96)}
 #callui .cl-act .cl-sendnow{background:var(--ink);color:var(--bg);border-color:var(--ink)}
-#callui .cl-cancel{display:none}
-#callui.editing .cl-cancel{display:block}
-#callui.editing .cl-redo,#callui.editing .cl-fix{display:none}
+#callui .cl-act .cl-cancel{display:none}
+#callui.editing .cl-act .cl-cancel{display:grid}
+#callui.editing .cl-act .cl-redo,#callui.editing .cl-act .cl-fix{display:none}
 /* subtitle ucapan dimatikan: barisan tombol yang mengisi ruang kosong, bukan tombol telepon */
 #callui.nosubme.hastxt .cl-act{margin-top:auto}
 #callui.nosubme.hastxt .cl-btns,#callui.nosubme.editing .cl-btns{margin-top:14px}
