@@ -24,6 +24,10 @@ const CFG = {
   CONNECT_MS: 1400,   // lama "menyambungkan" kalau nada dering dimatikan
   RING_MS: 2400,      // lama nada dering sebelum karakter mengangkat
   MAX_SAY: 1500,      // maks panjang ucapan user per giliran
+  CHAT_MS: 55000,     // batas tunggu balasan /api/chat; lewat ini giliran dikembalikan ke user (jangan menggantung)
+  TTS_MS: 20000,      // batas tunggu satu permintaan suara (/api/tts); gagal/lambat -> coba sekali lagi
+  IDB_MS: 3000,       // batas tunggu simpan audio ke IndexedDB; lewat ini audio TETAP diputar, cuma tidak bisa diputar ulang dari chat
+  STALL_MS: 4000,     // audio dianggap macet kalau posisi putarnya tidak maju selama ini -> pindah ke jalur WebAudio
   HINT: true,         // tempel petunjuk "sedang telepon, jawab singkat" ke pesan (riwayat yang tersimpan tetap bersih)
 };
 const HINT = '[Sedang telepon suara: balas singkat 1-3 kalimat, santai seperti ngobrol langsung, tanpa daftar atau format panjang]';
@@ -36,6 +40,22 @@ const join = (a, b) => ((a ? a + ' ' : '') + (b || '')).replace(/\s+/g, ' ').tri
 const clock = s => Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
 const plain = t => String(t || '').replace(/\*[^*]*\*/g, ' ').replace(/[*_`#]/g, '').replace(/\s+/g, ' ').trim(); // buang narasi *miring* roleplay dan tanda markdown
 const unlocked = () => store.get('callu') === '1';
+/* fetch dengan batas waktu. `read` dibaca DI DALAM batas waktu yang sama (json/buf), supaya body yang menggantung di internet lambat juga ikut putus.
+   Header Authorization meniru post() di index.html. Galat batas waktu dibuat jadi pesan yang bisa dibaca user. */
+async function callPost(url, body, headers, ms, read) {
+  const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), ms);
+  const hd = { 'Content-Type': 'application/json', ...headers };
+  try { if (typeof atok === 'string' && atok && !hd.Authorization) hd.Authorization = 'Bearer ' + atok; } catch {}
+  try {
+    const r = await fetch(url, { method: 'POST', headers: hd, body: JSON.stringify(body), signal: ctl.signal });
+    if (!r.ok) { const j = await r.json().catch(() => ({})); const e = new Error(j.error || 'Gagal terhubung'); e.status = r.status; throw e; }
+    return await (read === 'buf' ? r.arrayBuffer() : r.json());
+  } catch (e) {
+    if (e && e.name === 'AbortError') { const t = new Error('Koneksi lambat, tidak ada respons'); t.timeout = true; throw t; }
+    throw e;
+  } finally { clearTimeout(tm); }
+}
+const retryable = e => !e || e.timeout || !e.status || e.status >= 500 || e.status === 429; // galat jaringan / server sibuk: layak dicoba lagi
 /* Pengaturan telepon (localStorage perangkat ini; diatur di Pengaturan > Telepon) */
 const opt = {
   hint: () => store.get('callhint') === '1',        // default MATI: status (mendengarkan/mikir/bicara) + hitung mundur pengiriman
@@ -185,7 +205,7 @@ async function start() {
   if (busy && !held) { toast(ch.name + ' masih membalas, tunggu sebentar'); return; }
   if (S) return; // ketukan ganda saat menunggu antrean
   const c = ch;
-  S = { chId: c.id, c, state: 'connecting', fin: '', cur: { f: '', i: '' }, last: 0, rec: null, muted: false, ended: false, el, ac: ac0, hint: opt.hint(), sub: opt.sub(), subMe: opt.subMe(), turns: 0, fast: 0, t0: Date.now(), stopAudio: null, stopTts: null, tick: 0 };
+  S = { chId: c.id, c, state: 'connecting', fin: '', cur: { f: '', i: '' }, last: 0, rec: null, muted: false, ended: false, el, ac: ac0, hint: opt.hint(), sub: opt.sub(), subMe: opt.subMe(), turns: 0, fast: 0, gen: 0, t0: Date.now(), stopAudio: null, stopTts: null, tick: 0 };
   const u = build();
   u.name.textContent = typeof dispName === 'function' ? dispName(c) : c.name;
   u.av.textContent = ''; u.av.append(img(c, 'cl-av'));
@@ -272,7 +292,7 @@ function onTick() {
   if (s.state === 'connecting') { ui.time.textContent = '0:00'; gest(''); return; }
   ui.time.textContent = clock((Date.now() - s.t0) / 1000);
   if (s.state === 'listening') s.busySince = 0; else if (!s.busySince) s.busySince = Date.now();
-  if (s.busySince && Date.now() - s.busySince > 90000) { s.busySince = 0; s.state = 'listening'; s.last = 0; try { s.stopAudio && s.stopAudio(); s.stopTts && s.stopTts(); } catch {} note('Respons terlalu lama, giliranmu lagi'); paint(); listen(); return; } // jaring pengaman
+  if (s.busySince && Date.now() - s.busySince > 120000) { s.busySince = 0; s.gen++; s.state = 'listening'; s.last = 0; try { s.stopAudio && s.stopAudio(); s.stopTts && s.stopTts(); } catch {} note('Respons terlalu lama, giliranmu lagi'); paint(); listen(); return; } // jaring pengaman
   if (s.state !== 'listening' || s.muted) { ui.bar.style.width = '0%'; gest(''); return; }
   const txt = full();
   if (txt.length < CFG.MIN_CHARS || !s.last) { ui.bar.style.width = '0%'; gest(''); return; }
@@ -289,13 +309,15 @@ function onTick() {
 /* ---------- Satu giliran: kirim ke AI, lalu AI bicara ---------- */
 async function turn(raw, greet) {
   const s = S; if (!s || (!greet && s.state !== 'listening')) return;
-  try { await turn1(s, raw, !!greet); }
+  const gen = s.gen; // giliran ini "basi" kalau jaring pengaman sudah menaikkan gen: tidak boleh menyentuh state telepon lagi
+  try { await turn1(s, raw, !!greet, gen); }
   catch (e) { // apa pun yang meledak: kembalikan giliran ke user, jangan biarkan telepon menggantung
     console.warn('[call]', e);
-    if (S === s) { note('Ada kendala: ' + (e && e.message || e)); s.state = 'listening'; s.last = 0; paint(); listen(); } else if (!S) release();
+    if (S === s && s.gen === gen) { note('Ada kendala: ' + (e && e.message || e)); s.state = 'listening'; s.last = 0; paint(); listen(); } else if (!S) release();
   }
 }
-async function turn1(s, raw, greet) { // greet: karakter mengangkat telepon dan menyapa duluan (tanpa pesan user)
+async function turn1(s, raw, greet, gen) {
+  const alive = () => S === s && !s.ended && s.gen === gen; // greet: karakter mengangkat telepon dan menyapa duluan (tanpa pesan user)
   const chId = s.chId, text = raw.trim().charAt(0).toUpperCase() + raw.trim().slice(1);
   const say = text.slice(0, CFG.MAX_SAY);
   if (!greet) s.state = 'thinking'; s.turns++; // sapaan: status tetap "berdering" sampai diangkat
@@ -307,35 +329,35 @@ async function turn1(s, raw, greet) { // greet: karakter mengangkat telepon dan 
   const useVoice = voiceOn && !!vcode && canVoice(chId), lang = voiceLang;
   let r = null, relNote = '';
   try {
-    r = await (await post('/api/chat', {
+    r = await callPost('/api/chat', {
       clientId: cid, char: chId, message: greet ? GREET : (CFG.HINT ? HINT + '\n' : '') + say, userName: uname, history: loadHist(chId),
       voice: { on: useVoice, lang }, memory: memUse(chId).list, rel: relPayload(chId), qr: true, ...engPayload(), ...(rpOn() ? { rp: true } : {})
-    })).json();
+    }, null, CFG.CHAT_MS, 'json');
     saveHist(chId, [...loadHist(chId), ['user', greet ? '(menelepon dan telepon diangkat)' : say], ['char', r.id]]); // riwayat memakai teks asli user, tanpa petunjuk telepon
     relNote = relApply(chId, r.dExp != null ? r.dExp : (Math.round(Number(r.dRel)) || 0) * 3, r.dMood);
   } catch (e) {
     r = null;
-    if (S === s) note(e.message || 'Gagal terhubung'); else toast(e.message || 'Gagal terhubung');
+    if (alive()) note(e.message || 'Gagal terhubung'); else toast(e.message || 'Gagal terhubung');
   }
   if (r) {
-    if (S === s && !s.ended) {
+    if (alive()) {
       if (greet && s.ringP) await s.ringP; // karakter baru "mengangkat" setelah nada dering selesai
-      if (S !== s || s.ended) { showThemSafe(chId, r.id); } else {
-      s.state = 'speaking'; paint();
-      try { await speak(s, chId, r, useVoice, lang); } catch (e) { note(e.message || 'Suara gagal'); }
+      if (!alive()) { showThemSafe(chId, r.id); } else {
+        s.state = 'thinking'; paint(); // tetap "mikir" (tiga titik) selama suara disiapkan; baru jadi "bicara" saat audio benar-benar mulai
+        try { await speak(s, chId, r, useVoice, lang, alive); } catch (e) { note(e.message || 'Suara gagal'); }
       }
     } else {
       showThemSafe(chId, r.id); // telepon sudah ditutup saat menunggu: balasan tetap masuk obrolan sebagai teks
     }
     if (typeof maybeMemorize === 'function') maybeMemorize(chId);
     if (Array.isArray(r.nq)) r.nq.forEach((tt, i) => setTimeout(() => (S ? note(tt) : toast(tt)), 600 + i * 2300));
-    if (relNote) { if (S === s) note(relNote); else toast(relNote); }
+    if (relNote) { if (alive()) note(relNote); else toast(relNote); }
   }
   if (greet && s.ringP) await s.ringP; // sapaan gagal: tetap tunggu dering selesai sebelum giliran user
-  if (S !== s) { if (!S) release(); return; } // telepon sudah diakhiri (kalau sudah ada telepon baru, busy miliknya, jangan dilepas)
+  if (!alive()) { if (!S) release(); return; } // telepon sudah diakhiri (kalau sudah ada telepon baru, busy miliknya, jangan dilepas) / giliran ini basi
   s.state = 'speaking'; paint();
   await new Promise(res => setTimeout(res, CFG.RESUME_MS));
-  if (S !== s) return;
+  if (!alive()) return;
   s.state = 'listening'; s.last = 0; ui.cap.classList.remove('talk'); paint(); listen(); // giliran kembali ke user
 }
 
@@ -348,14 +370,46 @@ function pulse(a, bins) { // avatar berdenyut mengikuti kenyaringan suara karakt
   raf = requestAnimationFrame(f);
   return () => { on = false; cancelAnimationFrame(raf); ui.av.style.setProperty('--lv', 0); };
 }
-function playUrl(s, url, bins) {
+/* Memutar satu potong suara. Mengembalikan true kalau terputar (atau dihentikan sengaja), false kalau benar-benar gagal bunyi.
+   Jalur utama: elemen <audio> yang sudah "dibuka" saat ketukan tombol telepon. Pengaman supaya tidak diam selamanya:
+   - play() ditolak / elemen error / posisi putar tidak maju STALL_MS -> pindah ke WebAudio (AudioContext yang juga dibuka saat ketukan)
+   - batas waktu keras (durasi + 6 dtk): kalau onended tidak pernah datang, giliran tetap lanjut */
+function playUrl(s, pre, ab) {
   return new Promise(res => {
-    const a = s.el; let done = false; const stopP = pulse(a, bins);
-    const fin = () => { if (done) return; done = true; stopP(); s.stopAudio = null; a.onended = a.onerror = null; res(); };
-    s.stopAudio = () => { try { a.pause(); } catch {} fin(); };
-    a.onended = fin; a.onerror = fin;
-    a.src = url; const p = a.play(); if (p && p.catch) p.catch(fin);
+    const a = s.el; let done = false, wd = 0, src = null, wa = false;
+    const stopP = pulse(a, pre.bins);
+    const fin = ok => { if (done) return; done = true; clearInterval(wd); stopP(); s.stopAudio = null; a.onended = a.onerror = null; try { src && src.stop(); } catch {} res(ok); };
+    s.stopAudio = () => { try { a.pause(); } catch {} fin(true); };
+    const fallback = () => {
+      if (done || wa) return; wa = true;
+      try { a.pause(); } catch {}
+      const ac = s.ac; if (!ac || !ab) return fin(false);
+      try { if (ac.state === 'suspended') ac.resume(); } catch {}
+      ac.decodeAudioData(ab.slice(0)).then(buf => {
+        if (done) return;
+        src = ac.createBufferSource(); src.buffer = buf; src.connect(ac.destination); src.onended = () => fin(true); src.start();
+      }).catch(() => fin(false));
+    };
+    a.onended = () => fin(true); a.onerror = fallback;
+    const t0 = Date.now(), maxMs = (pre.dur || 60) * 1000 + 6000; let lastT = -1, stuck = 0;
+    wd = setInterval(() => {
+      if (done) return;
+      if (Date.now() - t0 > maxMs) return fin(true);
+      if (wa) return;
+      if (a.ended) return fin(true);
+      if (a.currentTime > lastT + 0.01) { lastT = a.currentTime; stuck = 0; }
+      else if (++stuck * 500 >= CFG.STALL_MS) { if (lastT < 0.3) fallback(); else fin(true); } // belum pernah jalan -> coba WebAudio; macet di tengah -> lanjut saja
+    }, 500);
+    a.src = pre.url; const p = a.play(); if (p && p.catch) p.catch(fallback);
   });
+}
+async function ttsBuf(chId, p) { // satu potong suara dari server; galat jaringan/server dicoba sekali lagi
+  let err;
+  for (let k = 0; k < 2; k++) {
+    try { return await callPost('/api/tts', { char: chId, text: p.vn, voice: voiceKeyOf(chId) }, { 'x-voice-code': vcode }, CFG.TTS_MS, 'buf'); }
+    catch (e) { err = e; if (!retryable(e)) break; }
+  }
+  throw err;
 }
 function speakSynth(s, text) { // tanpa voice AI: dibacakan suara bawaan browser
   return new Promise(res => {
@@ -369,35 +423,45 @@ function speakSynth(s, text) { // tanpa voice AI: dibacakan suara bawaan browser
     try { synth.cancel(); synth.speak(u); } catch { fin(); }
   });
 }
-async function speak(s, chId, r, useVoice, lang) {
+async function speak(s, chId, r, useVoice, lang, alive) {
   const cap = t => { if (S === s) { ui.cap.textContent = plain(t); ui.cap.classList.add('talk'); } };
+  const talk = () => { if (alive()) { s.state = 'speaking'; s.busySince = Date.now(); paint(); } }; // status jadi "bicara" hanya saat suara benar-benar mulai
   if (!useVoice) {
-    showThemSafe(chId, r.id); cap(r.id);
+    talk(); showThemSafe(chId, r.id); cap(r.id);
     await speakSynth(s, plain(r.id));
     return;
   }
   const parts = (r.parts && r.parts.length > 1) ? r.parts : [{ id: r.id, jp: r.jpText, vn: r.vn }];
-  let i = 0;
+  let i = 0, next = ttsBuf(chId, parts[0]); next.catch(() => {});
   try {
     for (; i < parts.length; i++) {
-      if (S !== s || s.ended) break;
+      if (!alive()) break;
       const p = parts[i];
-      const ab = await (await post('/api/tts', { char: chId, text: p.vn, voice: voiceKeyOf(chId) }, { 'x-voice-code': vcode })).arrayBuffer();
+      const ab = await next;
+      next = i + 1 < parts.length ? ttsBuf(chId, parts[i + 1]) : null; if (next) next.catch(() => {}); // potong berikutnya dibuat SELAGI potong ini diputar: tidak ada jeda diam di antaranya
       const pre = await decode(ab); urls.push(pre.url);
       const tNow = Date.now(), k = newKey(), here = stillHere(chId);
       if (here) addVN({ id: p.id, jp: p.jp, lang, vn: p.vn }, [pre], tNow); // voice note yang sama seperti chat biasa, bisa diputar ulang nanti
-      const saved = await idb.put(k, { ab, dur: pre.dur, bins: pre.bins });
-      if (saved) pre.k = k;
-      record(chId, { t: tNow, r: 'vn', x: p.id, jp: p.jp, lang, vn: p.vn, ...(saved ? { ks: [k], si: 0 } : {}) });
-      if (S === s && !s.ended) { cap(p.id); await playUrl(s, pre.url, pre.bins); }
-      if (S === s && i < parts.length - 1) await sleep(250);
+      // menyimpan audio (IndexedDB) jalan BERSAMAAN dengan pemutaran dan punya batas waktu: dulu diputar baru setelah tersimpan, jadi kalau IndexedDB macet voice note sudah muncul di chat tapi tidak pernah bunyi
+      const persist = (async () => {
+        const put = idb.put(k, { ab, dur: pre.dur, bins: pre.bins });
+        const saved = await Promise.race([put, sleep(CFG.IDB_MS).then(() => 'timeout')]);
+        if (saved === 'timeout') put.then(() => idb.del(k)).catch(() => {}); // telat selesai: buang supaya tidak jadi sampah, voice note tetap tercatat tanpa audio tersimpan
+        else if (saved) pre.k = k;
+        record(chId, { t: tNow, r: 'vn', x: p.id, jp: p.jp, lang, vn: p.vn, ...(saved && saved !== 'timeout' ? { ks: [k], si: 0 } : {}) });
+      })().catch(e => console.warn('[call] simpan voice note', e));
+      let ok = true;
+      if (alive()) { cap(p.id); talk(); ok = await playUrl(s, pre, ab); }
+      await persist;
+      if (!ok && alive()) { note('Suara tidak bisa diputar, voice note ada di chat'); await sleep(Math.min(6000, 1200 + plain(p.id).length * 55)); } // teks tetap terlihat cukup lama untuk dibaca
+      if (alive() && i < parts.length - 1) await sleep(250);
     }
     i = parts.length;
   } catch (e) {
     if (e.status === 403) { vcode = ''; voiceOn = false; store.set('vcode', null); store.set('von', '0'); paintVoice(); note('Kode voice tidak valid, voice dimatikan'); }
-    else note(e.message || 'Suara gagal dibuat');
+    else note(e.timeout ? 'Internet lambat, suara tidak sampai. Dibacakan suara browser' : (e.message || 'Suara gagal dibuat'));
     for (let j = i; j < parts.length; j++) { showThemSafe(chId, parts[j].id); if (j === i) cap(parts[j].id); } // suara gagal: teksnya tetap tampil dan masuk obrolan
-    if (S === s) await speakSynth(s, plain(parts[i] && parts[i].id));
+    if (alive()) { talk(); await speakSynth(s, plain(parts[i] && parts[i].id)); }
     return;
   }
   for (let j = i; j < parts.length; j++) showThemSafe(chId, parts[j].id); // telepon ditutup di tengah: sisa balasan masuk obrolan sebagai teks
