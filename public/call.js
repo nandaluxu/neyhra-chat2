@@ -39,8 +39,8 @@ const unlocked = () => store.get('callu') === '1';
 /* Pengaturan telepon (localStorage perangkat ini; diatur di Pengaturan > Telepon) */
 const opt = {
   hint: () => store.get('callhint') === '1',        // default MATI: status (mendengarkan/mikir/bicara) + hitung mundur pengiriman
-  sub: () => store.get('callsub') === '1',          // default MATI: subtitle balasan karakter (teks yang dia ucapkan)
-  subMe: () => store.get('callsubme') === '1',      // default MATI: subtitle ucapanmu sendiri (teks yang ditangkap mic, langsung terlihat)
+  sub: () => store.get('callsub') !== '0',          // default NYALA: subtitle balasan karakter (teks yang dia ucapkan)
+  subMe: () => store.get('callsubme') !== '0',      // default NYALA: subtitle ucapanmu sendiri (teks yang ditangkap mic, langsung terlihat)
   ring: () => store.get('callring') !== '0',        // default nyala: nada dering + nada tutup
   greet: () => store.get('callgreet') !== '0',      // default nyala: karakter mengangkat dan menyapa duluan
   sil: () => { const v = +store.get('callsil'); return [2000, 3000, 4000, 5000].includes(v) ? v : CFG.SILENCE_MS; }
@@ -82,16 +82,16 @@ function buildSettings() {
   const g = document.createElement('div'); g.className = 'sgroup hide'; g.id = 'scallg';
   const sw = (id, t, d) => '<label class="srow"><span><b>' + t + '</b><i>' + d + '</i></span><input type="checkbox" id="' + id + '" class="sw"></label>';
   g.innerHTML = '<h3>Telepon</h3>' +
-    sw('scallsub', 'Subtitle karakter', 'Teks yang diucapkan karakter tampil di layar telepon selagi dia bicara. Default mati.') +
-    sw('scallsubme', 'Subtitle kamu', 'Teks ucapanmu yang ditangkap mic tampil langsung di layar, jadi kamu bisa cek apakah suaramu terdengar benar. Default mati.') +
-    sw('scallhint', 'Petunjuk lainnya', 'Status (mendengarkan, mikir, bicara) dan hitung mundur pengiriman. Terpisah dari subtitle. Kalau semuanya mati, layar telepon bersih seperti telepon biasa. Default mati.') +
+    sw('scallsub', 'Subtitle karakter', 'Teks yang diucapkan karakter tampil di layar telepon selagi dia bicara. Default nyala.') +
+    sw('scallsubme', 'Subtitle kamu', 'Teks ucapanmu yang ditangkap mic tampil langsung di layar, jadi kamu bisa cek apakah suaramu terdengar benar. Default nyala.') +
+    sw('scallhint', 'Petunjuk lainnya', 'Status (mendengarkan, mikir, bicara) dan hitung mundur pengiriman. Terpisah dari subtitle. Kalau subtitle dan petunjuk ini mati semua, layar telepon bersih seperti telepon biasa. Default mati.') +
     sw('scallring', 'Nada dering & efek suara', 'Telepon berdering sebelum diangkat, dan ada nada saat ditutup. Default nyala.') +
     sw('scallgreet', 'Karakter menyapa duluan', 'Setelah berdering, karakter mengangkat dan menyapa lebih dulu. Kalau mati, kamu yang bicara pertama. Default nyala.') +
     '<div class="srow" style="display:block;cursor:default"><span><b>Jeda diam sebelum terkirim</b><i>Setelah kamu berhenti bicara selama ini, ucapanmu dikirim ke karakter.</i></span><div class="seg x4" id="scallsil"><button type="button" data-v="2000">2 dtk</button><button type="button" data-v="3000">3 dtk</button><button type="button" data-v="4000">4 dtk</button><button type="button" data-v="5000">5 dtk</button></div></div>';
   after.parentNode.insertBefore(g, after.nextSibling);
   $('scallhint').onchange = () => store.set('callhint', $('scallhint').checked ? '1' : null);
-  $('scallsub').onchange = () => store.set('callsub', $('scallsub').checked ? '1' : null);
-  $('scallsubme').onchange = () => store.set('callsubme', $('scallsubme').checked ? '1' : null);
+  $('scallsub').onchange = () => store.set('callsub', $('scallsub').checked ? null : '0');
+  $('scallsubme').onchange = () => store.set('callsubme', $('scallsubme').checked ? null : '0');
   $('scallring').onchange = () => store.set('callring', $('scallring').checked ? null : '0');
   $('scallgreet').onchange = () => store.set('callgreet', $('scallgreet').checked ? null : '0');
   $('scallsil').onclick = e => { const b = e.target.closest('button'); if (!b) return; store.set('callsil', b.dataset.v === String(CFG.SILENCE_MS) ? null : b.dataset.v); paintSettings(); };
