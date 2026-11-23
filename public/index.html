@@ -777,12 +777,14 @@ header .pfp,header .who{cursor:pointer}
   </header>
   <div id="sbar"><input id="sq" type="search" placeholder="Cari di obrolan" autocomplete="off" enterkeyhint="search" aria-label="Cari di obrolan"><span id="scnt"></span><button id="sprev" type="button" aria-label="Hasil sebelumnya" disabled><svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button><button id="snext" type="button" aria-label="Hasil berikutnya" disabled><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button><button id="sclose" type="button" aria-label="Tutup pencarian"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
   <main id="chat"></main>
-  <footer>
+  <footer class="vn-mode">
     <div id="qrrow" class="hide" role="listbox" aria-label="Saran balasan cepat"></div>
     <button id="starbtn" type="button" title="Aksi / narasi: sisipkan *…* (atau bungkus teks yang diblok)" aria-label="Sisipkan tanda bintang untuk aksi atau narasi"><svg viewBox="0 0 24 24"><path d="M12 5v14M5.2 8.5l13.6 7M18.8 8.5l-13.6 7"/></svg></button>
     <textarea id="inp" rows="1" placeholder="Ketik pesan" enterkeyhint="enter" autocapitalize="sentences"></textarea>
     <button id="plusbtn" type="button" class="hide" title="Tambah" aria-label="Menu tambahan: inventory dan skenario skrip" aria-haspopup="menu" aria-expanded="false"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
     <button id="scnbtn" type="button" class="hide" title="Skenario Skrip" aria-label="Skenario Skrip"><svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="10.5" rx="1.6"/><path d="M4.8 10L4 6.3a1.6 1.6 0 011.2-1.9l12.3-2.9a1.6 1.6 0 011.9 1.2l.8 3.6"/><path d="M8.6 8.9L7.4 5.4M12.7 8l-1.2-3.5M16.8 7l-1.2-3.5"/></svg></button>
+    <div id="vnrec" aria-live="polite"><i class="dot"></i><span id="vntimer">0:00</span><span id="vnlive">Bicara…</span><em id="vnhint">‹ geser untuk batal</em></div>
+    <button id="vnbtn" type="button" title="Tahan untuk bicara (voice note)" aria-label="Tahan untuk merekam voice note, lepas untuk mengirim"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg></button>
     <button id="send" title="Kirim" disabled><svg viewBox="0 0 24 24"><path d="M4 12h16M14 6l6 6-6 6"/></svg></button>
     <button id="down" type="button" title="Ke pesan terbaru" aria-label="Ke pesan terbaru"><svg viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></svg></button>
     <div id="toast"></div>
@@ -1045,6 +1047,39 @@ function addText(text,t){
   chat.appendChild(row); scroll();
 }
 
+/* Voice note milik user: bubble mirip voice note AI (tombol play, gelombang, durasi, subtitle di bawahnya).
+   Kalau audio ikut terekam (MediaRecorder, disimpan di IndexedDB) tombol play memutar suaramu; kalau tidak ada (perangkat tidak bisa rekam bersamaan,
+   atau obrolan dari sinkron akun) "putar" = animasi gelombang + subtitle muncul kata demi kata. */
+function addMeVN(text,vn,t){
+  t=t||Date.now(); ensureDay(t);
+  const dur=Math.max(1,Number(vn&&vn.dur)||2), n=Math.min(30,Math.max(20,Math.round(dur*4)));
+  const hs=(vn&&Array.isArray(vn.bins)&&vn.bins.length)?reduce(vn.bins,n):Array.from({length:n},(_,i)=>.2+Math.abs(Math.sin(i*1.9+text.length))*.7);
+  const row=document.createElement('div'); row.className='row me'+(restoring?' rs':''); row.dataset.t=t; row.dataset.q=text;
+  row.innerHTML=`<div class="vcol"><div class="bub"><div class="vn"><button type="button" class="play" aria-label="Putar voice note">${PLAY}</button><div class="wave">${hs.map((h,i)=>`<i style="height:${(h*100).toFixed(1)}%;--k:${i}"></i>`).join('')}</div><span class="dur">${fmt(dur)}</span></div><div class="vfoot"><div class="ts">${now(t)}</div></div></div><div class="bub sbub"><div class="sub"><b>SUBTITLE</b><span></span></div></div></div>`;
+  chat.appendChild(row); scroll();
+  const btn=row.querySelector('.play'), wave=row.querySelector('.wave'), d=row.querySelector('.dur'), sub=row.querySelector('.sub'), sp=sub.querySelector('span'), bs=[...wave.children];
+  let raf=0, t0=0, usingAudio=false; const audio=vn&&vn.url?new Audio(vn.url):null; if(audio) audio.preload='auto';
+  const paint=p=>bs.forEach((b,i)=>b.style.setProperty('--f',Math.round(Math.min(1,Math.max(0,p*bs.length-i))*100)+'%'));
+  const fill=()=>{ sp.textContent=''; text.split(/\s+/).filter(Boolean).forEach((w,k)=>{ const s=document.createElement('span'); s.className='w'; s.style.setProperty('--d',k*45+'ms'); s.textContent=w; sp.append(s,' '); }); };
+  const stopP=reset=>{ cancelAnimationFrame(raf); raf=0; if(audio){ audio.pause(); try{ audio.currentTime=0; }catch{} } usingAudio=false; btn.innerHTML=PLAY; btn.classList.remove('on'); sub.classList.add('idle'); if(reset){ paint(0); d.textContent=fmt(dur); } if(current===api) current=null; };
+  const api={stop:()=>stopP(true),save(){}};
+  const go=()=>{ const s=usingAudio?audio.currentTime:(performance.now()-t0)/1000; paint(Math.min(1,s/dur)); d.textContent=fmt(Math.min(s,dur)); if(!usingAudio&&s>=dur){ stopP(true); return; } raf=requestAnimationFrame(go); };
+  const play=()=>{
+    if(current===api){ stopP(true); return; }
+    if(current) current.stop();
+    if(openSub&&openSub!==sub) openSub.classList.remove('show');
+    openSub=sub; sub.classList.remove('idle');
+    if(!sub.classList.contains('show')) fill();
+    sub.classList.add('show');
+    current=api; btn.innerHTML=PAUSE; btn.classList.add('on'); t0=performance.now(); usingAudio=!!audio; raf=requestAnimationFrame(go);
+    if(audio){ audio.onended=()=>stopP(true); const pr=audio.play(); if(pr&&pr.catch) pr.catch(()=>{ usingAudio=false; t0=performance.now(); }); } /* audio gagal diputar -> animasi saja */
+    setTimeout(()=>row.scrollIntoView({block:'nearest',behavior:'smooth'}),340);
+  };
+  btn.onclick=play;
+  if(!restoring) requestAnimationFrame(play); /* baru dikirim: langsung "terputar" dan subtitle-nya muncul, seperti voice note AI */
+  return row;
+}
+
 let openSub=null; /* subtitle voice note yang lagi kebuka; ditutup waktu voice note lain diputar */
 /* takes = daftar versi voice note ([{url,dur,bins,k}]); versi pertama = aslinya, sisanya hasil kirim ulang */
 /* g (opsional, dipakai chat grup): {owner,gid,name,char,hue,onStop(ended),persist(ks,si)} -> bubble dengan avatar + nama pengirim */
@@ -1293,8 +1328,8 @@ async function restoreChat(id,tok){
   try{
     l.forEach((e,i)=>{
       const ks=keysOf(e), takes=[];
-      ks.forEach((k,j)=>{ const a=recs[i][j]; if(a&&a.ab){ const u=URL.createObjectURL(new Blob([a.ab],{type:'audio/mpeg'})); urls.push(u); takes.push({url:u,dur:a.dur,bins:a.bins,k}); } });
-      if(e.r==='me'){ if(e.img&&window.VISION) VISION.render(e); else addText(e.x,e.t); } /* Vision: pesan gambar (public/vision.js); biasa -> teks saja */
+      ks.forEach((k,j)=>{ const a=recs[i][j]; if(a&&a.ab){ const u=URL.createObjectURL(new Blob([a.ab],{type:a.mime||'audio/mpeg'})); urls.push(u); takes.push({url:u,dur:a.dur,bins:a.bins,k}); } });
+      if(e.r==='me'){ if(e.img&&window.VISION) VISION.render(e); else if(e.vo) addMeVN(e.x,{dur:e.vo.d,bins:e.vo.b,url:takes[0]&&takes[0].url},e.t); else addText(e.x,e.t); } /* Vision: pesan gambar (public/vision.js); biasa -> teks saja */
       else if(e.r==='scene'&&e.u){ if(window.SCENE&&SCENE.render) SCENE.render(e); else addThem('[ilustrasi adegan]',e.t); } /* Scene Capture: lampiran gambar (public/scene.js); fallback teks kalau filenya gagal dimuat */
       else if(e.r==='vn'&&takes.length){ const si=Math.max(0,takes.findIndex(x=>x.k===ks[e.si||0])); addVN({id:e.x,jp:e.jp,lang:e.lang,vn:e.vn,si},takes,e.t); }
       else if(e.r==='vn'&&e.vn) addThemNoAudio(id,e); /* audio nggak ada di perangkat ini (mis. dari sinkron akun) -> teks + tombol buat bikin voice note */
@@ -1446,19 +1481,20 @@ async function pendFlush(keepBusy){ /* keepBusy=true: dipanggil dari jalur hadia
 }
 
 async function submit(opt){
+  const vo=opt&&opt.vn?opt.vn:null; /* voice note milik user (tahan tombol mic): teks hasil Web Speech jadi pesan, input chat tidak disentuh */
   const gf=opt&&opt.gift?opt:null; /* kiriman hadiah dari shop.js: teks bubble sudah jadi, input chat tidak disentuh */
-  if(!gf&&window.GX&&GX.cur) return GX.submit(); /* layar grup: mesin giliran ada di group.js */
-  if(!gf&&window.SHOP&&SHOP.has()) return SHOP.send(inp.value.trim()); /* ada hadiah di kotak ketik: kirim hadiah + ketikan user sekaligus (shop.js) */
-  if(!gf&&window.SCENE&&SCENE.has()) return SCENE.send(inp.value.trim()); /* ada lampiran Scene Capture (scene.js): ketikan (boleh kosong) jadi prompt ilustrasi, bukan pesan chat */
-  const vf=!gf&&window.VISION?VISION.take():null; /* ada lampiran gambar (vision.js): diambil SETELAH intercept lain supaya tidak bertumpuk; caption boleh kosong (gambar saja) */
-  const text=gf?gf.text:(vf?vf.text:inp.value.trim());
+  if(!gf&&!vo&&window.GX&&GX.cur) return GX.submit(); /* layar grup: mesin giliran ada di group.js */
+  if(!gf&&!vo&&window.SHOP&&SHOP.has()) return SHOP.send(inp.value.trim()); /* ada hadiah di kotak ketik: kirim hadiah + ketikan user sekaligus (shop.js) */
+  if(!gf&&!vo&&window.SCENE&&SCENE.has()) return SCENE.send(inp.value.trim()); /* ada lampiran Scene Capture (scene.js): ketikan (boleh kosong) jadi prompt ilustrasi, bukan pesan chat */
+  const vf=!gf&&!vo&&window.VISION?VISION.take():null; /* ada lampiran gambar (vision.js): diambil SETELAH intercept lain supaya tidak bertumpuk; caption boleh kosong (gambar saja) */
+  const text=gf?gf.text:vo?vo.text:(vf?vf.text:inp.value.trim());
   /* pesan rahasia ke Reze: dicegat di sini, TIDAK dikirim ke server (tanpa ChatGPT, tanpa Fish Audio) dan pesannya dibuang: tidak jadi bubble, tidak dicatat */
   if(!gf&&text&&ch&&ch.id==='reze'&&(tryDev(text)||tryMedia(text)||tryChess(text))){ inp.value=''; grow(); refresh(); clearTimeout(draftT); store.set('draft:'+ch.id,null); return; } /* kode rahasia (mode dev / fitur gambar): dicegat di browser, tidak dikirim dan tidak dicatat */
   if(!gf&&text&&ch&&window.GX&&GX.trySecret(text)){ inp.value=''; grow(); refresh(); clearTimeout(draftT); store.set('draft:'+ch.id,null); return; }
   if(busy||(!text&&!gf&&!vf)||!ch||!ready||selOn){ inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake'); if(vf)VISION.untake(vf); return; }
-  busy=true; hideGoon(); if(!gf){ inp.value=''; grow(); } refresh(); qrPaint(); /* pesan terkirim: usulan balasan lama hangus (yang baru datang bersama balasan AI) */
-  if(!vf) addText(text); /* pesan gambar: bubble-nya menunggu deskripsi berhasil supaya bisa dibatalkan bersih */
-  const chId=ch.id; if(!vf) record(chId,{r:'me',x:text}); if(!gf){ clearTimeout(draftT); store.set('draft:'+chId,null); }
+  busy=true; hideGoon(); if(!gf&&!vo){ inp.value=''; grow(); } refresh(); qrPaint(); /* pesan terkirim: usulan balasan lama hangus (yang baru datang bersama balasan AI) */
+  if(!vf){ if(vo) addMeVN(text,vo); else addText(text); } /* pesan gambar: bubble-nya menunggu deskripsi berhasil supaya bisa dibatalkan bersih */
+  const chId=ch.id; if(!vf) record(chId,{r:'me',x:text,...(vo?{vo:{d:Math.round(vo.dur*10)/10,b:vo.bins},...(vo.k?{ks:[vo.k]}:{})}:{})}); if(!gf&&!vo){ clearTimeout(draftT); store.set('draft:'+chId,null); }
   /* Jeda cerdas (cuma teks biasa, tanpa hadiah/gambar/skenario aktif): pesan masuk antrean — AI menjawab
      semua antrean SEKALI setelah user diam 10 detik. Skenario Skrip tidak diantrekan: gilirannya diatur sutradaranya. */
   const scnOn=()=>{ try{ return !!(window.SCN&&SCN.body(chId).scenario) }catch{ return false } };
@@ -1505,7 +1541,7 @@ async function submit(opt){
   placeGoon();
 }
 
-function refresh(){ sendB.disabled=busy||(!inp.value.trim()&&!(window.SHOP&&SHOP.has())&&!(window.SCENE&&SCENE.has())&&!(window.VISION&&VISION.has())); qrVis(); } /* ada lampiran hadiah/shop.js, ilustrasi/scene.js, atau gambar/vision.js = boleh kirim walau teks kosong; qrVis: chip saran balasan cuma tampil selama kolom ketik kosong */
+function refresh(){ { const can=!!inp.value.trim()||(window.SHOP&&SHOP.has())||(window.SCENE&&SCENE.has())||(window.VISION&&VISION.has())||(window.GX&&GX.cur); sendB.parentNode.classList.toggle('vn-mode',!can); } sendB.disabled=busy||(!inp.value.trim()&&!(window.SHOP&&SHOP.has())&&!(window.SCENE&&SCENE.has())&&!(window.VISION&&VISION.has())); qrVis(); } /* ada lampiran hadiah/shop.js, ilustrasi/scene.js, atau gambar/vision.js = boleh kirim walau teks kosong; qrVis: chip saran balasan cuma tampil selama kolom ketik kosong */
 /* kolom ketik membesar sesuai isi (maks ±5 baris) */
 /* Saat layar chat tersembunyi (display:none, mis. tab Beranda di desktop) scrollHeight = 0; jangan dikunci jadi 0px, kembalikan ke tinggi CSS (44px) */
 function grow(){ inp.style.height='auto'; const h=inp.scrollHeight; inp.style.height=h?Math.min(Math.max(h,44),136)+'px':''; }
@@ -1528,7 +1564,104 @@ inp.addEventListener('input',()=>{ refresh(); grow(); if(pendT) pendArm(); });
     inp.dispatchEvent(new Event('input',{bubbles:true})); /* refresh tombol kirim, tinggi kolom, draft */
   });
 } }
- /* masih ada antrean = user masih mengetik: tunda jawaban AI lagi */
+/* ===== Tombol mic: TAHAN untuk bicara, LEPAS untuk kirim (geser ke kiri lalu lepas = batal) =====
+   Teks: Web Speech API bawaan browser (gratis; Chrome/Edge/Safari), itu yang dikirim ke AI. Bahasa ucapan id-ID (ganti lewat store 'sttlang').
+   Audio: MediaRecorder merekam suara yang sama untuk diputar ulang (disimpan di IndexedDB seperti voice note AI), gelombangnya dari AnalyserNode.
+   Kalau perangkat tidak bisa memakai mikrofon untuk dua hal sekaligus (sering di Android): audio dimatikan otomatis dan voice note jadi teks + animasi (store 'vnaud'='0'). */
+{ const vb=$('vnbtn'), ft=sendB.parentNode, live=$('vnlive'), tmr=$('vntimer'), SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  let st=null;
+  const join=(a,b)=>((a?a+' ':'')+(b||'')).replace(/\s+/g,' ').trim();
+  const shake=()=>{ vb.classList.remove('shake'); void vb.offsetWidth; vb.classList.add('shake'); };
+  const ui=on=>{ ft.classList.toggle('vn-rec',on); vb.classList.toggle('rec',on); if(!on){ ft.classList.remove('vn-cancel'); live.textContent='Bicara…'; tmr.textContent='0:00'; } };
+  const audOn=()=>store.get('vnaud')!=='0'&&!!navigator.mediaDevices&&!!navigator.mediaDevices.getUserMedia&&!!window.MediaRecorder;
+  const pickMime=()=>{ for(const m of ['audio/webm;codecs=opus','audio/mp4','audio/webm','audio/ogg;codecs=opus']){ try{ if(MediaRecorder.isTypeSupported(m)) return m; }catch{} } return ''; };
+  /* rekam audio paralel; mengembalikan pengendali {level(), stop():Promise<Blob|null>, kill()} atau null kalau tidak bisa */
+  async function media(cur){
+    if(!audOn()) return null;
+    let stream; try{ stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}}); }catch{ return null; }
+    const free=()=>stream.getTracks().forEach(t=>t.stop());
+    if(cur.done||!cur.held){ free(); return null; } /* sudah dilepas sebelum izin mikrofon selesai */
+    try{
+      const mime=pickMime(), rec=new MediaRecorder(stream,mime?{mimeType:mime}:undefined), chunks=[];
+      rec.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data); };
+      let ac,an,buf; try{ ac=new (window.AudioContext||window.webkitAudioContext)(); ac.createMediaStreamSource(stream).connect(an=ac.createAnalyser()); an.fftSize=512; buf=new Uint8Array(an.fftSize); }catch{ an=null; }
+      rec.start(250);
+      const closeAc=()=>{ try{ ac&&ac.close(); }catch{} };
+      return {
+        level(){ if(!an) return null; an.getByteTimeDomainData(buf); let sum=0; for(let i=0;i<buf.length;i++){ const x=(buf[i]-128)/128; sum+=x*x; } return Math.min(1,Math.sqrt(sum/buf.length)*4.5); },
+        stop(){ return new Promise(res=>{ const done=()=>{ free(); closeAc(); res(chunks.length?new Blob(chunks,{type:(rec.mimeType||mime||'audio/webm').split(';')[0]}):null); }; if(rec.state==='inactive') return done(); rec.onstop=done; try{ rec.stop(); }catch{ done(); } }); },
+        kill(){ try{ rec.state!=='inactive'&&rec.stop(); }catch{} free(); closeAc(); }
+      };
+    }catch{ free(); return null; }
+  }
+  function session(){
+    if(!st||st.done) return;
+    const r=new SR(); st.rec=r; st.cur={f:'',i:''}; const born=Date.now();
+    r.lang=store.get('sttlang')||'id-ID'; r.continuous=true; r.interimResults=true; r.maxAlternatives=1;
+    r.onresult=e=>{ let f='',i=''; for(let k=0;k<e.results.length;k++){ const x=e.results[k]; if(x.isFinal) f+=' '+x[0].transcript; else i+=' '+x[0].transcript; } st.cur={f:f.trim(),i:i.trim()}; const all=join(st.fin,join(st.cur.f,st.cur.i)); live.textContent=all?(all.length>46?'…'+all.slice(-44):all):'Bicara…'; };
+    r.onerror=e=>{
+      if(e.error==='audio-capture'&&st.media){ /* mikrofon direbut perekam audio: matikan audio, teks tetap jalan (sesi dimulai ulang di onend) */
+        st.media.kill(); st.media=null; st.noaud=true; store.set('vnaud','0'); toast('Perangkat ini tidak bisa merekam audio dan teks sekaligus, voice note jadi teks saja'); return;
+      }
+      if(e.error==='not-allowed'||e.error==='service-not-allowed'||e.error==='audio-capture'||e.error==='network'||e.error==='language-not-supported') st.fatal=e.error;
+    };
+    r.onend=()=>{
+      st.fin=join(st.fin,join(st.cur.f,st.cur.i)); st.cur={f:'',i:''};
+      const quick=Date.now()-born<350; st.fast=quick?st.fast+1:0;
+      if(st.held&&!st.fatal&&st.fast<3) session(); else finish();
+    };
+    try{ r.start(); }catch{ st.fatal='start'; finish(); }
+  }
+  function begin(e){
+    if(st) return;
+    if(!SR){ toast('Browser ini belum mendukung suara ke teks. Pakai Chrome, Edge, atau Safari terbaru.'); return; }
+    if(busy||!ch||!ready||selOn||(window.GX&&GX.cur)){ shake(); if(window.GX&&GX.cur) toast('Voice note belum tersedia di chat grup'); return; }
+    try{ vb.setPointerCapture(e.pointerId); }catch{}
+    if(current) current.stop(); /* hentikan voice note yang sedang diputar supaya tidak ikut terekam */
+    const cur=st={t0:Date.now(),x0:e.clientX,held:true,done:false,fin:'',cur:{f:'',i:''},bins:[],fast:0,cancel:false,fatal:'',rec:null,media:null,noaud:false,hadAud:false};
+    ui(true); try{ navigator.vibrate&&navigator.vibrate(12); }catch{}
+    cur.tick=setInterval(()=>{ tmr.textContent=fmt((Date.now()-cur.t0)/1000); const lv=cur.media&&cur.media.level(); cur.bins.push(lv!=null?Math.max(.12,lv):Math.min(1,.2+Math.random()*.8)); if(Date.now()-cur.t0>60000) end(false); },160); /* batas 60 detik */
+    media(cur).then(m=>{ if(!m) return; if(cur.done||cur.noaud){ m.kill(); return; } cur.media=m; cur.hadAud=true; if(!cur.held&&!cur.done) { /* dilepas saat izin masih diproses: audio tidak dipakai */ m.kill(); cur.media=null; cur.hadAud=false; } });
+    session();
+  }
+  function end(cancel){
+    if(!st||!st.held) return;
+    st.held=false; st.cancel=!!cancel; clearInterval(st.tick);
+    live.textContent=cancel?'Dibatalkan':'Memproses…';
+    try{ if(cancel) st.rec&&st.rec.abort(); else st.rec&&st.rec.stop(); }catch{}
+    const cur=st; setTimeout(()=>{ if(st===cur) finish(); },cancel?50:2200); /* jaga-jaga kalau onend tidak pernah datang */
+  }
+  async function finish(){
+    const cur=st; if(!cur||cur.done) return; cur.done=true; clearInterval(cur.tick); st=null; ui(false);
+    const m=cur.media; cur.media=null;
+    if(cur.cancel){ if(m) m.kill(); toast('Dibatalkan'); return; }
+    if(cur.fatal){ if(m) m.kill(); toast(cur.fatal==='not-allowed'||cur.fatal==='service-not-allowed'?'Izin mikrofon ditolak. Aktifkan di pengaturan browser.':cur.fatal==='network'?'Pengenalan suara butuh internet.':'Mikrofon tidak bisa dipakai ('+cur.fatal+')'); return; }
+    let text=cur.fin.trim(); const ms=Date.now()-cur.t0;
+    if(!text){
+      if(m) m.kill();
+      if(cur.hadAud&&ms>2500){ const n=(parseInt(store.get('vnfail'))||0)+1; store.set('vnfail',String(n)); if(n>=2){ store.set('vnaud','0'); toast('Teks tidak terdeteksi dua kali. Perekaman audio dimatikan, voice note jadi teks saja.'); return; } }
+      toast(ms<450?'Tahan tombol mic sambil bicara':'Suara tidak terdeteksi, coba lagi'); return;
+    }
+    store.set('vnfail',null);
+    text=text.charAt(0).toUpperCase()+text.slice(1);
+    const b=cur.bins.length?cur.bins:[.4,.7,.5], step=Math.max(1,Math.floor(b.length/30)), bins=[]; for(let i=0;i<b.length&&bins.length<30;i+=step) bins.push(Math.round(b[i]*100)/100);
+    const dur=Math.max(1,ms/1000), vn={text:text.slice(0,2000),dur,bins};
+    if(m){ /* audio asli: simpan di IndexedDB (kunci ikut di log) lalu bubble memutarnya */
+      try{ const blob=await m.stop();
+        if(blob&&blob.size>0&&blob.size<3e6){ const ab=await blob.arrayBuffer(), k=newKey(); if(await idb.put(k,{ab,dur,bins,mime:blob.type})){ vn.k=k; } const u=URL.createObjectURL(blob); urls.push(u); vn.url=u; }
+      }catch{ try{ m.kill(); }catch{} }
+    }
+    submit({vn});
+  }
+  vb.addEventListener('pointerdown',e=>{ if(e.button>0) return; e.preventDefault(); begin(e); });
+  vb.addEventListener('pointermove',e=>{ if(!st||!st.held) return; const c=e.clientX-st.x0<-70; ft.classList.toggle('vn-cancel',c); });
+  vb.addEventListener('pointerup',e=>{ if(st) end(ft.classList.contains('vn-cancel')); });
+  vb.addEventListener('pointercancel',()=>{ if(st) end(true); });
+  vb.addEventListener('contextmenu',e=>e.preventDefault());
+  vb.addEventListener('keydown',e=>{ if((e.key===' '||e.key==='Enter')&&!e.repeat){ e.preventDefault(); begin({pointerId:-1,clientX:0}); } });
+  vb.addEventListener('keyup',e=>{ if((e.key===' '||e.key==='Enter')&&st) end(false); });
+  document.addEventListener('visibilitychange',()=>{ if(document.hidden&&st) end(true); });
+}
 /* HP: Enter = baris baru, kirim lewat tombol (seperti WhatsApp). Desktop: Enter kirim, Shift+Enter baris baru */
 const COARSE=matchMedia('(pointer:coarse)').matches;
 inp.enterKeyHint=COARSE?'enter':'send';

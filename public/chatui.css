@@ -78,3 +78,36 @@
 @media(hover:hover){#chatview #starbtn:hover{color:var(--ink);background:var(--bg)}}
 #chatview #starbtn:active{transform:scale(.9);color:var(--ink)}
 #chatview #starbtn:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+
+/* ---------- Tombol mic (tahan untuk bicara) + strip rekaman ---------- */
+#chatview #vnbtn{width:44px;height:44px;border-radius:50%;flex:none;background:var(--ink);color:var(--bg);touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;box-shadow:0 6px 14px -8px color-mix(in srgb,var(--ink) 75%,transparent);transition:transform .15s,background .15s,box-shadow .2s}
+#chatview #vnbtn svg{width:20px;height:20px;stroke-width:1.9}
+#chatview #vnbtn:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+#chatview #vnbtn.shake{animation:sh .3s}
+#chatview #vnbtn.rec{background:var(--rec);color:#fff;transform:scale(1.14);animation:ringrec 1.1s infinite}
+/* mic tampil saat kolom ketik kosong, tombol kirim saat ada isi (atau lampiran) */
+#chatview footer.vn-mode #send{display:none}
+#chatview footer:not(.vn-mode) #vnbtn{display:none}
+#chatview footer.vn-rec #vnbtn{display:grid}
+/* saat merekam: kolom ketik diganti strip rekaman (ikut alur flex, jadi posisinya selalu pas di antara tombol * dan mic) */
+#chatview #vnrec{display:none;flex:1;min-width:0;height:44px;align-items:center;gap:10px;padding:0 16px;border-radius:23px;background:var(--surface);box-shadow:inset 0 0 0 1px var(--line);overflow:hidden}
+#chatview footer.vn-rec #vnrec{display:flex}
+#chatview footer.vn-rec #inp,#chatview footer.vn-rec #plusbtn,#chatview footer.vn-rec #scnbtn,#chatview footer.vn-rec #qrrow{display:none!important}
+#chatview #vntimer{font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;min-width:30px}
+#chatview #vnlive{flex:1;min-width:0;font-size:13.5px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#chatview #vnhint{flex:none;font-style:normal;font-size:11.5px;color:var(--mut);opacity:.8}
+#chatview footer.vn-cancel #vnhint{opacity:1;color:var(--rec);font-weight:600}
+#chatview footer.vn-cancel #vnhint::after{content:" · lepas untuk batal"}
+#chatview footer.vn-cancel #vnbtn.rec{background:var(--mut)}
+
+/* ---------- Voice note milik user (bubble gelap): warna gelombang/tombol dibalik pakai variabel yang sama ---------- */
+#chatview .row.me .vcol{display:flex;flex-direction:column;align-items:flex-end;gap:4px;min-width:0;max-width:min(88%,980px)}
+#chatview .row.me .vcol>.bub{max-width:100%}
+#chatview .row.me .play{background:var(--me-ink);color:var(--me)}
+#chatview .row.me .wave i{background:linear-gradient(90deg,var(--me-ink) var(--f,0%),color-mix(in srgb,var(--me-ink) 32%,transparent) var(--f,0%))}
+#chatview .row.me .dur{color:var(--me-ink);opacity:.65}
+#chatview .row.me .sub.show{border-top-color:color-mix(in srgb,var(--me-ink) 22%,transparent)}
+#chatview .row.me .vfoot .ts{margin:0 0 0 auto}
+#chatview .row.me .vcol:has(.sub.show)>.bub:first-child{border-bottom-right-radius:8px}
+#chatview .row.me .vcol:has(.sub.show) .sbub{border-top-right-radius:8px;border-bottom-right-radius:6px}
+@media(min-width:800px){#chatview .row.me .vcol{max-width:min(78%,980px)}}
