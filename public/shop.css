@@ -6,24 +6,7 @@
 #shnav{margin-top:16px}
 #shnav button{font-size:13.5px}
 
-/* ---------- Belanja: beranda kategori ---------- */
-.sh-cats{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin-top:18px}
-.sh-cat{display:flex;align-items:center;gap:14px;padding:16px;border-radius:22px;background:var(--surface);text-align:left;transition:transform .15s}
-.sh-cat:active{transform:scale(.97)}
-.sh-cat-ic{display:grid;grid-template-columns:1fr 1fr;gap:4px;flex:none;width:76px;padding:8px;border-radius:16px;background:var(--bg)}
-.sh-cat-ic img{width:100%;height:30px;object-fit:contain}
-.sh-cat-t{flex:1;min-width:0}
-.sh-cat-t b{display:block;font-size:16px;font-weight:600;letter-spacing:-.01em}
-.sh-cat-t small{display:block;margin-top:2px;font-size:12px;line-height:1.35;color:var(--mut)}
-.sh-cat-go{flex:none;width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;color:var(--mut)}
-@media(hover:hover){.sh-cat:hover{transform:translateY(-2px)}}
-
-/* baris info cincin (di bawah kategori kalau user punya cincin) */
-.sh-ringrow{display:flex;align-items:center;gap:12px;margin-top:12px;padding:12px 16px;border-radius:18px;background:var(--surface);font-size:13.5px;width:100%;text-align:left}
-.sh-ringics{display:flex;flex:none}
-.sh-ringics img{width:34px;height:34px;object-fit:contain;margin-left:-10px;filter:drop-shadow(0 2px 6px rgba(0,0,0,.25))}
-.sh-ringics img:first-child{margin-left:0}
-.sh-ringrow .mut{color:var(--mut)}
+/* ---------- Belanja: beranda kategori: lihat blok "Tampilan Swiss glass" di akhir file ---------- */
 
 /* tombol kembali (di dalam kategori / detail barang) */
 .sh-back{display:inline-flex;align-items:center;gap:6px;margin-top:16px;padding:8px 14px 8px 8px;border-radius:99px;background:var(--surface);font-size:13.5px;font-weight:500;color:var(--ink)}
@@ -187,3 +170,95 @@
 .att-x:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 @keyframes attin{from{opacity:0;transform:translateY(6px)}}
 @media(prefers-reduced-motion:reduce){#attbar{animation:none}}
+
+
+/* ===== Tampilan Swiss compact + glass + monokrom (hanya di tab Toko, #shop) =====
+   Prinsip: grid ketat, rata kiri, huruf kecil kapital berjarak untuk label, angka tabular, garis rambut, sudut membulat,
+   kaca buram (backdrop-filter) di atas bayangan abu-abu yang diam. Hanya abu-abu dari variabel tema, jadi otomatis
+   benar di mode terang dan gelap. Ikon barang di beranda dibuat abu-abu dan baru berwarna saat disorot. */
+#shop{
+  --g-bg:color-mix(in srgb,var(--bg) 62%,transparent);
+  --g-bd:color-mix(in srgb,var(--ink) 9%,transparent);
+  --g-hi:color-mix(in srgb,#fff 38%,transparent);
+  background:
+    radial-gradient(380px 300px at 100% -40px,color-mix(in srgb,var(--ink) 13%,transparent),transparent 70%),
+    radial-gradient(340px 340px at -80px 46%,color-mix(in srgb,var(--ink) 9%,transparent),transparent 70%),
+    radial-gradient(300px 260px at 90% 100%,color-mix(in srgb,var(--ink) 8%,transparent),transparent 70%),
+    var(--bg)}
+@media(prefers-color-scheme:dark){#shop{--g-hi:color-mix(in srgb,#fff 9%,transparent)}}
+#shop .bn-in{padding-top:calc(20px + env(safe-area-inset-top,0px));max-width:760px}
+
+/* kepala: judul besar rata kiri, saldo kaca di kanan */
+#shop .bn-top{display:grid;grid-template-columns:1fr auto;align-items:end;gap:6px 12px}
+#shop .bn-top h1{font-size:38px;font-weight:700;letter-spacing:-.05em;line-height:1}
+#shop .bn-sub{margin-top:8px;max-width:34ch;font-size:12.5px;line-height:1.45}
+#shop .bn-wallet{padding:6px 12px;border-radius:14px;background:var(--g-bg);border:1px solid var(--g-bd);box-shadow:inset 0 1px 0 var(--g-hi);
+  -webkit-backdrop-filter:blur(16px) saturate(140%);backdrop-filter:blur(16px) saturate(140%)}
+#shop .bn-wallet .w-n{font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+@media(max-width:430px){#shop .bn-top{grid-template-columns:1fr}#shop .bn-wallet{justify-self:start;margin-top:6px}}
+
+/* navigasi bagian: kontrol segmen kaca */
+#shop #shnav{display:grid;grid-template-columns:repeat(3,1fr);gap:2px;margin-top:18px;padding:3px;border-radius:16px;background:var(--g-bg);border:1px solid var(--g-bd);
+  box-shadow:inset 0 1px 0 var(--g-hi);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px)}
+#shop #shnav button{padding:0;height:34px;border-radius:12px;border:0;background:transparent;font-size:12.5px;font-weight:600;letter-spacing:.01em;color:var(--mut);transition:background .18s,color .18s,transform .12s}
+#shop #shnav button.sel{background:var(--ink);color:var(--bg)}
+@media(hover:hover){#shop #shnav button:not(.sel):hover{color:var(--ink);background:color-mix(in srgb,var(--ink) 7%,transparent)}}
+#shop #shnav button:focus-visible{outline:2px solid var(--ink);outline-offset:1px}
+
+/* strip info: tiga sel dipisah garis rambut, label kecil kapital + angka besar */
+.sh-meta-strip{display:grid;grid-template-columns:repeat(3,1fr);margin-top:14px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.sh-meta-strip span{padding:10px 0 10px 12px;border-left:1px solid var(--line)}
+.sh-meta-strip span:first-child{padding-left:0;border-left:0}
+.sh-meta-strip small{display:block;font-size:10px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--mut)}
+.sh-meta-strip b{display:block;margin-top:2px;font-size:22px;font-weight:600;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+
+/* kategori: kartu pertama selebar 2 kolom, sisanya kotak kompak */
+.sh-cats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:14px}
+@media(min-width:620px){.sh-cats{grid-template-columns:repeat(4,minmax(0,1fr))}.sh-cat.wide{grid-column:span 2}}
+.sh-cat{position:relative;display:flex;flex-direction:column;gap:10px;min-height:168px;padding:12px 12px 14px;border-radius:20px;text-align:left;overflow:hidden;
+  background:linear-gradient(145deg,color-mix(in srgb,var(--bg) 74%,transparent),color-mix(in srgb,var(--surface) 58%,transparent));
+  border:1px solid var(--g-bd);box-shadow:inset 0 1px 0 var(--g-hi),0 10px 24px -16px rgba(0,0,0,.35);
+  -webkit-backdrop-filter:blur(18px) saturate(140%);backdrop-filter:blur(18px) saturate(140%);transition:transform .16s,border-color .16s,box-shadow .16s}
+.sh-cat.wide{grid-column:1 / -1;min-height:150px}
+.sh-cat:active{transform:scale(.975)}
+@media(hover:hover){.sh-cat:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--ink) 22%,transparent)}}
+.sh-cat:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.sh-cat-top{display:flex;align-items:center;justify-content:space-between}
+.sh-cat-no{font-style:normal;font-size:11px;font-weight:600;letter-spacing:.08em;color:var(--mut);font-variant-numeric:tabular-nums}
+.sh-cat-go{width:26px;height:26px;padding:6px;border-radius:50%;background:color-mix(in srgb,var(--ink) 8%,transparent);stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;color:var(--ink);transition:background .16s,color .16s,transform .16s}
+@media(hover:hover){.sh-cat:hover .sh-cat-go{background:var(--ink);color:var(--bg);transform:rotate(45deg)}}
+/* ikon barang: deretan tumpang tindih, abu-abu sampai disorot */
+.sh-cat-ic{display:flex;align-items:center;flex:1;min-height:44px;padding-left:8px}
+.sh-cat-ic img{width:46px;height:46px;margin-left:-8px;object-fit:contain;filter:grayscale(1) contrast(1.05) drop-shadow(0 4px 8px rgba(0,0,0,.22));transition:filter .2s,transform .2s}
+.sh-cat.wide .sh-cat-ic img{width:58px;height:58px}
+@media(hover:hover){.sh-cat:hover .sh-cat-ic img{filter:none drop-shadow(0 4px 8px rgba(0,0,0,.22))}.sh-cat:hover .sh-cat-ic img:nth-child(odd){transform:translateY(-2px)}}
+.sh-cat-t{display:block;min-width:0}
+.sh-cat-t b{display:block;font-size:16px;font-weight:650;letter-spacing:-.025em;line-height:1.15}
+.sh-cat-t small{display:block;margin-top:3px;font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--mut)}
+.sh-cat-t em{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-top:6px;font-style:normal;font-size:11.5px;line-height:1.35;color:var(--mut)}
+
+/* baris cincin */
+.sh-ringrow{display:flex;align-items:center;gap:12px;margin-top:10px;padding:12px 14px;border-radius:18px;width:100%;text-align:left;font-size:12.5px;line-height:1.4;
+  background:var(--g-bg);border:1px solid var(--g-bd);box-shadow:inset 0 1px 0 var(--g-hi);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px)}
+.sh-ringics{display:flex;flex:none}
+.sh-ringics img{width:32px;height:32px;object-fit:contain;margin-left:-10px;filter:grayscale(1) drop-shadow(0 2px 6px rgba(0,0,0,.25))}
+.sh-ringics img:first-child{margin-left:0}
+.sh-ringrow .mut{color:var(--mut)}
+
+/* halaman dalam (kategori / detail) ikut gaya yang sama supaya tidak terasa loncat */
+#shop .sh-back{padding:7px 14px 7px 8px;border-radius:12px;background:var(--g-bg);border:1px solid var(--g-bd);font-size:12.5px;font-weight:600;
+  -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+#shop .sh-card,#shop .sh-detail{background:linear-gradient(145deg,color-mix(in srgb,var(--bg) 74%,transparent),color-mix(in srgb,var(--surface) 58%,transparent));
+  border:1px solid var(--g-bd);border-radius:20px;box-shadow:inset 0 1px 0 var(--g-hi);-webkit-backdrop-filter:blur(18px) saturate(140%);backdrop-filter:blur(18px) saturate(140%)}
+#shop .sh-card h3{font-size:15px;letter-spacing:-.02em}
+#shop .sh-ic,#shop .sh-dic{background:color-mix(in srgb,var(--ink) 5%,transparent);border-radius:16px}
+#shop .sh-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+#shop .sh-sum{border-radius:18px;-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+
+/* tanpa dukungan kaca buram: pakai latar solid yang sudah ada */
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  #shop{--g-bg:var(--surface)}
+  .sh-cat,#shop .sh-card,#shop .sh-detail{background:var(--surface)}
+}
+@media(prefers-reduced-motion:reduce){.sh-cat,.sh-cat *{transition:none!important}}
+.sh-cat:not(.wide) .sh-cat-t em{min-height:2.7em} /* deskripsi satu baris tidak menggeser judul antar kartu */

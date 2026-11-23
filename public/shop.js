@@ -101,15 +101,23 @@ function render() {
 
   if (place.startsWith('item:')) return renderItem(place.slice(5));
   if (place.startsWith('cat:')) return renderCat(place.slice(4));
-  /* beranda Belanja: kartu kategori (barang tidak ditumpuk dalam satu halaman) */
-  body.innerHTML = '<div class="sh-cats">' + catsOf().map(cat => {
-    const its = itemsOf().filter(i => i.cat === cat.id);
-    return '<button type="button" class="sh-cat" data-act="cat" data-id="' + esc(cat.id) + '">' +
-      '<span class="sh-cat-ic">' + its.slice(0, 4).map(i => '<img src="' + icon(i.id) + '" alt="" draggable="false">').join('') + '</span>' +
-      '<span class="sh-cat-t"><b>' + esc(cat.name) + '</b><small>' + its.length + ' barang · ' + esc(cat.desc) + '</small></span>' +
-      '<svg viewBox="0 0 24 24" class="sh-cat-go"><path d="M9 6l6 6-6 6"/></svg></button>';
-  }).join('') + '</div>' +
-    (ringTotal() ? '<div class="sh-ringrow" data-act="rings"><span class="sh-ringics">' + ringIds().filter(id => invN(id)).map(id => '<img src="' + icon(id) + '" alt="">').join('') + '</span><span>Kamu punya <b>' + ringTotal() + ' cincin</b> dari gacha<span class="mut"> · hadiah istimewa, berikan lewat Inventory (tombol + di kolom chat)</span></span></div>' : '');
+  /* beranda Belanja: strip info + kartu kategori bergaya Swiss (kartu pertama lebar, sisanya kotak kompak; barang tidak ditumpuk dalam satu halaman) */
+  const cats = catsOf(), n2 = n => (n < 10 ? '0' : '') + n;
+  body.innerHTML =
+    '<div class="sh-meta-strip" aria-label="Ringkasan toko">' +
+      '<span><small>Kategori</small><b>' + n2(cats.length) + '</b></span>' +
+      '<span><small>Barang</small><b>' + n2(itemsOf().length) + '</b></span>' +
+      '<span><small>Punya</small><b>' + nf.format(invTotal() + ringTotal()) + '</b></span>' +
+    '</div>' +
+    '<div class="sh-cats">' + cats.map((cat, k) => {
+      const its = itemsOf().filter(i => i.cat === cat.id);
+      return '<button type="button" class="sh-cat' + (k === 0 ? ' wide' : '') + '" data-act="cat" data-id="' + esc(cat.id) + '">' +
+        '<span class="sh-cat-top"><i class="sh-cat-no">' + n2(k + 1) + '</i>' +
+          '<svg viewBox="0 0 24 24" class="sh-cat-go"><path d="M7 17L17 7M9 7h8v8"/></svg></span>' +
+        '<span class="sh-cat-ic">' + its.slice(0, k === 0 ? 4 : 3).map(i => '<img src="' + icon(i.id) + '" alt="" draggable="false">').join('') + '</span>' +
+        '<span class="sh-cat-t"><b>' + esc(cat.name) + '</b><small>' + its.length + ' barang</small><em>' + esc(cat.desc) + '</em></span></button>';
+    }).join('') + '</div>' +
+    (ringTotal() ? '<div class="sh-ringrow" data-act="rings"><span class="sh-ringics">' + ringIds().filter(id => invN(id)).map(id => '<img src="' + icon(id) + '" alt="">').join('') + '</span><span><b>' + ringTotal() + ' cincin</b> dari gacha<span class="mut"> · hadiah istimewa, berikan lewat Inventory (tombol + di kolom chat)</span></span></div>' : '');
   refocus(focus);
 }
 function renderCat(catId) {
