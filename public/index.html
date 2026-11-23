@@ -595,6 +595,7 @@ header .pfp,header .who{cursor:pointer}
 <link rel="stylesheet" href="/scenario.css">
 <link rel="stylesheet" href="/scene.css">
 <link rel="stylesheet" href="/vision.css">
+<link rel="stylesheet" href="/call.css">
 <link rel="stylesheet" href="/profile.css?v=20261119h">
 <link rel="stylesheet" href="/notify.css">
 <link rel="stylesheet" href="/music.css">
@@ -1489,7 +1490,7 @@ async function submit(opt){
   const vf=!gf&&!vo&&window.VISION?VISION.take():null; /* ada lampiran gambar (vision.js): diambil SETELAH intercept lain supaya tidak bertumpuk; caption boleh kosong (gambar saja) */
   const text=gf?gf.text:vo?vo.text:(vf?vf.text:inp.value.trim());
   /* pesan rahasia ke Reze: dicegat di sini, TIDAK dikirim ke server (tanpa ChatGPT, tanpa Fish Audio) dan pesannya dibuang: tidak jadi bubble, tidak dicatat */
-  if(!gf&&text&&ch&&ch.id==='reze'&&(tryDev(text)||tryMedia(text)||tryChess(text))){ inp.value=''; grow(); refresh(); clearTimeout(draftT); store.set('draft:'+ch.id,null); return; } /* kode rahasia (mode dev / fitur gambar): dicegat di browser, tidak dikirim dan tidak dicatat */
+  if(!gf&&text&&ch&&ch.id==='reze'&&(tryDev(text)||tryMedia(text)||tryChess(text)||tryCall(text))){ inp.value=''; grow(); refresh(); clearTimeout(draftT); store.set('draft:'+ch.id,null); return; } /* kode rahasia (mode dev / fitur gambar): dicegat di browser, tidak dikirim dan tidak dicatat */
   if(!gf&&text&&ch&&window.GX&&GX.trySecret(text)){ inp.value=''; grow(); refresh(); clearTimeout(draftT); store.set('draft:'+ch.id,null); return; }
   if(busy||(!text&&!gf&&!vf)||!ch||!ready||selOn){ inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake'); if(vf)VISION.untake(vf); return; }
   busy=true; hideGoon(); if(!gf&&!vo){ inp.value=''; grow(); } refresh(); qrPaint(); /* pesan terkirim: usulan balasan lama hangus (yang baru datang bersama balasan AI) */
@@ -3039,6 +3040,7 @@ const DEV_SECRET=3608493969801461; /* hash dari kodenya (GX.hash, huruf besar/ke
 const MEDIA_SECRET=2451744368724302; /* hash kode fitur gambar (GX.hash; besar/kecil dan spasi diabaikan): membuka Scene Capture + Kirim Gambar. Pagar UI, bukan keamanan. */
 const devOn=()=>store.get('devu')==='1'&&store.get('dev')==='1';
 const CHESS_SECRET=3024233390946423; /* hash kode lawan karakter di Catur (GX.hash; besar/kecil dan spasi diabaikan). Pagar UI, bukan keamanan. */
+const CALL_SECRET=272077652811242; /* hash kode fitur telepon AI (GX.hash; besar/kecil dan spasi diabaikan): membuka tombol telepon di header chat (public/call.js). Pagar UI, bukan keamanan. */
 const mediaOn=()=>store.get('mediau')==='1'; /* fitur gambar (Scene Capture + Kirim Gambar, menu +) terbuka lewat kode rahasia ke Reze; Scene otomatis punya switch sendiri: scnauto */
 /* Mesin AI uji (Mode dev): ChatGPT tetap utama. Lorka hanya terpakai kalau Mode dev aktif DAN dipilih di sini. */
 const engName=()=>devOn()&&store.get('eng')==='lorka'?'lorka':'chatgpt';
@@ -3105,6 +3107,14 @@ function tryMedia(text){
   if(!window.GX||!GX.hash||GX.hash(text.trim().toLowerCase().replace(/\s+/g,''))!==MEDIA_SECRET) return false;
   const was=mediaOn(); store.set('mediau','1');
   paintMedia(); toast(was?'Fitur gambar sudah terbuka. Scene otomatis diatur di Pengaturan':'Fitur rahasia terbuka: Scene Capture & Kirim Gambar di menu +');
+  return true;
+}
+/* ===== Telepon AI: kode rahasia ke Reze, pola tryMedia. Membuka tombol telepon di header chat 1-lawan-1 (public/call.js, kunci `callu`). ===== */
+function tryCall(text){
+  if(!window.GX||!GX.hash||GX.hash(text.trim().toLowerCase().replace(/\s+/g,''))!==CALL_SECRET) return false;
+  const was=store.get('callu')==='1'; store.set('callu','1');
+  if(window.CALL&&CALL.paint) CALL.paint();
+  toast(was?'Fitur telepon sudah terbuka. Ketuk ikon telepon di header chat':'Fitur rahasia terbuka: ikon telepon di header chat');
   return true;
 }
 /* ===== Lawan karakter di Catur: kode rahasia ke Reze, pola tryMedia. Membuka pilihan "Lawan" di layar pembuka Catur (public/games.js, kunci `chessu`). ===== */
@@ -3554,6 +3564,7 @@ document.addEventListener('visibilitychange',()=>{ if(!document.hidden) setTimeo
 <script src="/music.js"></script>
 <script src="/scene.js"></script>
 <script src="/vision.js"></script>
+<script src="/call.js"></script>
 <script src="/tools/tools.js"></script>
 <script src="/login.js"></script>
 <script src="/router.js"></script>
