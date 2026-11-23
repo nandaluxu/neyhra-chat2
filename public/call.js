@@ -38,7 +38,9 @@ const plain = t => String(t || '').replace(/\*[^*]*\*/g, ' ').replace(/[*_`#]/g,
 const unlocked = () => store.get('callu') === '1';
 /* Pengaturan telepon (localStorage perangkat ini; diatur di Pengaturan > Telepon) */
 const opt = {
-  hint: () => store.get('callhint') === '1',        // default MATI: layar telepon bersih tanpa teks petunjuk
+  hint: () => store.get('callhint') === '1',        // default MATI: status (mendengarkan/mikir/bicara) + hitung mundur pengiriman
+  sub: () => store.get('callsub') === '1',          // default MATI: subtitle balasan karakter (teks yang dia ucapkan)
+  subMe: () => store.get('callsubme') === '1',      // default MATI: subtitle ucapanmu sendiri (teks yang ditangkap mic, langsung terlihat)
   ring: () => store.get('callring') !== '0',        // default nyala: nada dering + nada tutup
   greet: () => store.get('callgreet') !== '0',      // default nyala: karakter mengangkat dan menyapa duluan
   sil: () => { const v = +store.get('callsil'); return [2000, 3000, 4000, 5000].includes(v) ? v : CFG.SILENCE_MS; }
@@ -80,12 +82,16 @@ function buildSettings() {
   const g = document.createElement('div'); g.className = 'sgroup hide'; g.id = 'scallg';
   const sw = (id, t, d) => '<label class="srow"><span><b>' + t + '</b><i>' + d + '</i></span><input type="checkbox" id="' + id + '" class="sw"></label>';
   g.innerHTML = '<h3>Telepon</h3>' +
-    sw('scallhint', 'Tampilkan petunjuk di layar', 'Status (mendengarkan, mikir, bicara), teks ucapanmu, subtitle balasan, dan hitung mundur pengiriman. Kalau mati, layar telepon bersih seperti telepon biasa. Default mati.') +
+    sw('scallsub', 'Subtitle karakter', 'Teks yang diucapkan karakter tampil di layar telepon selagi dia bicara. Default mati.') +
+    sw('scallsubme', 'Subtitle kamu', 'Teks ucapanmu yang ditangkap mic tampil langsung di layar, jadi kamu bisa cek apakah suaramu terdengar benar. Default mati.') +
+    sw('scallhint', 'Petunjuk lainnya', 'Status (mendengarkan, mikir, bicara) dan hitung mundur pengiriman. Terpisah dari subtitle. Kalau semuanya mati, layar telepon bersih seperti telepon biasa. Default mati.') +
     sw('scallring', 'Nada dering & efek suara', 'Telepon berdering sebelum diangkat, dan ada nada saat ditutup. Default nyala.') +
     sw('scallgreet', 'Karakter menyapa duluan', 'Setelah berdering, karakter mengangkat dan menyapa lebih dulu. Kalau mati, kamu yang bicara pertama. Default nyala.') +
     '<div class="srow" style="display:block;cursor:default"><span><b>Jeda diam sebelum terkirim</b><i>Setelah kamu berhenti bicara selama ini, ucapanmu dikirim ke karakter.</i></span><div class="seg x4" id="scallsil"><button type="button" data-v="2000">2 dtk</button><button type="button" data-v="3000">3 dtk</button><button type="button" data-v="4000">4 dtk</button><button type="button" data-v="5000">5 dtk</button></div></div>';
   after.parentNode.insertBefore(g, after.nextSibling);
   $('scallhint').onchange = () => store.set('callhint', $('scallhint').checked ? '1' : null);
+  $('scallsub').onchange = () => store.set('callsub', $('scallsub').checked ? '1' : null);
+  $('scallsubme').onchange = () => store.set('callsubme', $('scallsubme').checked ? '1' : null);
   $('scallring').onchange = () => store.set('callring', $('scallring').checked ? null : '0');
   $('scallgreet').onchange = () => store.set('callgreet', $('scallgreet').checked ? null : '0');
   $('scallsil').onclick = e => { const b = e.target.closest('button'); if (!b) return; store.set('callsil', b.dataset.v === String(CFG.SILENCE_MS) ? null : b.dataset.v); paintSettings(); };
@@ -94,7 +100,7 @@ function buildSettings() {
 function paintSettings() {
   const g = buildSettings(); if (!g) return;
   g.classList.toggle('hide', !unlocked());
-  $('scallhint').checked = opt.hint(); $('scallring').checked = opt.ring(); $('scallgreet').checked = opt.greet();
+  $('scallhint').checked = opt.hint(); $('scallsub').checked = opt.sub(); $('scallsubme').checked = opt.subMe(); $('scallring').checked = opt.ring(); $('scallgreet').checked = opt.greet();
   $('scallsil').querySelectorAll('button').forEach(b => b.classList.toggle('sel', +b.dataset.v === opt.sil()));
 }
 CALL.paintSettings = paintSettings;
@@ -126,7 +132,7 @@ function build() {
   const el = document.createElement('div'); el.id = 'callui'; el.className = 'hide'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'Telepon');
   el.innerHTML =
     '<div class="cl-top"><b class="cl-name"></b><span class="cl-time">0:00</span></div>' +
-    '<div class="cl-stage"><div class="cl-ring"><i></i><i></i><i></i></div><div class="cl-avwrap"></div></div>' +
+    '<div class="cl-stage"><div class="cl-ring"><i></i><i></i><i></i></div><div class="cl-avwrap"></div><div class="cl-dots" aria-hidden="true"><i></i><i></i><i></i></div></div>' +
     '<div class="cl-status" aria-live="polite"></div>' +
     '<div class="cl-cap"></div>' +
     '<div class="cl-you"></div>' +
@@ -155,7 +161,7 @@ function paint() {
     speaking: n + ' lagi bicara. Tunggu giliranmu'
   }[S.state] || '';
   ui.status.textContent = txt;
-  ui.el.dataset.state = S.state; ui.el.classList.toggle('muted', S.muted); ui.el.classList.toggle('nohint', !S.hint);
+  ui.el.dataset.state = S.state; ui.el.classList.toggle('muted', S.muted); ui.el.classList.toggle('nohint', !S.hint); ui.el.classList.toggle('nosub', !S.sub); ui.el.classList.toggle('nosubme', !S.subMe);
   ui.mute.setAttribute('aria-pressed', S.muted ? 'true' : 'false'); ui.mute.disabled = S.state !== 'listening';
   paintYou();
 }
@@ -179,7 +185,7 @@ async function start() {
   if (busy && !held) { toast(ch.name + ' masih membalas, tunggu sebentar'); return; }
   if (S) return; // ketukan ganda saat menunggu antrean
   const c = ch;
-  S = { chId: c.id, c, state: 'connecting', fin: '', cur: { f: '', i: '' }, last: 0, rec: null, muted: false, ended: false, el, ac: ac0, hint: opt.hint(), turns: 0, fast: 0, t0: Date.now(), stopAudio: null, stopTts: null, tick: 0 };
+  S = { chId: c.id, c, state: 'connecting', fin: '', cur: { f: '', i: '' }, last: 0, rec: null, muted: false, ended: false, el, ac: ac0, hint: opt.hint(), sub: opt.sub(), subMe: opt.subMe(), turns: 0, fast: 0, t0: Date.now(), stopAudio: null, stopTts: null, tick: 0 };
   const u = build();
   u.name.textContent = typeof dispName === 'function' ? dispName(c) : c.name;
   u.av.textContent = ''; u.av.append(img(c, 'cl-av'));
@@ -257,17 +263,21 @@ function listen() {
   try { r.start(); } catch (e) { s.rec = null; s.fails = (s.fails || 0) + 1; if (s.fails === 3) note('Mikrofon belum siap, mencoba lagi…'); setTimeout(listen, 500); }
 }
 
+/* Gestur karakter di layar (tidak bergantung pada pengaturan petunjuk): data-g di #callui, gerakannya ada di call.css.
+   listening = bernapas pelan, hear = condong/miring menyimak, wait = mengangguk pelan, thinking = miring + tiga titik. */
+function gest(g) { if (ui && ui.el.dataset.g !== g) ui.el.dataset.g = g; }
 function onTick() {
   if (!S) return;
   const s = S;
-  if (s.state === 'connecting') { ui.time.textContent = '0:00'; return; }
+  if (s.state === 'connecting') { ui.time.textContent = '0:00'; gest(''); return; }
   ui.time.textContent = clock((Date.now() - s.t0) / 1000);
   if (s.state === 'listening') s.busySince = 0; else if (!s.busySince) s.busySince = Date.now();
   if (s.busySince && Date.now() - s.busySince > 90000) { s.busySince = 0; s.state = 'listening'; s.last = 0; try { s.stopAudio && s.stopAudio(); s.stopTts && s.stopTts(); } catch {} note('Respons terlalu lama, giliranmu lagi'); paint(); listen(); return; } // jaring pengaman
-  if (s.state !== 'listening' || s.muted) { ui.bar.style.width = '0%'; return; }
+  if (s.state !== 'listening' || s.muted) { ui.bar.style.width = '0%'; gest(''); return; }
   const txt = full();
-  if (txt.length < CFG.MIN_CHARS || !s.last) { ui.bar.style.width = '0%'; return; }
+  if (txt.length < CFG.MIN_CHARS || !s.last) { ui.bar.style.width = '0%'; gest(''); return; }
   const idle = Date.now() - s.last;
+  gest(idle < 700 ? 'hear' : 'wait'); // gestur karakter (tanpa teks): 'hear' = menyimak kamu bicara, 'wait' = diam sebentar, menunggu kamu lanjut
   const sil = opt.sil();
   if (s.hint) {
     ui.bar.style.width = Math.min(100, idle / sil * 100) + '%';
