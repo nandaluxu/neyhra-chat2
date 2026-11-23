@@ -35,6 +35,9 @@ const unlocked = () => store.get('callu') === '1';
 const CALL = window.CALL = { cfg: CFG, on: () => !!S };
 let S = null; // { chId, c, state, fin, cur, last, rec, muted, ended, audio, stopAudio, ... } selama telepon berlangsung
 let ui = null;
+let held = false; // true = flag `busy` di index.html sedang dipegang telepon (supaya sisa `busy` dari telepon sebelumnya tidak memblokir telepon berikutnya)
+const hold = () => { held = true; busy = true; refresh(); };
+const release = () => { if (held) { held = false; busy = false; refresh(); } };
 
 /* ---------- Tombol telepon di header ---------- */
 function ensureBtn() {
@@ -105,41 +108,42 @@ const full = () => S ? join(S.fin, join(S.cur.f, S.cur.i)) : '';
 
 /* ---------- Mulai / akhiri ---------- */
 async function start() {
-  if (S) return;
+  if (S) { if (S.ended) S = null; else return; }
   if (!unlocked() || !ch || !app.classList.contains('open') || (window.GX && GX.cur)) return;
   if (!SR) { toast('Browser ini belum mendukung suara ke teks. Pakai Chrome, Edge, atau Safari terbaru.'); return; }
   if (!window.isSecureContext) { toast('Telepon butuh koneksi aman (https)'); return; }
   const el = new Audio(); el.src = SILENT; const pr = el.play(); if (pr && pr.catch) pr.catch(() => {}); // harus sinkron di dalam ketukan user
   if (current) current.stop();
   if (pend.length) await pendFlush(false); // pesan yang masih mengantre dikirim dulu
-  if (busy) { toast(ch.name + ' masih membalas, tunggu sebentar'); return; }
+  if (busy && !held) { toast(ch.name + ' masih membalas, tunggu sebentar'); return; }
+  if (S) return; // ketukan ganda saat menunggu antrean
   const c = ch;
   S = { chId: c.id, c, state: 'connecting', fin: '', cur: { f: '', i: '' }, last: 0, rec: null, muted: false, ended: false, el, turns: 0, fast: 0, t0: Date.now(), stopAudio: null, stopTts: null, tick: 0 };
   const u = build();
   u.name.textContent = typeof dispName === 'function' ? dispName(c) : c.name;
   u.av.textContent = ''; u.av.append(img(c, 'cl-av'));
   u.cap.textContent = ''; u.you.textContent = ''; u.time.textContent = '0:00'; u.bar.style.width = '0%'; u.note.classList.remove('show');
-  u.el.classList.remove('hide'); void u.el.offsetWidth; u.el.classList.add('on');
-  busy = true; refresh(); // chat di belakang layar tidak bisa dikirimi apa pun selama telepon
+  clearTimeout(u.hideT); u.el.classList.remove('hide'); void u.el.offsetWidth; u.el.classList.add('on');
+  hold(); // chat di belakang layar tidak bisa dikirimi apa pun selama telepon
   paint();
   S.tick = setInterval(onTick, 100);
   const me = S;
-  setTimeout(() => { if (S === me && !me.ended) { me.state = 'listening'; me.last = 0; paint(); listen(); } }, CFG.CONNECT_MS);
+  setTimeout(() => { if (S === me && !me.ended) { me.state = 'listening'; me.last = 0; paint(); listen(); } }, CFG.CONNECT_MS + 150); // +150: beri Chrome waktu melepas mikrofon dari telepon sebelumnya
 }
 
 function end(why) {
   if (!S) return;
   const s = S; s.ended = true; clearInterval(s.tick);
+  const inflight = s.state === 'thinking'; // permintaan ke AI masih jalan: busy dilepas oleh turn() setelah balasannya dicatat
+  S = null; // dikosongkan DULU: apa pun yang gagal di bawah tidak boleh membuat telepon berikutnya macet
   try { s.rec && s.rec.abort(); } catch {}
   s.rec = null;
-  if (s.stopAudio) s.stopAudio();
-  if (s.stopTts) s.stopTts();
+  try { s.stopAudio && s.stopAudio(); } catch {}
+  try { s.stopTts && s.stopTts(); } catch {}
   try { s.el.pause(); s.el.removeAttribute('src'); } catch {}
   try { window.speechSynthesis && speechSynthesis.cancel(); } catch {}
-  const inflight = s.state === 'thinking'; // permintaan ke AI masih jalan: busy dilepas oleh turn() setelah balasannya dicatat
-  S = null;
-  if (ui) { ui.el.classList.remove('on'); setTimeout(() => { if (!S) ui.el.classList.add('hide'); }, 220); }
-  if (!inflight) { busy = false; refresh(); }
+  if (ui) { ui.el.classList.remove('on'); clearTimeout(ui.hideT); ui.hideT = setTimeout(() => { if (!S) ui.el.classList.add('hide'); }, 220); }
+  if (!inflight) release();
   if (why) toast(why); else toast('Telepon berakhir · ' + clock((Date.now() - s.t0) / 1000));
 }
 
@@ -171,6 +175,7 @@ function listen() {
     if (e.error === 'audio-capture') { end('Mikrofon tidak bisa dipakai'); return; }
     if (e.error === 'language-not-supported') { end('Bahasa suara tidak didukung browser ini'); return; }
     if (e.error === 'network') { note('Pengenalan suara butuh internet'); }
+    else if (e.error === 'aborted') { s.fast++; } // Chrome menolak start yang terlalu cepat setelah abort: onend akan mencoba lagi dengan jeda
   };
   r.onend = () => {
     if (S !== s || s.rec !== r) return;
@@ -178,7 +183,7 @@ function listen() {
     s.fast = Date.now() - born < 350 ? s.fast + 1 : 0;
     if (s.state === 'listening' && !s.muted && !s.ended) setTimeout(listen, s.fast >= 3 ? 1200 : 120);
   };
-  try { r.start(); } catch { s.rec = null; setTimeout(listen, 500); }
+  try { r.start(); } catch (e) { s.rec = null; s.fails = (s.fails || 0) + 1; if (s.fails === 3) note('Mikrofon belum siap, mencoba lagi…'); setTimeout(listen, 500); }
 }
 
 function onTick() {
@@ -186,6 +191,8 @@ function onTick() {
   const s = S;
   if (s.state === 'connecting') { ui.time.textContent = '0:00'; return; }
   ui.time.textContent = clock((Date.now() - s.t0) / 1000);
+  if (s.state === 'listening') s.busySince = 0; else if (!s.busySince) s.busySince = Date.now();
+  if (s.busySince && Date.now() - s.busySince > 90000) { s.busySince = 0; s.state = 'listening'; s.last = 0; try { s.stopAudio && s.stopAudio(); s.stopTts && s.stopTts(); } catch {} note('Respons terlalu lama, giliranmu lagi'); paint(); listen(); return; } // jaring pengaman
   if (s.state !== 'listening' || s.muted) { ui.bar.style.width = '0%'; return; }
   const txt = full();
   if (txt.length < CFG.MIN_CHARS || !s.last) { ui.bar.style.width = '0%'; return; }
@@ -198,6 +205,13 @@ function onTick() {
 /* ---------- Satu giliran: kirim ke AI, lalu AI bicara ---------- */
 async function turn(raw) {
   const s = S; if (!s || s.state !== 'listening') return;
+  try { await turn1(s, raw); }
+  catch (e) { // apa pun yang meledak: kembalikan giliran ke user, jangan biarkan telepon menggantung
+    console.warn('[call]', e);
+    if (S === s) { note('Ada kendala: ' + (e && e.message || e)); s.state = 'listening'; s.last = 0; paint(); listen(); } else if (!S) release();
+  }
+}
+async function turn1(s, raw) {
   const chId = s.chId, text = raw.trim().charAt(0).toUpperCase() + raw.trim().slice(1);
   const say = text.slice(0, CFG.MAX_SAY);
   s.state = 'thinking'; s.turns++;
@@ -231,7 +245,7 @@ async function turn(raw) {
     if (Array.isArray(r.nq)) r.nq.forEach((tt, i) => setTimeout(() => (S ? note(tt) : toast(tt)), 600 + i * 2300));
     if (relNote) { if (S === s) note(relNote); else toast(relNote); }
   }
-  if (S !== s) { busy = false; refresh(); return; } // telepon sudah diakhiri
+  if (S !== s) { if (!S) release(); return; } // telepon sudah diakhiri (kalau sudah ada telepon baru, busy miliknya, jangan dilepas)
   s.state = 'speaking'; paint();
   await new Promise(res => setTimeout(res, CFG.RESUME_MS));
   if (S !== s) return;
