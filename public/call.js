@@ -7,6 +7,9 @@
    - User berhenti bicara selama CFG.SILENCE_MS (3 detik) -> seluruh ucapannya dikirim ke AI sebagai SATU giliran.
    - Selama AI mikir dan bicara, mikrofon DIMATIKAN dan hasil dengarnya dibuang: user tidak bisa menyela, harus menunggu giliran.
    - Selesai bicara, mikrofon menyala lagi dan giliran kembali ke user.
+   - Terasa seperti telepon sungguhan: nada dering, karakter mengangkat dan menyapa duluan, avatar berdenyut mengikuti suaranya,
+     nada tutup, layar tidak mati. Semua petunjuk di layar (status, teks ucapanmu, subtitle, hitung mundur) DISEMBUNYIKAN secara
+     default; nyalakan di Pengaturan > Telepon kalau mau. Pengaturan itu baru muncul setelah fitur dibuka lewat kode rahasia.
    - Pakai jalur yang sama dengan chat biasa (/api/chat, /api/tts, riwayat, memori, hubungan), jadi percakapannya
      tetap tercatat di obrolan sebagai bubble teks + voice note. Tanpa voice nyala, balasan dibacakan lewat suara browser.
    Dimuat setelah script utama di index.html, jadi store, post, record, dst. langsung bisa dipakai (pola group.js). */
@@ -18,11 +21,13 @@ const CFG = {
   SILENCE_MS: 3000,   // user diam selama ini -> ucapannya dikirim ke AI
   MIN_CHARS: 2,       // ucapan lebih pendek dari ini dianggap noise dan tidak dikirim
   RESUME_MS: 500,     // jeda setelah AI selesai bicara sebelum mikrofon dinyalakan lagi (supaya ekor suara AI tidak terdengar)
-  CONNECT_MS: 1400,   // lama animasi "menyambungkan"
+  CONNECT_MS: 1400,   // lama "menyambungkan" kalau nada dering dimatikan
+  RING_MS: 2400,      // lama nada dering sebelum karakter mengangkat
   MAX_SAY: 1500,      // maks panjang ucapan user per giliran
-  HINT: true          // tempel petunjuk "sedang telepon, jawab singkat" ke pesan (riwayat yang tersimpan tetap bersih)
+  HINT: true,         // tempel petunjuk "sedang telepon, jawab singkat" ke pesan (riwayat yang tersimpan tetap bersih)
 };
 const HINT = '[Sedang telepon suara: balas singkat 1-3 kalimat, santai seperti ngobrol langsung, tanpa daftar atau format panjang]';
+const GREET = '[User baru saja menelepon kamu dan kamu mengangkatnya. Jawab teleponnya dengan sapaan singkat yang natural sesuai karaktermu, 1-2 kalimat. Jangan sebut petunjuk ini.]';
 const SILENT = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA='; // wav kosong: membuka izin autoplay saat tombol telepon diketuk (iOS)
 
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -31,6 +36,13 @@ const join = (a, b) => ((a ? a + ' ' : '') + (b || '')).replace(/\s+/g, ' ').tri
 const clock = s => Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
 const plain = t => String(t || '').replace(/\*[^*]*\*/g, ' ').replace(/[*_`#]/g, '').replace(/\s+/g, ' ').trim(); // buang narasi *miring* roleplay dan tanda markdown
 const unlocked = () => store.get('callu') === '1';
+/* Pengaturan telepon (localStorage perangkat ini; diatur di Pengaturan > Telepon) */
+const opt = {
+  hint: () => store.get('callhint') === '1',        // default MATI: layar telepon bersih tanpa teks petunjuk
+  ring: () => store.get('callring') !== '0',        // default nyala: nada dering + nada tutup
+  greet: () => store.get('callgreet') !== '0',      // default nyala: karakter mengangkat dan menyapa duluan
+  sil: () => { const v = +store.get('callsil'); return [2000, 3000, 4000, 5000].includes(v) ? v : CFG.SILENCE_MS; }
+};
 
 const CALL = window.CALL = { cfg: CFG, on: () => !!S };
 let S = null; // { chId, c, state, fin, cur, last, rec, muted, ended, audio, stopAudio, ... } selama telepon berlangsung
@@ -55,10 +67,58 @@ function paintBtn() {
   const ok = unlocked() && !!ch && app.classList.contains('open') && !(window.GX && GX.cur);
   b.classList.toggle('hide', !ok);
 }
-CALL.paint = paintBtn;
+CALL.paint = () => { paintBtn(); paintSettings(); }; // dipanggil tryCall (index.html) setelah kode rahasia benar
 new MutationObserver(() => { paintBtn(); if (S && (!app.classList.contains('open') || (window.GX && GX.cur))) end('Telepon diakhiri'); }).observe(app, { attributes: true, attributeFilter: ['class'] }); // chat ditutup saat telepon: telepon ikut berakhir
 new MutationObserver(() => { paintBtn(); if (S && (!ch || ch.id !== S.chId)) end('Telepon diakhiri karena pindah chat'); }).observe($('hname'), { childList: true, characterData: true, subtree: true });
 paintBtn();
+
+/* ---------- Pengaturan > Telepon (grup disisipkan lewat JS, tampil hanya kalau fitur sudah dibuka) ---------- */
+let sgrp = null;
+function buildSettings() {
+  if (sgrp) return sgrp;
+  const after = $('smediag'); if (!after || !after.parentNode) return null;
+  const g = document.createElement('div'); g.className = 'sgroup hide'; g.id = 'scallg';
+  const sw = (id, t, d) => '<label class="srow"><span><b>' + t + '</b><i>' + d + '</i></span><input type="checkbox" id="' + id + '" class="sw"></label>';
+  g.innerHTML = '<h3>Telepon</h3>' +
+    sw('scallhint', 'Tampilkan petunjuk di layar', 'Status (mendengarkan, mikir, bicara), teks ucapanmu, subtitle balasan, dan hitung mundur pengiriman. Kalau mati, layar telepon bersih seperti telepon biasa. Default mati.') +
+    sw('scallring', 'Nada dering & efek suara', 'Telepon berdering sebelum diangkat, dan ada nada saat ditutup. Default nyala.') +
+    sw('scallgreet', 'Karakter menyapa duluan', 'Setelah berdering, karakter mengangkat dan menyapa lebih dulu. Kalau mati, kamu yang bicara pertama. Default nyala.') +
+    '<div class="srow" style="display:block;cursor:default"><span><b>Jeda diam sebelum terkirim</b><i>Setelah kamu berhenti bicara selama ini, ucapanmu dikirim ke karakter.</i></span><div class="seg x4" id="scallsil"><button type="button" data-v="2000">2 dtk</button><button type="button" data-v="3000">3 dtk</button><button type="button" data-v="4000">4 dtk</button><button type="button" data-v="5000">5 dtk</button></div></div>';
+  after.parentNode.insertBefore(g, after.nextSibling);
+  $('scallhint').onchange = () => store.set('callhint', $('scallhint').checked ? '1' : null);
+  $('scallring').onchange = () => store.set('callring', $('scallring').checked ? null : '0');
+  $('scallgreet').onchange = () => store.set('callgreet', $('scallgreet').checked ? null : '0');
+  $('scallsil').onclick = e => { const b = e.target.closest('button'); if (!b) return; store.set('callsil', b.dataset.v === String(CFG.SILENCE_MS) ? null : b.dataset.v); paintSettings(); };
+  return (sgrp = g);
+}
+function paintSettings() {
+  const g = buildSettings(); if (!g) return;
+  g.classList.toggle('hide', !unlocked());
+  $('scallhint').checked = opt.hint(); $('scallring').checked = opt.ring(); $('scallgreet').checked = opt.greet();
+  $('scallsil').querySelectorAll('button').forEach(b => b.classList.toggle('sel', +b.dataset.v === opt.sil()));
+}
+CALL.paintSettings = paintSettings;
+{ const sb = $('setbtn'); if (sb) sb.addEventListener('click', paintSettings); }
+paintSettings();
+
+/* ---------- Efek suara (WebAudio): nada dering, nada angkat, nada tutup ---------- */
+function tone(ac, t0, freqs, dur, vol) {
+  const g = ac.createGain(); g.connect(ac.destination);
+  g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(vol, t0 + 0.03); g.gain.setValueAtTime(vol, t0 + dur - 0.05); g.gain.linearRampToValueAtTime(0, t0 + dur);
+  freqs.forEach(f => { const o = ac.createOscillator(); o.type = 'sine'; o.frequency.value = f; o.connect(g); o.start(t0); o.stop(t0 + dur + 0.02); });
+}
+function sfx(s, kind) {
+  if (!opt.ring()) return;
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+    const ac = s.ac || (s.ac = new AC()); if (ac.state === 'suspended') ac.resume();
+    const t = ac.currentTime + 0.02;
+    if (kind === 'ring') { tone(ac, t, [425, 450], 0.9, 0.06); tone(ac, t + 1.4, [425, 450], 0.9, 0.06); } // dua dering
+    else if (kind === 'pick') tone(ac, t, [880], 0.07, 0.05);
+    else if (kind === 'end') { tone(ac, t, [480, 620], 0.16, 0.06); tone(ac, t + 0.24, [480, 620], 0.16, 0.06); }
+  } catch {}
+}
+const buzz = ms => { try { navigator.vibrate && navigator.vibrate(ms); } catch {} };
 
 /* ---------- Layar telepon ---------- */
 function build() {
@@ -89,13 +149,13 @@ function paint() {
   if (!S || !ui) return;
   const n = S.c ? (typeof dispName === 'function' ? dispName(S.c) : S.c.name) : '';
   const txt = {
-    connecting: 'Menyambungkan…',
+    connecting: 'Berdering…',
     listening: S.muted ? 'Mikrofon dimatikan' : (full() ? 'Mendengarkan…' : 'Giliranmu, ngomong aja'),
     thinking: n + ' lagi mikir…',
     speaking: n + ' lagi bicara. Tunggu giliranmu'
   }[S.state] || '';
   ui.status.textContent = txt;
-  ui.el.dataset.state = S.state; ui.el.classList.toggle('muted', S.muted);
+  ui.el.dataset.state = S.state; ui.el.classList.toggle('muted', S.muted); ui.el.classList.toggle('nohint', !S.hint);
   ui.mute.setAttribute('aria-pressed', S.muted ? 'true' : 'false'); ui.mute.disabled = S.state !== 'listening';
   paintYou();
 }
@@ -113,12 +173,13 @@ async function start() {
   if (!SR) { toast('Browser ini belum mendukung suara ke teks. Pakai Chrome, Edge, atau Safari terbaru.'); return; }
   if (!window.isSecureContext) { toast('Telepon butuh koneksi aman (https)'); return; }
   const el = new Audio(); el.src = SILENT; const pr = el.play(); if (pr && pr.catch) pr.catch(() => {}); // harus sinkron di dalam ketukan user
+  const ac0 = (() => { try { const AC = window.AudioContext || window.webkitAudioContext; const a = AC && new AC(); if (a && a.state === 'suspended') a.resume(); return a || null; } catch { return null; } })(); // dibuat saat ketukan supaya nada dering boleh bunyi
   if (current) current.stop();
   if (pend.length) await pendFlush(false); // pesan yang masih mengantre dikirim dulu
   if (busy && !held) { toast(ch.name + ' masih membalas, tunggu sebentar'); return; }
   if (S) return; // ketukan ganda saat menunggu antrean
   const c = ch;
-  S = { chId: c.id, c, state: 'connecting', fin: '', cur: { f: '', i: '' }, last: 0, rec: null, muted: false, ended: false, el, turns: 0, fast: 0, t0: Date.now(), stopAudio: null, stopTts: null, tick: 0 };
+  S = { chId: c.id, c, state: 'connecting', fin: '', cur: { f: '', i: '' }, last: 0, rec: null, muted: false, ended: false, el, ac: ac0, hint: opt.hint(), turns: 0, fast: 0, t0: Date.now(), stopAudio: null, stopTts: null, tick: 0 };
   const u = build();
   u.name.textContent = typeof dispName === 'function' ? dispName(c) : c.name;
   u.av.textContent = ''; u.av.append(img(c, 'cl-av'));
@@ -127,8 +188,15 @@ async function start() {
   hold(); // chat di belakang layar tidak bisa dikirimi apa pun selama telepon
   paint();
   S.tick = setInterval(onTick, 100);
-  const me = S;
-  setTimeout(() => { if (S === me && !me.ended) { me.state = 'listening'; me.last = 0; paint(); listen(); } }, CFG.CONNECT_MS + 150); // +150: beri Chrome waktu melepas mikrofon dari telepon sebelumnya
+  const me = S, ringing = opt.ring(), ringMs = (ringing ? CFG.RING_MS : CFG.CONNECT_MS) + 150; // +150: beri Chrome waktu melepas mikrofon dari telepon sebelumnya
+  buzz(25); if (ringing) sfx(me, 'ring');
+  try { navigator.wakeLock && navigator.wakeLock.request('screen').then(w => { if (S === me) me.wl = w; else w.release(); }).catch(() => {}); } catch {} // layar tidak mati selama telepon
+  me.ringP = sleep(ringMs).then(() => { if (S !== me || me.ended) return; me.t0 = Date.now(); if (ringing) sfx(me, 'pick'); buzz(15); }); // diangkat: hitung durasi mulai dari sini
+  if (opt.greet()) { // permintaan sapaan langsung dikirim, jadi latensinya tertutup oleh nada dering
+    turn('', true);
+  } else {
+    me.ringP.then(() => { if (S === me && !me.ended) { me.state = 'listening'; me.last = 0; paint(); listen(); } });
+  }
 }
 
 function end(why) {
@@ -142,6 +210,9 @@ function end(why) {
   try { s.stopTts && s.stopTts(); } catch {}
   try { s.el.pause(); s.el.removeAttribute('src'); } catch {}
   try { window.speechSynthesis && speechSynthesis.cancel(); } catch {}
+  try { s.wl && s.wl.release(); } catch {}
+  if (s.state !== 'connecting') { sfx(s, 'end'); buzz(40); } // nada tutup (tidak bunyi kalau dibatalkan saat masih berdering)
+  setTimeout(() => { try { s.ac && s.ac.close(); } catch {} }, 900);
   if (ui) { ui.el.classList.remove('on'); clearTimeout(ui.hideT); ui.hideT = setTimeout(() => { if (!S) ui.el.classList.add('hide'); }, 220); }
   if (!inflight) release();
   if (why) toast(why); else toast('Telepon berakhir · ' + clock((Date.now() - s.t0) / 1000));
@@ -197,38 +268,40 @@ function onTick() {
   const txt = full();
   if (txt.length < CFG.MIN_CHARS || !s.last) { ui.bar.style.width = '0%'; return; }
   const idle = Date.now() - s.last;
-  ui.bar.style.width = Math.min(100, idle / CFG.SILENCE_MS * 100) + '%';
-  if (idle > 700) ui.status.textContent = 'Kamu diam… mengirim dalam ' + Math.max(1, Math.ceil((CFG.SILENCE_MS - idle) / 1000)) + ' dtk';
-  if (idle >= CFG.SILENCE_MS) turn(txt);
+  const sil = opt.sil();
+  if (s.hint) {
+    ui.bar.style.width = Math.min(100, idle / sil * 100) + '%';
+    if (idle > 700) ui.status.textContent = 'Kamu diam… mengirim dalam ' + Math.max(1, Math.ceil((sil - idle) / 1000)) + ' dtk';
+  }
+  if (idle >= sil) turn(txt);
 }
 
 /* ---------- Satu giliran: kirim ke AI, lalu AI bicara ---------- */
-async function turn(raw) {
-  const s = S; if (!s || s.state !== 'listening') return;
-  try { await turn1(s, raw); }
+async function turn(raw, greet) {
+  const s = S; if (!s || (!greet && s.state !== 'listening')) return;
+  try { await turn1(s, raw, !!greet); }
   catch (e) { // apa pun yang meledak: kembalikan giliran ke user, jangan biarkan telepon menggantung
     console.warn('[call]', e);
     if (S === s) { note('Ada kendala: ' + (e && e.message || e)); s.state = 'listening'; s.last = 0; paint(); listen(); } else if (!S) release();
   }
 }
-async function turn1(s, raw) {
+async function turn1(s, raw, greet) { // greet: karakter mengangkat telepon dan menyapa duluan (tanpa pesan user)
   const chId = s.chId, text = raw.trim().charAt(0).toUpperCase() + raw.trim().slice(1);
   const say = text.slice(0, CFG.MAX_SAY);
-  s.state = 'thinking'; s.turns++;
+  if (!greet) s.state = 'thinking'; s.turns++; // sapaan: status tetap "berdering" sampai diangkat
   try { s.rec && s.rec.abort(); } catch {} s.rec = null; // mikrofon mati: user tidak bisa membalas sampai AI selesai
   s.fin = ''; s.cur = { f: '', i: '' }; s.last = 0;
   ui.bar.style.width = '0%'; ui.cap.textContent = ''; ui.cap.classList.remove('talk');
   paint();
-  if (stillHere(chId)) addText(say);
-  record(chId, { r: 'me', x: say });
+  if (!greet) { if (stillHere(chId)) addText(say); record(chId, { r: 'me', x: say }); }
   const useVoice = voiceOn && !!vcode && canVoice(chId), lang = voiceLang;
   let r = null, relNote = '';
   try {
     r = await (await post('/api/chat', {
-      clientId: cid, char: chId, message: (CFG.HINT ? HINT + '\n' : '') + say, userName: uname, history: loadHist(chId),
+      clientId: cid, char: chId, message: greet ? GREET : (CFG.HINT ? HINT + '\n' : '') + say, userName: uname, history: loadHist(chId),
       voice: { on: useVoice, lang }, memory: memUse(chId).list, rel: relPayload(chId), qr: true, ...engPayload(), ...(rpOn() ? { rp: true } : {})
     })).json();
-    saveHist(chId, [...loadHist(chId), ['user', say], ['char', r.id]]); // riwayat memakai teks asli user, tanpa petunjuk telepon
+    saveHist(chId, [...loadHist(chId), ['user', greet ? '(menelepon dan telepon diangkat)' : say], ['char', r.id]]); // riwayat memakai teks asli user, tanpa petunjuk telepon
     relNote = relApply(chId, r.dExp != null ? r.dExp : (Math.round(Number(r.dRel)) || 0) * 3, r.dMood);
   } catch (e) {
     r = null;
@@ -236,8 +309,11 @@ async function turn1(s, raw) {
   }
   if (r) {
     if (S === s && !s.ended) {
+      if (greet && s.ringP) await s.ringP; // karakter baru "mengangkat" setelah nada dering selesai
+      if (S !== s || s.ended) { showThemSafe(chId, r.id); } else {
       s.state = 'speaking'; paint();
       try { await speak(s, chId, r, useVoice, lang); } catch (e) { note(e.message || 'Suara gagal'); }
+      }
     } else {
       showThemSafe(chId, r.id); // telepon sudah ditutup saat menunggu: balasan tetap masuk obrolan sebagai teks
     }
@@ -245,6 +321,7 @@ async function turn1(s, raw) {
     if (Array.isArray(r.nq)) r.nq.forEach((tt, i) => setTimeout(() => (S ? note(tt) : toast(tt)), 600 + i * 2300));
     if (relNote) { if (S === s) note(relNote); else toast(relNote); }
   }
+  if (greet && s.ringP) await s.ringP; // sapaan gagal: tetap tunggu dering selesai sebelum giliran user
   if (S !== s) { if (!S) release(); return; } // telepon sudah diakhiri (kalau sudah ada telepon baru, busy miliknya, jangan dilepas)
   s.state = 'speaking'; paint();
   await new Promise(res => setTimeout(res, CFG.RESUME_MS));
@@ -254,10 +331,17 @@ async function turn1(s, raw) {
 
 /* ---------- AI bicara ---------- */
 const sleep = ms => new Promise(res => setTimeout(res, ms));
-function playUrl(s, url) {
+function pulse(a, bins) { // avatar berdenyut mengikuti kenyaringan suara karakter (dari waveform hasil decode)
+  if (!ui || !bins || !bins.length || typeof requestAnimationFrame !== 'function') return () => {};
+  const mx = Math.max(...bins) || 1; let raf = 0, on = true;
+  const f = () => { if (!on) return; const d = a.duration || 0, i = d ? Math.min(bins.length - 1, Math.floor(a.currentTime / d * bins.length)) : 0; ui.av.style.setProperty('--lv', Math.min(1, bins[i] / mx).toFixed(2)); raf = requestAnimationFrame(f); };
+  raf = requestAnimationFrame(f);
+  return () => { on = false; cancelAnimationFrame(raf); ui.av.style.setProperty('--lv', 0); };
+}
+function playUrl(s, url, bins) {
   return new Promise(res => {
-    const a = s.el; let done = false;
-    const fin = () => { if (done) return; done = true; s.stopAudio = null; a.onended = a.onerror = null; res(); };
+    const a = s.el; let done = false; const stopP = pulse(a, bins);
+    const fin = () => { if (done) return; done = true; stopP(); s.stopAudio = null; a.onended = a.onerror = null; res(); };
     s.stopAudio = () => { try { a.pause(); } catch {} fin(); };
     a.onended = fin; a.onerror = fin;
     a.src = url; const p = a.play(); if (p && p.catch) p.catch(fin);
@@ -266,9 +350,10 @@ function playUrl(s, url) {
 function speakSynth(s, text) { // tanpa voice AI: dibacakan suara bawaan browser
   return new Promise(res => {
     const synth = window.speechSynthesis; let done = false;
-    const fin = () => { if (done) return; done = true; s.stopTts = null; clearTimeout(guard); res(); };
+    const fin = () => { if (done) return; done = true; s.stopTts = null; clearTimeout(guard); if (ui) ui.el.classList.remove('fb'); res(); };
     const guard = setTimeout(fin, Math.max(2500, text.length * 110 + 2500)); // onend tidak selalu datang di semua browser
     if (!synth || !text) { setTimeout(fin, Math.max(1500, text.length * 55)); s.stopTts = fin; return; } // tanpa suara browser: beri waktu baca
+    if (ui) ui.el.classList.add('fb');
     const u = new SpeechSynthesisUtterance(text); u.lang = store.get('sttlang') || 'id-ID'; u.onend = fin; u.onerror = fin;
     s.stopTts = () => { try { synth.cancel(); } catch {} fin(); };
     try { synth.cancel(); synth.speak(u); } catch { fin(); }
@@ -294,7 +379,7 @@ async function speak(s, chId, r, useVoice, lang) {
       const saved = await idb.put(k, { ab, dur: pre.dur, bins: pre.bins });
       if (saved) pre.k = k;
       record(chId, { t: tNow, r: 'vn', x: p.id, jp: p.jp, lang, vn: p.vn, ...(saved ? { ks: [k], si: 0 } : {}) });
-      if (S === s && !s.ended) { cap(p.id); await playUrl(s, pre.url); }
+      if (S === s && !s.ended) { cap(p.id); await playUrl(s, pre.url, pre.bins); }
       if (S === s && i < parts.length - 1) await sleep(250);
     }
     i = parts.length;
