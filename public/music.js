@@ -74,7 +74,7 @@ const cur = () => (qi >= 0 && qi < queue.length ? queue[qi] : null);
 /* muat/simpan antrean (pola store seperti pin/logs aplikasi); antrean HANYA dipulihkan saat Mode dev
    aktif — user biasa tidak melihat mini player dari sisa antrean lama */
 if (dev()) try { const o = JSON.parse(store.get('mqueue') || 'null'); if (o && Array.isArray(o.queue)) { queue = o.queue; qi = Math.min(o.qi ?? -1, o.queue.length - 1); repeat = ['off', 'all', 'one'].includes(o.repeat) ? o.repeat : 'off'; shuffle = !!o.shuffle; } } catch {}
-const save = () => store.set('mqueue', JSON.stringify({ queue: queue.slice(0, 100), qi, repeat, shuffle }));
+const save = () => { store.set('mqueue', JSON.stringify({ queue: queue.slice(0, 100), qi, repeat, shuffle })); schedWarm() };
 
 /* riwayat putar ('mhist', terbaru di depan, maks 40) — jadi bahan rekomendasi di beranda */
 const slim = s => ({ id: s.id, title: s.title, artist: s.artist, album: s.album || '', dur: s.dur || 0, thumb: s.thumb || '' });
@@ -468,12 +468,61 @@ async function doSearch(qRaw) {
   render();
 }
 
+/* ---------- pemanasan (prefetch): selagi lagu diputar, 2 lagu berikutnya diminta ke server lebih dulu ----------
+   /api/music/stream menyuruh server audio (Pterodactyl) mengunduh & menyimpan filenya di cache (120 mnt), dan request yang sama
+   digabung (dedupe). Jadi saat lagunya benar-benar dibuka, balasannya instan. Hasil balasan dibuang; yang berguna cache di server.
+   Diminta BERURUTAN (maks 1 unduhan sekaligus dari klien) supaya slot server (MAX_PARALLEL) tidak habis oleh pemanasan,
+   dan baru mulai SETELAH lagu yang sedang diputar siap. Pindah lagu = rantai pemanasan lama berhenti. */
+const WARM_N = 2, WARM_TTL = 20 * 60e3;
+const warm = new Map();               // id lagu -> waktu terakhir diminta (ms)
+let plan = [];                        // mode acak: id lagu berikutnya yang sudah dipilih, supaya yang dipanaskan = yang benar-benar diputar
+let pfGen = 0, pfRun = -1, pfT = 0;   // pfGen naik tiap pindah lagu (membatalkan rantai lama); pfRun = rantai yang sedang jalan
+/* n lagu berikutnya menurut mode saat ini (acak / berurutan / ulangi semua). Ulangi-satu-lagu = tidak ada. */
+function upcoming(n) {
+  const c = cur();
+  if (!c || repeat === 'one') return [];
+  if (shuffle && queue.length > 1) {
+    plan = plan.filter(id => id !== c.id && queue.some(x => x.id === id));
+    while (plan.length < n) {
+      const pool = queue.filter(x => x.id !== c.id && !plan.includes(x.id));
+      if (!pool.length) break;
+      plan.push(pool[Math.floor(Math.random() * pool.length)].id);
+    }
+    return plan.slice(0, n).map(id => queue.find(x => x.id === id));
+  }
+  const out = [];
+  for (let k = 1; k <= n; k++) {
+    let i = qi + k;
+    if (i >= queue.length) { if (repeat === 'all') i %= queue.length; else break }
+    if (i !== qi && queue[i]) out.push(queue[i]);
+  }
+  return out;
+}
+async function prefetch() {
+  if (!dev() || !cur() || loading || !audio.src || pfRun === pfGen) return;
+  const g = pfGen; pfRun = g;
+  try {
+    for (const s of upcoming(WARM_N)) {
+      if (g !== pfGen) return;
+      const t = warm.get(s.id);
+      if (t && Date.now() - t < WARM_TTL) continue;
+      warm.set(s.id, Date.now());
+      try {
+        const r = await fetch('/api/music/stream?id=' + encodeURIComponent(s.id) + '&clientId=' + encodeURIComponent(cid));
+        if (!r.ok) warm.set(s.id, Date.now() - WARM_TTL + 60e3); /* gagal (mis. bot check): coba lagi paling cepat 1 menit lagi, jangan spam */
+      } catch { warm.set(s.id, Date.now() - WARM_TTL + 60e3) }
+    }
+  } finally { if (pfRun === g) pfRun = -1 }
+}
+const schedWarm = () => { clearTimeout(pfT); pfT = setTimeout(prefetch, 800) }; /* antrean/acak/ulang berubah -> hitung ulang */
+
 /* ---------- memutar lagu ---------- */
 async function playSong(idx, list) {
   const nq = list || queue;
   const s = nq[idx];
   if (!s) return;
   if (list) { queue = list }
+  pfGen++; /* hentikan rantai pemanasan untuk lagu sebelumnya */
   qi = idx; loading = true; lastErr = ''; hadd(s); save(); paintResults(); paintHome(); paintPage(); renderPl(); renderSheet();
   /* lirik dulu (independen dari stream: tetap tampil walau stream diblokir bot-check) */
   lyr = null; lrcIdx = -1; lyrLoading = true; renderLrc();
@@ -510,12 +559,17 @@ async function playSong(idx, list) {
     } catch {}
   }
   renderPl(); renderSheet();
+  setTimeout(() => { if (qi === idx) prefetch() }, 1200); /* lagu ini sudah jalan: panaskan 2 lagu berikutnya */
 }
 function playFromResults(i) { playSong(0, songs.slice(i).concat(songs.slice(0, i))) } /* klik = putar; sisanya mengikuti sebagai antrean */
 
 function next() {
   if (!queue.length) return;
-  if (shuffle && queue.length > 1) { let n = qi; while (n === qi) n = Math.floor(Math.random() * queue.length); return playSong(n) }
+  if (shuffle && queue.length > 1) { /* pakai pilihan yang sudah dipanaskan (lihat upcoming) */
+    const u = upcoming(1)[0], k = u ? queue.findIndex(x => x.id === u.id) : -1;
+    if (k >= 0 && k !== qi) return playSong(k);
+    let n = qi; while (n === qi) n = Math.floor(Math.random() * queue.length); return playSong(n)
+  }
   if (qi + 1 < queue.length) return playSong(qi + 1);
   if (repeat === 'all') return playSong(0);
   audio.pause();
