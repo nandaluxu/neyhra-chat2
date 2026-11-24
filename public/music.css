@@ -130,7 +130,7 @@
 .mnp-tab.on{background:var(--ink);color:var(--bg)}
 /* lirik */
 .mu-lrc{position:relative;margin-top:16px;padding:0 2px;max-height:44dvh;min-height:240px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;mask-image:linear-gradient(transparent,#000 12%,#000 88%,transparent);-webkit-mask-image:linear-gradient(transparent,#000 12%,#000 88%,transparent)}
-.mu-lrc.sync{padding-block:20dvh} /* ruang atas/bawah supaya baris pertama & terakhir bisa ke tengah */
+.mu-lrc.sync{padding-block:40px} /* cukup untuk melewati area pudar (mask) di tepi; baris awal/akhir tidak dipaksa ke tengah */
 .mu-lrc::-webkit-scrollbar{display:none}
 .mu-lrc .ln{padding:8px 10px;border-radius:10px;font-size:17px;font-weight:700;line-height:1.45;color:var(--mut);opacity:.55;transition:color .3s,opacity .3s;cursor:pointer;overflow-wrap:anywhere}
 .mu-lrc .ln:hover{opacity:.9}
