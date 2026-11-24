@@ -12,7 +12,10 @@
     "rel:test": "node scripts/rel500-e2e.mjs",
     "persona:test": "node scripts/persona-test.mjs",
     "persona:e2e": "node scripts/persona-e2e.mjs",
-    "lang:test": "node scripts/lang-test.mjs"
+    "lang:test": "node scripts/lang-test.mjs",
+    "pipe:test": "node scripts/turnpipe-test.mjs",
+    "group:test": "node scripts/group-flow-test.mjs",
+    "call:test": "node scripts/call-flow-test.mjs"
   },
   "engines": {
     "node": ">=20.6"
