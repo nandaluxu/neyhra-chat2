@@ -375,7 +375,7 @@ function renderPlPage(keepY) {
       '<span class="si"><b>' + esc(x.title) + '</b><span>' + esc(x.artist) + '</span></span>' +
       '<span class="al">' + esc(x.album || '') + '</span><span class="dur">' + fmt(x.dur) + '</span>' +
       '<span class="rm" role="button" tabindex="0" data-rm="' + i + '" title="Hapus dari playlist" aria-label="Hapus ' + esc(x.title) + ' dari playlist">' + SVG.close + '</span></div>').join('') + '</div>'
-      : '<div class="mu-msg">Playlist ini masih kosong. Putar lagu, klik tombol <b>+</b> di bar bawah <b>2×</b>, lalu pilih playlist ini.</div>');
+      : '<div class="mu-msg">Playlist ini masih kosong. Putar lagu, klik tombol <b>+</b> di bar bawah sampai jadi centang, lalu klik lagi untuk memilih playlist ini.</div>');
   if ($('music')) $('music').scrollTop = y;
   $('muback').addEventListener('click', closePage);
   $('muptog').addEventListener('click', () => setPanel(true));
@@ -551,7 +551,7 @@ function paintAdd() {
   const c = cur(), b = $('muadd'), on = !!c && plHas(plGet(LIKED), c.id);
   b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on));
   b.innerHTML = on ? SVG.check : SVG.plus;
-  b.title = (on ? 'Hapus dari Lagu disukai' : 'Simpan ke Lagu disukai') + ' · klik 2× untuk pilih playlist';
+  b.title = on ? 'Tersimpan — klik untuk pilih playlist' : 'Simpan ke Lagu disukai';
   b.setAttribute('aria-label', b.title);
 }
 /* kontrol di bar bawah desktop: ikon putar/jeda, acak, ulang (tanpa ulang <-> ulang lagu yang sama) */
@@ -570,9 +570,8 @@ $('mupnx').addEventListener('click', () => next());
 $('muppv').addEventListener('click', () => prev());
 $('mupsh').addEventListener('click', () => { shuffle = !shuffle; save(); renderPl(); renderSheet() });
 $('muprp').addEventListener('click', () => { repeat = repeat === 'off' ? 'one' : 'off'; save(); renderPl(); renderSheet(); say(repeat === 'off' ? 'Ulangi mati' : 'Ulangi satu lagu') });
-/* tombol + (kolom kiri bar bawah, tidak ikut kolom tengah): klik 1x = simpan/hapus di "Lagu disukai"; klik 2x = pilih playlist.
-   Klik tunggal ditunda sebentar supaya bisa dibedakan dari klik ganda. */
-let addT = 0;
+/* tombol + (kolom kiri bar bawah, tidak ikut kolom tengah): belum tersimpan -> klik = simpan ke "Lagu disukai" (jadi centang);
+   sudah centang -> klik = buka popup pilih playlist (di sana juga bisa dihapus dari playlist). */
 function quickLike() {
   const c = cur(); if (!c) return;
   const p = plGet(LIKED), has = plHas(p, c.id);
@@ -585,10 +584,9 @@ function quickLike() {
 }
 $('muadd').addEventListener('click', e => {
   e.stopPropagation();
-  if (!cur()) return;
+  const c = cur(); if (!c) return;
   if (!pk.hidden) { pkClose(); return }
-  if (addT) { clearTimeout(addT); addT = 0; pkOpen(); return }
-  addT = setTimeout(() => { addT = 0; quickLike() }, 260);
+  if (plHas(plGet(LIKED), c.id)) pkOpen(); else quickLike();
 });
 
 /* ---------- popup "Tambahkan ke playlist": perubahan ditampung dulu, baru berlaku saat Simpan ---------- */
