@@ -42,7 +42,8 @@ const server = http.createServer((req, res) => {
 <style>
 :root{--ink:#ececec;--mut:#8f8f8f;--surface:#1c1c1c;--line:#2c2c2c;--bg:#101010;--rec:#ff5b5b}
 html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,sans-serif}
-#app{min-height:100dvh;display:grid;grid-template-columns:220px 1fr}
+/* shell asli: #app setinggi viewport & position:relative (jangkar absolute mini player). Tiruan sama. */
+#app{position:relative;height:100dvh;overflow:hidden;display:grid;grid-template-columns:220px 1fr}
 #music{overflow-y:auto;height:100dvh}
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0}
 </style></head><body>

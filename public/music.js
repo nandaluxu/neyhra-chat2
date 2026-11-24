@@ -42,6 +42,7 @@ const SVG = {
   note: '<svg viewBox="0 0 24 24"><path d="M9 18V5l10-2v13M9 18a3 3 0 11-6 0 3 3 0 016 0zm10-2a3 3 0 11-6 0 3 3 0 016 0z"/></svg>',
   edit: '<svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>',
   trash: '<svg viewBox="0 0 24 24"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/></svg>',
+  link: '<svg viewBox="0 0 24 24"><path d="M10.5 13.5a4.6 4.6 0 006.5 0l2.9-2.9a4.6 4.6 0 00-6.5-6.5l-1.5 1.4"/><path d="M13.5 10.5a4.6 4.6 0 00-6.5 0l-2.9 2.9a4.6 4.6 0 006.5 6.5l1.4-1.4"/></svg>',
   panel: '<svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="3"/><path d="M14.5 4.5v15"/></svg>',
   vol2: '<svg class="sv" viewBox="0 0 24 24"><path d="M4 9.5v5h3.5l4.5 4v-13l-4.5 4z"/><path d="M15.5 9a4 4 0 010 6M18 6.5a8 8 0 010 11"/></svg>',
   vol1: '<svg class="sv" viewBox="0 0 24 24"><path d="M4 9.5v5h3.5l4.5 4v-13l-4.5 4z"/><path d="M15.5 9a4 4 0 010 6"/></svg>',
@@ -370,6 +371,7 @@ function renderPlPage(keepY) {
     '<p>' + plSub(p) + (p.songs.length ? ' · ' + fmtLong(plDur(p)) : '') + '</p></div></div>' +
     '<div class="mu-pla"><button type="button" class="mupl-play big" id="muplplay" aria-label="Putar playlist"' + (p.songs.length ? '' : ' disabled') + '>' + SVG.play + '</button>' +
     '<button type="button" class="mu-plb" id="muplsh" aria-label="Putar acak" title="Putar acak"' + (p.songs.length ? '' : ' disabled') + '>' + SVG.shuffle + '</button>' +
+    '<button type="button" class="mu-plb" id="mupladd" aria-label="Tambah lagu lewat link" title="Tambah lagu lewat link">' + SVG.plus + '</button>' +
     (own ? '<button type="button" class="mu-plb" id="muplren" aria-label="Ubah nama" title="Ubah nama">' + SVG.edit + '</button>' +
       '<button type="button" class="mu-plb" id="mupldel" aria-label="Hapus playlist" title="Hapus playlist">' + SVG.trash + '</button>' : '') + '</div>' +
     (p.songs.length ? '<div class="mu-trs" id="mutrs">' + p.songs.map((x, i) =>
@@ -385,6 +387,7 @@ function renderPlPage(keepY) {
   $('muptog').addEventListener('click', () => setPanel(true));
   $('muplplay').addEventListener('click', () => { if (p.songs.length) playSong(0, p.songs.slice()) });
   $('muplsh').addEventListener('click', () => { if (!p.songs.length) return; shuffle = true; save(); playSong(Math.floor(Math.random() * p.songs.length), p.songs.slice()) });
+  $('mupladd').addEventListener('click', () => piOpen(p));
   if (own) {
     $('muplren').addEventListener('click', () => {
       const h = $('mupln'); if (h.querySelector('input')) return;
@@ -881,6 +884,80 @@ $('mupks').addEventListener('click', () => {
 document.addEventListener('pointerdown', e => { if (!pk.hidden && !pk.contains(e.target) && !$('muadd').contains(e.target)) pkClose() });
 addEventListener('keydown', e => { if (e.key === 'Escape' && !pk.hidden) { pkClose(); e.stopPropagation() } }, true);
 addEventListener('storage', e => { if (e.key === PL_KEY) { plc = null; paintAdd(); paintHome(); paintPage() } });
+
+/* ---------- dialog "tambah lagu lewat link" di halaman playlist ----------
+   Tombol + di halaman playlist -> masukin link YouTube / YouTube Music -> lagu diimpor permanen ke
+   server (jalur yang sama dengan import kolom cari), lalu begitu siap otomatis masuk playlist ini.
+   Dialog tetap terbuka selama unduhan berjalan; tutup dialog tidak membatalkan unduhan di server. */
+const pi = document.createElement('div'); pi.id = 'mupi'; pi.hidden = true; pi.setAttribute('role', 'dialog'); pi.setAttribute('aria-modal', 'true'); pi.setAttribute('aria-label', 'Tambah lagu lewat link');
+pi.innerHTML = '<div class="pi-c"><div class="pi-h">Tambah lagu lewat link</div>' +
+  '<p class="pi-sub">Tempel link YouTube / YouTube Music — lagunya disimpan permanen di server, lalu langsung masuk playlist <b id="mupipn"></b>.</p>' +
+  '<label class="pi-s">' + SVG.link + '<input id="mupiq" type="search" inputmode="url" placeholder="https://youtube.com/watch?v=… atau music.youtube.com/…" autocomplete="off" spellcheck="false" aria-label="Link YouTube"></label>' +
+  '<div class="pi-st" id="mupist" hidden></div>' +
+  '<div class="pi-f"><button type="button" id="mupib">Batal</button><button type="button" class="go" id="mupigo">Tambah</button></div></div>';
+app.append(pi);
+let piPl = null, piBusy = false, piGen = 0;
+function piSt(html, cls) { const el = $('mupist'); el.hidden = !html; el.className = 'pi-st' + (cls ? ' ' + cls : ''); el.innerHTML = html }
+function piOpen(p) {
+  piPl = p; piBusy = false; piGen++;
+  $('mupipn').textContent = p.name; $('mupiq').value = '';
+  piSt(''); $('mupigo').disabled = false; pi.hidden = false;
+  setTimeout(() => { try { $('mupiq').focus() } catch {} }, 60);
+}
+function piClose() { piGen++; piPl = null; pi.hidden = true }
+async function piDone(pl, s, sudah, gen) {
+  if (gen !== piGen) return;
+  if (sudah || plHas(pl, s.id)) piSt(SVG.check + '<span>Sudah ada di playlist ' + esc(pl.name) + '.</span>', 'ok');
+  else if (pl.songs.length >= PL_SONGS) { piSt(SVG.close + '<span>Playlist penuh (maks ' + PL_SONGS + ' lagu).</span>', 'err'); piBusy = false; $('mupigo').disabled = false; return }
+  else {
+    pl.songs.unshift(slim(s));
+    if (!plSave()) { piSt(SVG.close + '<span>Lagu tersimpan di server, tapi playlist gagal disimpan (penyimpanan browser penuh).</span>', 'err'); paintAdd(); paintHome(); paintPage(); piBusy = false; $('mupigo').disabled = false; return }
+    piSt(SVG.check + '<span>Tersimpan permanen — masuk playlist ' + esc(pl.name) + '.</span>', 'ok');
+    say('Ditambahkan ke ' + pl.name + ': ' + (s.title || s.id));
+  }
+  paintAdd(); paintHome(); paintPage();
+  loadSrv(true);
+  piBusy = false; $('mupigo').disabled = false;
+  setTimeout(() => { if (piPl === pl && pi.hidden === false) piClose() }, 1400);
+}
+async function piPoll(gen, pl, id, s) { /* unduhan berjalan di server: pantau lewat /library sampai 'ok' (maks ±1 menit) */
+  for (let n = 0; n < 15; n++) {
+    await new Promise(r => setTimeout(r, 4000));
+    if (gen !== piGen) return;
+    const jj = await jget('/api/music/library?clientId=' + encodeURIComponent(cid));
+    if (!(jj && jj.ok && Array.isArray(jj.songs))) continue;
+    srv = { t: Date.now(), songs: jj.songs, total: jj.total_bytes || 0, kuota: jj.kuota_bytes || 0 }; srvOn = true;
+    const e = jj.songs.find(x => x.id === id);
+    if (e && e.status === 'ok') { say('Selesai diunduh ke server: ' + (e.title || id)); return piDone(pl, e, false, gen) }
+    if (e && e.status === 'error') { piSt(SVG.close + '<span>' + esc(e.error || 'Gagal mengunduh ke server') + '</span>', 'err'); piBusy = false; $('mupigo').disabled = false; return }
+    if (n === 13) piSt(SPIN + '<span>Masih mengunduh — lagu besar butuh waktu. Tutup dialog dan cek seksi “Lagu tersimpan di server” nanti, lagunya tetap lanjut diunduh.</span>', 'busy');
+  }
+  piSt(SVG.close + '<span>Unduhan masih berjalan di server. Cek “Lagu tersimpan di server” sebentar lagi, lalu tambahkan lewat tombol + lagi.</span>', 'err');
+  piBusy = false; $('mupigo').disabled = false;
+}
+async function piSubmit() {
+  if (!piPl || piBusy) return;
+  const pl = piPl, raw = $('mupiq').value.trim();
+  if (!raw) { piSt(SVG.close + '<span>Tempel link YouTube-nya dulu.</span>', 'err'); $('mupiq').focus(); return }
+  const id = ytLink(raw); /* terima youtube.com, youtu.be, music.youtube.com, shorts, live, embed */
+  if (!id) { piSt(SVG.close + '<span>Link tidak dikenali. Pakai youtube.com/watch?v=…, youtu.be/…, atau music.youtube.com/watch?v=…</span>', 'err'); return }
+  piBusy = true; $('mupigo').disabled = true;
+  const gen = ++piGen;
+  piSt(SPIN + '<span>Mengambil lagu…</span>', 'busy');
+  const j = await jget('/api/music/import?id=' + encodeURIComponent(id) + '&clientId=' + encodeURIComponent(cid));
+  if (gen !== piGen) return; /* dialog ditutup saat menunggu: unduhan tetap jalan di server */
+  piBusy = false; $('mupigo').disabled = false;
+  if (!(j && j.ok)) { piSt(SVG.close + '<span>' + esc((j && j.error) || 'Import gagal — cek server audio (Ptero) menyala.') + '</span>', 'err'); return }
+  const s = j.song || { id, title: '', artist: '', album: '', dur: 0, thumb: '' };
+  if (j.ready) { say(j.sudah_ada ? 'Lagu sudah tersimpan di server.' : 'Berhasil diimpor — file disimpan permanen di server.'); return piDone(pl, s, !!j.sudah_ada, gen) }
+  piSt(SPIN + '<span><b>' + esc(s.title || id) + '</b> — mengunduh ke server…</span>', 'busy');
+  piPoll(gen, pl, id, s);
+}
+$('mupib').addEventListener('click', piClose);
+$('mupigo').addEventListener('click', piSubmit);
+$('mupiq').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); piSubmit() } });
+pi.addEventListener('pointerdown', e => { if (e.target === pi) piClose() });
+addEventListener('keydown', e => { if (e.key === 'Escape' && !pi.hidden) { piClose(); e.stopPropagation() } }, true);
 
 /* volume (disimpan di 'mvol'); tombol speaker = bisukan / bunyikan */
 { const v = parseFloat(store.get('mvol')); if (isFinite(v)) audio.volume = Math.min(1, Math.max(0, v)) }

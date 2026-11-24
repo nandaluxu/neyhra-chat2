@@ -1,9 +1,12 @@
 // ===== Tes: import lagu lewat link YouTube + library permanen di server audio (Ptero) =====
 // Dua bagian, tanpa jaringan luar:
-//   A) SERVER AUDIO (server.js v1.3 di download/server-audio-v1.3) — dijalankan dengan yt-dlp TIRUAN
+//   A) SERVER AUDIO (server.js v1.4 di download/server-audio-v1.3) — dijalankan dengan yt-dlp TIRUAN
 //      (stub binary yang menulis file 300 KB / memuntahkan JSON metadata). Diuji end-to-end:
 //      /save (impor permanen), /library, /remove, /audio prioritas permanen + Range, kuota
 //      LIB_MAX_MB, salin-dari-cache, dan pemulihan unduhan yang terputus.
+//   A2) SERVER AUDIO v1.4 dengan nexray TIRUAN + yt-dlp yang selalu kena limit: /save&via=link
+//      wajib nexray dulu (metadata & audio, tanpa menyentuh yt-dlp), cooldown yt-dlp setelah
+//      bot-check, dan file sampah < MIN_FILE_KB (contoh nyata: 637 B) dipulihkan otomatis.
 //   B) ROUTER VERCEL (lib/music.js) — dengan server Ptero TIRUAN. Diuji: parser link ytId,
 //      /api/music/import, /api/music/library, /api/music/library/remove, kasus tanpa Ptero (501),
 //      plus parser ytLink di public/music.js (diekstrak dari sumber aslinya, bukan disalin).
@@ -17,7 +20,7 @@ import http from 'node:http'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const SERVER_SRC = path.resolve(ROOT, '../download/server-audio-v1.3/server.js')
+const SERVER_SRC = path.resolve(ROOT, '../download/server-audio-v1.4/server.js')
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 
 /* bersihkan env yang bisa mengganggu (Redis/Upstash/Ptero) sebelum modul dibaca */
@@ -187,13 +190,106 @@ process.exit(1)
 }
 
 /* ================================================================ */
+console.log('== A2. server.js v1.4: via=link (nexray dulu), cooldown yt-dlp, pemulihan file sampah ==')
+{
+  /* nexray TIRUAN: API ytmp3 + CDN file 500 KB di localhost (tanpa jaringan luar) */
+  const MP3 = Buffer.alloc(500 * 1024, 9)
+  const NEX_PORT = 22000 + Math.floor(Math.random() * 1000)
+  const nex = http.createServer((req, res) => {
+    const u = new URL(req.url, 'http://x')
+    if (u.pathname === '/downloader/ytmp3') {
+      const id = String(u.searchParams.get('url') || '').split('/').pop() || 'x'
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      return res.end(JSON.stringify({ status: true, result: { url: 'http://127.0.0.1:' + NEX_PORT + '/file/' + id, title: 'Nexray Artis - Nexray Judul ' + id, filesize: MP3.length, duration: 120 } }))
+    }
+    if (u.pathname.startsWith('/file/')) { res.writeHead(200, { 'Content-Type': 'audio/mpeg', 'Content-Length': String(MP3.length) }); return res.end(MP3) }
+    res.writeHead(404, { 'Content-Type': 'application/json' }); res.end('{}')
+  })
+  await new Promise(r => nex.listen(NEX_PORT, '127.0.0.1', r))
+
+  const tmp = fs.mkdtempSync(path.join(ROOT, '.musimp2-'))
+  fs.copyFileSync(SERVER_SRC, path.join(tmp, 'server.cjs'))
+  const CACHE = path.join(tmp, 'cache'), LIB = path.join(tmp, 'music')
+  fs.mkdirSync(CACHE); fs.mkdirSync(LIB)
+
+  /* yt-dlp stub: metadata & unduhan SELALU kena bot-check (limit) */
+  const stub = path.join(tmp, 'ytdlp-stub.mjs')
+  fs.writeFileSync(stub, `#!/usr/bin/env node
+if (process.argv.includes('--version')) { console.log('2026.11.24-test'); process.exit(0) }
+console.error('ERROR: Sign in to confirm you are not a bot. This helps protect our community.')
+process.exit(1)
+`)
+  fs.chmodSync(stub, 0o755)
+
+  const PORT = 24000 + Math.floor(Math.random() * 2000)
+  const env = {
+    ...process.env, API_KEY: 'kunci-a2', PORT: String(PORT), YTDLP_BIN: stub,
+    CACHE_DIR: CACHE, LIB_DIR: LIB, LIB_MAX_MB: '20', MAX_PARALLEL: '3',
+    NEXRAY_FALLBACK: '1', NEXRAY_BASE: 'http://127.0.0.1:' + NEX_PORT, NEXRAY_API_SEC: '10', NEXRAY_DL_SEC: '30',
+    YTDL_UPDATE_HOURS: '0', PROVIDER_ORDER: 'ytdlp,nexray' /* sengaja ytdlp dulu: via=link HARUS tetap nexray dulu */
+  }
+  const proc = spawn(process.execPath, [path.join(tmp, 'server.cjs')], { env, stdio: ['ignore', 'pipe', 'pipe'] })
+  let logS = ''
+  proc.stdout.on('data', d => { logS += d })
+  proc.stderr.on('data', d => { logS += d })
+  const H = { 'x-api-key': 'kunci-a2' }
+  try {
+    const up = await waitPort(PORT)
+    ok('server menyala', up)
+    if (!up) throw new Error('server tidak menyala')
+
+    /* 1. via=link: nexray dulu untuk metadata + audio, yt-dlp TIDAK disentuh */
+    let r = await get(PORT, '/save?id=NEWRAYTEST1&via=link', H)
+    ok('/save via=link ok', r.status === 200 && r.json && r.json.ok === true, JSON.stringify(r.json))
+    ok('via=link metadata dari nexray (judul dipecah artis)', r.json && r.json.song && r.json.song.title === 'Nexray Judul NEWRAYTEST1' && r.json.song.artist === 'Nexray Artis', JSON.stringify(r.json && r.json.song))
+    ok('via=link tidak menyentuh yt-dlp (tanpa penalty)', !/kena limit/.test(logS), logS.slice(-400))
+    const libOk = await waitFor(async () => {
+      const l = await get(PORT, '/library', H)
+      const s = l.json && l.json.songs && l.json.songs.find(x => x.id === 'NEWRAYTEST1')
+      return s && s.status === 'ok' && s.bytes >= 500 * 1024
+    })
+    ok('via=link file audio dari nexray (500 KB tersimpan)', !!libOk)
+    ok('log pakai nexray, bukan yt-dlp', /ok lib nexray NEWRAYTEST1/.test(logS) && !/ok lib ytdlp NEWRAYTEST1/.test(logS))
+
+    /* 2. file sampah 637 B (kasus nyata) dimasukkan SETELAH server jalan, lalu /library memulihkannya:
+          pemulihan coba yt-dlp dulu (urutan asli) -> kena bot-check -> cooldown -> nexray menyembuhkan */
+    fs.writeFileSync(path.join(LIB, 'GARBAGE00001.mp3'), Buffer.alloc(637, 3))
+    fs.writeFileSync(path.join(LIB, 'GARBAGE00001.json'), JSON.stringify({ id: 'GARBAGE00001', title: 'Lagu Sampah', artist: '', dur: 30, thumb: '', status: 'ok', added_at: Date.now(), bytes: 637, ext: 'mp3', source: 'nexray' }))
+    await get(PORT, '/library', H) /* picu pemulihan malas */
+    const gar = await waitFor(async () => {
+      const l = await get(PORT, '/library', H)
+      const s = l.json && l.json.songs && l.json.songs.find(x => x.id === 'GARBAGE00001')
+      return s && s.status === 'ok' && s.bytes >= 500 * 1024
+    }, 20000)
+    ok('file sampah 637 B dipulihkan jadi audio valid', !!gar)
+    ok('yt-dlp kena bot-check -> cooldown aktif', /kena limit/.test(logS))
+
+    /* 3. import berikutnya (tanpa via): yt-dlp DISKIP selama cooldown, nexray yang mengerjakan */
+    r = await get(PORT, '/save?id=COOLTEST001', H)
+    ok('/save tanpa via tetap ok (nexray mengambil alih)', r.status === 200 && r.json && r.json.ok === true)
+    await waitFor(() => /ytdlp_cooldown/.test(logS), 5000) /* kickLib jalan di latar: tunggu lognya */
+    ok('save berikutnya skip yt-dlp (cooldown)', /ytdlp_cooldown/.test(logS) && !/ok lib ytdlp COOLTEST/.test(logS), logS.slice(-600))
+    const h = await get(PORT, '/health', H)
+    ok('/health menampilkan cooldown', h.json && typeof h.json.ytdlp_cooldown_dtk === 'number' && h.json.ytdlp_cooldown_dtk > 0, JSON.stringify(h.json))
+  } catch (e) {
+    fail++
+    console.error('  GAGAL - bagian A2 melempar: ' + (e && e.message))
+    console.error(logS.slice(-2000))
+  } finally {
+    proc.kill('SIGKILL'); nex.close()
+    try { fs.rmSync(tmp, { recursive: true, force: true }) } catch {}
+  }
+}
+
+/* ================================================================ */
 console.log('== B. router Vercel lib/music.js dengan server Ptero tiruan ==')
 {
   /* server Ptero tiruan: /save /library /remove — memeriksa api-key yang dikirim */
-  const seenKeys = []
+  const seenKeys = [], seenSaveQ = []
   const ptero = http.createServer((req, res) => {
     const u = new URL(req.url, 'http://x')
     seenKeys.push(req.headers['x-api-key'])
+    if (u.pathname === '/save') seenSaveQ.push(u.search)
     const j = (o, s = 200) => { res.writeHead(s, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(o)) }
     if (u.pathname === '/save') return j({ ok: true, ready: false, song: { id: u.searchParams.get('id'), title: 'Lagu Ptero', artist: 'Artis Ptero', dur: 200, thumb: 'https://i.ytimg.com/vi/x/hqdefault.jpg', status: 'downloading' } })
     if (u.pathname === '/library') return j({ ok: true, jumlah: 1, total_bytes: 123456, kuota_bytes: 2048 * 1048576, songs: [{ id: 'AAAAAAAAAAA', title: 'Lagu Ptero', artist: 'Artis Ptero', dur: 200, thumb: 'x', status: 'ok', bytes: 123456, size: '120.56 KB' }] })
@@ -241,6 +337,7 @@ console.log('== B. router Vercel lib/music.js dengan server Ptero tiruan ==')
     r = await get(VPORT, V + '/import?q=monokrom+tulus&clientId=t1')
     ok('import tanpa url = 400', r.status === 400)
     ok('api-key Ptero terkirim benar', seenKeys.length > 0 && seenKeys.every(k => k === 'kunci-b'))
+    ok('import meneruskan &via=link ke /save Ptero (nexray dulu, tanpa yt-dlp)', seenSaveQ.some(q => q === '?id=dQw4w9WgXcQ&via=link'), JSON.stringify(seenSaveQ))
 
     /* /api/music/library dan /remove */
     r = await get(VPORT, V + '/library?clientId=t1')

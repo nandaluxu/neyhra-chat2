@@ -400,6 +400,35 @@
 .pk-f .go{background:var(--ink);color:var(--bg)}
 .pk-f .go:hover{color:var(--bg);opacity:.88}
 
+/* ===== Dialog "tambah lagu lewat link" di halaman playlist (#mupi) ===== */
+#mupi{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.55)}
+#mupi[hidden]{display:none}
+#app:not([data-tab="music"]) #mupi{display:none!important}
+.pi-c{width:min(430px,100%);padding:18px 16px 14px;border-radius:16px;background:var(--surface);color:var(--ink);box-shadow:0 18px 60px rgba(0,0,0,.45),0 0 0 1px var(--line)}
+.pi-h{font-size:16px;font-weight:700}
+.pi-sub{margin:6px 0 0;font-size:13px;line-height:1.5;color:var(--mut)}
+.pi-sub b{color:var(--ink)}
+.pi-s{display:flex;align-items:center;gap:9px;margin-top:12px;padding:11px 12px;border-radius:10px;background:var(--bg);transition:box-shadow .15s}
+.pi-s:focus-within{box-shadow:0 0 0 2px var(--ink)}
+.pi-s svg{width:18px;height:18px;flex:none;fill:none;stroke:var(--mut);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.pi-s input{flex:1;min-width:0;border:0;outline:0;background:transparent;color:var(--ink);font:inherit;font-size:14px}
+.pi-s input::placeholder{color:var(--mut);opacity:.75}
+.pi-st{display:flex;align-items:center;gap:10px;margin-top:12px;padding:10px 12px;border-radius:10px;font-size:13.5px;line-height:1.45;background:var(--bg)}
+.pi-st[hidden]{display:none}
+.pi-st svg{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.pi-st.busy{color:var(--mut)}
+.pi-st.ok{color:var(--ok)}
+.pi-st.err{color:var(--rec)}
+.pi-st .muspin{width:15px;height:15px}
+.pi-st b{color:var(--ink)}
+.pi-f{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+.pi-f button{padding:9px 16px;border-radius:99px;font-size:13.5px;font-weight:700;color:var(--mut)}
+.pi-f button:hover{color:var(--ink)}
+.pi-f .go{background:var(--ink);color:var(--bg)}
+.pi-f .go:hover{color:var(--bg);opacity:.88}
+.pi-f .go:disabled{opacity:.4}
+@media(max-width:560px){#mupi{align-items:flex-end;padding:10px}.pi-c{border-radius:14px}} /* ponsel: lembar bawah */
+
 /* ===== Import lewat link YouTube + seksi "Lagu tersimpan di server" (permanen) ===== */
 .mu-impc{margin-top:14px;max-width:640px;padding:16px;border-radius:16px;background:var(--surface)}
 .mu-impc .row{display:flex;align-items:center;gap:14px}

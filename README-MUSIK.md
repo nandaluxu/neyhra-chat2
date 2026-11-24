@@ -39,7 +39,7 @@ env `LIB_DIR`) yang tidak pernah dibersihkan TTL cache dan bertahan restart pane
 muncul di seksi **“Lagu tersimpan di server”** di beranda tab Musik (badge PERMANEN, bisa diputar
 kapan pun tanpa unduh ulang, bisa dihapus lewat “Lihat semua” — ketuk ikon tempat sampah 2x).
 
-- Butuh **server audio Ptero v1.3+** (`server-audio-v1.3.zip`, lihat `UBAHAN-MUSIC-IMPORT.md`) dan
+- Butuh **server audio Ptero v1.4+** (`server-audio-v1.4.zip`, lihat `UBAHAN-MUSIC-IMPORT.md`) dan
   env `MUSIC_PTERO_URL` + `MUSIC_PTERO_KEY` di Vercel (yang sudah terpasang dari setup musik Ptero).
 - Endpoint baru: `/api/music/import?url=|id=` (simpan permanen; unduhan file jalan di latar di
   server), `/api/music/library` (daftar + status unduhan + total/kuota), `/api/music/library/remove?id=`.

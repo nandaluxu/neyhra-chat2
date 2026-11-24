@@ -109,3 +109,41 @@ Env lama (`API_KEY`, `PUBLIC_URL`, `CACHE_DIR`, `CACHE_TTL_MIN`, `MAX_MB`, `MAX_
 - File library berformat m4a (yt-dlp, kualitas 128k) atau mp3 (fallback nexray, ±64k) — sama
   seperti jalur putar biasa.
 - `MUSIC_DIRECT=1` (mode lokal) tidak relevan untuk import — import selalu lewat Ptero.
+
+---
+
+## G. UBAHAN v1.4 — Anti-limit import link + tombol + di playlist
+
+Laporan: import lewat link kena limit (bot-check/429 YouTube), padahal link yang sama langsung ke
+nexray selalu berhasil tanpa yt-dlp. Debug v1.3 juga menunjukkan ada lagu library berukuran 637 B
+(bukan audio). Perbaikan, semua teruji otomatis (lihat bagian tes):
+
+1. **Impor via link = nexray langsung, tanpa yt-dlp.** `/api/music/import` (Vercel) kini mengirim
+   `&via=link` ke `/save` Ptero. Param itu memaksa **metadata dan file audio diambil dari nexray
+   dulu** untuk impor itu — yt-dlp hanya jadi cadangan kalau nexray gagal. Berlaku tanpa mengubah
+   `PROVIDER_ORDER`. Bonus: judul nexray berpola "Artis - Judul" dipecah jadi artis + judul.
+2. **Cooldown yt-dlp.** Sekali yt-dlp kena bot-check/429, yt-dlp **diskip 5 menit** (`YTDLP_COOL_SEC`,
+   default 300) untuk SEMUA jalur (metadata /info, unduh cache, unduh library) — permintaan langsung
+   jatuh ke nexray. Sebelumnya tiap permintaan tetap mencoba yt-dlp: nunggu 60-90 dtk, dan makin
+   sering dicoba makin lama kena limit. Status cooldown kelihatan di `/health`
+   (`ytdlp_cooldown_dtk`).
+3. **Pembasmi file sampah.** File audio < `MIN_FILE_KB` (default 96 KB; lagu asli minimal ±1 MB)
+   dianggap bukan audio dan DIBUANG — tidak pernah disimpan ke cache/library, tidak disalin dari
+   cache, tidak dilayani, tidak diputar. Entri library "ok" yang filenya hilang/sampah (contoh
+   nyata: lagu 637 B) **dipulihkan otomatis**: diunduh ulang saat /library, /save, atau lagu
+   diputar — tanpa perlu hapus manual.
+4. **Tombol + di playlist: tambah lagu lewat link.** Halaman playlist kini punya tombol **+**
+   (sebelah putar acak) → dialog "Tambah lagu lewat link" → tempel link **YouTube / YouTube Music**
+   (`music.youtube.com`, `youtu.be`, `shorts`, `live`, `embed`) → lagu diimpor permanen ke server
+   (jalur sama dengan kolom cari, `via=link`), progres tampil di dialog ("Mengambil… → Mengunduh ke
+   server… → Tersimpan"), begitu siap **otomatis masuk playlist itu**. Tutup dialog tidak membatalkan
+   unduhan di server; lagu besar tetap lanjut dan bisa dicek di "Lagu tersimpan di server".
+   Link sampah ditolak dengan pesan; playlist penuh ditolak; lagu yang sudah ada di playlist tidak
+   ditambah dua kali.
+
+Yang berubah: `lib/music.js` (param via=link), `public/music.js` (tombol + dialog `#mupi`), 
+`public/music.css` (gaya dialog), `server.js` v1.4 (via=link, cooldown, pembasmi sampah, pemulihan),
+`scripts/music-import-test.mjs` (bagian A2), `scripts/music-ui-test.mjs` (bagian 8-9).
+
+Tes: `music:test` **63 lulus** (A server dasar, A2 via=link+cooldown+pemulihan 637 B, B router,
+C parser), `music:ui` **41 lulus** (termasuk dialog playlist dengan link YouTube Music).

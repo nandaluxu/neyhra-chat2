@@ -94,8 +94,69 @@ try {
   await page.waitForTimeout(1000)
   const src2 = await page.evaluate(() => document.querySelector('audio').src)
   ok('audio memutar lagu server', src2.includes('/api/music/audio?id='))
-  ok('tanpa error JS di akhir', errs.length === 0, errs.join(' | '))
+  ok('tanpa error JS sampai sini', errs.length === 0, errs.join(' | '))
   await shot('06-putar-lagu-server')
+
+  console.log('[8] Tombol + di playlist -> dialog link (YouTube Music)')
+  await page.click('#muback') /* tutup halaman server -> kembali ke beranda */
+  await page.waitForTimeout(400)
+  /* simpan lagu hasil carian ke "Lagu disukai" supaya seksi playlist tampil: putar dulu, lalu tombol + di bar bawah.
+     Desktop: bar mini (dengan tombol +) hanya tampak setelah panel Now Playing ditutup (mp-off). */
+  await page.fill('#muq', 'monokrom tulus')
+  await page.press('#muq', 'Enter')
+  await page.waitForTimeout(500)
+  await page.click('.mu-song')
+  await page.waitForTimeout(900)
+  await page.click('#mnpx') /* sembunyikan panel pemutar -> bar mini muncul */
+  await page.waitForTimeout(500)
+  await page.click('#muadd') /* belum tersimpan -> simpan ke Lagu disukai */
+  await page.waitForTimeout(400)
+  await page.fill('#muq', '')
+  await page.waitForTimeout(400)
+  ok('seksi "Playlist kamu" tampil', await page.locator('section[data-sec="pls"]').count() === 1)
+  await page.click('section[data-sec="pls"] [data-pl="liked"]')
+  await page.waitForTimeout(400)
+  ok('halaman playlist "Lagu disukai" terbuka', (await page.locator('.mu-plm h1').textContent()) === 'Lagu disukai')
+  ok('tombol + (tambah lewat link) ada', await page.locator('#mupladd').count() === 1)
+  await page.click('#mupladd')
+  await page.waitForTimeout(300)
+  ok('dialog link terbuka', await page.locator('#mupi:not([hidden])').count() === 1)
+  ok('nama playlist ditulis di dialog', (await page.locator('#mupipn').textContent()) === 'Lagu disukai')
+  /* link tidak valid -> pesan error, tidak ada permintaan import */
+  await page.fill('#mupiq', 'ini bukan link')
+  await page.click('#mupigo')
+  await page.waitForTimeout(200)
+  ok('link sampah ditolak dengan pesan', (await page.locator('#mupist').textContent()).includes('tidak dikenali'))
+  const stBefore = await state()
+  await page.fill('#mupiq', 'https://music.youtube.com/watch?v=PLTEST00001') /* YouTube Music! */
+  await page.click('#mupigo')
+  const awal = await page.locator('#mupist').textContent()
+  ok('status awal: mengambil / mengunduh', awal.includes('Mengambil') || awal.includes('mengunduh'), awal) /* stub instan: status bisa sudah lewat */
+  const stImp = await state()
+  ok('/api/music/import dipanggil untuk link YT Music', stImp.imported.includes('PLTEST00001') && stImp.imported.length === stBefore.imported.length + 1, JSON.stringify(stImp.imported))
+  let sudahDl = false
+  try { await page.waitForFunction(() => { const el = document.getElementById('mupist'); return !!el && el.textContent.indexOf('mengunduh') >= 0 }, null, { timeout: 5000 }); sudahDl = true } catch {}
+  ok('status jadi mengunduh ke server', sudahDl)
+  await shot('07-dialog-playlist-mengunduh')
+  /* poll tiap 4 dtk: poll pertama masih downloading, kedua ok */
+  await page.waitForTimeout(9500)
+  ok('status sukses + masuk playlist', (await page.locator('#mupist').textContent()).includes('masuk playlist'))
+  await page.waitForTimeout(1600) /* auto close dialog */
+  ok('dialog menutup sendiri', await page.locator('#mupi[hidden]').count() === 1)
+  const firstTxt = await page.locator('#mutrs .mu-tr').first().textContent()
+  ok('lagu baru jadi baris pertama playlist', firstTxt.includes('Lagu Import Uji'), firstTxt)
+  ok('playlist kini 2 lagu', await page.locator('#mutrs .mu-tr').count() === 2)
+  const mpl = await page.evaluate(() => JSON.parse(localStorage.getItem('mpl') || 'null'))
+  ok('playlist tersimpan di localStorage', !!mpl && mpl.pls[0].name === 'Lagu disukai' && mpl.pls[0].songs.some(x => x.id === 'PLTEST00001'), JSON.stringify(mpl && mpl.pls[0].songs))
+  await shot('08-playlist-berisi-import')
+
+  console.log('[9] Dialog ditutup manual (Batal / klik luar)')
+  await page.click('#mupladd')
+  await page.waitForTimeout(200)
+  await page.click('#mupib')
+  await page.waitForTimeout(200)
+  ok('Batal menutup dialog', await page.locator('#mupi[hidden]').count() === 1)
+  ok('tanpa error JS di akhir', errs.length === 0, errs.join(' | '))
 } catch (e) {
   fail++
   console.error('  GAGAL - tes melempar: ' + e.message)
