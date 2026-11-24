@@ -484,8 +484,8 @@ function pmPaint() {
   if (!p) { pm.hidden = true; return }
   const pub = !!p.pub;
   pm.innerHTML = '<div class="pm-h">' + esc(p.name) + '</div>' +
-    '<button type="button" class="pm-i" data-pm="pub"' + (pmBusy ? ' disabled' : '') + '>' + (pub ? SVG.lock : SVG.globe) +
-    '<span><b>' + (pub ? 'Jadikan Private' : 'Jadikan Publik') + '</b><small>' + (pub ? 'Berhenti dibagikan — link lama mati' : 'Dibagikan lewat link — siapa pun bisa memutar') + '</small></span>' +
+    '<button type="button" class="pm-i" data-pm="pub"' + (pmBusy ? ' disabled' : '') + '>' + (pub ? SVG.globe : SVG.lock) +
+    '<span><b>' + (pub ? 'Publik' : 'Private') + '</b><small>' + (pub ? 'Dibagikan lewat link — siapa pun bisa memutar' : 'Hanya ada di perangkat ini') + '</small></span>' +
     '<span class="pm-sw' + (pub ? ' on' : '') + '" aria-hidden="true"></span></button>' +
     (pub ? '<button type="button" class="pm-i" data-pm="copy">' + SVG.link + '<span><b>Salin Link</b><small>/music?pl=' + esc(p.pub) + '</small></span></button>' : '');
 }
