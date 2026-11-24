@@ -88,16 +88,17 @@ const cur = () => (qi >= 0 && qi < queue.length ? queue[qi] : null);
 
 /* muat/simpan antrean (pola store seperti pin/logs aplikasi); tab kini untuk semua orang, antrean juga dipulihkan untuk semua */
 try { const o = JSON.parse(store.get('mqueue') || 'null'); if (o && Array.isArray(o.queue)) { queue = o.queue; qi = Math.min(o.qi ?? -1, o.queue.length - 1); repeat = ['off', 'all', 'one'].includes(o.repeat) ? o.repeat : 'off'; shuffle = !!o.shuffle; } } catch {}
-const save = () => { store.set('mqueue', JSON.stringify({ queue: queue.slice(0, 100), qi, repeat, shuffle })); schedWarm() };
+let stT = 0, stBusy = null, stAt = 0; /* cadangan riwayat + antrean ke akun (lihat stCloud) */
+const save = () => { store.set('mqueue', JSON.stringify({ queue: queue.slice(0, 100), qi, repeat, shuffle, u: Date.now() })); schedWarm(); stSched() };
 
 /* riwayat putar ('mhist', terbaru di depan, maks 40) — jadi bahan rekomendasi di beranda.
    ch = channel YouTube Music artis utama (dari pencarian) — kunci baris "Lainnya dari X". */
 const slim = s => ({ id: s.id, title: s.title, artist: s.artist, album: s.album || '', dur: s.dur || 0, thumb: s.thumb || '', ch: s.ch || '' });
 const hget = () => { try { const a = JSON.parse(store.get('mhist') || '[]'); return Array.isArray(a) ? a : [] } catch { return [] } };
-const hadd = s => { const a = hget().filter(x => x.id !== s.id); a.unshift(slim(s)); store.set('mhist', JSON.stringify(a.slice(0, 40))) };
+const hadd = s => { const a = hget().filter(x => x.id !== s.id); a.unshift(Object.assign(slim(s), { t: Date.now() })); store.set('mhist', JSON.stringify(a.slice(0, 40))); stSched() };
 
 /* ---------- playlist ('mpl'): {pls:[{id,name,songs:[slim]}]}. id 'liked' = playlist bawaan "Lagu disukai" (selalu ada, urutan pertama).
-   Hanya di perangkat ini (tidak ikut sinkron cloud, sama seperti 'mqueue'). Kunci lama 'mlib' (daftar lagu tersimpan) dimigrasi ke 'liked'. ---------- */
+   Dicadangkan ke akun di MongoDB (lihat plCloud); localStorage = cache perangkat. Kunci lama 'mlib' (daftar lagu tersimpan) dimigrasi ke 'liked'. ---------- */
 const PL_KEY = 'mpl', LIKED = 'liked', PL_SONGS = 500, PL_MAX = 50;
 let plc = null;
 function plLoad() {
@@ -606,9 +607,60 @@ function plCloudSched() { /* tiap playlist berubah: dorong ke akun setelah jeda 
   if (!plLogged()) return;
   clearTimeout(plCT); plCT = setTimeout(() => { plCT = 0; plCloud(true) }, 1500);
 }
+/* ---------- cadangan riwayat putar + antrean per akun ----------
+   Sama seperti playlist: 'mhist' & 'mqueue' hilang saat Keluar (wipeLocal). Sekarang disimpan di MongoDB per akun
+   (/api/auth/pl/state/*) dan ditarik lagi saat masuk. Riwayat digabung per lagu (cap waktu `t` terbaru, maks 40).
+   Antrean: yang `u` terbaru menang, tapi antrean dari akun HANYA dipasang kalau perangkat ini belum punya antrean dan
+   tidak sedang memutar (tidak pernah menggeser lagu yang sedang didengar). Data ber-cap akun lain ('mhown') dibuang. */
+const stDigest = h => (h || []).map(x => x.id + ':' + (x.t || 0)).join(',');
+const stMergeHist = (a, b) => { const m = new Map(); for (const x of (a || []).concat(b || [])) { if (!x || !x.id) continue; const o = m.get(x.id); if (!o || (x.t || 0) > (o.t || 0)) m.set(x.id, x) } return [...m.values()].sort((p, q) => (q.t || 0) - (p.t || 0)).slice(0, 40) };
+const stPlaying = () => { try { return !!(audio.src && !audio.paused) } catch { return false } };
+function stCloud(force) {
+  if (!plLogged()) return Promise.resolve(true);
+  if (stBusy) return stBusy;
+  if (!force && Date.now() - stAt < 30e3) return Promise.resolve(true);
+  return stBusy = (async () => {
+    try {
+      const j = await jpost('/api/auth/pl/state/pull', {});
+      if (!(j && j.ok && j.uid)) return false;
+      const alien = !!(store.get('mhown') && store.get('mhown') !== j.uid); /* sisa data akun lain: jangan digabung / dikirim */
+      const remH = Array.isArray(j.hist) ? j.hist : [], remQ = j.q && Array.isArray(j.q.queue) ? j.q : null;
+      /* riwayat */
+      const curH = hget(), hist = stMergeHist(alien ? [] : curH, remH), hChanged = alien || stDigest(hist) !== stDigest(curH);
+      if (hChanged) store.set('mhist', JSON.stringify(hist));
+      /* antrean */
+      let locQ = null; try { locQ = JSON.parse(store.get('mqueue') || 'null') } catch {}
+      if (alien) { locQ = null; store.set('mqueue', null) }
+      const locHas = !!(locQ && Array.isArray(locQ.queue) && locQ.queue.length);
+      let applied = alien, pushQ = null;
+      if (alien && !stPlaying()) { queue = []; qi = -1 }
+      if (remQ && remQ.queue.length && !locHas && !stPlaying() && !queue.length) {
+        queue = remQ.queue.slice(0, 100); qi = Math.min(Number.isInteger(remQ.qi) ? remQ.qi : -1, queue.length - 1);
+        repeat = ['off', 'all', 'one'].includes(remQ.repeat) ? remQ.repeat : 'off'; shuffle = !!remQ.shuffle;
+        store.set('mqueue', JSON.stringify({ queue, qi, repeat, shuffle, u: remQ.u || 0 })); applied = true;
+      } else if (locHas && (!remQ || (locQ.u || 0) > (remQ.u || 0))) {
+        pushQ = { queue: locQ.queue.slice(0, 100).map(slim), qi: locQ.qi, repeat: locQ.repeat, shuffle: locQ.shuffle, u: locQ.u || Date.now() };
+      }
+      if (stDigest(hist) !== stDigest(remH) || pushQ) { /* isi akun beda -> dorong (q lama akun dipertahankan kalau antrean lokal tidak menggantinya) */
+        const r = await jpost('/api/auth/pl/state/push', { hist, q: pushQ || remQ });
+        if (!(r && r.ok)) return false;
+      }
+      store.set('mhown', j.uid);
+      if (hChanged) { paintHome(); paintPage() }
+      if (applied) { renderPl(); renderSheet() }
+      stAt = Date.now();
+      return true;
+    } catch { return false } finally { stBusy = null }
+  })();
+}
+function stSched() { /* riwayat/antrean berubah: cadangkan setelah jeda 5 dtk (antrean berubah tiap ganti lagu) */
+  if (!plLogged()) return;
+  clearTimeout(stT); stT = setTimeout(() => { stT = 0; stCloud(true) }, 5000);
+}
+const mCloud = force => Promise.all([plCloud(force), stCloud(force)]).then(r => r.every(Boolean)); /* playlist + riwayat + antrean */
 /* dipanggil index.html: sebelum Keluar (wipeLocal) & sesudah masuk. true = aman */
-window.mplFlush = async () => { clearTimeout(plCT); plCT = 0; if (!plLogged()) return true; if (plCBusy) await plCBusy; return await plCloud(true) };
-window.mplSync = () => plCloud(true);
+window.mplFlush = async () => { clearTimeout(plCT); plCT = 0; clearTimeout(stT); stT = 0; if (!plLogged()) return true; if (plCBusy) await plCBusy; if (stBusy) await stBusy; return await mCloud(true) };
+window.mplSync = () => mCloud(true);
 pm.addEventListener('click', async e => {
   const b = e.target.closest('[data-pm]'); if (!b || !pmPl || pmBusy) return;
   const p = pmPl;
@@ -1661,7 +1713,7 @@ addEventListener('shell:tab', () => {
     const q = new URLSearchParams(location.search).get('pl');
     if (q && !sharedCode && !page) openShared(q.trim().slice(0, 16));
     else render();
-    applyPanel(); plCloud() /* tab dibuka: ambil perubahan dari perangkat lain (maks sekali per 30 dtk) */
+    applyPanel(); mCloud() /* tab dibuka: ambil perubahan dari perangkat lain (maks sekali per 30 dtk) */
   } else { sheet = false; np.classList.remove('on') }
 });
 if (active()) render();
@@ -1669,7 +1721,7 @@ if (active()) render();
 { const q = new URLSearchParams(location.search).get('pl'); if (q) openShared(q.trim().slice(0, 16)) }
 applyPanel();
 renderPl();
-plCloud(true); /* aplikasi dibuka: tarik playlist dari akun (kalau sudah masuk) */
+mCloud(true); /* aplikasi dibuka: tarik playlist, riwayat & antrean dari akun (kalau sudah masuk) */
 /* lebar kolom berubah (panel dibuka/ditutup) tidak memicu 'resize' jendela: pantau #music langsung supaya panah carousel ikut menyesuaikan */
 let lastDesk = desk();
 addEventListener('resize', () => { const d = desk(); if (d !== lastDesk) { lastDesk = d; applyPanel() } });
