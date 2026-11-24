@@ -38,6 +38,9 @@ const SVG = {
   close: '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>',
   plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
   panel: '<svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="3"/><path d="M14.5 4.5v15"/></svg>',
+  vol2: '<svg class="sv" viewBox="0 0 24 24"><path d="M4 9.5v5h3.5l4.5 4v-13l-4.5 4z"/><path d="M15.5 9a4 4 0 010 6M18 6.5a8 8 0 010 11"/></svg>',
+  vol1: '<svg class="sv" viewBox="0 0 24 24"><path d="M4 9.5v5h3.5l4.5 4v-13l-4.5 4z"/><path d="M15.5 9a4 4 0 010 6"/></svg>',
+  vol0: '<svg class="sv" viewBox="0 0 24 24"><path d="M4 9.5v5h3.5l4.5 4v-13l-4.5 4z"/><path d="M16 9.5l5 5M21 9.5l-5 5"/></svg>',
   search: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>'
 };
 
@@ -76,11 +79,28 @@ const hadd = s => { const a = hget().filter(x => x.id !== s.id); a.unshift(slim(
 /* ---------- mini player + lembar now playing: dibangun sekali, isi diperbarui ---------- */
 const pl = document.createElement('div'); pl.id = 'mupl'; pl.setAttribute('role', 'complementary'); pl.setAttribute('aria-label', 'Pemutar musik');
 pl.innerHTML = '<div class="mupb"><i id="mupb-fl"></i></div><div class="mupl-in">' +
-  '<img class="art" id="muart" alt="" draggable="false">' +
+  /* kiri: cover + judul + artis + tombol + (belum berfungsi) */
+  '<div class="mupl-l"><img class="art" id="muart" alt="" draggable="false">' +
   '<div class="si" id="musi"><b id="mupt"></b><span id="mupa"></span></div>' +
+  '<button type="button" class="mupl-add" id="muadd" aria-label="Simpan lagu" title="Simpan lagu">' + SVG.plus + '</button></div>' +
+  /* HP: tombol ringkas (di desktop disembunyikan, diganti kolom tengah) */
   '<button type="button" class="mupl-play" id="muplay" aria-label="Putar / jeda">' + SVG.play + '</button>' +
-  '<button type="button" class="mupl-nxt" id="munext" aria-label="Lagu berikutnya">' + SVG.next + '</button></div>';
+  '<button type="button" class="mupl-nxt" id="munext" aria-label="Lagu berikutnya">' + SVG.next + '</button>' +
+  /* tengah: kontrol + penggeser waktu */
+  '<div class="mupl-c"><div class="mupl-ctl">' +
+  '<button type="button" class="mupl-b" id="mupsh" aria-label="Acak">' + SVG.shuffle + '</button>' +
+  '<button type="button" class="mupl-b" id="muppv" aria-label="Lagu sebelumnya">' + SVG.prev + '</button>' +
+  '<button type="button" class="mupl-play" id="mupplay" aria-label="Putar / jeda">' + SVG.play + '</button>' +
+  '<button type="button" class="mupl-b" id="mupnx" aria-label="Lagu berikutnya">' + SVG.next + '</button>' +
+  '<button type="button" class="mupl-b" id="muprp" aria-label="Ulangi">' + SVG.repeat + '</button></div>' +
+  '<div class="mupl-tl"><span class="t1" id="mupt1">0:00</span>' +
+  '<div class="mupl-seek" id="mupseek" role="slider" tabindex="0" aria-label="Posisi lagu" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="tr"></div><div class="fl" id="mupfl"></div><div class="kn" id="mupkn"></div></div>' +
+  '<span class="t2" id="mupt2">0:00</span></div></div>' +
+  /* kanan: volume */
+  '<div class="mupl-r"><button type="button" class="mupl-b" id="muvolb" aria-label="Bisukan / bunyikan">' + SVG.vol2 + '</button>' +
+  '<input type="range" class="mupl-vol" id="muvol" min="0" max="100" value="100" aria-label="Volume"></div></div>';
 app.append(pl);
+const seek2 = $('mupseek'), vol = $('muvol');
 
 const np = document.createElement('div'); np.id = 'mnp'; np.setAttribute('role', 'dialog'); np.setAttribute('aria-label', 'Layar pemutar');
 np.innerHTML = '<div class="mnp-in">' +
@@ -114,6 +134,7 @@ function applyPanel() {
   np.classList.remove('on');
   sheet = on && active();
   if (sheet) { renderSheet(); if (sheetTab === 'lyrics') lrcShow() }
+  renderPl(); paintTime();
 }
 function setPanel(on) {
   if (desk()) { store.set('mpanel', on ? '1' : '0'); applyPanel(); return }
@@ -402,9 +423,42 @@ function renderPl() {
   $('mupa').textContent = s.artist;
   $('muplay').innerHTML = loading ? SPIN : (audio.paused ? SVG.play : SVG.pause);
   $('muplay').setAttribute('aria-label', audio.paused ? 'Putar' : 'Jeda');
+  paintCtl();
+}
+/* kontrol di bar bawah desktop: ikon putar/jeda, acak, ulang (tanpa ulang <-> ulang lagu yang sama) */
+function paintCtl() {
+  $('mupplay').innerHTML = loading ? SPIN : (audio.paused ? SVG.play : SVG.pause);
+  $('mupplay').setAttribute('aria-label', audio.paused ? 'Putar' : 'Jeda');
+  $('mupsh').classList.toggle('on', shuffle);
+  $('muprp').innerHTML = repeat === 'one' ? SVG.repeat1 : SVG.repeat;
+  $('muprp').classList.toggle('on', repeat !== 'off');
+  $('muprp').setAttribute('aria-label', repeat === 'one' ? 'Ulangi lagu ini (aktif)' : 'Ulangi');
 }
 $('muplay').addEventListener('click', toggle);
 $('munext').addEventListener('click', () => next());
+$('mupplay').addEventListener('click', toggle);
+$('mupnx').addEventListener('click', () => next());
+$('muppv').addEventListener('click', () => prev());
+$('mupsh').addEventListener('click', () => { shuffle = !shuffle; save(); renderPl(); renderSheet() });
+$('muprp').addEventListener('click', () => { repeat = repeat === 'off' ? 'one' : 'off'; save(); renderPl(); renderSheet(); say(repeat === 'off' ? 'Ulangi mati' : 'Ulangi satu lagu') });
+$('muadd').addEventListener('click', e => e.stopPropagation()); /* tombol + belum punya fungsi */
+
+/* volume (disimpan di 'mvol'); tombol speaker = bisukan / bunyikan */
+{ const v = parseFloat(store.get('mvol')); if (isFinite(v)) audio.volume = Math.min(1, Math.max(0, v)) }
+let lastVol = audio.volume || 1;
+function paintVol() {
+  const v = audio.muted ? 0 : audio.volume;
+  vol.value = Math.round(v * 100); vol.style.setProperty('--v', vol.value + '%');
+  $('muvolb').innerHTML = v === 0 ? SVG.vol0 : v < .5 ? SVG.vol1 : SVG.vol2;
+}
+vol.addEventListener('input', () => { audio.muted = false; audio.volume = vol.value / 100; if (audio.volume > 0) lastVol = audio.volume; store.set('mvol', String(audio.volume)) });
+$('muvolb').addEventListener('click', () => {
+  if (audio.muted || audio.volume === 0) { audio.muted = false; if (audio.volume === 0) audio.volume = lastVol || .7 }
+  else { lastVol = audio.volume; audio.muted = true }
+  store.set('mvol', String(audio.volume));
+});
+audio.addEventListener('volumechange', paintVol);
+paintVol();
 
 /* ---------- render: lembar now playing ---------- */
 function renderSheet() {
@@ -495,8 +549,8 @@ lrcBox.addEventListener('click', e => {
 
 /* tab lirik / antrean */
 for (const id of ['mnptab-l', 'mnptab-q']) $(id).addEventListener('click', () => { sheetTab = $(id).dataset.t; renderSheet(); if (sheetTab === 'lyrics') lrcShow() });
-$('mnpsh').addEventListener('click', () => { shuffle = !shuffle; save(); renderSheet() });
-$('mnprp').addEventListener('click', () => { repeat = repeat === 'off' ? 'all' : repeat === 'all' ? 'one' : 'off'; save(); renderSheet(); say(repeat === 'off' ? 'Ulangi mati' : repeat === 'all' ? 'Ulangi semua' : 'Ulangi satu lagu') });
+$('mnpsh').addEventListener('click', () => { shuffle = !shuffle; save(); renderSheet(); renderPl() });
+$('mnprp').addEventListener('click', () => { repeat = repeat === 'off' ? 'all' : repeat === 'all' ? 'one' : 'off'; save(); renderSheet(); renderPl(); say(repeat === 'off' ? 'Ulangi mati' : repeat === 'all' ? 'Ulangi semua' : 'Ulangi satu lagu') });
 $('mnpplay').addEventListener('click', toggle);
 $('mnpnx').addEventListener('click', () => next());
 $('mnppv').addEventListener('click', () => prev());
@@ -508,6 +562,20 @@ seek.addEventListener('pointerdown', e => { seek.setPointerCapture(e.pointerId);
 seek.addEventListener('pointermove', e => { if (seek.classList.contains('drag')) seek.dataset.p = String(seekP(e)); paintTime() });
 seek.addEventListener('pointerup', e => { seek.classList.remove('drag'); const p = +(seek.dataset.p || 0); if (audio.duration) { audio.currentTime = p * audio.duration; lrcHold = 0 } delete seek.dataset.p; paintTime() });
 audio.addEventListener('seeked', () => syncLrc(true));
+/* penggeser waktu di bar bawah (desktop) */
+const seekP2 = e => { const r = seek2.getBoundingClientRect(); return Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) };
+seek2.addEventListener('pointerdown', e => { seek2.setPointerCapture(e.pointerId); seek2.classList.add('drag'); seek2.dataset.p = String(seekP2(e)); paintTime() });
+seek2.addEventListener('pointermove', e => { if (seek2.classList.contains('drag')) { seek2.dataset.p = String(seekP2(e)); paintTime() } });
+seek2.addEventListener('pointerup', () => {
+  if (!seek2.classList.contains('drag')) return;
+  seek2.classList.remove('drag'); const p = +(seek2.dataset.p || 0);
+  if (audio.duration) { audio.currentTime = p * audio.duration; lrcHold = 0 }
+  delete seek2.dataset.p; paintTime();
+});
+seek2.addEventListener('pointercancel', () => { seek2.classList.remove('drag'); delete seek2.dataset.p; paintTime() });
+seek2.addEventListener('keydown', e => {
+  if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && audio.duration) { e.preventDefault(); audio.currentTime = Math.max(0, Math.min(audio.duration, audio.currentTime + (e.key === 'ArrowRight' ? 5 : -5))) }
+});
 
 function paintTime() {
   const d = audio.duration || (cur() && cur().dur) || 0;
@@ -518,9 +586,16 @@ function paintTime() {
   $('mnpt2').textContent = fmt(d);
   seek.setAttribute('aria-valuenow', String(Math.round(p * 100)));
   $('mupb-fl').style.width = (d ? Math.min(1, audio.currentTime / d) * 100 : 0) + '%';
+  const dr = seek2.classList.contains('drag'), p2 = dr ? +(seek2.dataset.p || 0) : (d ? Math.min(1, audio.currentTime / d) : 0);
+  $('mupfl').style.width = (p2 * 100) + '%';
+  $('mupkn').style.left = (p2 * 100) + '%';
+  $('mupt1').textContent = fmt(dr ? p2 * d : audio.currentTime);
+  $('mupt2').textContent = fmt(d);
+  seek2.setAttribute('aria-valuenow', String(Math.round(p2 * 100)));
 }
 
 /* ---------- peristiwa audio ---------- */
+audio.addEventListener('loadedmetadata', paintTime);
 audio.addEventListener('timeupdate', () => {
   paintTime();
   syncLrc(false);

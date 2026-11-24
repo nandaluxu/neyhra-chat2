@@ -280,3 +280,42 @@
 .mu-sht h1{font-size:28px;font-weight:700;letter-spacing:-.03em;line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mu-pgn{margin:8px 0 0 54px;font-size:13px;color:var(--mut)}
 .mu-pgh+.mu-pgn+.mu-sec{margin-top:14px}
+
+
+/* ===== Bar pemutar bawah (desktop): 3 kolom — lagu | kontrol + waktu | volume. HP tetap versi ringkas ===== */
+.mupl-l{display:flex;align-items:center;gap:12px;flex:1;min-width:0}
+.mupl-c,.mupl-r,.mupl-add{display:none}
+.mupl-add{flex:none;place-items:center;width:28px;height:28px;border-radius:50%;border:1.5px solid var(--mut);color:var(--mut);transition:color .15s,border-color .15s,transform .15s}
+.mupl-add:hover{color:var(--ink);border-color:var(--ink)}
+.mupl-add:active{transform:scale(.92)}
+.mupl-add svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round}
+.mupl-ctl{display:flex;justify-content:center;align-items:center;gap:12px}
+.mupl-b{position:relative;display:grid;place-items:center;width:34px;height:34px;border-radius:50%;color:var(--mut);transition:color .15s,transform .15s}
+.mupl-b:hover{color:var(--ink)}
+.mupl-b:active{transform:scale(.9)}
+.mupl-b svg{width:19px;height:19px}
+.mupl-b svg:not(.sv){fill:currentColor}
+.mupl-b .sv{fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.mupl-b.on{color:var(--ink)}
+.mupl-b.on::after{content:"";position:absolute;bottom:1px;left:50%;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:var(--ink)}
+.mupl-tl{display:flex;align-items:center;gap:10px;font-size:11.5px;color:var(--mut);font-variant-numeric:tabular-nums}
+.mupl-tl .t1,.mupl-tl .t2{flex:none;min-width:34px}
+.mupl-tl .t1{text-align:right}
+.mupl-seek{position:relative;flex:1;height:18px;display:flex;align-items:center;cursor:pointer;touch-action:none;outline:0}
+.mupl-seek .tr{position:absolute;left:0;right:0;height:4px;border-radius:99px;background:var(--line)}
+.mupl-seek .fl{position:absolute;left:0;height:4px;border-radius:99px;background:var(--ink);width:0}
+.mupl-seek .kn{position:absolute;width:12px;height:12px;border-radius:50%;background:var(--ink);left:0;transform:translateX(-50%);opacity:0;transition:opacity .15s}
+.mupl-seek:hover .kn,.mupl-seek.drag .kn,.mupl-seek:focus-visible .kn{opacity:1}
+.mupl-vol{-webkit-appearance:none;appearance:none;width:112px;height:4px;border-radius:99px;outline:0;cursor:pointer;--v:100%;background:linear-gradient(90deg,var(--ink) var(--v),var(--line) var(--v))}
+.mupl-vol::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:12px;height:12px;border-radius:50%;background:var(--ink);border:0;opacity:0;transition:opacity .15s}
+.mupl-vol::-moz-range-thumb{width:12px;height:12px;border-radius:50%;background:var(--ink);border:0;opacity:0;transition:opacity .15s}
+.mupl-vol:hover::-webkit-slider-thumb,.mupl-vol:focus-visible::-webkit-slider-thumb{opacity:1}
+.mupl-vol:hover::-moz-range-thumb,.mupl-vol:focus-visible::-moz-range-thumb{opacity:1}
+@media(min-width:800px){
+  #mupl .mupb,#mupl #muplay,#mupl #munext{display:none}
+  .mupl-in{display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,540px) minmax(0,1fr);align-items:center;gap:24px;max-width:none;margin:0;padding:10px 24px}
+  #mupl .art{width:56px;height:56px;border-radius:12px}
+  .mupl-add{display:grid}
+  .mupl-c{display:flex;flex-direction:column;gap:2px;min-width:0}
+  .mupl-r{display:flex;justify-content:flex-end;align-items:center;gap:6px}
+}
