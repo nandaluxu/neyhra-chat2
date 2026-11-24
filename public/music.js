@@ -1051,15 +1051,23 @@ function pkRows() {
       '<span class="pk-n"><b>' + esc(p.name) + '</b><small>' + plSub(p) + '</small></span><span class="pk-ck' + (on ? ' on' : '') + '">' + (on ? SVG.check : '') + '</span></button>' }).join('')
     : '<div class="pk-e">Playlist tidak ditemukan.</div>';
 }
-function pkOpen() {
-  const c = cur(); if (!c) return;
+function pkOpen(song, at) {
+  const c = song || cur(); if (!c) return;
   pkSong = c; pkPend = [];
   pkSel = new Set(plList().filter(p => plHas(p, c.id)).map(p => p.id));
   $('mupkq').value = ''; pkRows(); pk.hidden = false;
-  const r = $('muadd').getBoundingClientRect(), w = Math.min(340, innerWidth - 16);
+  const w = Math.min(340, innerWidth - 16);
   pk.style.width = w + 'px';
-  pk.style.left = Math.max(8, Math.min(r.left, innerWidth - w - 8)) + 'px';
-  pk.style.bottom = Math.max(8, innerHeight - r.top + 10) + 'px';
+  if (at) { /* dari klik kanan / tekan lama: muncul di titik kursor, dijaga tetap di dalam layar */
+    pk.style.bottom = 'auto';
+    pk.style.left = Math.max(8, Math.min(at.x, innerWidth - w - 8)) + 'px';
+    pk.style.top = Math.max(8, Math.min(at.y, innerHeight - pk.offsetHeight - 8)) + 'px';
+  } else { /* dari tombol + di bar bawah: naik ke atas tombol */
+    const r = $('muadd').getBoundingClientRect();
+    pk.style.top = 'auto';
+    pk.style.left = Math.max(8, Math.min(r.left, innerWidth - w - 8)) + 'px';
+    pk.style.bottom = Math.max(8, innerHeight - r.top + 10) + 'px';
+  }
 }
 function pkClose() { pk.hidden = true; pkSong = null; pkPend = [] }
 $('mupkq').addEventListener('input', pkRows);
@@ -1090,6 +1098,47 @@ $('mupks').addEventListener('click', () => {
   paintAdd(); paintHome(); paintPage();
 });
 document.addEventListener('pointerdown', e => { if (!pk.hidden && !pk.contains(e.target) && !$('muadd').contains(e.target)) pkClose() });
+/* klik kanan (atau tekan lama di layar sentuh) pada lagu -> langsung popup pilih playlist, tanpa memutar lagunya.
+   Berlaku untuk card lagu (beranda & "Lihat semua"), hasil pencarian, dan baris lagu di halaman playlist/server/publik. */
+function songAtEl(el) {
+  const card = el.closest('.mu-card');
+  if (card) {
+    if (card.classList.contains('sk') || card.dataset.pl || card.dataset.opl) return null;
+    const l = recLists[card.dataset.k]; return l && l[+card.dataset.i] || null;
+  }
+  const res = el.closest('.mu-song');
+  if (res) return songs[+res.dataset.i] || null;
+  const row = el.closest('.mu-tr');
+  if (row) {
+    const box = row.parentElement, i = +row.dataset.i;
+    if (box.id === 'mutrs' && page && page.key.startsWith('pl:')) { const p = plGet(page.key.slice(3)); return p && p.songs[i] || null }
+    if (box.id === 'mushtrs' && page) return page.songs && page.songs[i] || null;
+    if (box.id === 'msrvtrs' && srv) return srv.songs[i] || null;
+  }
+  return null;
+}
+function ctxPick(el, x, y) {
+  const s = songAtEl(el); if (!s) return false;
+  if (!x && !y) { const r = el.getBoundingClientRect(); x = r.left + Math.min(r.width / 2, 120); y = r.top + r.height / 2 } /* tombol keyboard (Shift+F10 / tombol menu) */
+  pkOpen(s, { x, y }); return true;
+}
+document.addEventListener('contextmenu', e => {
+  if (!active() || !e.target.closest || !e.target.closest('#music')) return;
+  if (ctxPick(e.target, e.clientX, e.clientY)) e.preventDefault();
+});
+/* sentuhan: tahan ~0,5 detik; klik sesudahnya ditelan supaya lagu tidak ikut terputar */
+let lpT = 0, lpX = 0, lpY = 0, lpDone = 0;
+const lpStop = () => { clearTimeout(lpT); lpT = 0 };
+document.addEventListener('pointerdown', e => {
+  lpStop();
+  if (e.pointerType !== 'touch' || !active() || !e.target.closest || !e.target.closest('#music') || !songAtEl(e.target)) return;
+  lpX = e.clientX; lpY = e.clientY; const el = e.target;
+  lpT = setTimeout(() => { lpT = 0; if (ctxPick(el, lpX, lpY)) { lpDone = Date.now(); if (navigator.vibrate) try { navigator.vibrate(12) } catch {} } }, 520);
+});
+document.addEventListener('pointermove', e => { if (lpT && Math.hypot(e.clientX - lpX, e.clientY - lpY) > 10) lpStop() });
+document.addEventListener('pointerup', lpStop);
+document.addEventListener('pointercancel', lpStop);
+document.addEventListener('click', e => { if (lpDone && Date.now() - lpDone < 800) { e.stopPropagation(); e.preventDefault(); lpDone = 0 } }, true);
 addEventListener('keydown', e => { if (e.key === 'Escape' && !pk.hidden) { pkClose(); e.stopPropagation() } }, true);
 addEventListener('storage', e => { if (e.key === PL_KEY) { plc = null; paintAdd(); paintHome(); paintPage() } });
 
