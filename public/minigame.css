@@ -41,14 +41,8 @@
 }
 #gmbody{--surface:var(--gl)}   /* semua var(--surface) di dalam game = kaca */
 
-/* latar: abu lembut + 2 orb + grid titik ala Swiss. Menempel pada elemen (tidak ikut scroll), jadi kaca terlihat "melayang". */
-#games,#games.slot-on{
-  background:
-    radial-gradient(560px 420px at 8% -6%,var(--orb-a),transparent 70%),
-    radial-gradient(520px 520px at 104% 34%,var(--orb-b),transparent 70%),
-    radial-gradient(color-mix(in srgb,var(--ink) 15%,transparent) 1px,transparent 1.5px) 0 0/20px 20px,
-    var(--base);
-}
+/* latar: tidak di-override lagi. #games transparan dan ikut Pengaturan → Latar belakang (lihat bg.css).
+   Token --base/--orb-a/--orb-b di atas sekarang tidak dipakai; kaca di bawah tetap memakai --gl dkk. */
 
 /* ---------- kaca: semua wadah utama ---------- */
 #games :is(.gm-panel,.gm-info,.gm-wallet,.gm-cats,.gm-back,.cm-card,.cm-room,.cm-stat-strip,.cm-detail,.cm-hview,.ws-time,.ws-words,.g48-box,.ws-btn,.cm-pl){

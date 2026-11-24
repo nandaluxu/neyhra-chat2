@@ -13,35 +13,7 @@
 }
 #app #menu :is(button,input){font-family:inherit}
 
-/* ---------- Latar: kisi titik + sorot yang mengikuti kursor (pengganti orb) ---------- */
-#app #menu .orb{
-  left:0;right:0;top:0;bottom:auto;width:auto;height:min(100%,760px);
-  border-radius:0;filter:none;z-index:-1;pointer-events:none;
-  background-color:transparent;
-  background-size:22px 22px;background-position:center top;
-  animation:none;
-}
-#app #menu .o1{
-  background-image:radial-gradient(circle,color-mix(in srgb,var(--ink) 15%,transparent) 1px,transparent 1.5px);
-  -webkit-mask-image:linear-gradient(to bottom,#000 0%,rgba(0,0,0,.55) 45%,transparent 92%);
-          mask-image:linear-gradient(to bottom,#000 0%,rgba(0,0,0,.55) 45%,transparent 92%);
-}
-#app #menu .o2{
-  background-image:radial-gradient(circle,color-mix(in srgb,var(--ink) 70%,transparent) 1.2px,transparent 1.9px);
-  -webkit-mask-image:radial-gradient(closest-side,#000 0%,rgba(0,0,0,.5) 45%,transparent 100%);
-          mask-image:radial-gradient(closest-side,#000 0%,rgba(0,0,0,.5) 45%,transparent 100%);
-  -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
-  -webkit-mask-size:460px 460px;mask-size:460px 460px;
-  -webkit-mask-position:calc(var(--px,50%) - 230px) calc(var(--py,140px) - 230px);
-          mask-position:calc(var(--px,50%) - 230px) calc(var(--py,140px) - 230px);
-  opacity:.9;
-}
-/* tanpa kursor (HP) atau kursor belum masuk: sorot menyapu pelan dari kiri ke kanan */
-#app #menu:not(.hv) .o2{animation:h-sweep 11s ease-in-out infinite alternate}
-@keyframes h-sweep{
-  from{-webkit-mask-position:-12% 0%;mask-position:-12% 0%}
-  to{-webkit-mask-position:112% 30%;mask-position:112% 30%}
-}
+/* ---------- Latar: dipindah ke bg.css (layer global #bgfx, bisa dipilih di Pengaturan) ---------- */
 
 /* ---------- Atas: logo, saldo, online ---------- */
 #app #menu .m-wallet,#app #menu .m-online{background:var(--soft);box-shadow:inset 0 0 0 1px var(--ring)}
@@ -177,7 +149,6 @@
 
 /* ---------- Hormati "kurangi gerakan" ---------- */
 @media(prefers-reduced-motion:reduce){
-  #app #menu:not(.hv) .o2{animation:none}
   #app #menu .b-tile.sk{animation:none}
   #app #menu .m-pills,#app #menu .srch,#app #menu .b-tile.hot .b-bh,#app #menu .b-tile.hot .b-sap,#app #menu .b-tile.hot .b-go{animation:none}
   #app #menu .b-av::after{display:none}

@@ -6,6 +6,7 @@
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0b0b0c" media="(prefers-color-scheme: dark)">
 <link rel="icon" type="image/svg+xml" href="/icon.svg">
+<script>try{if(localStorage.getItem('bg')==='2')document.documentElement.dataset.bg='2'}catch(e){}</script>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>neyhra chat</title>
@@ -601,10 +602,12 @@ header .pfp,header .who{cursor:pointer}
 <link rel="stylesheet" href="/music.css">
 <link rel="stylesheet" href="/login.css">
 <link rel="stylesheet" href="/chatui.css">
-<link rel="stylesheet" href="/minigame.css?v=20261123a">
+<link rel="stylesheet" href="/minigame.css?v=20261124a">
+<link rel="stylesheet" href="/bg.css?v=20261124a">
 </head>
 <body>
 <div id="app">
+  <div id="bgfx" aria-hidden="true"><i class="bg1"></i><i class="bg1s"></i><i class="bg2"></i></div>
   <nav id="rail" aria-label="Navigasi utama">
     <button class="r-logo" id="rlogo" type="button" aria-expanded="false" title="Neyhra Chat">
       <span class="m-logo"><img src="/icon.svg" alt="" draggable="false"></span>
@@ -831,6 +834,9 @@ header .pfp,header .who{cursor:pointer}
       <div class="sgroup"><h3>Tampilan</h3>
         <span class="vlab" style="margin-top:0">Tema</span>
         <div class="seg x3" id="seg-th"><button type="button" data-v="auto">Ikuti sistem</button><button type="button" data-v="light">Terang</button><button type="button" data-v="dark">Gelap</button></div>
+        <span class="vlab">Latar belakang</span>
+        <div class="seg" id="seg-bg"><button type="button" data-v="1"><b>Latar 1</b><i>Kisi titik (Beranda)</i></button><button type="button" data-v="2"><b>Latar 2</b><i>Abu &amp; kaca (Minigame)</i></button></div>
+        <p class="mhelp" style="margin-top:6px">Berlaku di hampir semua halaman: Beranda, Obrolan Terakhir, Minigame, Toko, Bonus, Profil, dan lainnya. Ruang chat tetap polos.</p>
         <label class="srow"><span><b>Warna aksen per karakter</b><i>Gelembung pesanmu dan tombol kirim ikut warna khas karakter yang lagi diajak ngobrol (diambil dari fotonya).</i></span><input type="checkbox" id="sacc" class="sw"></label>
         <div class="stor" id="cwbox"><div class="sl"><span>Lebar area chat</span><span id="cwv"></span></div>
           <input type="range" id="scw" class="rng" min="0" max="1" step="0.05" value="0" aria-label="Lebar area chat">
@@ -2389,7 +2395,7 @@ async function flushCloud(){ /* tunggu sinkron yang sedang jalan, lalu simpan te
 async function wipeLocal(extraKeep){ /* hapus semua data obrolan di perangkat ini, kecuali tema tampilan (dan kunci di extraKeep, mis. token akun yang baru masuk) */
   wiping=true;
   try{ if(current) current.stop(); }catch{}
-  const keep={theme:store.get('theme'),...(extraKeep||{})};
+  const keep={theme:store.get('theme'),bg:store.get('bg'),...(extraKeep||{})};
   await idb.clear();
   const clean=()=>{ try{ localStorage.clear(); }catch{} try{ sessionStorage.clear(); }catch{} for(const [k,v] of Object.entries(keep)) if(v!=null) store.set(k,v); };
   clean(); window.addEventListener('pagehide',()=>{ if(wiping) clean(); }); /* jaga-jaga: handler lain yang menulis lagi saat halaman ditutup */
@@ -3569,21 +3575,6 @@ document.addEventListener('visibilitychange',()=>{ if(!document.hidden) setTimeo
 <script src="/tools/tools.js"></script>
 <script src="/login.js"></script>
 <script src="/router.js"></script>
-<script>
-/* Beranda: sorot kisi titik mengikuti kursor (visual saja; touch/HP tidak butuh JS, sorot menyapu sendiri lewat CSS) */
-(function(){
-  var m=document.getElementById('menu');
-  if(!m||!matchMedia('(hover:hover) and (pointer:fine)').matches||matchMedia('(prefers-reduced-motion:reduce)').matches) return;
-  var raf=0,x=0,y=0;
-  function paint(){ raf=0; m.style.setProperty('--px',x+'px'); m.style.setProperty('--py',y+'px'); }
-  m.addEventListener('pointermove',function(e){
-    var r=m.getBoundingClientRect();
-    x=e.clientX-r.left; y=e.clientY-r.top+m.scrollTop;
-    if(!m.classList.contains('hv')) m.classList.add('hv');
-    if(!raf) raf=requestAnimationFrame(paint);
-  },{passive:true});
-  m.addEventListener('pointerleave',function(){ m.classList.remove('hv'); });
-})();
-</script>
+<script src="/bg.js?v=20261124a"></script>
 </body>
 </html>

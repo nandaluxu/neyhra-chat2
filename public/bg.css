@@ -1,0 +1,76 @@
+/* ===== Latar belakang global (Pengaturan → Tampilan → Latar belakang) =====
+   Satu layer #bgfx di dalam #app, di bawah semua halaman. Halaman-halaman dibuat transparan supaya latarnya tembus.
+   Dimuat PALING AKHIR (setelah minigame.css).
+   Latar 1 = bawaan Beranda  : kisi titik + sorot yang mengikuti kursor (HP: menyapu sendiri).
+   Latar 2 = bawaan Minigame : abu lembut + 2 orb + kisi titik.
+   Pilihan disimpan di localStorage `bg` ('1' | '2'), dipasang sebagai atribut html[data-bg="2"] (tanpa atribut = Latar 1).
+   Tidak ikut (punya tampilan sendiri): ruang chat (#chatview), panel detail (#dpanel), Chat Global (#gc), detail karakter (#cdetail). */
+
+/* ---------- token (ikut tema terang/gelap, termasuk saat tema dipaksa lewat Pengaturan) ---------- */
+#app{
+  isolation:isolate;
+  --bgf-dot:color-mix(in srgb,var(--ink) 15%,transparent);
+  --bgf-base2:color-mix(in srgb,var(--bg) 93%,var(--ink));
+  --bgf-a:rgba(255,255,255,.95);--bgf-b:rgba(0,0,0,.06);
+  /* isi statis latar (dipakai halaman Pengaturan yang tampil sebagai lapisan di atas halaman lain) */
+  --bgf-fill:radial-gradient(circle,var(--bgf-dot) 1px,transparent 1.5px) 0 0/22px 22px,var(--bg);
+}
+@media(prefers-color-scheme:dark){
+  :root:not([data-theme=light]) #app{--bgf-base2:var(--bg);--bgf-a:rgba(255,255,255,.075);--bgf-b:rgba(255,255,255,.035)}
+}
+:root[data-theme=dark] #app{--bgf-base2:var(--bg);--bgf-a:rgba(255,255,255,.075);--bgf-b:rgba(255,255,255,.035)}
+:root[data-bg="2"] #app{
+  --bgf-fill:
+    radial-gradient(560px 420px at 8% -6%,var(--bgf-a),transparent 70%),
+    radial-gradient(520px 520px at 104% 34%,var(--bgf-b),transparent 70%),
+    radial-gradient(var(--bgf-dot) 1px,transparent 1.5px) 0 0/20px 20px,
+    var(--bgf-base2);
+}
+
+/* ---------- layer ---------- */
+#bgfx{position:absolute;inset:0;z-index:-1;overflow:hidden;pointer-events:none}
+#bgfx i{position:absolute;display:none}
+
+/* Latar 1 */
+:root:not([data-bg="2"]) #bgfx :is(.bg1,.bg1s){
+  display:block;left:0;right:0;top:0;height:min(100%,760px);
+  background-size:22px 22px;background-position:center top;
+}
+#bgfx .bg1{
+  background-image:radial-gradient(circle,var(--bgf-dot) 1px,transparent 1.5px);
+  -webkit-mask-image:linear-gradient(to bottom,#000 0%,rgba(0,0,0,.55) 45%,transparent 92%);
+          mask-image:linear-gradient(to bottom,#000 0%,rgba(0,0,0,.55) 45%,transparent 92%);
+}
+#bgfx .bg1s{
+  background-image:radial-gradient(circle,color-mix(in srgb,var(--ink) 70%,transparent) 1.2px,transparent 1.9px);
+  -webkit-mask-image:radial-gradient(closest-side,#000 0%,rgba(0,0,0,.5) 45%,transparent 100%);
+          mask-image:radial-gradient(closest-side,#000 0%,rgba(0,0,0,.5) 45%,transparent 100%);
+  -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
+  -webkit-mask-size:460px 460px;mask-size:460px 460px;
+  -webkit-mask-position:calc(var(--px,50%) - 230px) calc(var(--py,140px) - 230px);
+          mask-position:calc(var(--px,50%) - 230px) calc(var(--py,140px) - 230px);
+  opacity:.9;
+}
+/* tanpa kursor (HP) atau kursor belum masuk: sorot menyapu pelan dari kiri ke kanan */
+#bgfx:not(.hv) .bg1s{animation:bgf-sweep 11s ease-in-out infinite alternate}
+@keyframes bgf-sweep{
+  from{-webkit-mask-position:-12% 0%;mask-position:-12% 0%}
+  to{-webkit-mask-position:112% 30%;mask-position:112% 30%}
+}
+@media(prefers-reduced-motion:reduce){#bgfx:not(.hv) .bg1s{animation:none}}
+
+/* Latar 2 */
+:root[data-bg="2"] #bgfx .bg2{display:block;inset:0;background:var(--bgf-fill)}
+
+/* ---------- halaman ikut latar: transparan ---------- */
+#app :is(#menu,#lpanel,#cempty,#games,#bonus,#leaderboard,#wallet,#music,#profile,#shop,#tools){background:transparent}
+#app #menu .orb{display:none} /* orb/kisi lama di Beranda diganti layer global */
+
+/* Pengaturan = lapisan penuh di atas halaman lain, jadi harus punya latar sendiri (isi yang sama, tanpa sorot) */
+#app #smodal{background:var(--bgf-fill)}
+#app #smodal .shead{background:color-mix(in srgb,var(--bg) 78%,transparent);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+
+/* pilihan latar di Pengaturan */
+#seg-bg button{display:flex;flex-direction:column;align-items:center;gap:2px;height:auto;padding:9px 8px;line-height:1.25}
+#seg-bg button b{font-size:13.5px;font-weight:600}
+#seg-bg button i{font-style:normal;font-size:11px;font-weight:500;opacity:.7}
