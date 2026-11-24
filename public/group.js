@@ -3,6 +3,14 @@
    langsung bisa dipakai. Server tetap stateless: riwayat grup disimpan di browser dan dikirim tiap request.
    Browser yang mengatur rantai giliran: satu request = satu karakter bicara. Model mengusulkan `next`, client memutuskan.
 
+   PIPELINE ASINKRON (public/turnpipe.js): tiga tahap berjalan di jalurnya masing-masing.
+     1) THINK   : karakter berpikir (/api/chat) satu per satu, dengan konteks bersama yang lengkap: pesan yang sudah tampil + balasan karakter
+                  lain yang sudah jadi tapi belum diputar (st.pending). Begitu teksnya jadi, karakter berikutnya LANGSUNG mulai berpikir.
+     2) PREPARE : begitu teks jadi, suaranya langsung dibuat (/api/tts, Fish Audio) di belakang layar, paralel dengan karakter berikutnya yang
+                  berpikir dan dengan voice note sebelumnya yang masih diputar. Audio boleh siap lebih dulu.
+     3) REVEAL  : tampil + putar otomatis lewat antrean FIFO: karakter berikutnya baru bicara setelah voice note sebelumnya SELESAI, dan
+                  tidak pernah menyalip walau audionya lebih cepat jadi.
+
    Cara membuka: kirim pesan rahasia ke Reze (lihat SECRET). Pesan itu dicegat di browser dan TIDAK dikirim ke ChatGPT maupun Fish Audio.
    Mengganti kode: jalankan GX.hash('kode baru') di console, tempel angkanya ke SECRET. Ini cuma pagar UI, bukan keamanan sungguhan. */
 (() => {
@@ -18,6 +26,9 @@ const CFG = {
   PULL_GAP: 6,             // minimal giliran AI di antara dua ajakan (supaya tidak terlalu sering), dihitung lintas rantai
   MIN_MEMBERS: 2, MAX_MEMBERS: 5, MAX_GROUPS: 20,
   HIST: 30,                // riwayat yang dikirim ke server (riwayat lokal tetap lengkap)
+  AHEAD: 3,                // maks balasan yang sudah dibuat tapi belum selesai diputar (yang sedang diputar ikut dihitung); menahan pemborosan kalau user menyela
+  CHAT_MS: 55000,          // batas tunggu satu balasan /api/chat; lewat ini rantai berhenti (jangan menggantung)
+  TTS_MS: 20000,           // batas tunggu satu permintaan suara (/api/tts); gagal/lambat -> coba sekali lagi, lalu tampil sebagai teks
   MSGMAX: 400, AUDMAX: 30  // maks pesan per grup, dan maks voice note yang audionya disimpan
 };
 const SECRET = 3761943960696751; // hash dari kode rahasia (huruf besar/kecil dan spasi diabaikan)
@@ -88,8 +99,8 @@ const delAudio = l => l.forEach(m => keysOf(m).forEach(k => idb.del(k)));
 const persist = st => { trimMsgs(st.msgs); saveMsgs(st.g.id, st.msgs); };
 function patchMsg(gid, m, fn) { fn(m); const l = loadMsgs(gid), e = l.find(x => x.ts === m.ts && x.from === m.from); if (e) { fn(e); saveMsgs(gid, l); } }
 
-let state = null; // { g, msgs, ctl, running, pending, tail } untuk grup yang lagi dibuka
-// pending = balasan yang sudah jadi tapi belum tampil (menunggu voice note sebelumnya selesai); tail = promise "voice note terakhir selesai"
+let state = null; // { g, msgs, ctl, running, pending, pipe } untuk grup yang lagi dibuka
+// pending = balasan yang sudah jadi (ikut konteks bersama) tapi belum tampil (menunggu voice note sebelumnya selesai); pipe = pipeline rantai terakhir (TurnPipe)
 
 /* ---------- Notifikasi atas layar ---------- */
 let noteEl = null, noteT = 0;
@@ -320,7 +331,7 @@ function open(g, avEl) {
     if (GX.cur) GX.onClose(); // simpan draft grup, hentikan rantai
     else if (ch) store.set('draft:' + ch.id, inp.value.trim() ? inp.value : null);
   } else if (!inline) { moving = true; setTimeout(() => moving = false, DUR); }
-  ch = null; GX.cur = g; state = { g, msgs: [], ctl: null, running: false, pending: [], tail: null };
+  ch = null; GX.cur = g; state = { g, msgs: [], ctl: null, running: false, pending: [], pipe: null };
   closeSearch(); if (current) current.stop(); openSub = null; urls.forEach(u => URL.revokeObjectURL(u)); urls = []; clearTimeout(clrT); clrT = 0;
   chat.innerHTML = ''; lastDay = ''; ready = false; const tok = ++openTok;
   clearTimeout(draftT); inp.value = store.get('draft:g:' + g.id) || ''; grow(); refresh();
@@ -393,6 +404,7 @@ function bubble(m) {
   row.querySelector('.gname').textContent = c.name;
   rpText(row.querySelector('.txt'), m.text);
   chat.append(row); scroll();
+  return row;
 }
 
 // voice note: pakai pemutar yang sama persis dengan chat biasa (addVN di index.html): waveform, progres, subtitle, kecepatan, versi, download.
@@ -467,113 +479,153 @@ function abortChain() {
   baseStatus();
 }
 
-async function callChat(g, sp, { userText, replyTo, depth, ctl, pull }) {
-  const useVoice = voiceOn && !!vcode && canVoice(sp), lang = voiceLang;
-  // balasan yang sudah jadi tapi belum tampil tetap ikut jadi konteks, supaya karakter berikutnya nyambung
-  const history = [...state.msgs, ...state.pending].filter(m => m.from !== 'system').slice(-CFG.HIST).map(m => [m.from, String(m.text).slice(0, 600)]);
+async function callChat(st, sp, { userText, replyTo, depth, ctl, pull }) {
+  const g = st.g, useVoice = voiceOn && !!vcode && canVoice(sp), lang = voiceLang;
+  // konteks bersama: yang sudah tampil + balasan yang sudah jadi tapi belum tampil/diputar (urutannya = urutan giliran), supaya karakter berikutnya nyambung
+  const history = [...st.msgs, ...st.pending].filter(m => m.from !== 'system').slice(-CFG.HIST).map(m => [m.from, String(m.text).slice(0, 600)]);
   const body = {
     clientId: cid, char: sp, message: userText || '', userName: uname, history,
     group: { members: g.members.filter(charOf), muted: g.muted || [], scene: g.scene || '', ...(g.rp && { rp: true }), ...(replyTo && { replyTo }), ...(pull && { pull: true }), depth },
     voice: { on: useVoice, lang }
   };
-  const r = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: ctl.signal });
-  if (!r.ok) { const j = await r.json().catch(() => ({})); const e = new Error(j.error || 'Gagal terhubung'); e.status = r.status; throw e; }
-  return { ...(await r.json()), lang };
+  const tm = TurnPipe.timeout(ctl.signal, CFG.CHAT_MS);
+  try {
+    const r = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: tm.signal });
+    if (!r.ok) { const j = await r.json().catch(() => ({})); const e = new Error(j.error || 'Gagal terhubung'); e.status = r.status; throw e; }
+    return { ...(await r.json()), lang };
+  } catch (e) {
+    if (e && e.name === 'AbortError' && tm.timedOut() && !ctl.signal.aborted) { const t = new Error('Koneksi lambat, tidak ada respons'); t.timeout = true; throw t; }
+    throw e;
+  } finally { tm.clear(); }
 }
 
 const aborted = ctl => new Promise(r => { if (ctl.signal.aborted) r(null); else ctl.signal.addEventListener('abort', () => r(null), { once: true }); });
 
-// Tahap 1: satu karakter berpikir (ChatGPT), lalu kalau voice nyala suaranya langsung dibuat (Fish Audio). Belum ditampilkan.
-// Tahap ini boleh jalan sementara voice note karakter sebelumnya masih diputar.
-async function compose(st, sp, opts) {
+// satu permintaan suara ke Fish Audio (lewat /api/tts) dengan batas waktu dan satu kali coba ulang untuk galat jaringan / server sibuk (429, 5xx)
+const retryable = e => !e || e.timeout || !e.status || e.status >= 500 || e.status === 429;
+async function ttsFetch(sp, vn, signal) {
+  let err;
+  for (let k = 0; k < 2 && !signal.aborted; k++) {
+    if (k) await wait(400);
+    const tm = TurnPipe.timeout(signal, CFG.TTS_MS);
+    try {
+      const hd = { 'Content-Type': 'application/json', 'x-voice-code': vcode };
+      try { if (typeof atok === 'string' && atok) hd.Authorization = 'Bearer ' + atok; } catch {}
+      const r = await fetch('/api/tts', { method: 'POST', headers: hd, body: JSON.stringify({ char: sp, text: vn, voice: voiceKeyOf(sp) }), signal: tm.signal });
+      if (!r.ok) { const j = await r.json().catch(() => ({})); const e = new Error(j.error || 'Gagal terhubung'); e.status = r.status; throw e; }
+      return await r.arrayBuffer();
+    } catch (e) {
+      if (signal.aborted) throw TurnPipe.abortErr();
+      if (e && e.name === 'AbortError') { e = new Error('Koneksi lambat, suara tidak sampai'); e.timeout = true; }
+      err = e; if (!retryable(e)) break;
+    } finally { tm.clear(); }
+  }
+  throw err || TurnPipe.abortErr();
+}
+
+/* Tahap 1 (THINK): satu karakter berpikir (ChatGPT). Teksnya LANGSUNG masuk konteks bersama (st.pending) walau belum tampil, jadi karakter
+   berikutnya sudah bisa menanggapinya. Tidak menunggu suara dan tidak menunggu voice note sebelumnya selesai. */
+async function think(st, sp, opts) {
   const { ctl } = opts, c = charOf(sp);
-  if (!c) return { ok: false };
+  if (!c) return null;
   const row = typingRow(sp), t0 = Date.now();
   try {
-    const r = await callChat(st.g, sp, opts);
+    const r = await callChat(st, sp, opts);
     const text = String(r.id || '').trim();
     if (!text) throw new Error('Balasan kosong');
+    if (ctl.signal.aborted || state !== st) { row.remove(); return null; }
     const m = { from: sp, text, ts: 0 };
-    let take = null;
-    if (voiceOn && vcode && r.vn) {
-      m.vn = r.vn; m.jp = r.jpText || ''; m.lang = r.lang;
-      recRow(row, sp);
-      try {
-        const ab = await (await post('/api/tts', { char: sp, text: r.vn, voice: voiceKeyOf(sp) }, { 'x-voice-code': vcode })).arrayBuffer();
-        const p = await decode(ab); urls.push(p.url); take = { ...p, ab };
-      } catch (e) {
-        delete m.vn; delete m.jp; delete m.lang; // suara gagal -> teksnya tetap tampil
-        if (e.status === 403) badCode(); else if (!ctl.signal.aborted) toast(e.message || 'Suara gagal dibuat');
-      }
-    } else {
-      const min = Math.min(1800, 800 + text.length * 14), el = Date.now() - t0; // jeda 0,8-1,8 dtk sebanding panjang teks, biar terasa hidup
-      if (el < min) await wait(min - el);
-    }
-    if (ctl.signal.aborted || state !== st) { row.remove(); return { ok: false }; }
-    st.pending.push(m);
-    return { ok: true, text, next: typeof r.next === 'string' ? r.next : null, m, take, row };
+    st.pending.push(m); // konteks bersama diperbarui sebelum karakter berikutnya mulai berpikir
+    const wantVoice = voiceOn && !!vcode && !!r.vn;
+    if (wantVoice) { m.vn = r.vn; m.jp = r.jpText || ''; m.lang = r.lang; recRow(row, sp); }
+    return { sp, text, next: typeof r.next === 'string' ? r.next : null, m, row, t0, wantVoice };
   } catch (e) {
     row.remove();
-    if (ctl.signal.aborted || e.name === 'AbortError' || state !== st) return { ok: false };
+    if (ctl.signal.aborted || e.name === 'AbortError' || state !== st) return null;
     errLine(c.name + ': ' + (e.message || 'gagal membalas')); // rantai berhenti, pesan yang sudah ada tetap tersimpan
     baseStatus();
-    return { ok: false };
+    return null;
   }
 }
 
-// Tahap 2: tunggu voice note sebelumnya selesai, baru tampilkan bubble ini dan putar otomatis.
-// Mengembalikan promise yang selesai saat voice note ini selesai diputar, jadi bisa dirantai (st.tail).
-async function reveal(st, res, prev, ctl, shown) {
-  try {
-    const ended = await Promise.race([prev, aborted(ctl)]); // false = sebelumnya dijeda user, jangan putar otomatis
-    res.row.remove();
-    if (ctl.signal.aborted || state !== st) return null;
-    const m = res.m; m.ts = Date.now();
-    st.pending = st.pending.filter(x => x !== m);
-    const gid = st.g.id;
-    if (!chat.querySelector('.row.typ')) baseStatus();
-    st.msgs.push(m); persist(st);
-    if (!res.take) { bubble(m); shown(); return true; }
-    const p = res.take, v = vnBubble(m, [p]);
-    shown(); // bubble sudah tampil: karakter berikutnya boleh mulai mikir selagi voice note ini diputar
-    const k = newKey(); // audio disimpan lokal (IndexedDB) supaya voice note bisa diputar lagi nanti
-    idb.put(k, { ab: p.ab, dur: p.dur, bins: p.bins }).then(ok => { if (ok) { p.k = k; patchMsg(gid, m, e => { e.ks = [k]; e.si = 0; }); } });
-    if (ended === false) return false;
-    v.row._vn.play(true);
-    return await v.done;
-  } finally { shown(); }
+/* Tahap 2 (PREPARE): suara dibuat segera setelah teks jadi, jalan paralel dengan THINK karakter berikutnya dan dengan pemutaran sebelumnya.
+   Tanpa suara: jeda "mengetik" 0,8-1,8 dtk sebanding panjang teks (dihitung sejak karakter mulai berpikir), supaya terasa hidup. */
+async function prepare(o, ctl) {
+  const { m } = o;
+  if (o.wantVoice) {
+    try {
+      const ab = await ttsFetch(o.sp, m.vn, ctl.signal);
+      const p = await decode(ab); urls.push(p.url);
+      return { take: { ...p, ab } };
+    } catch (e) {
+      delete m.vn; delete m.jp; delete m.lang; // suara gagal -> teksnya tetap tampil
+      if (!ctl.signal.aborted && !e.aborted) { if (e.status === 403) badCode(); else toast(e.message || 'Suara gagal dibuat'); }
+      return { take: null };
+    }
+  }
+  const min = Math.min(1800, 800 + o.text.length * 14), el = Date.now() - o.t0;
+  if (el < min) await wait(min - el);
+  return { take: null };
+}
+
+// taruh node yang baru ditambahkan (setelah `before`) tepat di posisi indikator `anchor`, lalu buang indikator: karena beberapa indikator bisa antre, bubble tidak boleh jatuh di bawah indikator karakter lain
+function place(anchor, before) {
+  const fresh = []; for (let n = before ? before.nextElementSibling : chat.firstElementChild; n; n = n.nextElementSibling) fresh.push(n);
+  if (anchor && anchor.parentNode === chat) fresh.forEach(n => { if (n !== anchor) chat.insertBefore(n, anchor); });
+  if (anchor) anchor.remove();
+}
+
+/* Tahap 3 (REVEAL): dipanggil pipeline HANYA setelah voice note sebelumnya selesai diputar dan audio ini siap.
+   Mengembalikan (lewat promise) true kalau voice note ini habis diputar, false kalau dijeda / diganti user. `prev === false` = yang sebelumnya
+   dijeda user, jadi yang ini tampil tapi tidak diputar otomatis. */
+async function reveal(st, o, prep, prev, ctl, pipe) {
+  const m = o.m, take = prep && prep.ok && prep.v ? prep.v.take : null;
+  if (ctl.signal.aborted || state !== st) { o.row.remove(); return prev; }
+  m.ts = Date.now();
+  st.pending = st.pending.filter(x => x !== m); // dari "pending" pindah ke "msgs" dalam satu langkah, jadi konteks tidak pernah kehilangan balasan ini
+  st.msgs.push(m); persist(st);
+  const gid = st.g.id, before = chat.lastElementChild;
+  const v = take ? vnBubble(m, [take]) : (bubble(m), null);
+  place(o.row, before); scroll();
+  if (!chat.querySelector('.row.typ')) baseStatus();
+  if (!v) { // teks saja: beri jeda baca sebentar hanya kalau masih ada balasan lain yang antre
+    if (pipe.pending() > 1) await Promise.race([wait(Math.min(1000, 350 + m.text.length * 8)), aborted(ctl)]);
+    return true;
+  }
+  const k = newKey(); // audio disimpan lokal (IndexedDB) supaya voice note bisa diputar lagi nanti
+  idb.put(k, { ab: take.ab, dur: take.dur, bins: take.bins }).then(ok => { if (ok) { take.k = k; patchMsg(gid, m, e => { e.ks = [k]; e.si = 0; }); } });
+  if (prev === false) return false;
+  v.row._vn.play(true);
+  const cap = ((take.dur || 60) / (typeof vSpeed === 'number' && vSpeed > 0 ? vSpeed : 1) + 10) * 1000; // jaring pengaman: onStop yang tak pernah datang tidak boleh menahan antrean selamanya
+  const r = await Promise.race([v.done, wait(cap).then(() => true)]);
+  return r;
 }
 
 async function runChain(g, { userText, first, max }) {
-  const st = state, ctl = new AbortController(), counts = {};
+  const st = state, ctl = new AbortController();
   st.ctl = ctl; st.running = true;
-  st.tail = (st.tail || Promise.resolve(true)).then(v => v === false ? true : v); // rantai baru: kalau user menjeda tadi, balasan baru tetap boleh putar otomatis
-  let depth = 0, nextId = null, replyTo = null, shownPrev = Promise.resolve();
-  const queue = [...first];
+  // rantai baru menunggu voice note rantai lama yang masih diputar (pesan user yang menyela membatalkan rantai lama, bukan suara yang sedang jalan)
+  const pipe = TurnPipe.create({ signal: ctl.signal, maxAhead: CFG.AHEAD, after: st.pipe && st.pipe.last() });
+  st.pipe = pipe;
   try {
-    while (depth < max && !ctl.signal.aborted && state === st) {
-      let sp;
-      if (queue.length) { sp = queue.shift(); replyTo = null; } // yang disebut user: berurutan, tidak kena ACCEPT
-      else if (nextId) { sp = nextId; nextId = null; }
-      else break;
-      if (!activeIds(g).includes(sp)) continue;
-      await Promise.race([shownPrev, aborted(ctl)]); // karakter berikutnya mulai mikir setelah yang sebelumnya tampil (tidak numpuk indikator)
-      if (ctl.signal.aborted || state !== st) break;
-      // ajak user ikut ngobrol: hanya di giliran antar-karakter (bukan balasan langsung ke pesan user), jarang, dan ada jeda minimum
-      const pull = !!replyTo && !queue.length && (st.sincePull = (st.sincePull ?? CFG.PULL_GAP) + 1) > CFG.PULL_GAP && Math.random() < CFG.PULL;
-      const r = await compose(st, sp, { userText, replyTo, depth, ctl, pull });
-      if (!r.ok) break;
-      if (pull) { st.sincePull = 0; r.next = null; } // setelah mengajak user, rantai berhenti: giliran user
-      let shown; shownPrev = new Promise(res => shown = res);
-      st.tail = reveal(st, r, st.tail || Promise.resolve(true), ctl, shown); // antre: tampil + putar setelah voice note sebelumnya selesai
-      depth++; counts[sp] = (counts[sp] || 0) + 1;
-      if (queue.length) continue;
-      const nx = r.next;
-      const accept = nx && activeIds(g).includes(nx) && (counts[nx] || 0) < CFG.MAX_PER_CHAR && depth < max && Math.random() < (CFG.ACCEPT[depth - 1] ?? 0);
-      if (!accept) break;
-      nextId = nx; replyTo = { from: sp, text: r.text };
-    }
-    if (!ctl.signal.aborted && state === st && st.tail) await Promise.race([st.tail, aborted(ctl)]); // tunggu bubble terakhir tampil dan selesai diputar
+    await TurnPipe.drive({
+      pipe, signal: ctl.signal, first, max, maxPerChar: CFG.MAX_PER_CHAR,
+      accept: depth => CFG.ACCEPT[depth - 1] ?? 0, // peluang menerima `next` setelah balasan ke-1, ke-2, ke-3
+      canSpeak: id => activeIds(g).includes(id),
+      think: async (sp, ctx) => {
+        // ajak user ikut ngobrol: hanya di giliran antar-karakter (bukan balasan langsung ke pesan user), jarang, dan ada jeda minimum
+        const pull = !!ctx.replyTo && !ctx.queued && (st.sincePull = (st.sincePull ?? CFG.PULL_GAP) + 1) > CFG.PULL_GAP && Math.random() < CFG.PULL;
+        const r = await think(st, sp, { userText, replyTo: ctx.replyTo, depth: ctx.depth, ctl, pull });
+        if (r && pull) { st.sincePull = 0; r.next = null; } // setelah mengajak user, rantai berhenti: giliran user
+        return r;
+      },
+      turn: (sp, o) => ({
+        from: sp, text: o.text,
+        prepare: () => prepare(o, ctl),                                      // TTS mulai SEKARANG (paralel)
+        present: (prep, prev) => reveal(st, o, prep, prev, ctl, pipe),       // tampil + putar SETELAH giliran sebelumnya selesai
+        skip: () => o.row.remove()
+      })
+    });
   } finally {
     if (st.ctl === ctl) { st.ctl = null; st.running = false; if (state === st) baseStatus(); }
   }
