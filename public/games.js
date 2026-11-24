@@ -26,14 +26,14 @@ const SVG = {
 };
 // daftar game. ready:false = kartu "segera hadir" (belum bisa dibuka)
 const GAMES = [
-  { id: 'guess', ready: true, icon: SVG.guess, title: 'Tebak Angka', desc: 'Tebak angka rahasia 1-100 dalam 7 kali tebakan. Makin cepat, makin banyak coin.' },
-  { id: 'pic', ready: true, icon: SVG.pic, title: 'Tebak Gambar', desc: 'Tebak kata atau ungkapan dari gambar teka-teki. Makin sedikit salah, makin banyak coin.' },
-  { id: 'chess', ready: true, icon: SVG.chess, title: 'Catur', desc: 'Lawan AI catur: mudah, sedang, atau sulit. Aturan lengkap: rokade, en passant, promosi.' },
-  { id: 'chessmp', ready: true, icon: SVG.cmp, title: 'Catur Multiplayer', desc: 'Lawan teman lewat kode ruangan: sinkron real-time, analisis langkah, statistik, dan replay.' },
-  { id: 'slot', ready: true, icon: SVG.slot, title: 'Fruit Slot', desc: 'Slot buah arcade 3x3: combo x7 membuka Bonus Session. Mode Demo gratis pakai virtual point, mode Paid beneran bayar pakai Chip.' },
-  { id: 'g2048', ready: true, icon: SVG.g2048, title: '2048', desc: 'Geser dan gabungkan tile sampai 2048. Tiap tile target yang tercapai memberi coin.' },
-  { id: 'ws', ready: true, icon: SVG.ws, title: 'Word Search', desc: 'Cari semua kata tersembunyi di papan huruf secepat mungkin. Makin cepat selesai, makin besar coinnya.' },
-  { id: 'soon', ready: false, icon: SVG.soon, title: 'Segera hadir', desc: 'Minigame lain lagi disiapkan.' }
+  { id: 'guess', no: '01', cat: 'puzzle', kind: 'Puzzle', ready: true, icon: SVG.guess, title: 'Tebak Angka', desc: 'Tebak angka rahasia 1-100 dalam 7 kali tebakan. Makin cepat, makin banyak coin.' },
+  { id: 'pic', no: '02', cat: 'puzzle', kind: 'Puzzle', ready: true, icon: SVG.pic, title: 'Tebak Gambar', desc: 'Tebak kata atau ungkapan dari gambar teka-teki. Makin sedikit salah, makin banyak coin.' },
+  { id: 'chess', no: '03', cat: 'papan', kind: 'Papan · vs AI', ready: true, icon: SVG.chess, title: 'Catur', desc: 'Lawan AI catur: mudah, sedang, atau sulit. Aturan lengkap: rokade, en passant, promosi.' },
+  { id: 'chessmp', no: '04', cat: 'papan', kind: 'Papan · PvP', ready: true, icon: SVG.cmp, title: 'Catur Multiplayer', desc: 'Lawan teman lewat kode ruangan: sinkron real-time, analisis langkah, statistik, dan replay.' },
+  { id: 'slot', no: '05', cat: 'arcade', kind: 'Arcade', ready: true, icon: SVG.slot, title: 'Fruit Slot', desc: 'Slot buah arcade 3x3: combo x7 membuka Bonus Session. Mode Demo gratis pakai virtual point, mode Paid beneran bayar pakai Chip.' },
+  { id: 'g2048', no: '06', cat: 'puzzle', kind: 'Puzzle', ready: true, icon: SVG.g2048, title: '2048', desc: 'Geser dan gabungkan tile sampai 2048. Tiap tile target yang tercapai memberi coin.' },
+  { id: 'ws', no: '07', cat: 'puzzle', kind: 'Puzzle', ready: true, icon: SVG.ws, title: 'Word Search', desc: 'Cari semua kata tersembunyi di papan huruf secepat mungkin. Makin cepat selesai, makin besar coinnya.' },
+  { id: 'soon', no: '··', cat: 'all', kind: 'Soon', ready: false, icon: SVG.soon, title: 'Segera hadir', desc: 'Minigame lain lagi disiapkan.' }
 ];
 
 let ps = null;            // keadaan Tebak Gambar dari server { cfg, daily, total, game, coins, gems }
@@ -58,12 +58,22 @@ const setMsg = (text, cls) => {
   if (el) { el.textContent = msg[0]; el.className = 'gm-msg' + (cls ? ' ' + cls : ''); }
 };
 
+const HCATS = [['all', 'Semua'], ['puzzle', 'Puzzle'], ['papan', 'Papan'], ['arcade', 'Arcade']];
+let hubCat = 'all';       // filter kategori di hub
+const GO = '<svg viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg>';
 function hub() {
   const d = st.daily;
-  return '<div class="gm-grid">' + GAMES.map(g =>
+  const list = GAMES.filter(g => hubCat === 'all' || (g.ready && g.cat === hubCat));
+  const n = GAMES.filter(g => g.ready).length;
+  return '<div class="gm-bar"><div class="gm-cats" role="tablist" aria-label="Kategori">' + HCATS.map(c =>
+      '<button type="button" role="tab" aria-selected="' + (hubCat === c[0]) + '" class="gm-cat-b' + (hubCat === c[0] ? ' on' : '') + '" data-act="hcat" data-c="' + c[0] + '">' + c[1] + '</button>').join('') + '</div>' +
+    '<span class="gm-count"><b>' + String(n).padStart(2, '0') + '</b> game</span></div>' +
+    '<div class="gm-grid">' + list.map(g =>
     '<button class="gm-card' + (g.ready ? '' : ' soon') + '" type="button" data-act="open" data-g="' + g.id + '"' + (g.ready ? '' : ' disabled') + '>' +
-      '<span class="ic">' + g.icon + '</span><b>' + esc(g.title) + '</b><span>' + esc(g.desc) + '</span>' +
-      (g.id === 'guess' ? '<span class="gm-tag">Hadiah hari ini ' + d.wins + '/' + d.cap + '</span>' : g.id === 'pic' && ps ? '<span class="gm-tag">Hadiah hari ini ' + ps.daily.wins + '/' + ps.daily.cap + '</span>' : g.id === 'chess' && cs ? '<span class="gm-tag">Hadiah hari ini ' + cs.daily.wins + '/' + cs.daily.cap + '</span>' : '') + '</button>'
+      '<small class="gm-no">' + g.no + '</small><em class="gm-kind">' + esc(g.kind) + '</em>' +
+      '<span class="ic">' + g.icon + '</span><b>' + esc(g.title) + '</b><span class="gm-d">' + esc(g.desc) + '</span>' +
+      '<small class="gm-foot">' + (g.id === 'guess' ? '<span class="gm-tag">Hadiah ' + d.wins + '/' + d.cap + '</span>' : g.id === 'pic' && ps ? '<span class="gm-tag">Hadiah ' + ps.daily.wins + '/' + ps.daily.cap + '</span>' : g.id === 'chess' && cs ? '<span class="gm-tag">Hadiah ' + cs.daily.wins + '/' + cs.daily.cap + '</span>' : '<span class="gm-tag off">' + (g.ready ? 'Main' : 'Segera') + '</span>') +
+      (g.ready ? '<i class="gm-go">' + GO + '</i>' : '') + '</small></button>'
   ).join('') + '</div>';
 }
 
@@ -833,6 +843,7 @@ body.addEventListener('click', e => {
   const b = e.target.closest('[data-act]'); if (!b || b.disabled) return;
   const a = b.dataset.act;
   if (a === 'open') { screen = b.dataset.g; intro = true; msg = ['', '']; chSel = -1; chPromo = null; render(); if (screen === 'pic' && (!ps || picFail)) fetchPic().then(render); if (screen === 'chess' && (!cs || csFail)) fetchChess().then(render); if (screen === 'slot' && window.SLOT) SLOT.enter(); if (screen === 'g2048' && window.G2048) G2048.enter(); if (screen === 'ws' && window.WSRCH) WSRCH.enter(); if (screen === 'chessmp' && window.CHMP) CHMP.enter(); }
+  else if (a === 'hcat') { hubCat = b.dataset.c || 'all'; render(); }
   else if (a === 'hub') { screen = 'hub'; intro = true; msg = ['', '']; chSel = -1; chPromo = null; if (window.SLOT) SLOT.leave(); if (window.G2048) G2048.leave(); if (window.WSRCH) WSRCH.leave(); if (window.CHMP) CHMP.leave(); render(); }
   else if (a === 'play') { intro = false; msg = ['', '']; render(); }
   else if (a === 'start') { intro = false; start(); }

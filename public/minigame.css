@@ -1,0 +1,373 @@
+/* ===== Minigame — "Glass Swiss" =====
+   Redesain tampilan tab Minigame (hub + semua game). Hanya CSS (+ markup hub di games.js). Logika game tidak disentuh.
+   Dimuat PALING AKHIR di index.html, jadi menimpa games.css / chessmp.css / slot.css / g2048.css / wordsearch.css.
+
+   Gaya:
+   - Swiss compact : grid rapat, label mono kecil UPPERCASE, nomor indeks, garis hairline, tipografi tebal rapat.
+   - Rounded       : sudut 12-28px, tombol squircle, chip pill.
+   - Glassmorphism : panel kaca buram (backdrop-filter) di atas latar abu bertitik + orb lembut.
+   - Monokrom      : hanya hitam/putih/abu dari --ink / --bg (ikut terang & gelap otomatis).
+                     Satu-satunya warna: status fungsional (skak, error) yang sudah ada.
+
+   Trik utama: di dalam #gmbody, variabel --surface diganti jadi warna kaca, jadi semua panel lama
+   (yang memakai var(--surface)) otomatis menjadi kaca tanpa disentuh satu per satu. */
+
+/* ---------- token ---------- */
+#games{
+  --s0:var(--surface);                                  /* permukaan solid asli, untuk fallback */
+  --gl:rgba(255,255,255,.58);                           /* isi kaca */
+  --gl-hi:rgba(255,255,255,.85);                        /* kilau tepi atas */
+  --gl-bd:color-mix(in srgb,var(--ink) 11%,transparent);/* garis tepi kaca */
+  --well:color-mix(in srgb,var(--ink) 5.5%,transparent);/* sumur/inset di dalam kaca */
+  --well-2:color-mix(in srgb,var(--ink) 9%,transparent);
+  --gl-sh:0 1px 1px rgba(0,0,0,.03),0 18px 36px -18px rgba(0,0,0,.22);
+  --base:color-mix(in srgb,var(--bg) 93%,var(--ink));
+  --orb-a:rgba(255,255,255,.95);--orb-b:rgba(0,0,0,.06);
+  --blur:blur(18px) saturate(1.5);
+  --r-s:12px;--r-m:16px;--r-l:24px;
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media(prefers-color-scheme:dark){
+  #games{
+    --gl:rgba(255,255,255,.055);--gl-hi:rgba(255,255,255,.1);
+    --gl-bd:rgba(255,255,255,.1);
+    --well:rgba(255,255,255,.045);--well-2:rgba(255,255,255,.08);
+    --gl-sh:0 1px 1px rgba(0,0,0,.3),0 22px 40px -20px rgba(0,0,0,.75);
+    --base:var(--bg);--orb-a:rgba(255,255,255,.075);--orb-b:rgba(255,255,255,.035);
+  }
+}
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  #games{--gl:var(--s0);--blur:none}
+}
+#gmbody{--surface:var(--gl)}   /* semua var(--surface) di dalam game = kaca */
+
+/* latar: abu lembut + 2 orb + grid titik ala Swiss. Menempel pada elemen (tidak ikut scroll), jadi kaca terlihat "melayang". */
+#games,#games.slot-on{
+  background:
+    radial-gradient(560px 420px at 8% -6%,var(--orb-a),transparent 70%),
+    radial-gradient(520px 520px at 104% 34%,var(--orb-b),transparent 70%),
+    radial-gradient(color-mix(in srgb,var(--ink) 15%,transparent) 1px,transparent 1.5px) 0 0/20px 20px,
+    var(--base);
+}
+
+/* ---------- kaca: semua wadah utama ---------- */
+#games :is(.gm-panel,.gm-info,.gm-wallet,.gm-cats,.gm-back,.cm-card,.cm-room,.cm-stat-strip,.cm-detail,.cm-hview,.ws-time,.ws-words,.g48-box,.ws-btn,.cm-pl){
+  background:var(--gl);
+  -webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);
+  box-shadow:inset 0 0 0 1px var(--gl-bd),inset 0 1px 0 var(--gl-hi),var(--gl-sh);
+}
+#games :is(.gm-panel,.gm-info){border-radius:var(--r-l)}
+#gmbody>.gm-panel{padding:22px 20px;border-radius:var(--r-l);box-shadow:inset 0 0 0 1px var(--gl-bd),inset 0 1px 0 var(--gl-hi),var(--gl-sh)}
+@media(min-width:800px){#gmbody>.gm-panel{padding:28px 30px}}
+#gmbody .gm-info{border-radius:var(--r-l);padding:16px 18px}
+
+/* ---------- header ---------- */
+#games .gm-in{max-width:1120px}
+@media(min-width:800px){#games .gm-in{padding:36px 40px 56px}}
+#games .gm-top{align-items:flex-end;padding-bottom:0;border-bottom:0}
+.gm-eyebrow{display:inline-flex;align-items:center;gap:8px;margin-bottom:10px;font:600 10.5px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--mut)}
+.gm-eyebrow::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--ink)}
+#games .gm-top h1{font-size:clamp(32px,4.4vw,48px);font-weight:800;letter-spacing:-.05em;line-height:.98}
+#games .gm-sub{margin-top:10px;font-size:13.5px;max-width:42ch}
+#games .gm-wallet{padding:8px 14px;border-radius:99px;gap:14px}
+#games .gm-wallet .w-n{font:700 12.5px var(--mono);letter-spacing:-.01em}
+#games .gm-wallet .w-cur img{filter:grayscale(1) contrast(1.05)}   /* ikon coin/gems/chip ikut monokrom */
+#games .gm-wallet .w-cur+.w-cur{padding-left:14px;border-left:1px solid var(--gl-bd)}
+
+/* ---------- hub ---------- */
+.gm-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:26px}
+.gm-cats{display:flex;gap:2px;padding:4px;border-radius:99px;overflow-x:auto;scrollbar-width:none;max-width:100%}
+.gm-cats::-webkit-scrollbar{display:none}
+.gm-cat-b{flex:none;display:block;padding:7px 15px;border-radius:99px;font-size:12.5px;font-weight:600;color:var(--mut);transition:background .2s,color .2s}
+@media(hover:hover){.gm-cat-b:not(.on):hover{color:var(--ink);background:var(--well)}}
+.gm-cat-b.on{background:var(--ink);color:var(--bg);box-shadow:0 4px 12px -4px rgba(0,0,0,.35)}
+.gm-cat-b:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.gm-count{flex:none;font:500 11px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--mut)}
+.gm-count b{font-weight:800;color:var(--ink)}
+
+#games .gm-grid{grid-template-columns:repeat(auto-fill,minmax(236px,1fr));gap:12px;margin-top:14px}
+@media(min-width:1500px){#games .gm-grid{grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}}
+#games .gm-card{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:0;min-height:188px;padding:16px;border-radius:22px;text-align:left;
+  background:var(--gl);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);
+  box-shadow:inset 0 0 0 1px var(--gl-bd),inset 0 1px 0 var(--gl-hi),var(--gl-sh);
+  transition:transform .28s cubic-bezier(.2,.9,.3,1.15),box-shadow .25s,background .25s}
+#games .gm-card:not(.soon)::after{content:none;display:none}
+#games .gm-card .gm-no{position:absolute;top:18px;right:18px;font:600 11px/1 var(--mono);letter-spacing:.08em;color:var(--mut)}
+#games .gm-card .ic{order:1;width:46px;height:46px;margin:0 0 18px;border-radius:15px;background:var(--ink);color:var(--bg);
+  box-shadow:0 8px 18px -8px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.22);transition:transform .35s cubic-bezier(.2,.9,.3,1.3)}
+#games .gm-card .ic svg{width:22px;height:22px}
+#games .gm-card .gm-kind{order:2;font:600 10px/1 var(--mono);font-style:normal;letter-spacing:.14em;text-transform:uppercase;color:var(--mut)}
+#games .gm-card b{order:3;margin-top:7px;font-size:17px;font-weight:750;letter-spacing:-.03em;line-height:1.15}
+#games .gm-card .gm-d{order:4;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;margin-top:6px;font-size:12.5px;line-height:1.5;color:var(--mut)}
+#games .gm-card .gm-foot{order:5;display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;margin-top:auto;padding-top:14px;overflow:visible;-webkit-line-clamp:unset}
+#games .gm-card .gm-tag{margin:0;padding:5px 10px;border-radius:99px;background:var(--well);box-shadow:none;font:600 10.5px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ink)}
+#games .gm-card .gm-tag.off{color:var(--mut);background:transparent;padding-left:0}
+#games .gm-card .gm-go{flex:none;display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:var(--well);color:var(--ink);font-style:normal;transition:background .2s,color .2s,transform .25s}
+#games .gm-card .gm-go svg{width:15px;height:15px;stroke-width:2}
+@media(hover:hover){
+  #games .gm-card:not(:disabled):hover{transform:translateY(-3px);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--ink) 30%,transparent),inset 0 1px 0 var(--gl-hi),0 22px 40px -18px rgba(0,0,0,.35)}
+  #games .gm-card:not(:disabled):hover .ic{transform:rotate(-6deg) scale(1.06)}
+  #games .gm-card:not(:disabled):hover .gm-go{background:var(--ink);color:var(--bg);transform:rotate(45deg)}
+}
+#games .gm-card:active:not(:disabled){transform:scale(.985)}
+#games .gm-card.soon{min-height:150px;background:transparent;-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:inset 0 0 0 1.5px var(--gl-bd);opacity:1}
+#games .gm-card.soon .ic{background:var(--well-2);color:var(--mut);box-shadow:none}
+#games .gm-card.soon b{color:var(--mut)}
+
+@media(max-width:519px){   /* HP: baris mendatar ringkas, ikon kiri, tombol panah kanan */
+  #games .gm-grid{grid-template-columns:minmax(0,1fr);gap:10px;margin-top:12px}
+  #games .gm-card,#games .gm-card.soon{display:grid;grid-template-columns:46px minmax(0,1fr) 32px;grid-template-rows:auto auto auto auto;column-gap:14px;row-gap:0;min-height:0;padding:14px;align-items:start;justify-items:start;place-items:start}
+  #games .gm-card .gm-no{display:none}
+  #games .gm-card .ic{grid-column:1;grid-row:1/4;margin:0}
+  #games .gm-card .gm-kind{grid-column:2;grid-row:1}
+  #games .gm-card b{grid-column:2;grid-row:2;margin-top:5px}
+  #games .gm-card .gm-d{grid-column:2;grid-row:3;-webkit-line-clamp:2}
+  #games .gm-card .gm-foot{display:contents}
+  #games .gm-card .gm-tag{grid-column:2;grid-row:4;justify-self:start;margin-top:10px}
+  #games .gm-card .gm-go{grid-column:3;grid-row:1/4;align-self:center}
+  .gm-bar{margin-top:20px}.gm-count{display:none}
+  .gm-cats{width:100%}
+  .gm-cat-b{flex:1}
+}
+
+/* ---------- layar game: tombol kembali, panel, intro ---------- */
+#gmbody>.gm-back{margin-top:22px;padding:8px 14px 8px 8px;border-radius:99px;font-size:12.5px;font-weight:600;color:var(--ink)}
+@media(hover:hover){#gmbody>.gm-back:hover{background:var(--ink);color:var(--bg)}}
+.gm-panel h2{font-size:20px;font-weight:800;letter-spacing:-.035em}
+.gm-hint{font-size:13px}
+.gm-intro .ic{width:56px;height:56px;border-radius:18px;margin-bottom:14px;box-shadow:0 10px 22px -10px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.22)}
+.gm-facts{gap:6px}
+.gm-facts span{padding:11px 8px;border-radius:var(--r-m);background:var(--well);box-shadow:inset 0 0 0 1px var(--gl-bd);font:500 10px/1.3 var(--mono);letter-spacing:.08em;text-transform:uppercase}
+.gm-facts b{margin-bottom:3px;font:800 17px/1 var(--mono);letter-spacing:-.03em;text-transform:none}
+.gm-how li{padding-left:34px;font-size:13px}
+.gm-how li::before{width:23px;height:23px;border-radius:8px;background:var(--well-2);font:700 11px var(--mono)}
+.gm-resume{background:var(--well);box-shadow:inset 0 0 0 1px var(--gl-bd);font:600 11px var(--mono);letter-spacing:.04em}
+
+/* tombol & input */
+.gm-btn{display:inline-grid;place-items:center;min-height:46px;padding:0 22px;border-radius:14px;background:var(--ink);color:var(--bg);font-size:13.5px;font-weight:700;letter-spacing:-.005em;
+  box-shadow:0 10px 20px -10px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.2);transition:transform .15s,opacity .2s,box-shadow .2s}
+.gm-btn.full{display:grid;width:100%}
+@media(hover:hover){.gm-btn:not(:disabled):hover{opacity:.9;transform:translateY(-1px)}}
+.gm-btn:disabled{background:var(--well-2);color:var(--mut);box-shadow:none}
+.gm-f{min-height:46px;padding:0 16px;border-radius:14px;border:0;background:var(--well);box-shadow:inset 0 0 0 1px var(--gl-bd);font:700 18px var(--mono)}
+.gm-f:focus{outline:0;box-shadow:inset 0 0 0 1.5px var(--ink)}
+.gm-text{font:700 15px inherit;font-family:inherit;padding-left:18px}
+.gm-ghost{border-radius:10px;font-size:12px;font-weight:600}
+.gm-msg{font-size:12.5px}
+.gm-msg.ok{color:var(--ink);font-weight:600}
+
+/* angka tebakan, riwayat, hasil, hadiah */
+.gm-range b{font:800 48px/1 var(--mono);letter-spacing:-.06em}
+.gm-range i{font:500 10.5px var(--mono);letter-spacing:.12em;text-transform:uppercase}
+.gm-dots i{width:9px;height:9px;border-radius:3px}
+.gm-left{font:500 11px var(--mono);letter-spacing:.08em;text-transform:uppercase}
+.gm-hist span{padding:5px 10px;border-radius:9px;background:var(--well);font:600 12px var(--mono)}
+.gm-hist .win{background:var(--ink);color:var(--bg)}
+.gm-result{border-radius:var(--r-l);background:var(--well);box-shadow:inset 0 0 0 1px var(--gl-bd)}
+.gm-result h3{font-size:18px;font-weight:800;letter-spacing:-.03em}
+.gm-prize{border-radius:99px;background:var(--well-2);font:800 15px var(--mono)}
+.gm-prize img,.gm-rw img{filter:grayscale(1)}
+.gm-info h3{font:700 10.5px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--mut)}
+.gm-rw{gap:6px}
+.gm-rw div{padding:9px 4px;border-radius:var(--r-s);background:var(--well);font:500 10px var(--mono);letter-spacing:.06em;text-transform:uppercase}
+.gm-rw b{font:700 13px var(--mono);text-transform:none}
+.gm-cap{font-size:12px}
+.gm-picbox{border-radius:var(--r-l);background:var(--well);box-shadow:inset 0 0 0 1px var(--gl-bd)}
+.gm-pat i{border-bottom-width:2px;border-radius:1px}
+.gm-clue{border-radius:var(--r-m);background:var(--well)}
+.gm-empty h2{font-size:20px;font-weight:800;letter-spacing:-.035em}
+
+/* ---------- Catur ---------- */
+.ch-lvl{padding:13px 16px;border-radius:var(--r-m);background:var(--well);box-shadow:inset 0 0 0 1px var(--gl-bd);transition:transform .15s,box-shadow .2s,background .2s}
+@media(hover:hover){.ch-lvl:hover{box-shadow:inset 0 0 0 1.5px var(--ink)}}
+.ch-lvl b{font-size:14px;font-weight:750;letter-spacing:-.02em}
+.ch-lvl em{border-radius:8px;background:var(--well-2);font:700 11px var(--mono)}
+.ch-lv{border-radius:7px;background:var(--well-2);font:600 10px var(--mono);letter-spacing:.06em;text-transform:uppercase}
+.ch-opp-t{font:600 10px var(--mono);letter-spacing:.14em;text-transform:uppercase}
+.ch-oc{border-radius:var(--r-m);background:var(--well);border:0;box-shadow:inset 0 0 0 1px var(--gl-bd)}
+.ch-oc.on{box-shadow:inset 0 0 0 2px var(--ink)}
+.ch-oa img,.cm-pl-av img,.ch-sa{filter:grayscale(1) contrast(1.05)}   /* avatar karakter ikut monokrom */
+.ch-sb{border-radius:6px 16px 16px 16px;background:var(--well);box-shadow:inset 0 0 0 1px var(--gl-bd)}
+
+.cm-pl{padding:8px 12px;border-radius:var(--r-m)}
+#games .cm-pl.turn{box-shadow:inset 0 0 0 1.5px var(--ink),var(--gl-sh)}
+.cm-pl-av{background:var(--well-2)}
+.cm-pl-m b{font-size:13px;font-weight:750;letter-spacing:-.02em}
+.cm-pc.w{color:#fff;text-shadow:1px 0 0 #1a1a1c,-1px 0 0 #1a1a1c,0 1px 0 #1a1a1c,0 -1px 0 #1a1a1c}
+.cm-turnchip{border-radius:8px;background:var(--well-2);font:700 10px var(--mono);letter-spacing:.08em;text-transform:uppercase}
+.cm-turnchip.me{background:var(--ink);color:var(--bg)}
+
+/* papan monokrom: kotak abu terang/gelap, bidak putih/hitam dengan garis tepi tipis */
+.ch-board{--ch-l:#ececef;--ch-d:#8d8d95;border-radius:18px;box-shadow:0 0 0 1px var(--gl-bd),0 0 0 6px var(--gl),0 28px 48px -22px rgba(0,0,0,.45)}
+@media(prefers-color-scheme:dark){.ch-board{--ch-l:#c4c4ca;--ch-d:#55555d}}
+.ch-sq:nth-child(1){border-top-left-radius:18px}.ch-sq:nth-child(8){border-top-right-radius:18px}
+.ch-sq:nth-child(57){border-bottom-left-radius:18px}.ch-sq:nth-child(64){border-bottom-right-radius:18px}
+.ch-co{font:700 9.5px/1 var(--mono)}
+.ch-p.ch-w{color:#fff;text-shadow:1px 0 0 #18181b,-1px 0 0 #18181b,0 1px 0 #18181b,0 -1px 0 #18181b,0 3px 4px rgba(0,0,0,.38)}
+.ch-p.ch-b{color:#18181b;text-shadow:0 1px 0 rgba(255,255,255,.28),0 3px 4px rgba(0,0,0,.38)}
+.ch-sq.ch-last{background-image:linear-gradient(rgba(14,14,16,.17),rgba(14,14,16,.17))}
+.ch-sq.ch-sel{background-image:linear-gradient(rgba(14,14,16,.28),rgba(14,14,16,.28));box-shadow:inset 0 0 0 3px rgba(14,14,16,.82),inset 0 0 0 4.5px rgba(255,255,255,.6)}
+.ch-sq.ch-dot::before{background:rgba(14,14,16,.3)}
+.ch-sq.ch-d.ch-dot::before{background:rgba(255,255,255,.5)}
+.ch-sq.ch-cap::before{border-color:rgba(14,14,16,.38)}
+.ch-sq.ch-d.ch-cap::before{border-color:rgba(255,255,255,.55)}
+.ch-sq.ch-over{box-shadow:inset 0 0 0 3px rgba(14,14,16,.82),inset 0 0 0 4.5px rgba(255,255,255,.7)}
+.ch-pr{border-radius:var(--r-m);background:var(--well);box-shadow:inset 0 0 0 1px var(--gl-bd)}
+.ch-mv{border-radius:9px;font-family:var(--mono);font-size:12px}
+.ch-acts .gm-ghost[data-arm]{color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--ink)}
+
+/* ---------- Catur Multiplayer ---------- */
+.cm-card{padding:16px;border-radius:var(--r-l)}
+.cm-card h3{font-size:15px;font-weight:750;letter-spacing:-.025em}
+.cm-card h3 .ic{width:34px;height:34px;border-radius:11px;box-shadow:inset 0 1px 0 rgba(255,255,255,.22)}
+.cm-cbtn{border-radius:var(--r-s);background:var(--well);box-shadow:inset 0 0 0 1px var(--gl-bd);font-weight:700}
+.cm-cbtn[aria-pressed="true"]{background:var(--ink);box-shadow:none}
+.cm-code{min-height:46px;border:0;border-radius:14px;background:var(--well);box-shadow:inset 0 0 0 1px var(--gl-bd);font-family:var(--mono)}
+.cm-code:focus{outline:0;box-shadow:inset 0 0 0 1.5px var(--ink)}
+.cm-room{border-radius:var(--r-l)}
+.cm-room-code{border-radius:var(--r-m);background:var(--well);box-shadow:inset 0 0 0 1px var(--gl-bd)}
+.cm-room-code b{font-family:var(--mono);font-weight:800}
+.cm-room-wait .dot,.cm-status .dot{background:var(--ink)}
+.cm-status.ok{color:var(--ink);font-weight:600}
+.cm-sec-h h3{font-size:14px;font-weight:750;letter-spacing:-.02em}
+.cm-badge{border-radius:7px;background:var(--ink);color:var(--bg);font:700 10.5px var(--mono)}
+.cm-badge.zero{background:var(--well-2);color:var(--mut)}
+.cm-stat-strip{border-radius:var(--r-l)}
+.cm-stat-strip .n{font:800 16px var(--mono)}
+.cm-stat-strip .l{font:500 10px var(--mono);letter-spacing:.08em;text-transform:uppercase}
+.cm-detail{border-radius:var(--r-m)}
+.cm-detail .arrows .mv,.cm-detail .nums span{border-radius:8px;background:var(--well)}
+.cm-lrow{border-radius:var(--r-s);background:var(--well)}
+.cm-hview{border-radius:var(--r-s)}
+.cm-rpb{border-radius:var(--r-s);background:var(--well);box-shadow:inset 0 0 0 1px var(--gl-bd)}
+.cm-rpb.play{background:var(--ink);box-shadow:none}
+.cm-chatrow input{min-height:42px;border:0;border-radius:12px;background:var(--well);box-shadow:inset 0 0 0 1px var(--gl-bd)}
+.cm-chatrow input:focus{outline:0;box-shadow:inset 0 0 0 1.5px var(--ink)}
+.cm-ovl{background:rgba(8,8,10,.4);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.cm-modal{border-radius:var(--r-l);background:color-mix(in srgb,var(--bg) 78%,transparent);-webkit-backdrop-filter:blur(24px) saturate(1.5);backdrop-filter:blur(24px) saturate(1.5);
+  box-shadow:inset 0 0 0 1px var(--gl-bd),inset 0 1px 0 var(--gl-hi),0 30px 60px -20px rgba(0,0,0,.5)}
+.cm-modal h3{font-weight:800;letter-spacing:-.03em}
+/* modal hasil/review (dulu gelap ala chess.com + tombol hijau): jadi kaca gelap monokrom */
+.cm-rmod{border-radius:var(--r-l);background:rgba(20,20,23,.8);-webkit-backdrop-filter:blur(26px) saturate(1.4);backdrop-filter:blur(26px) saturate(1.4);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.1),inset 0 1px 0 rgba(255,255,255,.12),0 30px 60px -20px rgba(0,0,0,.6)}
+.cm-res-top h3{font-weight:800;letter-spacing:-.04em}
+.cm-res-main{border-radius:14px;background:#f4f4f5;color:#111;box-shadow:inset 0 1px 0 #fff,0 10px 20px -10px rgba(0,0,0,.6)}
+.cm-res-main:active{transform:translateY(1px);box-shadow:none}
+.cm-res-main .st{border-color:#111}
+.cm-res-row button{border-radius:12px;background:rgba(255,255,255,.09);color:#d4d4d8;box-shadow:none}
+.cm-res-row button:hover:not(:disabled){background:rgba(255,255,255,.16);color:#fff}
+.cm-res-row.sm button{background:transparent}
+
+/* ---------- 2048: tile monokrom (gelap-terang mengikuti tema) ---------- */
+.g48-box{border-radius:var(--r-m)}
+.g48-box span{font:600 9.5px var(--mono);letter-spacing:.14em}
+.g48-box b{font:800 20px var(--mono);letter-spacing:-.04em}
+.g48-newb{background:var(--well-2);box-shadow:none}
+.g48-plus{color:var(--ink)}
+.g48-board{border-radius:var(--r-l);background:var(--well-2);box-shadow:inset 0 0 0 1px var(--gl-bd),inset 0 2px 12px rgba(0,0,0,.06)}
+.g48-grid i{border-radius:12px;background:var(--well);opacity:1}
+.g48-v{--p:5%;border-radius:12px;font-family:var(--mono);font-weight:800;letter-spacing:-.06em;
+  background:color-mix(in srgb,var(--ink) var(--p),var(--bg));color:var(--ink);
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--ink) 9%,transparent),inset 0 1px 0 rgba(255,255,255,.22),0 4px 10px -6px rgba(0,0,0,.35)}
+#games .g48-v{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--ink) 9%,transparent),inset 0 1px 0 rgba(255,255,255,.22),0 4px 10px -6px rgba(0,0,0,.35)}
+#games .g48-v.v2,#games .g48-v.v4{color:var(--ink)}
+#games .g48-v.v2{--p:7%;background:color-mix(in srgb,var(--ink) 7%,var(--bg))}
+#games .g48-v.v4{--p:13%;background:color-mix(in srgb,var(--ink) 13%,var(--bg))}
+#games .g48-v.v8{--p:22%;background:color-mix(in srgb,var(--ink) 22%,var(--bg));color:var(--ink)}
+#games .g48-v.v16{--p:31%;background:color-mix(in srgb,var(--ink) 31%,var(--bg));color:var(--ink)}
+#games .g48-v.v32{--p:41%;background:color-mix(in srgb,var(--ink) 41%,var(--bg));color:var(--ink)}
+#games .g48-v.v64{--p:60%;background:color-mix(in srgb,var(--ink) 60%,var(--bg));color:var(--bg)}
+#games .g48-v.v128{--p:70%;background:color-mix(in srgb,var(--ink) 70%,var(--bg));color:var(--bg)}
+#games .g48-v.v256{--p:79%;background:color-mix(in srgb,var(--ink) 79%,var(--bg));color:var(--bg)}
+#games .g48-v.v512{--p:87%;background:color-mix(in srgb,var(--ink) 87%,var(--bg));color:var(--bg)}
+#games .g48-v.v1024{--p:94%;background:color-mix(in srgb,var(--ink) 94%,var(--bg));color:var(--bg)}
+#games .g48-v.v2048{background:var(--ink);color:var(--bg);box-shadow:0 0 0 2px var(--bg),0 0 0 3.5px var(--ink),0 0 26px color-mix(in srgb,var(--ink) 45%,transparent)}
+#games .g48-v.vx,#games .g48-v.v4096,#games .g48-v.v8192{background:var(--ink);color:var(--bg);box-shadow:0 0 0 2px var(--bg),0 0 0 3.5px var(--ink)}
+.g48-ov{border-radius:var(--r-l);background:color-mix(in srgb,var(--bg) 62%,transparent);-webkit-backdrop-filter:blur(10px) saturate(1.4);backdrop-filter:blur(10px) saturate(1.4)}
+.g48-ov h3{font-weight:800;letter-spacing:-.05em}
+.gm-rw .g48-got{background:var(--ink);color:var(--bg)}
+
+/* ---------- Word Search ---------- */
+.ws-time{padding:12px 16px;border-radius:var(--r-l)}
+.ws-time span{font:600 9.5px var(--mono);letter-spacing:.14em;text-transform:uppercase}
+.ws-time b{font:800 30px/1.1 var(--mono);letter-spacing:-.06em}
+.ws-time b.sm{font-size:17px}
+.ws-board{border-radius:28px;background:var(--gl);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);
+  box-shadow:inset 0 0 0 1px var(--gl-bd),inset 0 1px 0 var(--gl-hi),var(--gl-sh)}
+.ws-grid b{font-family:var(--mono);font-weight:800}
+.ws-fl{stroke:var(--ink);opacity:.16}
+.ws-fl.rv{stroke:var(--ink);opacity:.1}
+.ws-sl{stroke:var(--ink);opacity:.22}
+.ws-ov{border-radius:28px;background:color-mix(in srgb,var(--bg) 62%,transparent);-webkit-backdrop-filter:blur(10px) saturate(1.4);backdrop-filter:blur(10px) saturate(1.4)}
+.ws-ov h3{font-weight:800;letter-spacing:-.05em}
+.ws-words{border-radius:var(--r-l)}
+.ws-words h3{font:700 10.5px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--mut)}
+.ws-words h3 span{font-family:var(--mono)}
+.ws-words li{border-radius:9px;background:var(--well);font:700 12.5px var(--mono);letter-spacing:.04em}
+.ws-words li.got:not(.rv){background:var(--well-2)}
+.ws-btn{padding:6px 14px 6px 6px;border-radius:99px}
+@media(hover:hover){#games .ws-btn:not(:disabled):not(.on):hover{background:var(--well-2)}}
+.ws-btn i{box-shadow:inset 0 1px 0 rgba(255,255,255,.22)}
+.ws-btn small{font:500 10px var(--mono);letter-spacing:.04em}
+#games .ws-btn.on,#games .ws-btn.on:not(:disabled):hover{background:var(--ink);-webkit-backdrop-filter:none;backdrop-filter:none}
+@container (min-width:640px){
+  .ws-words li{border-radius:0;background:none;font-size:14px}
+  .ws-words li.got:not(.rv){background:none}
+}
+
+/* ---------- Fruit Slot: perangkat kaca gelap (selalu gelap supaya buah tetap terbaca) ---------- */
+.sl-root,.sl-modal{--bg:#0c0c0e;--surf:rgba(255,255,255,.045);--line:rgba(255,255,255,.12);--ink:#f4f4f5;--dim:#8f8f98;--bw:1px}
+#games.slot-on .gm-panel{background:rgba(12,12,14,.7);border:0;border-radius:var(--r-l)}
+.sl-root{max-width:440px;border:0;border-radius:30px;overflow:hidden;
+  background:linear-gradient(180deg,rgba(32,32,36,.78),rgba(10,10,12,.86));
+  -webkit-backdrop-filter:blur(26px) saturate(1.4);backdrop-filter:blur(26px) saturate(1.4);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.11),inset 0 1px 0 rgba(255,255,255,.16),0 36px 60px -26px rgba(0,0,0,.65)}
+.sl-root .gm-back{padding:13px 18px;font:600 10.5px var(--mono);letter-spacing:.16em}
+.sl-top{padding:14px 16px}
+.sl-bal b{font-size:28px}
+.sl-cab{background:transparent;padding:12px 14px}
+.sl-reels{border-radius:20px;overflow:hidden;background:rgba(0,0,0,.34);box-shadow:inset 0 0 0 1px var(--line),inset 0 2px 18px rgba(0,0,0,.5)}
+.sl-cell img,.sl-bm img,.sl-psym img{filter:grayscale(1) contrast(1.12) brightness(1.18)}
+/* angka 7 aslinya hitam: dibalik supaya terbaca di kaca gelap; di sel menang (latar terang) tampil normal */
+.sl-root :not(.win)>img[src*="seven"],.sl-modal img[src*="seven"],.sl-bm img[src*="seven"]{filter:grayscale(1) invert(1) contrast(1.1)}
+.sl-cell.win img[src*="seven"]{filter:grayscale(1) contrast(1.2)}
+#games .sl-root .gm-back{background:transparent;-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:inset 0 -1px 0 var(--line);border-radius:0;color:var(--dim)}
+@media(hover:hover){#games .sl-root .gm-back:hover{background:var(--ink);color:var(--bg)}}
+.sl-cell.win{background:var(--ink)}
+.sl-cell.win img{filter:grayscale(1) contrast(1.4) brightness(.55)}
+.sl-combo{border-radius:12px;background:rgba(255,255,255,.05)}
+.sl-combo-dots i,.sl-bdots i{border-radius:3px}
+.sl-banner{border-radius:10px;background:rgba(12,12,14,.85);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.sl-banner.big{background:var(--ink)}
+.sl-banner i,.sl-banner u{border-radius:5px}
+.sl-spark{border-radius:50%}
+.sl-ctrl{padding:12px 14px}
+.sl-step,.sl-max,.sl-seg,.sl-turbo button,.sl-optb button,.sl-tbtn,.sl-chin input,.sl-chunit,.sl-mx,.sl-bet{border-radius:12px;background:rgba(255,255,255,.04)}
+.sl-seg.on,.sl-turbo.on button,.sl-optb.on button{background:var(--ink)}
+.sl-spin{border-radius:16px;font-size:19px;box-shadow:0 14px 26px -12px rgba(255,255,255,.28),inset 0 1px 0 rgba(255,255,255,.7)}
+.sl-spin.stop{background:rgba(255,255,255,.06);border-color:var(--line);color:var(--ink)}
+.sl-refill,.sl-topup,.sl-chgo,.sl-bgo{border-radius:14px}
+.sl-modes{gap:6px;padding:10px 14px;border-bottom:1px solid var(--line)}
+.sl-mode{border:1px solid var(--line);border-radius:12px}
+.sl-mode:last-child{border-right:1px solid var(--line)}
+.sl-mode.on{border-color:var(--ink)}
+.sl-stat{border-top:0}
+.sl-broke{background:rgba(255,255,255,.04)}
+.sl-remind,.sl-bcard,.sl-bstage,.sl-btotal,.sl-chbal,.sl-chprev{border-radius:14px}
+.sl-bm{border-radius:12px}
+.sl-btag{border-radius:99px}
+.sl-bov{background:transparent}
+.sl-bintro{background:rgba(12,12,14,.92)}
+.sl-modal{background:rgba(0,0,0,.5);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.sl-mbox{border-radius:26px;background:rgba(24,24,27,.78);-webkit-backdrop-filter:blur(26px) saturate(1.4);backdrop-filter:blur(26px) saturate(1.4);
+  border:0;box-shadow:inset 0 0 0 1px rgba(255,255,255,.11),inset 0 1px 0 rgba(255,255,255,.14),0 30px 60px -20px rgba(0,0,0,.7)}
+@media(max-width:599px){.sl-mbox{border-radius:26px 26px 0 0}}
+.sl-prows{border-radius:14px;overflow:hidden}
+.sl-prow{background:rgba(255,255,255,.035)}
+.sl-prow.cherry{border-radius:12px}
+
+/* ---------- gerak ---------- */
+@media(prefers-reduced-motion:reduce){
+  #games .gm-card,#games .gm-card .ic,#games .gm-card .gm-go,.gm-btn{transition:none}
+  #games .gm-card:hover,#games .gm-card:hover .ic,#games .gm-card:hover .gm-go{transform:none}
+}
