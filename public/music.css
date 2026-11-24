@@ -79,14 +79,14 @@
    panel kanan terbuka ≈ 6,5 card (yang ke-7 mengintip), panel disembunyikan ≈ 10 card; batas 132–190px */
 @media(min-width:800px){
   .mu-in{container-type:inline-size}
-  .mu-sec{--vis:6.5;--cw:clamp(132px,calc((100cqw + 16px - 6px*(var(--vis) - 1))/var(--vis)),190px)}
+  .mu-sec{--vis:6.5;--cw:clamp(132px,calc((100cqw + 48px - 6px*(var(--vis) - 1))/var(--vis)),190px)}
   #app.mp-off .mu-sec{--vis:10}
   /* baris carousel dibentangkan sampai tepi kolom (menempel ke panel kanan / rail) supaya potongan & fade-nya di tepi, bukan melayang 40px di dalam */
   .mu-rw{margin:0 -40px}
-  .mu-grid{padding-inline:32px;scroll-padding-inline:32px}
+  .mu-grid{padding-inline:32px 0;scroll-padding-inline:32px 0} /* kanan 0 = mentok ke panel */
 }
 .mu-rw{position:relative;margin:0 -8px}
-.mu-grid{display:grid;grid-auto-flow:column;grid-auto-columns:var(--cw);gap:0 6px;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none}
+.mu-grid{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(var(--cw),1fr);gap:0 6px;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none}
 /* fade kiri/kanan: hanya di sisi yang masih bisa digeser (kelas .sl / .sr diatur updateArrows) */
 .mu-sec .mu-grid{--fl:0px;--fr:0px;-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 var(--fl),#000 calc(100% - var(--fr)),transparent 100%);mask-image:linear-gradient(90deg,transparent 0,#000 var(--fl),#000 calc(100% - var(--fr)),transparent 100%)}
 .mu-sec.sl .mu-grid{--fl:72px}
@@ -104,12 +104,12 @@
 @media(hover:hover){.mu-rw:hover .mu-arr,.mu-arr:focus-visible{opacity:1}}
 @media(hover:none){.mu-arr{display:none}} /* di layar sentuh cukup geser pakai jari */
 .mu-sec.open .mu-arr{display:none}
-.mu-card{display:block;width:100%;min-width:0;padding:8px;border-radius:20px;text-align:left;background:transparent;transition:background .2s,transform .15s}
+.mu-card{display:block;place-items:stretch;justify-items:stretch;align-items:start;width:100%;min-width:0;padding:8px;border-radius:20px;text-align:left;background:transparent;transition:background .2s,transform .15s}
 .mu-card:active{transform:scale(.98)}
 .mu-card .cv{position:relative;display:block;aspect-ratio:1;border-radius:13px;overflow:hidden;background:var(--line)}
 .mu-card .cv img{display:block;width:100%;height:100%;object-fit:cover}
-.mu-card .t{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;margin-top:9px;min-height:2.6em;font-size:13px;font-weight:600;line-height:1.3;letter-spacing:-.01em;overflow-wrap:anywhere}
-.mu-card .a{display:block;margin-top:2px;font-size:12px;line-height:1.35;color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mu-card .t{display:-webkit-box;text-align:left;min-width:0;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;margin-top:9px;min-height:2.6em;font-size:13px;font-weight:600;line-height:1.3;letter-spacing:-.01em;overflow-wrap:anywhere}
+.mu-card .a{display:block;max-width:100%;min-width:0;text-align:left;margin-top:2px;font-size:12px;line-height:1.35;color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mu-card.now .cv::after{content:"";position:absolute;inset:0;background:rgba(0,0,0,.38)}
 .mu-card .mu-eq{position:absolute;inset:0;z-index:1;margin:auto;height:18px;width:20px;filter:drop-shadow(0 0 3px rgba(0,0,0,.5))}
 .mu-card .mu-eq i{background:#fff}
