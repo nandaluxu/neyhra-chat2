@@ -366,6 +366,33 @@
 .sl-prow{background:rgba(255,255,255,.035)}
 .sl-prow.cherry{border-radius:12px}
 
+/* ---------- bentuk kartu hub: "daun" (sudut besar diagonal, sudut lain hampir lancip) ---------- */
+/* Hover: bentuk berubah ke diagonal sebaliknya + kartu terbalik penuh (hitam/putih ala Swiss). */
+#games .gm-card,#games .gm-card.soon{border-radius:36px 6px 36px 6px;
+  transition:border-radius .5s cubic-bezier(.2,.9,.2,1),transform .3s cubic-bezier(.2,.9,.3,1.15),background .3s,box-shadow .3s,color .3s}
+#games .gm-card .ic{border-radius:50%}                      /* ikon bulat: kontras dengan kartu yang bersudut */
+#games .gm-card .gm-tag{border-radius:3px}
+@media(hover:hover){
+  #games .gm-card:not(:disabled):hover{border-radius:6px 36px 6px 36px;transform:translateY(-4px);
+    background:var(--ink);color:var(--bg);-webkit-backdrop-filter:none;backdrop-filter:none;
+    box-shadow:0 26px 44px -20px rgba(0,0,0,.5)}
+  #games .gm-card:not(:disabled):hover :is(.gm-no,.gm-kind,.gm-d){color:color-mix(in srgb,var(--bg) 62%,transparent)}
+  #games .gm-card:not(:disabled):hover b{color:var(--bg)}
+  #games .gm-card:not(:disabled):hover .ic{background:var(--bg);color:var(--ink);transform:rotate(90deg) scale(1.05);box-shadow:none}
+  #games .gm-card:not(:disabled):hover .gm-tag{background:color-mix(in srgb,var(--bg) 16%,transparent);color:var(--bg)}
+  #games .gm-card:not(:disabled):hover .gm-tag.off{background:transparent;color:color-mix(in srgb,var(--bg) 62%,transparent)}
+  #games .gm-card:not(:disabled):hover .gm-go{background:var(--bg);color:var(--ink);transform:rotate(45deg) scale(1.08)}
+}
+#games .gm-card:focus-visible{border-radius:6px 36px 6px 36px}
+@media(max-width:519px){
+  #games .gm-card,#games .gm-card.soon{border-radius:26px 5px 26px 5px}
+  #games .gm-card:active:not(:disabled){border-radius:5px 26px 5px 26px;background:var(--ink);color:var(--bg)}
+  #games .gm-card:active:not(:disabled) :is(.gm-d,.gm-kind){color:color-mix(in srgb,var(--bg) 62%,transparent)}
+  #games .gm-card:active:not(:disabled) b{color:var(--bg)}
+  #games .gm-card:active:not(:disabled) .ic{background:var(--bg);color:var(--ink)}
+}
+@media(prefers-reduced-motion:reduce){#games .gm-card,#games .gm-card.soon{transition:background .2s,color .2s}}
+
 /* ---------- gerak ---------- */
 @media(prefers-reduced-motion:reduce){
   #games .gm-card,#games .gm-card .ic,#games .gm-card .gm-go,.gm-btn{transition:none}
