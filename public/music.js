@@ -2,11 +2,11 @@
    Dimuat setelah shell.js, sebelum router.js (lihat index.html). Server: lib/music.js.
    Memakai global index.html: $, store, cid, app, devOn (let/const global, akses langsung).
    Kejadian: 'shell:tab' (dari Shell.setTab) menyegarkan layar saat tabnya tampil; 'devmode' (dari switch
-   Mode dev di Pengaturan) menghentikan musik saat Mode dev dimatikan.
+   Mode dev di Pengaturan) hanya memasang/melepas konteks konsol dev (window.MU).
 
-   STATUS: fitur DITUTUP untuk user biasa (streaming YouTube dari IP server sering ditolak, bot check).
-   Tab, ikon rail, alamat /music, dan antrean tersimpan hanya aktif saat Mode dev menyala —
-   pagar di klien (pola kode rahasia yang lain), endpoint server tetap ada untuk pengujian.
+   STATUS: tab terbuka untuk SEMUA ORANG sekarang. Mode dev tetap dipakai untuk hal teknis:
+   konteks konsol (window.MU) dan pesan error mentah dari server — user biasa melihat pesan ramah
+   "Lagi error, tunggu nanti ya." (lihat tech() di bawah).
 
    Cara kerja singkat:
    - Pencarian memanggil /api/music/search (server pakai YouTube Music; cache Redis 30 menit).
@@ -21,8 +21,10 @@
 'use strict';
 const $ = id => document.getElementById(id);
 const app = $('app'), body = $('mubody');
-const dev = () => typeof devOn === 'function' && devOn(); /* Musik hanya untuk Mode dev (lihat catatan status di atas) */
-const active = () => app.dataset.tab === 'music' && dev();
+const dev = () => typeof devOn === 'function' && devOn(); /* Mode dev: pesan teknis & konteks konsol (lihat catatan status di atas) */
+/* pesan teknis (kode error/status/detail server, hint debug & env) hanya untuk Mode dev; user biasa melihat pesan ramah */
+const tech = m => { const s = String(m || '').trim(); return dev() || !s ? s : 'Lagi error, tunggu nanti ya.'; };
+const active = () => app.dataset.tab === 'music';
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmt = s => { if (!s || !isFinite(s) || s < 0) return '0:00'; const m = Math.floor(s / 60), r = Math.floor(s % 60); return m + ':' + String(r).padStart(2, '0') };
 const jget = async url => { try { const r = await fetch(url); return await r.json() } catch { return { error: 'Gagal menghubungi server' } } };
@@ -72,9 +74,8 @@ let lrcIdx = -1, lrcHold = 0, lrcBuilt = ''; // baris aktif, jeda auto-scroll (u
 let sheet = false, sheetTab = 'lyrics';
 const cur = () => (qi >= 0 && qi < queue.length ? queue[qi] : null);
 
-/* muat/simpan antrean (pola store seperti pin/logs aplikasi); antrean HANYA dipulihkan saat Mode dev
-   aktif — user biasa tidak melihat mini player dari sisa antrean lama */
-if (dev()) try { const o = JSON.parse(store.get('mqueue') || 'null'); if (o && Array.isArray(o.queue)) { queue = o.queue; qi = Math.min(o.qi ?? -1, o.queue.length - 1); repeat = ['off', 'all', 'one'].includes(o.repeat) ? o.repeat : 'off'; shuffle = !!o.shuffle; } } catch {}
+/* muat/simpan antrean (pola store seperti pin/logs aplikasi); tab kini untuk semua orang, antrean juga dipulihkan untuk semua */
+try { const o = JSON.parse(store.get('mqueue') || 'null'); if (o && Array.isArray(o.queue)) { queue = o.queue; qi = Math.min(o.qi ?? -1, o.queue.length - 1); repeat = ['off', 'all', 'one'].includes(o.repeat) ? o.repeat : 'off'; shuffle = !!o.shuffle; } } catch {}
 const save = () => { store.set('mqueue', JSON.stringify({ queue: queue.slice(0, 100), qi, repeat, shuffle })); schedWarm() };
 
 /* riwayat putar ('mhist', terbaru di depan, maks 40) — jadi bahan rekomendasi di beranda */
@@ -198,6 +199,10 @@ let rec = null, recBusy = false;   // rec = {k, secs:[{key,title,sub,avatar,song
 const recLists = {};               // key kategori -> daftar lagu (dipakai klik card)
 let page = null, pageY = 0;        // halaman "Lihat semua" (di dalam tab Musik): {key,title,sub,avatar}; pageY = posisi gulir beranda untuk dipulihkan saat kembali
 const firstArtist = a => String(a || '').split(/,|&| feat\.? /i)[0].trim();
+/* lagu dari artis/channel yang SAMA: cocokkan ARTIS UTAMA lagu (nama pertama, bukan judul/kata pencarian).
+   Kanal otomatis YouTube dianggap sama dengan artisnya ("Tulus - Topic" == "Tulus"); feat. tidak dihitung. */
+const artNorm = n => String(n || '').trim().toLowerCase().replace(/\s*[-–]\s*(topic|official|vevo)\s*$/i, '').trim();
+const sameArtist = (s, a) => { const t = artNorm(a); return !!t && artNorm(firstArtist(s.artist)) === t };
 const CHEV = '<svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>';
 function recPlan() {
   const h = hget(), cnt = {};
@@ -212,7 +217,7 @@ async function loadRec() {
   const plan = recPlan(), k = plan.qs.map(x => x.q).join('|');
   if (rec && rec.k === k && !rec.err) return;
   try {
-    const c = JSON.parse(store.get('mrec3') || 'null');
+    const c = JSON.parse(store.get('mrec4') || 'null'); /* mrec4: versi dengan baris artis yang sudah difilter (bukan mrec3 lama) */
     if (c && c.k === k && Date.now() - c.t < REC_TTL && Array.isArray(c.secs) && c.secs.length) { rec = { k, secs: c.secs }; paintHome(); return }
   } catch {}
   recBusy = true; paintHome();
@@ -223,15 +228,17 @@ async function loadRec() {
   const rows = [];
   /* baris artis/lainnya dulu (agar tidak habis dimakan Rekomendasi), tapi ditampilkan setelah Rekomendasi */
   got.filter(g => !g.x.rec).forEach(({ x, all }) => {
-    const songs = all.filter(s => !seen.has(s.id)).slice(0, 20).map(slim);
+    /* "Lainnya dari X": buang hasil pencarian yang bukan artis X (cover/artis lain yang judulnya mirip) */
+    const own = x.artist ? all.filter(s => sameArtist(s, x.artist)) : all;
+    const songs = own.filter(s => !seen.has(s.id)).slice(0, 20).map(slim);
     songs.forEach(s => seen.add(s.id));
-    if (songs.length) rows.push(x.artist ? { key: x.key, title: x.artist, sub: 'Lainnya dari', avatar: (all[0] && all[0].thumb) || songs[0].thumb, songs } : { key: x.key, title: x.title, songs });
+    if (songs.length) rows.push(x.artist ? { key: x.key, title: x.artist, sub: 'Lainnya dari', avatar: (own[0] && own[0].thumb) || songs[0].thumb, songs } : { key: x.key, title: x.title, songs });
   });
   const lists = got.filter(g => g.x.rec).map(g => g.all), mix = [];
   for (let i = 0; mix.length < 30 && i < 20; i++) for (const l of lists) { const s = l[i]; if (s && !seen.has(s.id)) { seen.add(s.id); mix.push(slim(s)) } }
   const secs = (mix.length ? [{ key: 'rec', title: 'Rekomendasi', songs: mix }] : []).concat(rows);
   rec = { k, secs, err: !secs.length };
-  if (secs.length) store.set('mrec3', JSON.stringify({ k, t: Date.now(), secs }));
+  if (secs.length) store.set('mrec4', JSON.stringify({ k, t: Date.now(), secs }));
   paintHome();
 }
 function cardHtml(s, key, i) {
@@ -490,7 +497,7 @@ function renderSrvPage(keepY) {
 async function rmSrv(id, title) {
   const j = await jget('/api/music/library/remove?id=' + encodeURIComponent(id) + '&clientId=' + encodeURIComponent(cid));
   if (j && j.ok) { say('Dihapus dari server: ' + (title || id)); loadSrv(true) }
-  else say((j && j.error) || 'Gagal menghapus dari server');
+  else say((j && j.error) ? tech(j.error) : 'Gagal menghapus dari server');
 }
 
 /* ---------- render: layar pencarian ---------- */
@@ -563,7 +570,7 @@ async function doSearch(qRaw) {
   window.muLastQ = q; lastErr = ''; searching = true; searched = true; imp = null; render();
   const j = await jget('/api/music/search?q=' + encodeURIComponent(q) + '&clientId=' + encodeURIComponent(cid));
   searching = false;
-  if (j.error) { lastErr = j.error; songs = [] } else songs = Array.isArray(j.songs) ? j.songs : [];
+  if (j.error) { lastErr = tech(j.error); songs = [] } else songs = Array.isArray(j.songs) ? j.songs : [];
   render();
 }
 
@@ -601,7 +608,7 @@ function impCard() {
     '<div class="row"><span class="th no">' + SVG.close + '</span>' +
     '<div class="si"><b>Import gagal</b><span>' + esc(imp.err) + '</span></div></div>' +
     '<div class="btns"><button type="button" class="go" data-imp="retry">Coba lagi</button></div>' +
-    '<p class="hint">Pastikan server audio (Ptero) menyala dan env MUSIC_PTERO_URL terpasang di Vercel.</p></div>';
+    (dev() ? '<p class="hint">Pastikan server audio (Ptero) menyala dan env MUSIC_PTERO_URL terpasang di Vercel.</p>' : '') + '</div>'; /* hint env = info teknisi: hanya Mode dev */
   const s = imp.song, ready = imp.ready;
   return '<div class="mu-res-h">Import dari YouTube</div><div class="mu-impc">' +
     '<div class="row"><span class="th"><img src="' + esc(s.thumb || '') + '" alt="" loading="lazy"></span>' +
@@ -644,7 +651,7 @@ async function pollImp(id) {
       return;
     }
     if (e && e.status === 'error') {
-      imp.err = e.error || 'Gagal mengunduh ke server'; imp.song = null;
+      imp.err = tech(e.error) || 'Gagal mengunduh ke server'; imp.song = null;
       if (active()) { paintResults(); paintHome(); if (page && page.key === 'srv') renderPage() }
       return;
     }
@@ -682,7 +689,7 @@ function upcoming(n) {
   return out;
 }
 async function prefetch() {
-  if (!dev() || !cur() || loading || !audio.src || pfRun === pfGen) return;
+  if (!cur() || loading || !audio.src || pfRun === pfGen) return;
   const g = pfGen; pfRun = g;
   try {
     for (const s of upcoming(WARM_N)) {
@@ -722,8 +729,8 @@ async function playSong(idx, list) {
   if (qi !== idx || cur() !== s) return; /* user sudah pindah lagu selagi menunggu */
   loading = false;
   if (!j.url) {
-    lastErr = (j.error || 'Stream tidak tersedia') + (j.detail ? ' [' + j.detail + ']' : '');
-    say(j.error || lastErr); renderPl(); renderSheet(); return
+    lastErr = tech((j.error || 'Stream tidak tersedia') + (j.detail ? ' [' + j.detail + ']' : ''));
+    say(lastErr); renderPl(); renderSheet(); return
   }
   audio.muAt = Date.now(); // waktu src diganti (pagar anti-loop di event error)
   audio.src = j.url;
@@ -929,7 +936,7 @@ async function piPoll(gen, pl, id, s) { /* unduhan berjalan di server: pantau le
     srv = { t: Date.now(), songs: jj.songs, total: jj.total_bytes || 0, kuota: jj.kuota_bytes || 0 }; srvOn = true;
     const e = jj.songs.find(x => x.id === id);
     if (e && e.status === 'ok') { say('Selesai diunduh ke server: ' + (e.title || id)); return piDone(pl, e, false, gen) }
-    if (e && e.status === 'error') { piSt(SVG.close + '<span>' + esc(e.error || 'Gagal mengunduh ke server') + '</span>', 'err'); piBusy = false; $('mupigo').disabled = false; return }
+    if (e && e.status === 'error') { piSt(SVG.close + '<span>' + esc(tech(e.error) || 'Gagal mengunduh ke server') + '</span>', 'err'); piBusy = false; $('mupigo').disabled = false; return }
     if (n === 13) piSt(SPIN + '<span>Masih mengunduh — lagu besar butuh waktu. Tutup dialog dan cek seksi “Lagu tersimpan di server” nanti, lagunya tetap lanjut diunduh.</span>', 'busy');
   }
   piSt(SVG.close + '<span>Unduhan masih berjalan di server. Cek “Lagu tersimpan di server” sebentar lagi, lalu tambahkan lewat tombol + lagi.</span>', 'err');
@@ -947,7 +954,7 @@ async function piSubmit() {
   const j = await jget('/api/music/import?id=' + encodeURIComponent(id) + '&clientId=' + encodeURIComponent(cid));
   if (gen !== piGen) return; /* dialog ditutup saat menunggu: unduhan tetap jalan di server */
   piBusy = false; $('mupigo').disabled = false;
-  if (!(j && j.ok)) { piSt(SVG.close + '<span>' + esc((j && j.error) || 'Import gagal — cek server audio (Ptero) menyala.') + '</span>', 'err'); return }
+  if (!(j && j.ok)) { piSt(SVG.close + '<span>' + esc(tech((j && j.error) || 'Import gagal — cek server audio (Ptero) menyala.')) + '</span>', 'err'); return }
   const s = j.song || { id, title: '', artist: '', album: '', dur: 0, thumb: '' };
   if (j.ready) { say(j.sudah_ada ? 'Lagu sudah tersimpan di server.' : 'Berhasil diimpor — file disimpan permanen di server.'); return piDone(pl, s, !!j.sudah_ada, gen) }
   piSt(SPIN + '<span><b>' + esc(s.title || id) + '</b> — mengunduh ke server…</span>', 'busy');
@@ -1124,8 +1131,8 @@ async function explainFail() {
   let msg = 'Gagal memutar lagu ini.';
   try {
     const r = await fetch(audio.src, { headers: { Range: 'bytes=0-1' } });
-    if (!r.ok) { const j = await r.json().catch(() => ({})); msg = (j.error || 'Server error ' + r.status) + (j.detail ? ' [' + j.detail + ']' : '') + ' — cek /api/music/debug' }
-    else msg = 'Browser tidak bisa memutar format audio ini' + (audio.error ? ' (kode ' + audio.error.code + ')' : '') + '.';
+    if (!r.ok) { const j = await r.json().catch(() => ({})); msg = tech((j.error || 'Server error ' + r.status) + (j.detail ? ' [' + j.detail + ']' : '') + ' — cek /api/music/debug') }
+    else msg = tech('Browser tidak bisa memutar format audio ini' + (audio.error ? ' (kode ' + audio.error.code + ')' : '') + '.');
   } catch (e) { msg = 'Gagal menghubungi server musik.' }
   lastErr = msg; say(msg); renderPl(); renderSheet();
 }
@@ -1160,16 +1167,10 @@ if (window.ResizeObserver && $('music')) new ResizeObserver(() => { if (active()
 /* konteks untuk mode dev (opsional dipakai lewat konsol) — hanya terpasang saat Mode dev aktif */
 const MU_API = { play: playSong, next, prev, queue: () => queue, search: doSearch };
 if (dev()) window.MU = MU_API;
-/* Mode dev dimatikan saat musik jalan (kejadian 'devmode' dari Pengaturan): hentikan lagu,
-   bersihkan antrean, sembunyikan pemutar, dan pulangkan tab ke Beranda. */
+/* kejadian 'devmode' (switch Mode dev di Pengaturan): musik tetap jalan untuk semua orang,
+   yang berubah hanya konteks konsol dev (window.MU dipasang/lepas). */
 addEventListener('devmode', () => {
   if (dev()) { window.MU = MU_API; return }
   try { delete window.MU } catch {}
-  audio.pause();
-  try { audio.removeAttribute('src'); audio.load() } catch {}
-  queue = []; qi = -1; save();
-  sheet = false; np.classList.remove('on');
-  renderPl();
-  if (app.dataset.tab === 'music' && typeof setTab === 'function') setTab('home');
 });
 })();

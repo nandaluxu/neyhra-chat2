@@ -3095,9 +3095,9 @@ $('lmbtn').onclick=()=>{
   box.classList.remove('hide'); $('lmbtn').textContent='Tutup daftar model'; loadModels();
 };
 function paintDev(){ renderDevWallet(); $('sdevg').classList.toggle('hide',store.get('devu')!=='1'); $('sdev').checked=store.get('dev')==='1'; paintMusic(); paintEng(); }
-/* Musik: fitur ditutup sementara (streaming YouTube sering ditolak dari IP server) — ikon di rail &
-   tab Musik hanya muncul saat Mode dev aktif. Pagar UI seperti kode rahasia lain, bukan keamanan. */
-function paintMusic(){ $('rmusic').classList.toggle('hide',!devOn()); }
+/* Musik: tab sekarang terbuka untuk semua orang. Pesan teknis (kode error, detail server, hint debug/env)
+   tetap hanya tampil di Mode dev — user biasa melihat pesan ramah (lihat tech() di public/music.js). */
+function paintMusic(){ $('rmusic').classList.remove('hide'); }
 paintMusic();
 let devCodeMem=null; /* kode dev hanya di memori (hilang saat muat ulang; nanti ditanya lagi lewat prompt) */
 function tryDev(text){
