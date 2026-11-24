@@ -67,6 +67,11 @@ const cur = () => (qi >= 0 && qi < queue.length ? queue[qi] : null);
 if (dev()) try { const o = JSON.parse(store.get('mqueue') || 'null'); if (o && Array.isArray(o.queue)) { queue = o.queue; qi = Math.min(o.qi ?? -1, o.queue.length - 1); repeat = ['off', 'all', 'one'].includes(o.repeat) ? o.repeat : 'off'; shuffle = !!o.shuffle; } } catch {}
 const save = () => store.set('mqueue', JSON.stringify({ queue: queue.slice(0, 100), qi, repeat, shuffle }));
 
+/* riwayat putar ('mhist', terbaru di depan, maks 40) — jadi bahan rekomendasi di beranda */
+const slim = s => ({ id: s.id, title: s.title, artist: s.artist, album: s.album || '', dur: s.dur || 0, thumb: s.thumb || '' });
+const hget = () => { try { const a = JSON.parse(store.get('mhist') || '[]'); return Array.isArray(a) ? a : [] } catch { return [] } };
+const hadd = s => { const a = hget().filter(x => x.id !== s.id); a.unshift(slim(s)); store.set('mhist', JSON.stringify(a.slice(0, 40))) };
+
 /* ---------- mini player + lembar now playing: dibangun sekali, isi diperbarui ---------- */
 const pl = document.createElement('div'); pl.id = 'mupl'; pl.setAttribute('role', 'complementary'); pl.setAttribute('aria-label', 'Pemutar musik');
 pl.innerHTML = '<div class="mupb"><i id="mupb-fl"></i></div><div class="mupl-in">' +
@@ -98,23 +103,85 @@ $('mnpx').addEventListener('click', () => { sheet = false; np.classList.remove('
 $('musi').addEventListener('click', () => { sheet = true; np.classList.add('on'); renderSheet(); if (sheetTab === 'lyrics') lrcShow() });
 $('muart').addEventListener('click', () => $('musi').click());
 
+/* ---------- beranda: rekomendasi (riwayat putar -> artis favorit -> pencarian; tanpa riwayat = lagu populer) ---------- */
+const REC_TTL = 3 * 3600e3;
+let rec = null, recBusy = false;   // rec = {k, songs, personal, err}
+const recLists = {};               // 'hist' | 'rec' -> daftar lagu yang sedang ditampilkan (dipakai klik card)
+const firstArtist = a => String(a || '').split(/,|&| feat\.? /i)[0].trim();
+function recPlan() {
+  const h = hget(), cnt = {};
+  h.forEach((s, i) => { const a = firstArtist(s.artist); if (a && a !== '—') cnt[a] = (cnt[a] || 0) + (h.length - i) }); /* lagu yang lebih baru berbobot lebih besar */
+  const top = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a]).slice(0, 3);
+  return { hist: h, personal: !!top.length, qs: top.length ? top : ['lagu indonesia populer', 'top hits 2026', 'lagu viral'] };
+}
+async function loadRec() {
+  if (recBusy) return;
+  const plan = recPlan(), k = plan.qs.join('|');
+  if (rec && rec.k === k && !rec.err) return;
+  try {
+    const c = JSON.parse(store.get('mrec') || 'null');
+    if (c && c.k === k && Date.now() - c.t < REC_TTL && Array.isArray(c.songs) && c.songs.length) { rec = { k, songs: c.songs, personal: plan.personal }; paintHome(); return }
+  } catch {}
+  recBusy = true; paintHome();
+  const rs = await Promise.all(plan.qs.map(q => jget('/api/music/search?q=' + encodeURIComponent(q) + '&clientId=' + encodeURIComponent(cid))));
+  recBusy = false;
+  const seen = new Set(plan.personal ? plan.hist.map(s => s.id) : []), lists = rs.map(j => Array.isArray(j.songs) ? j.songs : []), out = [];
+  for (let i = 0; out.length < 18 && i < 12; i++) for (const l of lists) { const s = l[i]; if (s && !seen.has(s.id)) { seen.add(s.id); out.push(slim(s)) } }
+  rec = { k, songs: out, personal: plan.personal, err: !out.length };
+  if (out.length) store.set('mrec', JSON.stringify({ k, t: Date.now(), songs: out }));
+  paintHome();
+}
+function cardHtml(s, key, i) {
+  const c = cur(), now = c && c.id === s.id;
+  return '<button type="button" class="mu-card' + (now ? ' now' : '') + '" data-k="' + key + '" data-i="' + i + '">' +
+    '<span class="cv"><img src="' + esc(s.thumb || '') + '" alt="" loading="lazy" draggable="false">' +
+    (now ? '<span class="mu-eq" aria-label="Sedang diputar"><i></i><i></i><i></i></span>' : '') +
+    '<span class="pp" aria-hidden="true">' + SVG.play + '</span>' +
+    '<span class="mu-cadd" role="button" tabindex="0" data-add title="Tambah ke antrean" aria-label="Tambah ' + esc(s.title) + ' ke antrean">' + SVG.plus + '</span></span>' +
+    '<b class="t">' + esc(s.title) + '</b><span class="a">' + esc(s.artist) + '</span></button>';
+}
+function paintHome() {
+  const el = $('muhome');
+  if (!el || !active()) return;
+  if (searching || searched) { el.innerHTML = ''; return }
+  recLists.hist = hget().slice(0, 6);
+  let h = '';
+  if (recLists.hist.length) h += '<div class="mu-sh">Putar lagi</div><div class="mu-grid">' + recLists.hist.map((s, i) => cardHtml(s, 'hist', i)).join('') + '</div>';
+  h += '<div class="mu-sh">' + (rec && rec.personal || (!rec && recLists.hist.length) ? 'Rekomendasi untukmu' : 'Lagi populer') + '</div>';
+  if (recBusy || !rec) h += '<div class="mu-grid">' + Array.from({ length: 6 }).map(() => '<div class="mu-card sk"><span class="cv"></span><b class="t"></b><span class="a"></span></div>').join('') + '</div>';
+  else if (rec.err) h += '<div class="mu-msg">Rekomendasi belum bisa dimuat. Coba cari lagu di atas, misalnya <b>monokrom tulus</b> atau <b>yoasobi racing</b>.</div>';
+  else { recLists.rec = rec.songs; h += '<div class="mu-grid">' + rec.songs.map((s, i) => cardHtml(s, 'rec', i)).join('') + '</div>' }
+  el.innerHTML = h;
+}
+function onHome(e) {
+  const card = e.target.closest('.mu-card');
+  if (!card || card.classList.contains('sk')) return;
+  const list = recLists[card.dataset.k], i = +card.dataset.i;
+  if (!list || !list[i]) return;
+  if (e.target.closest('[data-add]')) { e.stopPropagation(); queue.push(list[i]); save(); say('Ditambahkan ke antrean: ' + list[i].title); if (sheet) renderSheet(); return }
+  playSong(0, list.slice(i).concat(list.slice(0, i))); /* klik = putar; sisanya mengikuti sebagai antrean */
+}
+
 /* ---------- render: layar pencarian ---------- */
 function render() {
   if (!active()) return;
-  const c = cur();
   body.innerHTML =
     '<div class="mu-top"><h1>Musik</h1><p class="mu-sub">Cari lagu dan dengarkan langsung — tetap bisa jalan sambil ngobrol di tab lain.<small>Sumber audio: YouTube Music · Lirik: LRCLIB</small></p></div>' +
     '<form class="mu-srch" id="musrch"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>' +
     '<input id="muq" type="search" placeholder="Judul lagu, artis, atau album…" autocomplete="off" enterkeyhint="search" aria-label="Cari lagu">' +
     '<button class="mu-go" type="submit" id="mugo" aria-label="Cari">' + SVG.search.replace('<svg ', '<svg class="mu-goi" ') + '</button></form>' +
-    '<div id="mures"></div>';
+    '<div id="muhome"></div><div id="mures"></div>';
   const inp = $('muq'), res = $('mures');
   $('musrch').addEventListener('submit', e => { e.preventDefault(); doSearch(inp.value) });
+  /* kolom dikosongkan (termasuk tombol x) -> kembali ke beranda rekomendasi */
+  inp.addEventListener('input', () => { if (!inp.value && searched) { searched = false; searching = false; songs = []; lastErr = ''; window.muLastQ = ''; render(); $('muq').focus() } });
+  $('muhome').addEventListener('click', onHome);
   if (searching) res.innerHTML = Array.from({ length: 6 }).map(() => '<div class="mu-skel"><div class="a"></div><div class="b"><i></i><i></i></div></div>').join('');
   else if (searched) res.innerHTML = renderResults();
   res.addEventListener('click', onResults);
-  if (!searching && !searched && !lastErr) res.innerHTML = '<div class="mu-msg">💡 Coba: <b>monokrom tulus</b>, <b>yoasobi racing</b>…</div>';
   if (inp && window.muLastQ) inp.value = window.muLastQ;
+  paintHome();
+  if (!searching && !searched) loadRec();
 }
 
 /* segarkan HANYA daftar hasil (tanpa membongkar kolom cari: fokus & teks ketikan tidak hilang) */
@@ -157,7 +224,7 @@ async function playSong(idx, list) {
   const s = nq[idx];
   if (!s) return;
   if (list) { queue = list }
-  qi = idx; loading = true; lastErr = ''; save(); paintResults(); renderPl(); renderSheet();
+  qi = idx; loading = true; lastErr = ''; hadd(s); save(); paintResults(); paintHome(); renderPl(); renderSheet();
   /* lirik dulu (independen dari stream: tetap tampil walau stream diblokir bot-check) */
   lyr = null; lrcIdx = -1; lyrLoading = true; renderLrc();
   jget('/api/music/lyrics?title=' + encodeURIComponent(s.title) + '&artist=' + encodeURIComponent(s.artist) + '&dur=' + (s.dur || 0))

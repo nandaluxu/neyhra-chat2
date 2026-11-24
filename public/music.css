@@ -11,14 +11,14 @@
   #music{position:absolute;inset:0;padding-bottom:calc(190px + env(safe-area-inset-bottom,0px))} /* bar bawah + mini player */
 }
 
-.mu-in{max-width:760px;margin:0 auto;padding:calc(24px + env(safe-area-inset-top,0px)) 18px 40px}
+.mu-in{max-width:1100px;margin:0;text-align:left;padding:calc(24px + env(safe-area-inset-top,0px)) 18px 40px} /* rata kiri */
 @media(min-width:800px){.mu-in{padding:44px 40px 56px}}
 .mu-top h1{font-size:30px;font-weight:700;letter-spacing:-.03em;line-height:1.1}
 .mu-sub{margin-top:6px;font-size:14px;line-height:1.4;color:var(--mut)}
 .mu-sub small{display:block;margin-top:2px;font-size:12px}
 
 /* pencarian */
-.mu-srch{display:flex;align-items:center;gap:10px;margin-top:20px;padding:13px 16px;border-radius:99px;background:var(--surface);transition:box-shadow .2s}
+.mu-srch{display:flex;align-items:center;gap:10px;margin-top:20px;max-width:560px;padding:13px 16px;border-radius:99px;background:var(--surface);transition:box-shadow .2s}
 .mu-srch:focus-within{box-shadow:0 0 0 2px var(--ink)}
 .mu-srch svg{width:19px;height:19px;color:var(--mut);flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}
 .mu-srch input{flex:1;min-width:0;border:0;outline:0;background:transparent;color:var(--ink);font:inherit;font-size:15.5px}
@@ -28,6 +28,7 @@
 .mu-go svg{color:var(--bg);width:16px;height:16px}
 
 /* hasil */
+#mures{max-width:760px}
 .mu-res-h{margin:26px 10px 4px;font-size:11.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--mut)}
 .mu-song{display:flex;align-items:center;gap:12px;width:100%;padding:9px 10px;border-radius:14px;text-align:left;transition:background .15s}
 .mu-song:hover{background:var(--surface)}
@@ -58,6 +59,37 @@
 @keyframes mutsk{50%{opacity:.45}}
 .mu-msg{margin-top:16px;padding:14px 16px;border-radius:14px;background:var(--surface);font-size:13.5px;line-height:1.5;color:var(--mut)}
 .mu-msg b{color:var(--ink)}
+
+/* ===== Beranda: rekomendasi. Card tanpa frame; frame (kotak rounded ±4:5) baru muncul saat hover ===== */
+.mu-sh{margin:28px 0 10px;font-size:18px;font-weight:700;letter-spacing:-.02em}
+.mu-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(138px,1fr));gap:4px 6px;margin:0 -8px} /* -8px = padding card, supaya cover sejajar dengan judul di atasnya */
+@media(min-width:800px){.mu-grid{grid-template-columns:repeat(auto-fill,minmax(164px,1fr))}}
+.mu-card{display:block;width:100%;min-width:0;padding:8px;border-radius:20px;text-align:left;background:transparent;transition:background .2s,transform .15s}
+.mu-card:active{transform:scale(.98)}
+.mu-card .cv{position:relative;display:block;aspect-ratio:1;border-radius:13px;overflow:hidden;background:var(--line)}
+.mu-card .cv img{display:block;width:100%;height:100%;object-fit:cover}
+.mu-card .t{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;margin-top:9px;min-height:2.6em;font-size:13px;font-weight:600;line-height:1.3;letter-spacing:-.01em;overflow-wrap:anywhere}
+.mu-card .a{display:block;margin-top:2px;font-size:12px;line-height:1.35;color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mu-card.now .cv::after{content:"";position:absolute;inset:0;background:rgba(0,0,0,.38)}
+.mu-card .mu-eq{position:absolute;inset:0;z-index:1;margin:auto;height:18px;width:20px;filter:drop-shadow(0 0 3px rgba(0,0,0,.5))}
+.mu-card .mu-eq i{background:#fff}
+.mu-card .pp,.mu-card .mu-cadd{position:absolute;z-index:2;display:grid;place-items:center;border-radius:50%;opacity:0;transition:opacity .18s,transform .18s}
+.mu-card .pp{right:8px;bottom:8px;width:38px;height:38px;background:var(--ink);color:var(--bg);transform:translateY(6px);box-shadow:0 4px 14px rgba(0,0,0,.28)}
+.mu-card .pp svg{width:16px;height:16px;fill:currentColor}
+.mu-card .mu-cadd{right:7px;top:7px;width:30px;height:30px;background:rgba(0,0,0,.55);color:#fff;backdrop-filter:blur(6px)}
+.mu-card .mu-cadd:hover{background:rgba(0,0,0,.75)}
+.mu-card .mu-cadd svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+@media(hover:hover){
+  .mu-card:hover{background:var(--surface)}
+  .mu-card:hover .pp{opacity:1;transform:none}
+  .mu-card:hover .mu-cadd{opacity:1}
+}
+.mu-card:focus-visible{background:var(--surface);outline:2px solid var(--ink);outline-offset:-2px}
+.mu-card:focus-visible .pp,.mu-card:focus-within .mu-cadd{opacity:1;transform:none}
+.mu-card.sk{pointer-events:none}
+.mu-card.sk .cv,.mu-card.sk .t,.mu-card.sk .a{background:var(--surface);animation:mutsk 1.4s ease-in-out infinite}
+.mu-card.sk .t{display:block;min-height:0;height:12px;border-radius:6px;margin-top:11px}
+.mu-card.sk .a{height:9px;width:55%;border-radius:6px;margin-top:8px}
 
 /* ===== Mini player: menempel di bawah, tetap tampil di semua tab (musik terus jalan) =====
    Disembunyikan hanya saat chat terbuka / chat global (musik tetap berlanjut, hanya barnya). */
