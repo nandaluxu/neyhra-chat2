@@ -2288,6 +2288,7 @@ async function authGo(kind,body,ui){
     ui.busy(false);
     if(ui.ok) try{ ui.ok(r) }catch{} /* overlay login menutup dirinya dari sini (login selesai = tutup; sinkron jalan di belakang layar) */
     await initAcct(); await syncCloud(false); /* langsung sinkron: obrolan akun masuk ke perangkat ini, obrolan perangkat ini masuk ke akun */
+    try{ if(typeof window.mplSync==='function') await window.mplSync(); }catch{} /* playlist musik akun dipulihkan ke perangkat ini */
     return r;
   }catch(e){ ui.set(e.message,true); }
   ui.busy(false);
@@ -2390,7 +2391,9 @@ function outArm(title,sub,ms){ const el=outEl(); el.classList.add('arm','danger'
 async function flushCloud(){ /* tunggu sinkron yang sedang jalan, lalu simpan terbaru ke akun */
   for(let i=0;i<40&&aBusy;i++) await new Promise(r=>setTimeout(r,200));
   if(aBusy) return false;
-  return (await syncCloud(false,{noReload:true}))===true;
+  const chatOk=(await syncCloud(false,{noReload:true}))===true;
+  let plOk=true; try{ if(typeof window.mplFlush==='function') plOk=await window.mplFlush(); }catch{ plOk=false; } /* playlist musik ikut dicadangkan ke akun: wipeLocal menghapus localStorage-nya */
+  return chatOk&&plOk;
 }
 async function wipeLocal(extraKeep){ /* hapus semua data obrolan di perangkat ini, kecuali tema tampilan (dan kunci di extraKeep, mis. token akun yang baru masuk) */
   wiping=true;

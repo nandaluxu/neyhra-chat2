@@ -112,12 +112,23 @@ function plLoad() {
   o.pls.sort((a, b) => (b.id === LIKED) - (a.id === LIKED)); /* sort stabil: bawaan di depan, sisanya urutan dibuat */
   return o;
 }
-const plAll = () => plc || (plc = plLoad());
+/* tanda tangan per playlist (nama+publik+urutan lagu): plSave membandingkannya untuk tahu playlist mana yang berubah (-> cap waktu `u`)
+   dan mana yang hilang (-> nisan hapus di plc.del). Dasar penggabungan cadangan akun (lihat plCloud di bawah). */
+let plSigs = {};
+const plSig = p => p.name + '|' + (p.pub || '') + '|' + p.songs.map(x => x.id).join(',');
+const plStamp = () => { plSigs = {}; plc.pls.forEach(p => { plSigs[p.id] = plSig(p) }) };
+const plAll = () => { if (!plc) { plc = plLoad(); plStamp() } return plc };
 const plList = () => plAll().pls;
 const plGet = id => plList().find(p => p.id === id) || null;
 const plHas = (p, sid) => !!p && p.songs.some(x => x.id === sid);
 function plSave() { /* false = gagal (penyimpanan penuh): muat ulang dari disk supaya memori tidak beda dengan yang tersimpan */
-  try { localStorage.setItem(PL_KEY, JSON.stringify(plc)); store.set('mlib', null); plSync(); return true } catch { plc = null; return false }
+  try {
+    const now = Date.now(), del = plc.del = (plc.del && typeof plc.del === 'object') ? plc.del : {}, have = new Set();
+    for (const p of plc.pls) { have.add(p.id); const g = plSig(p); if (plSigs[p.id] !== g) { p.u = now; plSigs[p.id] = g; delete del[p.id] } }
+    for (const id of Object.keys(plSigs)) if (!have.has(id)) { del[id] = now; delete plSigs[id] } /* playlist dihapus -> nisan, supaya tidak hidup lagi dari cadangan */
+    for (const id of Object.keys(del)) if (now - del[id] > 90 * 864e5) delete del[id];
+    localStorage.setItem(PL_KEY, JSON.stringify(plc)); store.set('mlib', null); plSync(); plCloudSched(); return true
+  } catch { plc = null; return false }
 }
 const plNewId = () => 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
 function plNextName(extra) {
@@ -339,7 +350,7 @@ function onHome(e) {
   if (card.dataset.pl) { const p = plGet(card.dataset.pl); if (!p) return; if (e.target.closest('.pp')) { if (p.songs.length) playSong(0, p.songs.slice()) } else openPl(p.id); return }
   if (card.dataset.opl) { /* playlist publik: putar langsung dari tombol putar, selain itu buka halamannya (milik sendiri -> halaman diberi tanda "kamu") */
     const od = opl && opl.pls.find(x => x.code === card.dataset.opl);
-    openShared(card.dataset.opl, e.target.closest('.pp') ? true : false, !!(od && od.mine)); return }
+    openShared(card.dataset.opl, e.target.closest('.pp') ? true : false, !!(od && od.mine), od && od.pid); return }
   const list = recLists[card.dataset.k], i = +card.dataset.i;
   if (!list || !list[i]) return;
   if (e.target.closest('[data-add]')) { e.stopPropagation(); queue.push(list[i]); save(); say('Ditambahkan ke antrean: ' + list[i].title); if (sheet) renderSheet(); return }
@@ -532,6 +543,72 @@ function plSync() {
     for (const p of plList()) if (p.pub && p.songs.length) await jpost('/api/auth/pl/share', { pid: p.id, name: p.name, songs: p.songs });
   }, 1500);
 }
+/* ---------- cadangan playlist per akun ----------
+   Dulu 'mpl' cuma di localStorage, padahal Keluar menjalankan wipeLocal() = localStorage.clear(): setiap logout->login
+   semua playlist lenyap, dan yang tersisa hanya salinan publik di server yang tampil sebagai playlist \"orang lain\"
+   (read-only, tidak bisa diedit). Sekarang seluruh daftar playlist (privat + publik) dicadangkan ke akun
+   (/api/auth/pl/mine/*) tiap berubah dan ditarik lagi saat masuk / buka aplikasi.
+   Gabung: id sama -> `u` (cap waktu ubah) terbaru menang (seri: yang lagunya lebih banyak); id yang punya nisan hapus
+   (plc.del) tidak ikut kembali. Data perangkat yang ber-cap akun LAIN (plc.own) tidak pernah digabung/dikirim ke akun ini. */
+let plCT = 0, plCBusy = null, plCAt = 0;
+const plLogged = () => typeof atok === 'string' && !!atok;
+/* sidik ringkas satu daftar playlist: id, nama, status publik, cap waktu `u` dan urutan id lagu (isi lagu sendiri tidak dibandingkan: `u` berubah kalau isinya berubah) */
+const plDigest = (pls, del) => (pls || []).map(p => [p.id, p.name, p.pub || '', p.u || 0, (p.songs || []).map(x => x.id).join(',')].join('|')).join('\n') + '\n#' + JSON.stringify(del || {});
+function plMergeCloud(loc, rem) {
+  const del = Object.assign({}, rem.del || {});
+  for (const [k, v] of Object.entries(loc.del || {})) del[k] = Math.max(del[k] || 0, v);
+  const by = new Map();
+  for (const p of (rem.pls || [])) if (p && p.id) by.set(p.id, p);
+  for (const p of loc.pls) {
+    const r = by.get(p.id);
+    if (!r || (p.u || 0) > (r.u || 0) || ((p.u || 0) === (r.u || 0) && p.songs.length >= (r.songs || []).length)) by.set(p.id, p);
+  }
+  const pls = [...by.values()].filter(p => p.id === LIKED || !(del[p.id] && del[p.id] >= (p.u || 0)));
+  pls.forEach(p => { if (p.id !== LIKED && del[p.id] && del[p.id] < (p.u || 0)) delete del[p.id] }); /* diubah setelah dihapus di perangkat lain: batalkan nisan */
+  return { pls, del };
+}
+/* tarik -> gabung -> (kalau beda) simpan lokal + dorong ke akun. Promise<boolean>: true = akun & perangkat sinkron */
+function plCloud(force) {
+  if (!plLogged()) return Promise.resolve(true);
+  if (plCBusy) return plCBusy;
+  if (!force && Date.now() - plCAt < 30e3) return Promise.resolve(true);
+  return plCBusy = (async () => {
+    try {
+      const j = await jpost('/api/auth/pl/mine/pull', {});
+      if (!(j && j.ok && j.uid)) return false;
+      const remPls = Array.isArray(j.pls) ? j.pls : null, remDel = j.del || {};
+      const loc = plAll();
+      const fresh = !store.get(PL_KEY) && !store.get('mlib'); /* perangkat kosong (baru / habis Keluar): ambil punya akun apa adanya */
+      const foreign = !!(loc.own && loc.own !== j.uid);       /* sisa data akun lain: jangan digabung, apalagi dikirim ke akun ini */
+      let next;
+      if (foreign || fresh) next = (remPls && remPls.length) || foreign ? { pls: remPls || [], del: remDel } : { pls: loc.pls, del: loc.del || {} }; /* akun belum punya cadangan & perangkat kosong: pertahankan lokal */
+      else next = plMergeCloud(loc, { pls: remPls || [], del: remDel });
+      /* bentuk akhir seperti plLoad: Lagu disukai selalu ada & di depan, batas jumlah lagu */
+      const pls = next.pls.filter(p => p && typeof p.id === 'string').map(p => ({ id: p.id, name: p.id === LIKED ? 'Lagu disukai' : String(p.name || 'Playlist').slice(0, 60), pub: p.pub || '', u: p.u || 0, songs: (Array.isArray(p.songs) ? p.songs : []).filter(x => x && x.id).slice(0, PL_SONGS) }));
+      if (!pls.some(p => p.id === LIKED)) pls.unshift({ id: LIKED, name: 'Lagu disukai', pub: '', u: 0, songs: [] });
+      pls.sort((a, b) => (b.id === LIKED) - (a.id === LIKED));
+      const merged = { pls, del: next.del || {}, own: j.uid };
+      const dLoc = plDigest(loc.pls, loc.del), dNew = plDigest(merged.pls, merged.del);
+      if (dNew !== dLoc || loc.own !== j.uid) {
+        try { localStorage.setItem(PL_KEY, JSON.stringify(merged)) } catch { return false }
+        plc = merged; plStamp(); paintAdd(); paintHome(); paintPage();
+      }
+      if (!remPls || dNew !== plDigest(remPls, remDel)) { /* isi akun beda dengan hasil gabungan -> dorong */
+        const r = await jpost('/api/auth/pl/mine/push', { pls: merged.pls, del: merged.del });
+        if (!(r && r.ok)) return false;
+      }
+      plCAt = Date.now();
+      return true;
+    } catch { return false } finally { plCBusy = null }
+  })();
+}
+function plCloudSched() { /* tiap playlist berubah: dorong ke akun setelah jeda 1.5 dtk */
+  if (!plLogged()) return;
+  clearTimeout(plCT); plCT = setTimeout(() => { plCT = 0; plCloud(true) }, 1500);
+}
+/* dipanggil index.html: sebelum Keluar (wipeLocal) & sesudah masuk. true = aman */
+window.mplFlush = async () => { clearTimeout(plCT); plCT = 0; if (!plLogged()) return true; if (plCBusy) await plCBusy; return await plCloud(true) };
+window.mplSync = () => plCloud(true);
 pm.addEventListener('click', async e => {
   const b = e.target.closest('[data-pm]'); if (!b || !pmPl || pmBusy) return;
   const p = pmPl;
@@ -561,9 +638,9 @@ addEventListener('keydown', e => { if (e.key === 'Escape' && !pm.hidden) { pmClo
 /* ---------- halaman playlist publik (dibuka lewat link /music?pl=KODE) ----------
    Read-only: putar / acak / salin seluruhnya ke playlist sendiri. Tanpa login juga bisa. */
 let sharedCode = null;
-async function openShared(code, play, mine) {
+async function openShared(code, play, mine, pid) {
   sharedCode = code;
-  page = { key: 'share', title: 'Playlist publik', songs: [], by: '', loading: true, mine: !!mine };
+  page = { key: 'share', title: 'Playlist publik', songs: [], by: '', loading: true, mine: !!mine, pid: String(pid || '') };
   if (active()) render();
   const j = await jget('/api/auth/pl/get?code=' + encodeURIComponent(code) + '&clientId=' + encodeURIComponent(cid));
   if (sharedCode !== code) return; /* user sudah pindah */
@@ -573,7 +650,7 @@ async function openShared(code, play, mine) {
     if (active()) render();
     return;
   }
-  page = { key: 'share', title: String(j.name || 'Playlist'), by: String(j.by || ''), songs: (Array.isArray(j.songs) ? j.songs : []).filter(s => s && s.id), mine: !!mine };
+  page = { key: 'share', title: String(j.name || 'Playlist'), by: String(j.by || ''), songs: (Array.isArray(j.songs) ? j.songs : []).filter(s => s && s.id), mine: !!mine, pid: String(pid || '') };
   if (active()) render();
   if (play && page.songs.length) playSong(0, page.songs.slice()); /* tombol putar di kartu "Pilihan Orang Lain" */
 }
@@ -581,10 +658,14 @@ function saveShared() {
   const l = page && page.songs || [];
   if (!l.length) return;
   if (plList().length >= PL_MAX) { say('Maks ' + PL_MAX + ' playlist.'); return }
-  const np = { id: plNewId(), name: String(page.title || 'Playlist').slice(0, 60), songs: l.slice(0, PL_SONGS) };
+  /* playlist milik sendiri yang hilang dari perangkat (mis. dulu terhapus saat Keluar): pulihkan dengan id & link publik ASLI,
+     jadi tetap playlistmu — bisa diedit dan perubahannya ikut ke link yang sama. Selain itu = salinan baru biasa. */
+  const keep = !!(page.mine && sharedCode && /^[\w-]{1,40}$/.test(page.pid || '') && page.pid !== LIKED && !plGet(page.pid));
+  const np = { id: keep ? page.pid : plNewId(), name: String(page.title || 'Playlist').slice(0, 60), songs: l.slice(0, PL_SONGS) };
+  if (keep) np.pub = sharedCode;
   plList().push(np);
   if (!plSave()) { say('Gagal menyimpan: penyimpanan browser penuh.'); return }
-  say('Disalin ke playlist kamu: ' + np.name);
+  say(keep ? 'Playlist dipulihkan: ' + np.name : 'Disalin ke playlist kamu: ' + np.name);
   if (sharedCode) { /* catat kode yang sudah disalin ke perangkat ini ('mplrest'): kartu "Kamu" milik
      sendiri di Pilihan Orang Lain tidak perlu tampil lagi (isi playlistnya sudah ada di lokal) */
     try { const a = JSON.parse(store.get('mplrest') || '[]'); if (Array.isArray(a) && !a.includes(sharedCode)) store.set('mplrest', JSON.stringify(a.concat(sharedCode).slice(-40))) } catch {}
@@ -1580,7 +1661,7 @@ addEventListener('shell:tab', () => {
     const q = new URLSearchParams(location.search).get('pl');
     if (q && !sharedCode && !page) openShared(q.trim().slice(0, 16));
     else render();
-    applyPanel()
+    applyPanel(); plCloud() /* tab dibuka: ambil perubahan dari perangkat lain (maks sekali per 30 dtk) */
   } else { sheet = false; np.classList.remove('on') }
 });
 if (active()) render();
@@ -1588,6 +1669,7 @@ if (active()) render();
 { const q = new URLSearchParams(location.search).get('pl'); if (q) openShared(q.trim().slice(0, 16)) }
 applyPanel();
 renderPl();
+plCloud(true); /* aplikasi dibuka: tarik playlist dari akun (kalau sudah masuk) */
 /* lebar kolom berubah (panel dibuka/ditutup) tidak memicu 'resize' jendela: pantau #music langsung supaya panah carousel ikut menyesuaikan */
 let lastDesk = desk();
 addEventListener('resize', () => { const d = desk(); if (d !== lastDesk) { lastDesk = d; applyPanel() } });
