@@ -30,6 +30,27 @@ Musik **tetap berjalan** saat pindah tab (Beranda, Minigame, dst.) — seperti S
 
 ---
 
+## Import link YouTube → tersimpan PERMANEN di data server (v1.3)
+
+Tempel link YouTube apa pun di kolom cari (`youtube.com/watch?v=…`, `youtu.be/…`, `/shorts/…`,
+`/live/…`, `/embed/…`, `music.youtube.com`, dengan/tanpa `https://`) → **bukan pencarian, tapi import**:
+server audio Pterodactyl menyimpan metadata + file audio ke **folder library permanen** (`music/`,
+env `LIB_DIR`) yang tidak pernah dibersihkan TTL cache dan bertahan restart panel. Lagu hasil import
+muncul di seksi **“Lagu tersimpan di server”** di beranda tab Musik (badge PERMANEN, bisa diputar
+kapan pun tanpa unduh ulang, bisa dihapus lewat “Lihat semua” — ketuk ikon tempat sampah 2x).
+
+- Butuh **server audio Ptero v1.3+** (`server-audio-v1.3.zip`, lihat `UBAHAN-MUSIC-IMPORT.md`) dan
+  env `MUSIC_PTERO_URL` + `MUSIC_PTERO_KEY` di Vercel (yang sudah terpasang dari setup musik Ptero).
+- Endpoint baru: `/api/music/import?url=|id=` (simpan permanen; unduhan file jalan di latar di
+  server), `/api/music/library` (daftar + status unduhan + total/kuota), `/api/music/library/remove?id=`.
+- `/audio` dan `/prefetch` di server Ptero kini memakai **file permanen dulu** sebelum cache, jadi
+  lagu import selalu instan. Unduhan yang terputus (panel restart) dilanjutkan otomatis.
+- Kuota disk dijaga env `LIB_MAX_MB` (default 2048) di Ptero; folder `LIB_DIR` default `./music`.
+- Tanpa `MUSIC_PTERO_URL`: endpoint balas 501 dan seksi server disembunyikan — pencarian, streaming,
+  lirik, playlist, semuanya tetap jalan seperti biasa.
+
+---
+
 ## Cara pasang — Cara A (ekstrak zip, paling gampang)
 
 File di zip ini sudah dalam keadaan **terpasang penuh** — 3 file baru + 6 file lama yang sudah

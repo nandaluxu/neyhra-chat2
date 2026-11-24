@@ -237,10 +237,11 @@ function cardHtml(s, key, i) {
   const c = cur(), now = c && c.id === s.id;
   return '<button type="button" class="mu-card' + (now ? ' now' : '') + '" data-k="' + key + '" data-i="' + i + '">' +
     '<span class="cv"><img src="' + esc(s.thumb || '') + '" alt="" loading="lazy" draggable="false">' +
+    (key === 'srv' ? '<span class="pin">PERMANEN</span>' : '') +
     (now ? '<span class="mu-eq" aria-label="Sedang diputar"><i></i><i></i><i></i></span>' : '') +
     '<span class="pp" aria-hidden="true">' + SVG.play + '</span>' +
     '<span class="mu-cadd" role="button" tabindex="0" data-add title="Tambah ke antrean" aria-label="Tambah ' + esc(s.title) + ' ke antrean">' + SVG.plus + '</span></span>' +
-    '<b class="t">' + esc(s.title) + '</b><span class="a">' + esc(s.artist) + '</span></button>';
+    '<b class="t">' + esc(s.title || s.id) + '</b><span class="a">' + esc(s.artist || '—') + '</span></button>';
 }
 /* satu kategori: header (avatar bulat bila artis) + Lihat semua + baris card dengan panah geser */
 function secHtml(key, title, songs, o = {}) {
@@ -262,6 +263,7 @@ function paintHome() {
   if (searching || searched) { el.innerHTML = ''; return }
   const hist = hget().slice(0, 40);
   let h = plSecHtml();
+  h += srvSecHtml();
   if (hist.length) h += secHtml('hist', 'Jump back in', hist);
   if (recBusy || !rec) h += skelSec();
   else if (rec.err) h += '<div class="mu-msg">Rekomendasi belum bisa dimuat. Coba cari lagu di atas, misalnya <b>monokrom tulus</b> atau <b>yoasobi racing</b>.</div>';
@@ -297,12 +299,12 @@ function onHome(e) {
 /* ---------- halaman "Lihat semua": seluruh isi satu kategori sebagai halaman sendiri (tombol kembali) ---------- */
 function pageSongs() {
   if (!page) return [];
-  const l = page.key === 'hist' ? hget().slice(0, 40) : (recLists[page.key] || []);
+  const l = page.key === 'hist' ? hget().slice(0, 40) : page.key === 'srv' ? (srv ? srv.songs : []) : (recLists[page.key] || []);
   recLists[page.key] = l;
   return l;
 }
 function openPage(key) {
-  const meta = key === 'hist' ? { key, title: 'Jump back in' } : (rec && rec.secs || []).find(x => x.key === key);
+  const meta = key === 'hist' ? { key, title: 'Jump back in' } : key === 'srv' ? { key, title: 'Lagu tersimpan di server', sub: 'Permanen di data server' } : (rec && rec.secs || []).find(x => x.key === key);
   if (!meta) return;
   pageY = $('music') ? $('music').scrollTop : 0;
   page = { key, title: meta.title, sub: meta.sub, avatar: meta.avatar };
@@ -315,6 +317,7 @@ function closePage() {
 }
 function renderPage() {
   if (page.key.startsWith('pl:')) { renderPlPage(); return }
+  if (page.key === 'srv') { renderSrvPage(); return }
   const songs = pageSongs();
   body.innerHTML =
     '<div class="mu-ptw"><button type="button" class="mu-ptog" id="muptog" aria-label="Tampilkan pemutar" title="Tampilkan pemutar">' + SVG.panel + '</button></div>' +
@@ -329,6 +332,7 @@ function renderPage() {
 }
 function paintPage() {
   if (page && page.key.startsWith('pl:')) { if (active()) renderPlPage(true); return }
+  if (page && page.key === 'srv') { if (active()) renderSrvPage(true); return }
   const g = $('mupage');
   if (!g || !active() || !page) return;
   const l = pageSongs();
@@ -408,6 +412,84 @@ function renderPlPage(keepY) {
   });
 }
 
+/* ---------- lagu tersimpan di server (permanen): hasil import link YouTube ----------
+   Sumber: /api/music/library (proxy ke server Ptero). Lagu di sini TIDAK pernah hangus — diputar
+   lewat jalur biasa, server memakai file permanen dulu sebelum cache. srvOn=false = Ptero belum
+   diset (seksi disembunyikan); srvOn=true tapi srv null = masih dimuat. */
+let srv = null, srvOn = null, srvBusy = false; /* srv = {t, songs, total, kuota}; srvOn: null belum dicek / true / false */
+const fmtMB = b => !b ? '' : (b / 1048576 >= 1 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB');
+async function loadSrv(force) {
+  if (srvOn === false || srvBusy) return;
+  if (!force && srv && Date.now() - srv.t < 60e3) return;
+  srvBusy = true;
+  const j = await jget('/api/music/library?clientId=' + encodeURIComponent(cid));
+  srvBusy = false;
+  if (j && j.ok && Array.isArray(j.songs)) { srv = { t: Date.now(), songs: j.songs, total: j.total_bytes || 0, kuota: j.kuota_bytes || 0 }; srvOn = true }
+  else if (j && (j.code === 'butuh_ptero' || j.need_ptero)) srvOn = false; /* Ptero belum diset: sembunyikan seksi */
+  /* error lain (server mati dsb.): coba lagi nanti, tampilkan data lama kalau ada */
+  if (active()) { paintHome(); if (page && page.key === 'srv') renderPage() }
+}
+function srvSecHtml() {
+  if (!srvOn || !srv || !srv.songs.length) return '';
+  recLists['srv'] = srv.songs;
+  return '<section class="mu-sec" data-sec="srv"><div class="mu-shr"><div class="mu-sht"><div><small>Permanen di data server</small><h2>Lagu tersimpan di server</h2></div></div>' +
+    '<button type="button" class="mu-more" data-more="srv">Lihat semua</button></div>' +
+    '<div class="mu-rw"><div class="mu-grid">' + srv.songs.map((s, i) => cardHtml(s, 'srv', i)).join('') + '</div>' +
+    '<button type="button" class="mu-arr l" data-arr="-1" aria-label="Geser ke kiri" hidden>' + CHEV + '</button>' +
+    '<button type="button" class="mu-arr r" data-arr="1" aria-label="Geser ke kanan" hidden>' + CHEV + '</button></div></section>';
+}
+/* halaman "Lihat semua" versi server: baris ala playlist + tombol hapus (ketuk 2x) + status unduhan */
+let srvArm = 0;
+function renderSrvPage(keepY) {
+  if (!srv) { page = null; render(); return }
+  const y = keepY && $('music') ? $('music').scrollTop : 0, c = cur(), l = srv.songs;
+  body.innerHTML =
+    '<div class="mu-ptw"><button type="button" class="mu-ptog" id="muptog" aria-label="Tampilkan pemutar" title="Tampilkan pemutar">' + SVG.panel + '</button></div>' +
+    '<div class="mu-pgh"><button type="button" class="mu-back" id="muback" aria-label="Kembali">' + CHEV + '</button></div>' +
+    '<div class="mu-plh"><div class="mu-plc"><span class="mu-note">' + SVG.note + '</span></div><div class="mu-plm"><small>Server · permanen</small><h1>Lagu tersimpan di server</h1>' +
+    '<p>' + l.length + ' lagu' + (srv.total ? ' · ' + fmtMB(srv.total) + (srv.kuota ? ' dari ' + fmtMB(srv.kuota) : '') : '') + ' — hasil import link YouTube, tidak pernah hangus.</p></div></div>' +
+    '<div class="mu-pla"><button type="button" class="mupl-play big" id="msrvplay" aria-label="Putar semua"' + (l.length ? '' : ' disabled') + '>' + SVG.play + '</button>' +
+    '<button type="button" class="mu-plb" id="msrvsh" aria-label="Putar acak" title="Putar acak"' + (l.length ? '' : ' disabled') + '>' + SVG.shuffle + '</button></div>' +
+    (l.length ? '<div class="mu-trs" id="msrvtrs">' + l.map((s, i) =>
+      '<div class="mu-tr' + (c && c.id === s.id ? ' now' : '') + '" data-i="' + i + '" role="button" tabindex="0">' +
+      '<span class="n">' + (c && c.id === s.id ? '<span class="mu-eq" aria-label="Sedang diputar"><i></i><i></i><i></i></span>' : i + 1) + '</span>' +
+      '<img src="' + esc(s.thumb || '') + '" alt="" loading="lazy">' +
+      '<span class="si"><b>' + esc(s.title || s.id) + '</b><span>' + esc(s.artist || '—') + '</span></span>' +
+      '<span class="al">' + (s.status === 'ok' ? (s.size || '') : s.status === 'downloading' ? 'mengunduh…' : 'gagal') + '</span>' +
+      '<span class="dur">' + fmt(s.dur) + '</span>' +
+      '<span class="rm" role="button" tabindex="0" data-del="' + esc(s.id) + '" title="Hapus dari server" aria-label="Hapus ' + esc(s.title || s.id) + ' dari server">' + SVG.trash + '</span></div>').join('') + '</div>'
+      : '<div class="mu-msg">Belum ada lagu tersimpan. Tempel link YouTube di kolom cari untuk mengimpornya permanen ke server.</div>');
+  if ($('music')) $('music').scrollTop = y;
+  $('muback').addEventListener('click', closePage);
+  $('muptog').addEventListener('click', () => setPanel(true));
+  $('msrvplay').addEventListener('click', () => { if (l.length) playSong(0, l.slice()) });
+  $('msrvsh').addEventListener('click', () => { if (!l.length) return; shuffle = true; save(); playSong(Math.floor(Math.random() * l.length), l.slice()) });
+  const t = $('msrvtrs');
+  if (t) t.addEventListener('click', e => {
+    const del = e.target.closest('[data-del]');
+    if (del) {
+      e.stopPropagation();
+      const id = del.dataset.del, s = l.find(x => x.id === id);
+      if (!srvArm) { /* ketuk 2x untuk hapus (pola yang sama dengan hapus playlist) */
+        srvArm = setTimeout(() => { srvArm = 0; const b = document.querySelector('[data-del="' + id + '"]'); if (b) { b.classList.remove('arm'); b.title = 'Hapus dari server' } }, 3000);
+        del.classList.add('arm'); del.title = 'Tap lagi untuk menghapus';
+        say('Tap sekali lagi untuk menghapus dari server: ' + (s ? (s.title || id) : id));
+        return;
+      }
+      clearTimeout(srvArm); srvArm = 0;
+      rmSrv(id, s ? s.title : '');
+      return;
+    }
+    const row = e.target.closest('.mu-tr');
+    if (row) { const i = +row.dataset.i; playSong(0, l.slice(i).concat(l.slice(0, i))) }
+  });
+}
+async function rmSrv(id, title) {
+  const j = await jget('/api/music/library/remove?id=' + encodeURIComponent(id) + '&clientId=' + encodeURIComponent(cid));
+  if (j && j.ok) { say('Dihapus dari server: ' + (title || id)); loadSrv(true) }
+  else say((j && j.error) || 'Gagal menghapus dari server');
+}
+
 /* ---------- render: layar pencarian ---------- */
 function render() {
   if (!active()) return;
@@ -416,28 +498,30 @@ function render() {
     '<div class="mu-ptw"><button type="button" class="mu-ptog" id="muptog" aria-label="Tampilkan pemutar" title="Tampilkan pemutar">' + SVG.panel + '</button></div>' +
     '<div class="mu-top"><h1>Musik</h1><p class="mu-sub">Cari lagu dan dengarkan langsung — tetap bisa jalan sambil ngobrol di tab lain.<small>Sumber audio: YouTube Music · Lirik: LRCLIB</small></p></div>' +
     '<form class="mu-srch" id="musrch"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>' +
-    '<input id="muq" type="search" placeholder="Judul lagu, artis, atau album…" autocomplete="off" enterkeyhint="search" aria-label="Cari lagu">' +
+    '<input id="muq" type="search" placeholder="Judul lagu, artis, album, atau link YouTube…" autocomplete="off" enterkeyhint="search" aria-label="Cari lagu atau tempel link YouTube">' +
     '<button class="mu-go" type="submit" id="mugo" aria-label="Cari">' + SVG.search.replace('<svg ', '<svg class="mu-goi" ') + '</button></form>' +
     '<div id="muhome"></div><div id="mures"></div>';
   const inp = $('muq'), res = $('mures');
   $('musrch').addEventListener('submit', e => { e.preventDefault(); doSearch(inp.value) });
   /* kolom dikosongkan (termasuk tombol x) -> kembali ke beranda rekomendasi */
-  inp.addEventListener('input', () => { if (!inp.value && searched) { searched = false; searching = false; songs = []; lastErr = ''; window.muLastQ = ''; render(); $('muq').focus() } });
+  inp.addEventListener('input', () => { if (!inp.value && searched) { searched = false; searching = false; songs = []; imp = null; lastErr = ''; window.muLastQ = ''; render(); $('muq').focus() } });
   $('muhome').addEventListener('click', onHome);
   $('muptog').addEventListener('click', () => setPanel(true));
   $('muhome').addEventListener('scroll', e => { const g = e.target; if (g.classList && g.classList.contains('mu-grid')) updateArrows(g.closest('.mu-sec')) }, true); /* scroll tidak bubble: pakai capture */
-  if (searching) res.innerHTML = Array.from({ length: 6 }).map(() => '<div class="mu-skel"><div class="a"></div><div class="b"><i></i><i></i></div></div>').join('');
-  else if (searched) res.innerHTML = renderResults();
+  if (searching) res.innerHTML = imp ? impCard() : Array.from({ length: 6 }).map(() => '<div class="mu-skel"><div class="a"></div><div class="b"><i></i><i></i></div></div>').join('');
+  else if (searched) res.innerHTML = imp ? impCard() : renderResults();
   res.addEventListener('click', onResults);
   if (inp && window.muLastQ) inp.value = window.muLastQ;
   paintHome();
   if (!searching && !searched) loadRec();
+  if (srvOn !== false) loadSrv(); /* seksi "Lagu tersimpan di server": muat sekali per menit */
 }
 
 /* segarkan HANYA daftar hasil (tanpa membongkar kolom cari: fokus & teks ketikan tidak hilang) */
 function paintResults() {
   const res = $('mures');
   if (!res || !active()) return;
+  if (imp) { res.innerHTML = impCard(); return }
   if (!searching && searched) res.innerHTML = renderResults();
 }
 function renderResults() {
@@ -452,6 +536,16 @@ function renderResults() {
   ).join('');
 }
 function onResults(e) {
+  const ib = e.target.closest('[data-imp]');
+  if (ib) { /* kartu import: putar / antrean / coba lagi */
+    if (!imp) return;
+    const act = ib.dataset.imp;
+    if (act === 'retry') { doImport(imp.id, imp.url); return }
+    if (!imp.song) return;
+    if (act === 'play') { playSong(0, [imp.song]); return }
+    if (act === 'queue') { queue.push(imp.song); save(); say('Ditambahkan ke antrean: ' + (imp.song.title || imp.song.id)); if (sheet) renderSheet() }
+    return;
+  }
   const add = e.target.closest('[data-add]');
   if (add) { e.stopPropagation(); const i = +add.dataset.add; queue.push(songs[i]); save(); say('Ditambahkan ke antrean: ' + songs[i].title); if (sheet) renderSheet(); return }
   const row = e.target.closest('.mu-song');
@@ -461,11 +555,97 @@ function onResults(e) {
 async function doSearch(qRaw) {
   const q = String(qRaw || '').trim();
   if (!q) return;
-  window.muLastQ = q; lastErr = ''; searching = true; searched = true; render();
+  const link = ytLink(q); /* tempel link YouTube -> impor permanen, bukan pencarian */
+  if (link) return doImport(link, q);
+  window.muLastQ = q; lastErr = ''; searching = true; searched = true; imp = null; render();
   const j = await jget('/api/music/search?q=' + encodeURIComponent(q) + '&clientId=' + encodeURIComponent(cid));
   searching = false;
   if (j.error) { lastErr = j.error; songs = [] } else songs = Array.isArray(j.songs) ? j.songs : [];
   render();
+}
+
+/* ---------- import lewat link YouTube: lagu disimpan PERMANEN di data server (Ptero) ----------
+   Tempel link di kolom cari -> /api/music/import -> server Ptero menyimpan metadata + file audio ke
+   folder library permanen (tidak pernah dibersihkan TTL). Unduhan file jalan di latar; kartu di
+   bawah memantau statusnya lewat /api/music/library sampai status 'ok'. Lagu yang sudah tersimpan
+   diputar lewat jalur biasa (/api/music/stream) — server otomatis memakai file permanen dulu. */
+const YT_OK = /^[\w-]{11}$/;
+function ytLink(qRaw) { /* salinan logika ytId di lib/music.js (tanpa ID polos: judul pencarian jangan sampai ke-tangkap) */
+  let s = String(qRaw || '').trim();
+  if (!s) return null;
+  if (!/^https?:\/\//i.test(s)) {
+    if (!/^(www\.|m\.|music\.)?(youtube\.com|youtu\.be)\//i.test(s)) return null;
+    s = 'https://' + s;
+  }
+  let u; try { u = new URL(s) } catch { return null }
+  const h = u.hostname.replace(/^www\.|^m\./i, '').toLowerCase();
+  if (h === 'youtu.be') { const p = u.pathname.split('/')[1] || ''; return YT_OK.test(p) ? p : null }
+  if (h === 'youtube.com' || h === 'music.youtube.com' || h === 'youtube-nocookie.com') {
+    const v = u.searchParams.get('v') || '';
+    if (YT_OK.test(v)) return v;
+    const m = u.pathname.match(/^\/(embed|shorts|live|v)\/([\w-]{11})/);
+    return m ? m[2] : null;
+  }
+  return null;
+}
+let imp = null; /* {id, url, busy, song, err, ready} */
+function impCard() {
+  if (!imp) return '';
+  if (imp.busy) return '<div class="mu-res-h">Import dari YouTube</div><div class="mu-impc"><div class="row">' +
+    '<span class="th spin">' + SPIN + '</span>' +
+    '<div class="si"><b>Mengambil lagu dari link…</b><span class="u">' + esc(imp.url) + '</span></div></div></div>';
+  if (imp.err) return '<div class="mu-res-h">Import dari YouTube</div><div class="mu-impc err">' +
+    '<div class="row"><span class="th no">' + SVG.close + '</span>' +
+    '<div class="si"><b>Import gagal</b><span>' + esc(imp.err) + '</span></div></div>' +
+    '<div class="btns"><button type="button" class="go" data-imp="retry">Coba lagi</button></div>' +
+    '<p class="hint">Pastikan server audio (Ptero) menyala dan env MUSIC_PTERO_URL terpasang di Vercel.</p></div>';
+  const s = imp.song, ready = imp.ready;
+  return '<div class="mu-res-h">Import dari YouTube</div><div class="mu-impc">' +
+    '<div class="row"><span class="th"><img src="' + esc(s.thumb || '') + '" alt="" loading="lazy"></span>' +
+    '<div class="si"><b>' + esc(s.title || s.id) + '</b><span>' + esc(s.artist || '—') + (s.dur ? ' · ' + fmt(s.dur) : '') + '</span></div>' +
+    '<span class="st' + (ready ? ' ok' : ' dl') + '">' + (ready ? SVG.check + 'Tersimpan permanen' : SPIN + 'Mengunduh ke server…') + '</span></div>' +
+    '<div class="btns"><button type="button" class="go" data-imp="play">' + SVG.play + 'Putar</button>' +
+    '<button type="button" data-imp="queue">' + SVG.plus + 'Antrean</button></div>' +
+    '<p class="hint">Tersimpan di data server (permanen) — muncul di seksi “Lagu tersimpan di server” dan bisa diputar kapan pun tanpa unduh ulang.</p></div>';
+}
+async function doImport(id, url) {
+  window.muLastQ = url; lastErr = ''; searching = true; searched = true; songs = [];
+  imp = { id, url, busy: true, song: null, err: '', ready: false };
+  render();
+  const j = await jget('/api/music/import?id=' + encodeURIComponent(id) + '&clientId=' + encodeURIComponent(cid));
+  searching = false;
+  if (imp && imp.id === id) imp.busy = false;
+  if (j && j.ok) {
+    imp.song = j.song || null; imp.ready = !!j.ready; imp.sudah = !!j.sudah_ada;
+    say(j.sudah_ada ? 'Lagu ini sudah tersimpan di server.' : 'Berhasil diimpor — file disimpan permanen di server.');
+    loadSrv(true);
+  } else {
+    imp.err = (j && j.error) || 'Import gagal';
+  }
+  if (active() && imp && imp.id === id) render();
+  if (imp && imp.id === id && imp.song && !imp.ready) pollImp(id);
+}
+/* pantau unduhan di server sampai lagu siap (maks ±1 menit); sekaligus menyegarkan seksi lagu server */
+async function pollImp(id) {
+  for (let n = 0; n < 15; n++) {
+    await new Promise(r => setTimeout(r, 4000));
+    if (!imp || imp.id !== id || imp.ready || !imp.song) return;
+    const j = await jget('/api/music/library?clientId=' + encodeURIComponent(cid));
+    if (!(j && j.ok && Array.isArray(j.songs))) continue;
+    srv = { t: Date.now(), songs: j.songs, total: j.total_bytes || 0, kuota: j.kuota_bytes || 0 }; srvOn = true;
+    const e = j.songs.find(x => x.id === id);
+    if (e && e.status === 'ok') {
+      imp.ready = true; imp.song = e;
+      say('Selesai diunduh ke server: ' + (e.title || id));
+      if (active()) { paintResults(); paintHome(); if (page && page.key === 'srv') renderPage() }
+      return;
+    }
+    if (e && e.status === 'error') {
+      imp.err = e.error || 'Gagal mengunduh ke server'; imp.song = null;
+      if (active()) { paintResults(); paintHome(); if (page && page.key === 'srv') renderPage() }
+      return;
+    }
+  }
 }
 
 /* ---------- pemanasan (prefetch): selagi lagu diputar, 2 lagu berikutnya diminta ke server lebih dulu ----------

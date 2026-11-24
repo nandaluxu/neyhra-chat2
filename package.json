@@ -15,7 +15,9 @@
     "lang:test": "node scripts/lang-test.mjs",
     "pipe:test": "node scripts/turnpipe-test.mjs",
     "group:test": "node scripts/group-flow-test.mjs",
-    "call:test": "node scripts/call-flow-test.mjs"
+    "call:test": "node scripts/call-flow-test.mjs",
+    "music:test": "node scripts/music-import-test.mjs",
+    "music:ui": "node scripts/music-ui-test.mjs"
   },
   "engines": {
     "node": ">=20.6"
