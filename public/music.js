@@ -337,7 +337,9 @@ function onHome(e) {
   const dt = e.target.closest('[data-dots]'); /* titik-tiga: menu publik/private (jangan buka playlist) */
   if (dt) { e.stopPropagation(); const p = plGet(dt.dataset.dots); if (p) pmOpen(p, dt); return }
   if (card.dataset.pl) { const p = plGet(card.dataset.pl); if (!p) return; if (e.target.closest('.pp')) { if (p.songs.length) playSong(0, p.songs.slice()) } else openPl(p.id); return }
-  if (card.dataset.opl) { /* playlist publik orang lain: putar langsung dari tombol putar, selain itu buka halamannya */ openShared(card.dataset.opl, e.target.closest('.pp') ? true : false); return }
+  if (card.dataset.opl) { /* playlist publik: putar langsung dari tombol putar, selain itu buka halamannya (milik sendiri -> halaman diberi tanda "kamu") */
+    const od = opl && opl.pls.find(x => x.code === card.dataset.opl);
+    openShared(card.dataset.opl, e.target.closest('.pp') ? true : false, !!(od && od.mine)); return }
   const list = recLists[card.dataset.k], i = +card.dataset.i;
   if (!list || !list[i]) return;
   if (e.target.closest('[data-add]')) { e.stopPropagation(); queue.push(list[i]); save(); say('Ditambahkan ke antrean: ' + list[i].title); if (sheet) renderSheet(); return }
@@ -452,12 +454,19 @@ function renderPlPage(keepY) {
       inp.addEventListener('keydown', e => { if (e.key === 'Enter') fin(true); else if (e.key === 'Escape') { e.stopPropagation(); fin(false) } });
       inp.addEventListener('blur', () => fin(true));
     });
-    $('mupldel').addEventListener('click', () => {
+    $('mupldel').addEventListener('click', async () => {
       const b = $('mupldel');
       if (!plArm) { plArm = setTimeout(() => { plArm = 0; if ($('mupldel')) { $('mupldel').classList.remove('arm'); $('mupldel').title = 'Hapus playlist' } }, 3000); b.classList.add('arm'); b.title = 'Tap lagi untuk menghapus'; say('Tap sekali lagi untuk menghapus playlist ini'); return }
       clearTimeout(plArm); plArm = 0;
+      if (p.pub) { /* playlist publik: matikan dulu linknya di server, baru hapus lokal. Dulu unshare
+         dikirim tanpa menunggu hasil — kalau gagal (offline/token mati/429) salinan server tetap
+         hidup: playlist "hilang" di sini tapi masih muncul di akun lain dan tak bisa diurus lagi */
+        say('Mematikan link publik…');
+        const j = await jpost('/api/auth/pl/unshare', { pid: p.id });
+        if (!(j && j.ok)) { say((j && j.error) || 'Gagal mematikan link publik — playlist tidak dihapus. Coba lagi.'); return }
+        p.pub = '';
+      }
       const l = plList(), i = l.findIndex(x => x.id === p.id); if (i > 0) l.splice(i, 1);
-      if (p.pub) jpost('/api/auth/pl/unshare', { pid: p.id }); /* playlist publik dihapus -> linknya dimatikan juga */
       plSave(); say('Playlist dihapus: ' + p.name); paintAdd(); closePage();
     });
   }
@@ -552,9 +561,9 @@ addEventListener('keydown', e => { if (e.key === 'Escape' && !pm.hidden) { pmClo
 /* ---------- halaman playlist publik (dibuka lewat link /music?pl=KODE) ----------
    Read-only: putar / acak / salin seluruhnya ke playlist sendiri. Tanpa login juga bisa. */
 let sharedCode = null;
-async function openShared(code, play) {
+async function openShared(code, play, mine) {
   sharedCode = code;
-  page = { key: 'share', title: 'Playlist publik', songs: [], by: '', loading: true };
+  page = { key: 'share', title: 'Playlist publik', songs: [], by: '', loading: true, mine: !!mine };
   if (active()) render();
   const j = await jget('/api/auth/pl/get?code=' + encodeURIComponent(code) + '&clientId=' + encodeURIComponent(cid));
   if (sharedCode !== code) return; /* user sudah pindah */
@@ -564,7 +573,7 @@ async function openShared(code, play) {
     if (active()) render();
     return;
   }
-  page = { key: 'share', title: String(j.name || 'Playlist'), by: String(j.by || ''), songs: (Array.isArray(j.songs) ? j.songs : []).filter(s => s && s.id) };
+  page = { key: 'share', title: String(j.name || 'Playlist'), by: String(j.by || ''), songs: (Array.isArray(j.songs) ? j.songs : []).filter(s => s && s.id), mine: !!mine };
   if (active()) render();
   if (play && page.songs.length) playSong(0, page.songs.slice()); /* tombol putar di kartu "Pilihan Orang Lain" */
 }
@@ -576,6 +585,10 @@ function saveShared() {
   plList().push(np);
   if (!plSave()) { say('Gagal menyimpan: penyimpanan browser penuh.'); return }
   say('Disalin ke playlist kamu: ' + np.name);
+  if (sharedCode) { /* catat kode yang sudah disalin ke perangkat ini ('mplrest'): kartu "Kamu" milik
+     sendiri di Pilihan Orang Lain tidak perlu tampil lagi (isi playlistnya sudah ada di lokal) */
+    try { const a = JSON.parse(store.get('mplrest') || '[]'); if (Array.isArray(a) && !a.includes(sharedCode)) store.set('mplrest', JSON.stringify(a.concat(sharedCode).slice(-40))) } catch {}
+  }
   openPl(np.id);
 }
 function renderSharePage(keepY) {
@@ -584,7 +597,7 @@ function renderSharePage(keepY) {
   body.innerHTML =
     '<div class="mu-ptw"><button type="button" class="mu-ptog" id="muptog" aria-label="Tampilkan pemutar" title="Tampilkan pemutar">' + SVG.panel + '</button></div>' +
     '<div class="mu-pgh"><button type="button" class="mu-back" id="muback" aria-label="Kembali">' + CHEV + '</button></div>' +
-    '<div class="mu-plh"><div class="mu-plc">' + covInner(pl0) + '</div><div class="mu-plm"><small>Playlist publik' + (page.by ? ' · oleh @' + esc(page.by) : '') + '</small><h1>' + esc(page.title) + '</h1>' +
+    '<div class="mu-plh"><div class="mu-plc">' + covInner(pl0) + '</div><div class="mu-plm"><small>Playlist publik' + (page.by ? ' · oleh @' + esc(page.by) : '') + (page.mine ? ' (kamu)' : '') + '</small><h1>' + esc(page.title) + '</h1>' +
     '<p>' + plSub(pl0) + (l.length ? ' · ' + fmtLong(plDur(pl0)) : '') + '</p></div></div>' +
     '<div class="mu-pla"><button type="button" class="mupl-play big" id="mushplay" aria-label="Putar playlist"' + (l.length ? '' : ' disabled') + '>' + SVG.play + '</button>' +
     '<button type="button" class="mu-plb" id="mushsh" aria-label="Putar acak" title="Putar acak"' + (l.length ? '' : ' disabled') + '>' + SVG.shuffle + '</button>' +
@@ -606,11 +619,14 @@ function renderSharePage(keepY) {
   if (t) t.addEventListener('click', e => { const row = e.target.closest('.mu-tr'); if (row) { const i = +row.dataset.i; playSong(0, l.slice(i).concat(l.slice(0, i))) } });
 }
 
-/* ---------- Pilihan Orang Lain: playlist publik pengguna lain (beranda, satu baris carousel) ----------
+/* ---------- Pilihan Orang Lain: playlist publik (beranda, satu baris carousel) ----------
    Sumber /api/auth/pl/list (koleksi music_pl): judul = nama playlist, artis = @nama pembuat.
    Klik kartu -> halaman playlist publik yang sudah ada (openShared); tombol putar -> langsung putar semua.
-   Playlist milik sendiri tidak ikut (server menyaring lewat token). */
-let opl = null, oplBusy = false; /* opl = { t, pls:[{code,name,by,n,cover}] }; muat sekali per menit */
+   Entri milik sendiri (mine:true dari token) yang playlist lokalnya masih ada disembunyikan di sini
+   (biar tidak dobel dengan "Playlist kamu"); yang lokalnya hilang TETAP tampil ber-badge "Kamu" —
+   dulu semua entri sendiri disaring di server, jadi pemilik tidak bisa melihat playlist publiknya
+   sendiri dari perangkat yang localStorage-nya kosong. */
+let opl = null, oplBusy = false; /* opl = { t, pls:[{code,name,by,n,cover,pid,mine}] }; muat sekali per menit */
 const jgetAuth = async url => { try { const hd = {}; if (typeof atok === 'string' && atok) hd.Authorization = 'Bearer ' + atok; const r = await fetch(url, { headers: hd }); return await r.json() } catch { return { error: 'Gagal menghubungi server' } } };
 async function loadOpl() {
   if (oplBusy || (opl && Date.now() - opl.t < 60e3)) return;
@@ -620,14 +636,19 @@ async function loadOpl() {
   if (j && j.ok && Array.isArray(j.pls)) opl = { t: Date.now(), pls: j.pls.filter(p => p && p.code && p.name).slice(0, 20) };
   if (active()) paintHome();
 }
+/* kode publik milik sendiri yang sudah pernah disalin ke "Playlist kamu" di perangkat ini */
+const restCodes = () => { try { const a = JSON.parse(store.get('mplrest') || '[]'); return new Set(Array.isArray(a) ? a.filter(x => typeof x === 'string') : []) } catch { return new Set() } };
 function oplSecHtml() {
   if (!opl || !opl.pls.length) return '';
+  const local = plList(), localId = new Set(local.map(p => p.id)), localPub = new Set(local.filter(p => p.pub).map(p => p.pub)), rest = restCodes();
+  const pls = opl.pls.filter(p => !(p.mine && ((p.pid && localId.has(p.pid)) || localPub.has(p.code) || rest.has(p.code))));
+  if (!pls.length) return '';
   return '<section class="mu-sec" data-sec="opl"><div class="mu-shr"><div class="mu-sht"><div><small>Dibagikan pengguna lain</small><h2>Pilihan Orang Lain</h2></div></div></div>' +
-    '<div class="mu-rw"><div class="mu-grid">' + opl.pls.map(p =>
+    '<div class="mu-rw"><div class="mu-grid">' + pls.map(p =>
       '<button type="button" class="mu-card" data-opl="' + esc(p.code) + '"><span class="cv">' +
       (p.cover ? '<img src="' + esc(p.cover) + '" alt="" loading="lazy" draggable="false">' : '<span class="mu-note">' + SVG.note + '</span>') +
       '<span class="pp" aria-hidden="true">' + SVG.play + '</span></span>' +
-      '<b class="t">' + esc(p.name) + '</b><span class="a">oleh @' + esc(p.by || 'tanpa-nama') + (p.n ? ' · ' + p.n + ' lagu' : '') + '</span></button>').join('') + '</div>' +
+      '<b class="t">' + esc(p.name) + '</b><span class="a">' + (p.mine ? '<span class="mu-mine">Kamu</span>' : '') + 'oleh @' + esc(p.by || 'tanpa-nama') + (p.n ? ' · ' + p.n + ' lagu' : '') + '</span></button>').join('') + '</div>' +
     '<button type="button" class="mu-arr l" data-arr="-1" aria-label="Geser ke kiri" hidden>' + CHEV + '</button>' +
     '<button type="button" class="mu-arr r" data-arr="1" aria-label="Geser ke kanan" hidden>' + CHEV + '</button></div></section>';
 }
