@@ -298,6 +298,7 @@ function paintHome() {
   const hist = hget().slice(0, 40);
   let h = plSecHtml();
   h += srvSecHtml();
+  h += oplSecHtml();
   if (hist.length) h += secHtml('hist', 'Jump back in', hist);
   if (recBusy || !rec) h += skelSec();
   else if (rec.err) h += '<div class="mu-msg">Rekomendasi belum bisa dimuat. Coba cari lagu di atas, misalnya <b>monokrom tulus</b> atau <b>yoasobi racing</b>.</div>';
@@ -326,6 +327,7 @@ function onHome(e) {
   const dt = e.target.closest('[data-dots]'); /* titik-tiga: menu publik/private (jangan buka playlist) */
   if (dt) { e.stopPropagation(); const p = plGet(dt.dataset.dots); if (p) pmOpen(p, dt); return }
   if (card.dataset.pl) { const p = plGet(card.dataset.pl); if (!p) return; if (e.target.closest('.pp')) { if (p.songs.length) playSong(0, p.songs.slice()) } else openPl(p.id); return }
+  if (card.dataset.opl) { /* playlist publik orang lain: putar langsung dari tombol putar, selain itu buka halamannya */ openShared(card.dataset.opl, e.target.closest('.pp') ? true : false); return }
   const list = recLists[card.dataset.k], i = +card.dataset.i;
   if (!list || !list[i]) return;
   if (e.target.closest('[data-add]')) { e.stopPropagation(); queue.push(list[i]); save(); say('Ditambahkan ke antrean: ' + list[i].title); if (sheet) renderSheet(); return }
@@ -540,7 +542,7 @@ addEventListener('keydown', e => { if (e.key === 'Escape' && !pm.hidden) { pmClo
 /* ---------- halaman playlist publik (dibuka lewat link /music?pl=KODE) ----------
    Read-only: putar / acak / salin seluruhnya ke playlist sendiri. Tanpa login juga bisa. */
 let sharedCode = null;
-async function openShared(code) {
+async function openShared(code, play) {
   sharedCode = code;
   page = { key: 'share', title: 'Playlist publik', songs: [], by: '', loading: true };
   if (active()) render();
@@ -554,6 +556,7 @@ async function openShared(code) {
   }
   page = { key: 'share', title: String(j.name || 'Playlist'), by: String(j.by || ''), songs: (Array.isArray(j.songs) ? j.songs : []).filter(s => s && s.id) };
   if (active()) render();
+  if (play && page.songs.length) playSong(0, page.songs.slice()); /* tombol putar di kartu "Pilihan Orang Lain" */
 }
 function saveShared() {
   const l = page && page.songs || [];
@@ -591,6 +594,32 @@ function renderSharePage(keepY) {
   $('mushsave').addEventListener('click', saveShared);
   const t = $('mushtrs');
   if (t) t.addEventListener('click', e => { const row = e.target.closest('.mu-tr'); if (row) { const i = +row.dataset.i; playSong(0, l.slice(i).concat(l.slice(0, i))) } });
+}
+
+/* ---------- Pilihan Orang Lain: playlist publik pengguna lain (beranda, satu baris carousel) ----------
+   Sumber /api/auth/pl/list (koleksi music_pl): judul = nama playlist, artis = @nama pembuat.
+   Klik kartu -> halaman playlist publik yang sudah ada (openShared); tombol putar -> langsung putar semua.
+   Playlist milik sendiri tidak ikut (server menyaring lewat token). */
+let opl = null, oplBusy = false; /* opl = { t, pls:[{code,name,by,n,cover}] }; muat sekali per menit */
+const jgetAuth = async url => { try { const hd = {}; if (typeof atok === 'string' && atok) hd.Authorization = 'Bearer ' + atok; const r = await fetch(url, { headers: hd }); return await r.json() } catch { return { error: 'Gagal menghubungi server' } } };
+async function loadOpl() {
+  if (oplBusy || (opl && Date.now() - opl.t < 60e3)) return;
+  oplBusy = true;
+  const j = await jgetAuth('/api/auth/pl/list?clientId=' + encodeURIComponent(cid));
+  oplBusy = false;
+  if (j && j.ok && Array.isArray(j.pls)) opl = { t: Date.now(), pls: j.pls.filter(p => p && p.code && p.name).slice(0, 20) };
+  if (active()) paintHome();
+}
+function oplSecHtml() {
+  if (!opl || !opl.pls.length) return '';
+  return '<section class="mu-sec" data-sec="opl"><div class="mu-shr"><div class="mu-sht"><div><small>Dibagikan pengguna lain</small><h2>Pilihan Orang Lain</h2></div></div></div>' +
+    '<div class="mu-rw"><div class="mu-grid">' + opl.pls.map(p =>
+      '<button type="button" class="mu-card" data-opl="' + esc(p.code) + '"><span class="cv">' +
+      (p.cover ? '<img src="' + esc(p.cover) + '" alt="" loading="lazy" draggable="false">' : '<span class="mu-note">' + SVG.note + '</span>') +
+      '<span class="pp" aria-hidden="true">' + SVG.play + '</span></span>' +
+      '<b class="t">' + esc(p.name) + '</b><span class="a">oleh @' + esc(p.by || 'tanpa-nama') + (p.n ? ' · ' + p.n + ' lagu' : '') + '</span></button>').join('') + '</div>' +
+    '<button type="button" class="mu-arr l" data-arr="-1" aria-label="Geser ke kiri" hidden>' + CHEV + '</button>' +
+    '<button type="button" class="mu-arr r" data-arr="1" aria-label="Geser ke kanan" hidden>' + CHEV + '</button></div></section>';
 }
 
 /* ---------- lagu tersimpan di server (permanen): hasil import link YouTube ----------
@@ -696,6 +725,7 @@ function render() {
   paintHome();
   if (!searching && !searched) loadRec();
   if (srvOn !== false) loadSrv(); /* seksi "Lagu tersimpan di server": muat sekali per menit */
+  loadOpl(); /* seksi "Pilihan Orang Lain": playlist publik pengguna lain, muat sekali per menit */
 }
 
 /* segarkan HANYA daftar hasil (tanpa membongkar kolom cari: fokus & teks ketikan tidak hilang) */

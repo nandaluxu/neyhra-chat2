@@ -1,5 +1,14 @@
 # Fitur Musik untuk neyhra-chat2 — Delta Zip
 
+> 🆕 **Update 25 Nov 2026 — "Pilihan Orang Lain": playlist publik pengguna lain tampil di beranda.**
+> - Playlist yang dijadikan **Publik** (lewat ⋮) kini tidak hanya bisa dibuka lewat link — muncul juga
+>   di baris **"Pilihan Orang Lain"** di beranda musik semua orang: judul kartu = nama playlist,
+>   baris artis = **oleh @username pembuatnya** (+ jumlah lagu). Klik kartu → halaman playlist publik
+>   (putar / acak / simpan ke playlist sendiri); tombol ▶ di kartu → langsung putar seluruhnya.
+>   Playlist milik sendiri tidak ikut (disaring lewat token). Endpoint baru `GET /api/auth/pl/list`
+>   (`lib/musicpl.js`): 24 playlist publik terbaru, tanpa isi lagu (cuma kode, nama, pembuat, jumlah,
+>   sampul) — tanpa login juga bisa melihat. Masih lewat koleksi Mongo `music_pl` yang sama.
+
 > 🆕 **Update 25 Nov 2026 — "Lainnya dari X" berbasis artis (channel) + playlist Publik/Private.**
 > - **"Lainnya dari X" tidak lagi "sepi" & tidak salah artis.** Dulu: cari *nama* artis (20 hasil,
 >   tercampur artis lain yang kebetulan bernama sama, mis. Tulus Indonesia vs Tulus band Norwegia,
@@ -17,8 +26,8 @@
 >   Butuh masuk akun untuk membagikan; server: `lib/musicpl.js` (koleksi Mongo `music_pl`, rute
 >   `/api/auth/pl/share|unshare|get`, dihapus bersama akun). Tanpa MongoDB: rute balas
 >   `{enabled:false}` (pagar bawaan `/api/auth/*`) — fitur lain musik tidak terpengaruh.
-> - Diuji: `node scripts/music-ui-test.mjs` (69 asersi, termasuk menu ⋮, link publik, dan baris
->   artis) + live `/api/music/artist-songs` (Tulus 71 lagu, Rex Orange County 92 lagu).
+> - Diuji: `node scripts/music-ui-test.mjs` (81 asersi, termasuk menu ⋮, link publik, baris
+>   artis, dan seksi "Pilihan Orang Lain") + live `/api/music/artist-songs` (Tulus 71 lagu, Rex Orange County 92 lagu).
 
 > ⚠️ **STATUS: DITUTUP — hanya bisa diakses saat Mode dev aktif.**
 > Streaming YouTube dari IP server sering ditolak (bot check), jadi fitur Musik disembunyikan dari

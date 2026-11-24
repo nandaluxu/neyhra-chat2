@@ -97,6 +97,15 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;paddin
     delete state.plShares[b.pid]
     return j(res, { ok: true })
   }
+  if (p === '/api/auth/pl/list') {
+    state.plCalls.push('list')
+    /* semua playlist publik KECUALI milik sendiri (token tiruan = "aku") */
+    const me = String(req.headers.authorization || '') === 'Bearer token-uji' ? 'aku' : ''
+    const all = Object.values(PL_STORE).concat(Object.values(state.plShares))
+    const pls = all.filter(d => d.by !== me && d.songs && d.songs.length)
+      .map(d => ({ code: d.code, name: d.name, by: d.by, n: d.songs.length, cover: (d.songs[0] && d.songs[0].thumb) || '' }))
+    return j(res, { ok: true, pls })
+  }
   if (p === '/api/auth/pl/get') {
     state.plCalls.push('get:' + (u.searchParams.get('code') || ''))
     const d = Object.values(PL_STORE).find(x => x.code === u.searchParams.get('code')) || Object.values(state.plShares).find(x => x.code === u.searchParams.get('code'))

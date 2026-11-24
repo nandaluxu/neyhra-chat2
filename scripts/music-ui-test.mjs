@@ -233,6 +233,40 @@ try {
   ok('tanpa error JS di konteks baru', errs2.length === 0, errs2.join(' | '))
   await page2.screenshot({ path: '/tmp/music-ui/12-lainnya-dari-artis.png' }).catch(() => { })
   await ctx2.close()
+
+  console.log('[13] Seksi "Pilihan Orang Lain": playlist publik pengguna lain')
+  /* konteks bersih: beranda memuat /api/auth/pl/list -> kartu playlist publik (judul = nama playlist, artis = @pembuat) */
+  const ctx3 = await browser.newContext({ viewport: { width: 1280, height: 900 } })
+  const page3 = await ctx3.newPage()
+  const errs3 = []
+  page3.on('pageerror', e => errs3.push(e.message))
+  await page3.goto(BASE + '/music', { waitUntil: 'networkidle' })
+  await page3.waitForTimeout(900)
+  const stList = await state()
+  ok('/api/auth/pl/list dipanggil', stList.plCalls.includes('list'))
+  ok('seksi "Pilihan Orang Lain" tampil', await page3.locator('section[data-sec="opl"]').count() === 1)
+  ok('kartu playlist publik muncul (1 punya teman)', await page3.locator('section[data-sec="opl"] .mu-card').count() === 1)
+  ok('judul kartu = nama playlist', (await page3.locator('section[data-sec="opl"] .mu-card .t').first().textContent()) === 'Playlist Teman')
+  ok('artis kartu = @nama pembuat', (await page3.locator('section[data-sec="opl"] .mu-card .a').first().textContent()).includes('temanku'))
+  ok('playlist milik sendiri (aku) tidak muncul', (await page3.locator('section[data-sec="opl"] .mu-card .a').allTextContents()).every(t => !t.includes('@aku')))
+  await page3.screenshot({ path: '/tmp/music-ui/13-pilihan-orang-lain.png' }).catch(() => { })
+  /* klik kartu -> halaman playlist publik yang sama seperti buka link */
+  await page3.click('section[data-sec="opl"] .mu-card')
+  await page3.waitForTimeout(700)
+  ok('halaman playlist publik terbuka dari kartu', (await page3.locator('.mu-plm h1').textContent()) === 'Playlist Teman')
+  ok('nama pembuat tampil di halaman', (await page3.locator('.mu-plm small').textContent()).includes('temanku'))
+  ok('2 baris lagu di halaman', await page3.locator('#mushtrs .mu-tr').count() === 2)
+  /* tombol putar di kartu -> langsung memutar tanpa buka halaman dulu */
+  await page3.goto(BASE + '/music', { waitUntil: 'networkidle' })
+  await page3.waitForTimeout(900)
+  await page3.click('section[data-sec="opl"] .mu-card .pp')
+  await page3.waitForTimeout(1200)
+  const src3 = await page3.evaluate(() => { const a = document.querySelector('audio'); return a ? a.src : '' })
+  ok('tombol putar di kartu langsung memutar playlist', src3.includes('/api/music/audio?id='), src3)
+  ok('mini player aktif', await page3.locator('#mupl.on').count() === 1)
+  ok('tanpa error JS di konteks baru', errs3.length === 0, errs3.join(' | '))
+  await page3.screenshot({ path: '/tmp/music-ui/14-putar-dari-kartu.png' }).catch(() => { })
+  await ctx3.close()
 } catch (e) {
   fail++
   console.error('  GAGAL - tes melempar: ' + e.message)
