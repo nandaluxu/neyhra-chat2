@@ -393,6 +393,7 @@ function toggle() {
 /* ---------- render: mini player + tombol rail ---------- */
 function renderPl() {
   const s = cur();
+  app.classList.toggle('mu-paused', audio.paused); /* equalizer hanya bergerak saat lagu benar-benar diputar (lihat music.css) */
   pl.classList.toggle('on', !!s);
   const rb = $('rmusic'); if (rb) rb.classList.toggle('play', !!s && !audio.paused);
   if (!s) return;
