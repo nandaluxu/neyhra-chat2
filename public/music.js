@@ -37,6 +37,7 @@ const SVG = {
   repeat1: '<svg class="sv" viewBox="0 0 24 24"><path d="M7 7h10a3 3 0 013 3v1M17 17H7a3 3 0 01-3-3v-1M7 4.5L4 7l3 2.5M17 19.5L20 17l-3-2.5M11 11.5l1.5-1v4"/></svg>',
   close: '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>',
   plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+  check: '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
   panel: '<svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="3"/><path d="M14.5 4.5v15"/></svg>',
   vol2: '<svg class="sv" viewBox="0 0 24 24"><path d="M4 9.5v5h3.5l4.5 4v-13l-4.5 4z"/><path d="M15.5 9a4 4 0 010 6M18 6.5a8 8 0 010 11"/></svg>',
   vol1: '<svg class="sv" viewBox="0 0 24 24"><path d="M4 9.5v5h3.5l4.5 4v-13l-4.5 4z"/><path d="M15.5 9a4 4 0 010 6"/></svg>',
@@ -76,13 +77,26 @@ const slim = s => ({ id: s.id, title: s.title, artist: s.artist, album: s.album 
 const hget = () => { try { const a = JSON.parse(store.get('mhist') || '[]'); return Array.isArray(a) ? a : [] } catch { return [] } };
 const hadd = s => { const a = hget().filter(x => x.id !== s.id); a.unshift(slim(s)); store.set('mhist', JSON.stringify(a.slice(0, 40))) };
 
+/* lagu tersimpan ('mlib', terbaru di depan, maks 500) — tombol + di mini player. Hanya di perangkat ini (tidak ikut sinkron cloud, sama seperti 'mqueue') */
+const LIB_MAX = 500;
+const lget = () => { try { const a = JSON.parse(store.get('mlib') || '[]'); return Array.isArray(a) ? a.filter(x => x && x.id) : [] } catch { return [] } };
+const inLib = id => !!id && lget().some(x => x.id === id);
+/* true = tersimpan, false = dihapus dari simpanan, null = penuh / gagal menulis */
+function libToggle(s) {
+  const a = lget(), i = a.findIndex(x => x.id === s.id);
+  if (i >= 0) a.splice(i, 1);
+  else { if (a.length >= LIB_MAX) return null; a.unshift(slim(s)) }
+  try { localStorage.setItem('mlib', JSON.stringify(a)) } catch { return null } /* store.set menelan error: di sini perlu tahu kalau penyimpanan penuh */
+  return i < 0;
+}
+
 /* ---------- mini player + lembar now playing: dibangun sekali, isi diperbarui ---------- */
 const pl = document.createElement('div'); pl.id = 'mupl'; pl.setAttribute('role', 'complementary'); pl.setAttribute('aria-label', 'Pemutar musik');
 pl.innerHTML = '<div class="mupb"><i id="mupb-fl"></i></div><div class="mupl-in">' +
-  /* kiri: cover + judul + artis + tombol + (belum berfungsi) */
+  /* kiri: cover + judul + artis + tombol + (simpan ke 'Lagu tersimpan', lihat mlib) */
   '<div class="mupl-l"><img class="art" id="muart" alt="" draggable="false">' +
   '<div class="si" id="musi"><b id="mupt"></b><span id="mupa"></span></div>' +
-  '<button type="button" class="mupl-add" id="muadd" aria-label="Simpan lagu" title="Simpan lagu">' + SVG.plus + '</button></div>' +
+  '<button type="button" class="mupl-add" id="muadd" aria-label="Simpan lagu" title="Simpan lagu" aria-pressed="false">' + SVG.plus + '</button></div>' +
   /* HP: tombol ringkas (di desktop disembunyikan, diganti kolom tengah) */
   '<button type="button" class="mupl-play" id="muplay" aria-label="Putar / jeda">' + SVG.play + '</button>' +
   '<button type="button" class="mupl-nxt" id="munext" aria-label="Lagu berikutnya">' + SVG.next + '</button>' +
@@ -216,8 +230,9 @@ function paintHome() {
   const el = $('muhome');
   if (!el || !active()) return;
   if (searching || searched) { el.innerHTML = ''; return }
-  const hist = hget().slice(0, 40);
-  let h = hist.length ? secHtml('hist', 'Jump back in', hist) : '';
+  const hist = hget().slice(0, 40), lib = lget();
+  let h = lib.length ? secHtml('lib', 'Lagu tersimpan', lib) : '';
+  if (hist.length) h += secHtml('hist', 'Jump back in', hist);
   if (recBusy || !rec) h += skelSec();
   else if (rec.err) h += '<div class="mu-msg">Rekomendasi belum bisa dimuat. Coba cari lagu di atas, misalnya <b>monokrom tulus</b> atau <b>yoasobi racing</b>.</div>';
   else h += rec.secs.map(x => secHtml(x.key, x.title, x.songs, x)).join('');
@@ -251,12 +266,12 @@ function onHome(e) {
 /* ---------- halaman "Lihat semua": seluruh isi satu kategori sebagai halaman sendiri (tombol kembali) ---------- */
 function pageSongs() {
   if (!page) return [];
-  const l = page.key === 'hist' ? hget().slice(0, 40) : (recLists[page.key] || []);
+  const l = page.key === 'hist' ? hget().slice(0, 40) : page.key === 'lib' ? lget() : (recLists[page.key] || []);
   recLists[page.key] = l;
   return l;
 }
 function openPage(key) {
-  const meta = key === 'hist' ? { key, title: 'Jump back in' } : (rec && rec.secs || []).find(x => x.key === key);
+  const meta = key === 'hist' ? { key, title: 'Jump back in' } : key === 'lib' ? { key, title: 'Lagu tersimpan' } : (rec && rec.secs || []).find(x => x.key === key);
   if (!meta) return;
   pageY = $('music') ? $('music').scrollTop : 0;
   page = { key, title: meta.title, sub: meta.sub, avatar: meta.avatar };
@@ -274,7 +289,7 @@ function renderPage() {
     '<div class="mu-pgh"><button type="button" class="mu-back" id="muback" aria-label="Kembali">' + CHEV + '</button><div class="mu-sht">' +
     (page.avatar ? '<img class="av" src="' + esc(page.avatar) + '" alt="" draggable="false">' : '') +
     '<div>' + (page.sub ? '<small>' + esc(page.sub) + '</small>' : '') + '<h1>' + esc(page.title) + '</h1></div></div></div>' +
-    '<div class="mu-pgn">' + songs.length + ' lagu</div>' +
+    '<div class="mu-pgn" id="mupgn">' + songs.length + ' lagu</div>' +
     '<section class="mu-sec open"><div class="mu-rw"><div class="mu-grid" id="mupage">' + songs.map((x, i) => cardHtml(x, page.key, i)).join('') + '</div></div></section>';
   $('muback').addEventListener('click', closePage);
   $('muptog').addEventListener('click', () => setPanel(true));
@@ -283,7 +298,9 @@ function renderPage() {
 function paintPage() {
   const g = $('mupage');
   if (!g || !active() || !page) return;
-  g.innerHTML = pageSongs().map((x, i) => cardHtml(x, page.key, i)).join('');
+  const l = pageSongs();
+  g.innerHTML = l.map((x, i) => cardHtml(x, page.key, i)).join('');
+  const n = $('mupgn'); if (n) n.textContent = l.length + ' lagu';
 }
 
 /* ---------- render: layar pencarian ---------- */
@@ -423,7 +440,14 @@ function renderPl() {
   $('mupa').textContent = s.artist;
   $('muplay').innerHTML = loading ? SPIN : (audio.paused ? SVG.play : SVG.pause);
   $('muplay').setAttribute('aria-label', audio.paused ? 'Putar' : 'Jeda');
-  paintCtl();
+  paintCtl(); paintAdd();
+}
+function paintAdd() {
+  const s = cur(), b = $('muadd'), on = !!s && inLib(s.id);
+  b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on));
+  b.innerHTML = on ? SVG.check : SVG.plus;
+  b.title = on ? 'Hapus dari lagu tersimpan' : 'Simpan lagu';
+  b.setAttribute('aria-label', b.title);
 }
 /* kontrol di bar bawah desktop: ikon putar/jeda, acak, ulang (tanpa ulang <-> ulang lagu yang sama) */
 function paintCtl() {
@@ -441,7 +465,14 @@ $('mupnx').addEventListener('click', () => next());
 $('muppv').addEventListener('click', () => prev());
 $('mupsh').addEventListener('click', () => { shuffle = !shuffle; save(); renderPl(); renderSheet() });
 $('muprp').addEventListener('click', () => { repeat = repeat === 'off' ? 'one' : 'off'; save(); renderPl(); renderSheet(); say(repeat === 'off' ? 'Ulangi mati' : 'Ulangi satu lagu') });
-$('muadd').addEventListener('click', e => e.stopPropagation()); /* tombol + belum punya fungsi */
+$('muadd').addEventListener('click', e => {
+  e.stopPropagation();
+  const s = cur(); if (!s) return;
+  const r = libToggle(s);
+  if (r === null) say(lget().length >= LIB_MAX ? 'Lagu tersimpan penuh (maks ' + LIB_MAX + ').' : 'Gagal menyimpan: penyimpanan browser penuh.');
+  else say(r ? 'Disimpan ke Lagu tersimpan: ' + s.title : 'Dihapus dari Lagu tersimpan: ' + s.title);
+  paintAdd(); paintHome(); paintPage();
+});
 
 /* volume (disimpan di 'mvol'); tombol speaker = bisukan / bunyikan */
 { const v = parseFloat(store.get('mvol')); if (isFinite(v)) audio.volume = Math.min(1, Math.max(0, v)) }
