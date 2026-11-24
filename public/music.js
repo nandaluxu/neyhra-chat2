@@ -56,8 +56,9 @@ app.append(audio);
 let queue = [], qi = -1;            // antrean + indeks lagu aktif
 let repeat = 'off', shuffle = false; // 'off' | 'all' | 'one'
 let songs = [], searched = false;   // hasil pencarian terakhir
-let loading = false, notice = '', lastErr = '';
+let loading = false, searching = false, notice = '', lastErr = ''; // loading = memuat stream lagu; searching = menunggu hasil pencarian (dulu satu flag -> daftar jadi skeleton saat lagu diklik)
 let lyr = null, lyrLoading = false; // lirik: [{t, text}] atau null
+let lrcIdx = -1, lrcHold = 0, lrcBuilt = ''; // baris aktif, jeda auto-scroll (user sedang menggulir), tanda isi yang sudah dirender
 let sheet = false, sheetTab = 'lyrics';
 const cur = () => (qi >= 0 && qi < queue.length ? queue[qi] : null);
 
@@ -94,7 +95,7 @@ np.innerHTML = '<div class="mnp-in">' +
 app.append(np);
 const lrcBox = np.querySelector('#mnplrc'), qBox = np.querySelector('#mnpq');
 $('mnpx').addEventListener('click', () => { sheet = false; np.classList.remove('on') });
-$('musi').addEventListener('click', () => { sheet = true; np.classList.add('on'); renderSheet() });
+$('musi').addEventListener('click', () => { sheet = true; np.classList.add('on'); renderSheet(); if (sheetTab === 'lyrics') lrcShow() });
 $('muart').addEventListener('click', () => $('musi').click());
 
 /* ---------- render: layar pencarian ---------- */
@@ -109,19 +110,25 @@ function render() {
     '<div id="mures"></div>';
   const inp = $('muq'), res = $('mures');
   $('musrch').addEventListener('submit', e => { e.preventDefault(); doSearch(inp.value) });
-  if (loading) res.innerHTML = Array.from({ length: 6 }).map(() => '<div class="mu-skel"><div class="a"></div><div class="b"><i></i><i></i></div></div>').join('');
+  if (searching) res.innerHTML = Array.from({ length: 6 }).map(() => '<div class="mu-skel"><div class="a"></div><div class="b"><i></i><i></i></div></div>').join('');
   else if (searched) res.innerHTML = renderResults();
   res.addEventListener('click', onResults);
-  if (!loading && !searched && !lastErr) res.innerHTML = '<div class="mu-msg">💡 Coba: <b>monokrom tulus</b>, <b>yoasobi racing</b>…</div>';
+  if (!searching && !searched && !lastErr) res.innerHTML = '<div class="mu-msg">💡 Coba: <b>monokrom tulus</b>, <b>yoasobi racing</b>…</div>';
   if (inp && window.muLastQ) inp.value = window.muLastQ;
 }
 
+/* segarkan HANYA daftar hasil (tanpa membongkar kolom cari: fokus & teks ketikan tidak hilang) */
+function paintResults() {
+  const res = $('mures');
+  if (!res || !active()) return;
+  if (!searching && searched) res.innerHTML = renderResults();
+}
 function renderResults() {
   if (!songs.length) return '<div class="mu-msg">Tidak ada lagu yang cocok. Coba kata kunci lain.</div>';
   const c = cur();
   return '<div class="mu-res-h">' + songs.length + ' lagu ditemukan</div>' + songs.map((s, i) =>
     '<button type="button" class="mu-song' + (c && c.id === s.id ? ' now' : '') + '" data-i="' + i + '">' +
-    (c && c.id === s.id ? '<span class="mu-eq" aria-label="Sedang diputar"><i></i><i></i><i></i></span>' : '<img src="' + esc(s.thumb || '') + '" alt="" loading="lazy">') +
+    '<span class="th"><img src="' + esc(s.thumb || '') + '" alt="" loading="lazy">' + (c && c.id === s.id ? '<span class="mu-eq" aria-label="Sedang diputar"><i></i><i></i><i></i></span>' : '') + '</span>' +
     '<span class="si"><b>' + esc(s.title) + '</b><span>' + esc(s.artist) + (s.album ? ' · ' + esc(s.album) : '') + '</span></span>' +
     '<span class="dur">' + fmt(s.dur) + '</span>' +
     '<span class="mu-add" role="button" tabindex="0" data-add="' + i + '" title="Tambah ke antrean" aria-label="Tambah ' + esc(s.title) + ' ke antrean">' + SVG.plus + '</span></button>'
@@ -137,9 +144,9 @@ function onResults(e) {
 async function doSearch(qRaw) {
   const q = String(qRaw || '').trim();
   if (!q) return;
-  window.muLastQ = q; lastErr = ''; loading = true; searched = true; render();
+  window.muLastQ = q; lastErr = ''; searching = true; searched = true; render();
   const j = await jget('/api/music/search?q=' + encodeURIComponent(q) + '&clientId=' + encodeURIComponent(cid));
-  loading = false;
+  searching = false;
   if (j.error) { lastErr = j.error; songs = [] } else songs = Array.isArray(j.songs) ? j.songs : [];
   render();
 }
@@ -150,7 +157,7 @@ async function playSong(idx, list) {
   const s = nq[idx];
   if (!s) return;
   if (list) { queue = list }
-  qi = idx; loading = true; lastErr = ''; save(); render(); renderPl(); renderSheet();
+  qi = idx; loading = true; lastErr = ''; save(); paintResults(); renderPl(); renderSheet();
   /* lirik dulu (independen dari stream: tetap tampil walau stream diblokir bot-check) */
   lyr = null; lrcIdx = -1; lyrLoading = true; renderLrc();
   jget('/api/music/lyrics?title=' + encodeURIComponent(s.title) + '&artist=' + encodeURIComponent(s.artist) + '&dur=' + (s.dur || 0))
@@ -267,17 +274,51 @@ qBox.addEventListener('click', e => {
 });
 function renderLrc() {
   if (!sheet || sheetTab !== 'lyrics') return;
+  const c = cur();
+  const key = (c ? c.id : '') + ':' + (lyrLoading ? 'L' : !lyr ? 'N' : lyr.length);
+  if (key === lrcBuilt && lrcBox.firstChild) return; /* sudah dirender: jangan bongkar (scroll & sorotan ikut hilang tiap play/pause) */
+  lrcBuilt = key; lrcIdx = -1;
+  const synced = !!(lyr && lyr.length && lyr[0].t >= 0);
+  lrcBox.classList.toggle('sync', synced);
   if (lyrLoading) { lrcBox.innerHTML = '<div class="mu-lrc-empty">Mencari lirik…</div>'; return }
   if (!lyr || !lyr.length) { lrcBox.innerHTML = '<div class="mu-lrc-empty">Lirik tidak ditemukan untuk lagu ini.</div>'; return }
   lrcBox.innerHTML = lyr.map((l, i) => '<div class="ln" data-i="' + i + '"' + (l.t < 0 ? ' data-plain="1"' : '') + '>' + esc(l.text) + '</div>').join('');
+  lrcBox.scrollTop = 0;
 }
+/* baris yang sedang dinyanyikan (pencarian biner; +0.25 dtk supaya sorotan sedikit mendahului suara) */
+function lrcFind(t) {
+  let lo = 0, hi = lyr.length - 1, k = -1;
+  while (lo <= hi) { const mid = (lo + hi) >> 1; if (lyr[mid].t <= t + 0.25) { k = mid; lo = mid + 1 } else hi = mid - 1 }
+  return k;
+}
+/* tengahkan satu baris di dalam kotak lirik. Pakai getBoundingClientRect: offsetTop salah karena kotak ini
+   bukan offsetParent langsung (dulu hasilnya melenceng ke posisi di layar, bukan di kotak). */
+function lrcCenter(el, smooth) {
+  const b = lrcBox.getBoundingClientRect(), r = el.getBoundingClientRect();
+  const top = lrcBox.scrollTop + (r.top - b.top) - (b.height - r.height) / 2;
+  lrcBox.scrollTo({ top: Math.max(0, top), behavior: smooth ? 'smooth' : 'auto' });
+}
+/* force = gambar ulang sorotan + loncat langsung (saat lembar dibuka / pindah tab / seek). Selain itu hanya bila baris berganti. */
+function syncLrc(force) {
+  if (!sheet || sheetTab !== 'lyrics' || !lyr || !lyr.length || lyr[0].t < 0 || lrcBox.hidden) return;
+  const k = lrcFind(audio.currentTime);
+  if (k === lrcIdx && !force) return;
+  lrcIdx = k;
+  const els = lrcBox.querySelectorAll('.ln');
+  els.forEach((el, i) => { el.dataset.lrc = i === k ? 'on' : 'off'; el.classList.toggle('past', i < k) });
+  if (k < 0) { if (force) lrcBox.scrollTop = 0; return }
+  if (force || Date.now() > lrcHold) lrcCenter(els[k], !force);
+}
+const lrcShow = () => { renderLrc(); requestAnimationFrame(() => syncLrc(true)) };
+/* user menggulir sendiri -> auto-scroll berhenti 4 dtk (kalau tidak, kotak "melawan" jari) */
+for (const ev of ['wheel', 'touchstart', 'pointerdown']) lrcBox.addEventListener(ev, () => { lrcHold = Date.now() + 4000 }, { passive: true });
 lrcBox.addEventListener('click', e => {
   const ln = e.target.closest('.ln');
-  if (ln && ln.dataset.i !== undefined && lyr) { const l = lyr[+ln.dataset.i]; if (l && l.t >= 0) audio.currentTime = l.t }
+  if (ln && ln.dataset.i !== undefined && lyr) { const l = lyr[+ln.dataset.i]; if (l && l.t >= 0) { lrcHold = 0; audio.currentTime = l.t; syncLrc(true) } }
 });
 
 /* tab lirik / antrean */
-for (const id of ['mnptab-l', 'mnptab-q']) $(id).addEventListener('click', () => { sheetTab = $(id).dataset.t; renderSheet(); if (sheetTab === 'lyrics') renderLrc() });
+for (const id of ['mnptab-l', 'mnptab-q']) $(id).addEventListener('click', () => { sheetTab = $(id).dataset.t; renderSheet(); if (sheetTab === 'lyrics') lrcShow() });
 $('mnpsh').addEventListener('click', () => { shuffle = !shuffle; save(); renderSheet() });
 $('mnprp').addEventListener('click', () => { repeat = repeat === 'off' ? 'all' : repeat === 'all' ? 'one' : 'off'; save(); renderSheet(); say(repeat === 'off' ? 'Ulangi mati' : repeat === 'all' ? 'Ulangi semua' : 'Ulangi satu lagu') });
 $('mnpplay').addEventListener('click', toggle);
@@ -289,7 +330,8 @@ const seek = $('mnpseek');
 function seekP(e) { const r = seek.getBoundingClientRect(); return Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) }
 seek.addEventListener('pointerdown', e => { seek.setPointerCapture(e.pointerId); seek.classList.add('drag'); seek.dataset.p = String(seekP(e)); paintTime() });
 seek.addEventListener('pointermove', e => { if (seek.classList.contains('drag')) seek.dataset.p = String(seekP(e)); paintTime() });
-seek.addEventListener('pointerup', e => { seek.classList.remove('drag'); const p = +(seek.dataset.p || 0); if (audio.duration) audio.currentTime = p * audio.duration; delete seek.dataset.p; paintTime() });
+seek.addEventListener('pointerup', e => { seek.classList.remove('drag'); const p = +(seek.dataset.p || 0); if (audio.duration) { audio.currentTime = p * audio.duration; lrcHold = 0 } delete seek.dataset.p; paintTime() });
+audio.addEventListener('seeked', () => syncLrc(true));
 
 function paintTime() {
   const d = audio.duration || (cur() && cur().dur) || 0;
@@ -305,18 +347,8 @@ function paintTime() {
 /* ---------- peristiwa audio ---------- */
 audio.addEventListener('timeupdate', () => {
   paintTime();
-  if (lyr && lyr.length && lyr[0].t >= 0 && sheet && sheetTab === 'lyrics') {
-    let lo = 0, hi = lyr.length - 1, k = -1;
-    while (lo <= hi) { const mid = (lo + hi) >> 1; if (lyr[mid].t <= audio.currentTime + 0.25) { k = mid; lo = mid + 1 } else hi = mid - 1 }
-    if (k !== lrcIdx) {
-      lrcIdx = k;
-      lrcBox.querySelectorAll('.ln').forEach((el, i) => { el.dataset.lrc = i === k ? 'on' : 'off'; el.classList.toggle('past', i < k) });
-      const el = lrcBox.querySelector('.ln[data-lrc="on"]');
-      if (el) lrcBox.scrollTo({ top: el.offsetTop - lrcBox.clientHeight / 2 + el.clientHeight / 2, behavior: 'smooth' });
-    }
-  }
+  syncLrc(false);
 });
-let lrcIdx = -1;
 audio.addEventListener('play', () => { renderPl(); renderSheet() });
 audio.addEventListener('pause', () => { renderPl(); renderSheet() });
 audio.addEventListener('ended', () => { if (repeat === 'one') { audio.currentTime = 0; audio.play().catch(() => {}) } else next() });
