@@ -321,3 +321,81 @@
   .mupl-c{display:flex;flex-direction:column;gap:2px;min-width:0}
   .mupl-r{display:flex;justify-content:flex-end;align-items:center;gap:6px}
 }
+
+
+/* ===== Playlist: sampul (hati / grid 2x2 / not), halaman playlist ala album, popup "Tambahkan ke playlist" ===== */
+.mu-mos{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;width:100%;height:100%}
+.mu-mos img{width:100%;height:100%;object-fit:cover;display:block}
+.mu-heart,.mu-note{display:grid;place-items:center;width:100%;height:100%}
+.mu-heart{background:linear-gradient(135deg,#4b3fe0,#b4acff);color:#fff}
+.mu-note{background:var(--line);color:var(--mut)}
+.mu-heart svg{width:46%;height:46%;fill:currentColor}
+.mu-note svg{width:40%;height:40%;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+
+.mu-plh{display:flex;align-items:flex-end;gap:22px;margin-top:14px}
+.mu-plc{position:relative;flex:none;width:clamp(120px,22vw,232px);aspect-ratio:1;border-radius:14px;overflow:hidden;background:var(--line);box-shadow:0 14px 40px rgba(0,0,0,.25)}
+.mu-plc>img{display:block;width:100%;height:100%;object-fit:cover}
+.mu-plm{min-width:0;flex:1}
+.mu-plm small{display:block;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
+.mu-plm h1{margin-top:4px;font-size:clamp(26px,4.6vw,56px);font-weight:800;letter-spacing:-.035em;line-height:1.05;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;line-clamp:3;overflow:hidden}
+.mu-plm p{margin-top:8px;font-size:13.5px;color:var(--mut)}
+.mu-rn{width:100%;font:inherit;color:inherit;letter-spacing:inherit;background:var(--surface);border:0;outline:2px solid var(--ink);border-radius:10px;padding:2px 10px}
+.mu-pla{display:flex;align-items:center;gap:10px;margin-top:22px}
+.mu-pla .big{width:56px;height:56px}
+.mu-pla .big svg{width:24px;height:24px}
+.mu-pla button:disabled{opacity:.4;pointer-events:none}
+.mu-plb{display:grid;place-items:center;width:42px;height:42px;border-radius:50%;color:var(--mut);transition:color .15s,background .15s}
+.mu-plb:hover{color:var(--ink);background:var(--surface)}
+.mu-plb svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.mu-plb.arm{color:var(--rec);background:var(--surface)}
+.mu-trs{margin-top:18px;max-width:900px}
+.mu-tr{display:grid;grid-template-columns:34px 44px minmax(0,1fr) minmax(0,.7fr) 48px 32px;align-items:center;gap:12px;padding:7px 10px;border-radius:12px;cursor:pointer;transition:background .15s}
+.mu-tr:hover,.mu-tr.now{background:var(--surface)}
+.mu-tr .n{display:grid;place-items:center;font-size:13px;color:var(--mut);font-variant-numeric:tabular-nums}
+.mu-tr .n .mu-eq{margin:0}
+.mu-tr img{width:44px;height:44px;border-radius:8px;object-fit:cover;background:var(--line)}
+.mu-tr .si{min-width:0}
+.mu-tr .si b{display:block;font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mu-tr.now .si b{color:var(--ink)}
+.mu-tr .si span{display:block;font-size:12.5px;color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mu-tr .al{font-size:12.5px;color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mu-tr .dur{font-size:12.5px;color:var(--mut);font-variant-numeric:tabular-nums;text-align:right}
+.mu-tr .rm{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;color:var(--mut);opacity:0;transition:opacity .15s,color .15s}
+.mu-tr:hover .rm,.mu-tr .rm:focus-visible{opacity:1}
+.mu-tr .rm:hover{color:var(--rec)}
+.mu-tr .rm svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}
+@media(hover:none){.mu-tr .rm{opacity:1}}
+@media(max-width:699px){
+  .mu-tr{grid-template-columns:28px 44px minmax(0,1fr) 44px 30px;gap:10px}
+  .mu-tr .al{display:none}
+  .mu-plh{gap:14px}
+}
+
+/* popup pilih playlist: menempel di atas tombol + (kolom kiri bar bawah), bukan di kolom tengah */
+#mupk{position:fixed;z-index:40;display:flex;flex-direction:column;max-height:min(480px,70dvh);padding:14px 12px 10px;border-radius:14px;background:var(--surface);color:var(--ink);box-shadow:0 12px 40px rgba(0,0,0,.35),0 0 0 1px var(--line)}
+#mupk[hidden]{display:none}
+#app:not([data-tab="music"]) #mupk{display:none!important}
+.pk-h{padding:0 6px 10px;font-size:13px;font-weight:700;color:var(--mut)}
+.pk-s{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;background:var(--bg)}
+.pk-s svg{width:17px;height:17px;flex:none;fill:none;stroke:var(--mut);stroke-width:1.8;stroke-linecap:round}
+.pk-s input{flex:1;min-width:0;border:0;outline:0;background:transparent;color:var(--ink);font:inherit;font-size:14px}
+.pk-new{display:flex;align-items:center;gap:12px;width:100%;margin-top:6px;padding:10px 8px;border-radius:8px;font-size:14.5px;font-weight:600;text-align:left}
+.pk-new:hover{background:var(--bg)}
+.pk-new svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+.pk-l{flex:1;min-height:0;overflow-y:auto;margin-top:4px;padding-top:6px;border-top:1px solid var(--line);scrollbar-width:thin}
+.pk-r{display:flex;align-items:center;gap:12px;width:100%;padding:6px 8px;border-radius:8px;text-align:left}
+.pk-r:hover{background:var(--bg)}
+.pk-c{position:relative;flex:none;width:44px;height:44px;border-radius:7px;overflow:hidden;background:var(--line)}
+.pk-c>img{display:block;width:100%;height:100%;object-fit:cover}
+.pk-n{flex:1;min-width:0}
+.pk-n b{display:block;font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pk-n small{display:block;font-size:12px;color:var(--mut)}
+.pk-ck{display:grid;place-items:center;flex:none;width:22px;height:22px;border-radius:50%;border:2px solid var(--mut);color:var(--bg)}
+.pk-ck.on{background:var(--ink);border-color:var(--ink)}
+.pk-ck svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.pk-e{padding:18px 8px;text-align:center;font-size:13px;color:var(--mut)}
+.pk-f{display:flex;justify-content:flex-end;gap:8px;margin-top:8px;padding-top:8px}
+.pk-f button{padding:9px 16px;border-radius:99px;font-size:13.5px;font-weight:700;color:var(--mut)}
+.pk-f button:hover{color:var(--ink)}
+.pk-f .go{background:var(--ink);color:var(--bg)}
+.pk-f .go:hover{color:var(--bg);opacity:.88}
