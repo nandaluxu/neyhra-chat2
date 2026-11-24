@@ -498,3 +498,9 @@
 
 /* tekan lama di layar sentuh membuka popup playlist: matikan callout/seleksi bawaan di lagu */
 .mu-card,.mu-song,.mu-tr{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+
+/* geser urutan lagu di playlist sendiri (tahan lalu geser) */
+#mutrs .mu-tr img{-webkit-user-drag:none}
+#mutrs.rd-on,#mutrs.rd-on *{cursor:grabbing!important}
+#mutrs.rd-on .mu-tr:not(.rd-lift){transition:transform .16s ease,background .15s;pointer-events:none}
+#mutrs .mu-tr.rd-lift{position:relative;z-index:5;background:var(--surface);box-shadow:0 10px 28px rgba(0,0,0,.35),0 0 0 1px var(--line);transition:none;will-change:transform}

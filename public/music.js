@@ -1124,6 +1124,7 @@ function ctxPick(el, x, y) {
 }
 document.addEventListener('contextmenu', e => {
   if (!active() || !e.target.closest || !e.target.closest('#music')) return;
+  if (rd && rd.touch && e.target.closest('#mutrs')) { e.preventDefault(); return } /* tahan-geser urutan sedang berjalan */
   if (ctxPick(e.target, e.clientX, e.clientY)) e.preventDefault();
 });
 /* sentuhan: tahan ~0,5 detik; klik sesudahnya ditelan supaya lagu tidak ikut terputar */
@@ -1131,7 +1132,7 @@ let lpT = 0, lpX = 0, lpY = 0, lpDone = 0;
 const lpStop = () => { clearTimeout(lpT); lpT = 0 };
 document.addEventListener('pointerdown', e => {
   lpStop();
-  if (e.pointerType !== 'touch' || !active() || !e.target.closest || !e.target.closest('#music') || !songAtEl(e.target)) return;
+  if (e.pointerType !== 'touch' || !active() || !e.target.closest || !e.target.closest('#music') || !songAtEl(e.target) || rdOk(e.target)) return;
   lpX = e.clientX; lpY = e.clientY; const el = e.target;
   lpT = setTimeout(() => { lpT = 0; if (ctxPick(el, lpX, lpY)) { lpDone = Date.now(); if (navigator.vibrate) try { navigator.vibrate(12) } catch {} } }, 520);
 });
@@ -1139,6 +1140,92 @@ document.addEventListener('pointermove', e => { if (lpT && Math.hypot(e.clientX 
 document.addEventListener('pointerup', lpStop);
 document.addEventListener('pointercancel', lpStop);
 document.addEventListener('click', e => { if (lpDone && Date.now() - lpDone < 800) { e.stopPropagation(); e.preventDefault(); lpDone = 0 } }, true);
+
+/* ---------- pindah urutan lagu di playlist sendiri: tahan lalu geser ----------
+   Mouse: tekan lalu geser >6px. Sentuhan: tahan ~0,35 detik (HP bergetar), lalu geser; dilepas tanpa geser = popup playlist.
+   Baris yang diangkat mengikuti jari, baris lain bergeser memberi celah; urutan baru disimpan saat dilepas.
+   Keyboard: Alt+↑ / Alt+↓ pada baris yang fokus. Esc membatalkan saat menggeser. */
+let rd = null;
+function rdPl() { return page && page.key.startsWith('pl:') ? plGet(page.key.slice(3)) : null }
+function rdOk(t) { const p = rdPl(); return !!(p && p.songs.length > 1 && t.closest('#mutrs .mu-tr') && !t.closest('[data-rm]')) }
+function rdLayout() {
+  const sc = $('music'), delta = (rd.y - rd.y0) + (sc.scrollTop - rd.s0);
+  rd.row.style.transform = 'translateY(' + delta + 'px) scale(1.015)';
+  const dc = rd.tops[rd.from] + rd.hs[rd.from] / 2 + delta;
+  let to = 0; rd.rows.forEach((r, i) => { if (i !== rd.from && rd.tops[i] + rd.hs[i] / 2 < dc) to++ });
+  rd.to = to;
+  rd.rows.forEach((r, i) => {
+    if (i === rd.from) return;
+    const d = rd.from < to && i > rd.from && i <= to ? -rd.step : rd.from > to && i >= to && i < rd.from ? rd.step : 0;
+    r.style.transform = d ? 'translateY(' + d + 'px)' : '';
+  });
+}
+function rdTick() {
+  if (!rd || !rd.on) return;
+  if (!rd.row.isConnected) { rdEnd(false); return }
+  const sc = $('music'), b = sc.getBoundingClientRect(); let v = 0; /* gulir otomatis di dekat tepi atas/bawah */
+  if (rd.y < b.top + 70) v = -Math.ceil((b.top + 70 - rd.y) / 5); else if (rd.y > b.bottom - 70) v = Math.ceil((rd.y - (b.bottom - 70)) / 5);
+  if (v) sc.scrollTop += Math.max(-18, Math.min(18, v));
+  rdLayout(); rd.raf = requestAnimationFrame(rdTick);
+}
+function rdStart() {
+  if (!rd || rd.on) return; rd.t = 0;
+  const rows = [...rd.box.querySelectorAll('.mu-tr')], s0 = $('music').scrollTop;
+  if (!rows[rd.from]) { rd = null; return }
+  rd.rows = rows; rd.s0 = s0; rd.x0 = rd.x; rd.y0 = rd.y;
+  rd.tops = rows.map(r => r.getBoundingClientRect().top + s0); rd.hs = rows.map(r => r.offsetHeight);
+  rd.step = rows.length > 1 ? rd.tops[1] - rd.tops[0] : rows[0].offsetHeight;
+  rd.on = true; rd.to = rd.from; rd.moved = false;
+  rd.box.classList.add('rd-on'); rd.row.classList.add('rd-lift');
+  try { rd.row.setPointerCapture(rd.id) } catch { }
+  if (rd.touch && navigator.vibrate) try { navigator.vibrate(12) } catch { }
+  rdTick();
+}
+function rdEnd(commit) {
+  if (!rd) return;
+  const r = rd; rd = null; clearTimeout(r.t); cancelAnimationFrame(r.raf);
+  if (!r.on) return;
+  r.box.classList.remove('rd-on'); r.row.classList.remove('rd-lift');
+  (r.rows || []).forEach(x => { x.style.transform = '' });
+  lpDone = Date.now(); /* telan klik setelah lepas supaya lagu tidak terputar */
+  try { r.row.releasePointerCapture(r.id) } catch { }
+  if (!r.row.isConnected) return;
+  if (commit && r.to !== r.from) {
+    const [m] = r.p.songs.splice(r.from, 1); r.p.songs.splice(r.to, 0, m);
+    if (!plSave()) say('Gagal menyimpan urutan: penyimpanan browser penuh.');
+    paintAdd(); renderPlPage(true);
+  } else if (commit && r.touch && !r.moved) ctxPick(r.row, r.x, r.y);
+}
+document.addEventListener('pointerdown', e => {
+  if (rd) rdEnd(false);
+  if (e.button !== 0 || !active() || !e.target.closest || !rdOk(e.target)) return;
+  const row = e.target.closest('#mutrs .mu-tr');
+  rd = { row, box: row.parentElement, p: rdPl(), from: +row.dataset.i, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, id: e.pointerId, touch: e.pointerType === 'touch', on: false, moved: false, t: 0 };
+  if (rd.touch) rd.t = setTimeout(rdStart, 350);
+});
+document.addEventListener('pointermove', e => {
+  if (!rd || e.pointerId !== rd.id) return;
+  rd.x = e.clientX; rd.y = e.clientY;
+  const d = Math.hypot(rd.x - rd.x0, rd.y - rd.y0);
+  if (!rd.on) { if (rd.touch ? d > 10 : d > 6) { if (rd.touch) { clearTimeout(rd.t); rd = null } else rdStart() } return }
+  if (d > 4) rd.moved = true;
+});
+document.addEventListener('pointerup', e => { if (rd && e.pointerId === rd.id) rdEnd(true) });
+document.addEventListener('pointercancel', e => { if (rd && e.pointerId === rd.id) rdEnd(false) });
+document.addEventListener('touchmove', e => { if (rd && rd.on) e.preventDefault() }, { passive: false }); /* cegah layar ikut gulir saat menggeser */
+document.addEventListener('dragstart', e => { if (e.target.closest && e.target.closest('#mutrs')) e.preventDefault() }); /* cegah seret-gambar bawaan browser */
+addEventListener('keydown', e => { if (e.key === 'Escape' && rd && rd.on) { rdEnd(false); e.stopPropagation() } }, true);
+document.addEventListener('keydown', e => {
+  if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') || !active() || !e.target.closest) return;
+  const row = e.target.closest('#mutrs .mu-tr'), p = rdPl(); if (!row || !p) return;
+  const i = +row.dataset.i, j = i + (e.key === 'ArrowUp' ? -1 : 1);
+  if (j < 0 || j >= p.songs.length) return;
+  e.preventDefault();
+  const [m] = p.songs.splice(i, 1); p.songs.splice(j, 0, m);
+  if (!plSave()) say('Gagal menyimpan urutan: penyimpanan browser penuh.');
+  paintAdd(); renderPlPage(true);
+  const nr = $('mutrs') && $('mutrs').querySelector('.mu-tr[data-i="' + j + '"]'); if (nr) nr.focus();
+});
 addEventListener('keydown', e => { if (e.key === 'Escape' && !pk.hidden) { pkClose(); e.stopPropagation() } }, true);
 addEventListener('storage', e => { if (e.key === PL_KEY) { plc = null; paintAdd(); paintHome(); paintPage() } });
 
