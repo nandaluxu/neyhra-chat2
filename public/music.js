@@ -210,6 +210,7 @@ function updateArrows(sec) {
   const open = sec.classList.contains('open');
   l.hidden = open || g.scrollLeft <= 2;
   r.hidden = open || g.scrollLeft + g.clientWidth >= g.scrollWidth - 2;
+  sec.classList.toggle('sl', !l.hidden); sec.classList.toggle('sr', !r.hidden); /* sisi yang masih bisa digeser = sisi yang memudar */
 }
 const fitRows = () => document.querySelectorAll('#muhome .mu-sec').forEach(updateArrows);
 addEventListener('resize', () => { if (active()) fitRows() });
