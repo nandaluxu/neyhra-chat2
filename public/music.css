@@ -288,7 +288,9 @@
 .mupl-add{flex:none;place-items:center;width:28px;height:28px;border-radius:50%;border:1.5px solid var(--mut);color:var(--mut);transition:color .15s,border-color .15s,transform .15s}
 .mupl-add:hover{color:var(--ink);border-color:var(--ink)}
 .mupl-add:active{transform:scale(.92)}
-.mupl-add svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round}
+.mupl-add.on{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.mupl-add.on:hover{opacity:.85}
+.mupl-add svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
 .mupl-ctl{display:flex;justify-content:center;align-items:center;gap:12px}
 .mupl-b{position:relative;display:grid;place-items:center;width:34px;height:34px;border-radius:50%;color:var(--mut);transition:color .15s,transform .15s}
 .mupl-b:hover{color:var(--ink)}
@@ -313,7 +315,7 @@
 .mupl-vol:hover::-moz-range-thumb,.mupl-vol:focus-visible::-moz-range-thumb{opacity:1}
 @media(min-width:800px){
   #mupl .mupb,#mupl #muplay,#mupl #munext{display:none}
-  .mupl-in{display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,540px) minmax(0,1fr);align-items:center;gap:24px;max-width:none;margin:0;padding:10px 24px}
+  .mupl-in{display:grid;grid-template-columns:minmax(120px,1fr) minmax(300px,860px) minmax(120px,1fr);align-items:center;gap:24px;max-width:none;margin:0;padding:10px 24px}
   #mupl .art{width:56px;height:56px;border-radius:12px}
   .mupl-add{display:grid}
   .mupl-c{display:flex;flex-direction:column;gap:2px;min-width:0}
