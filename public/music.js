@@ -45,6 +45,9 @@ const SVG = {
   edit: '<svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>',
   trash: '<svg viewBox="0 0 24 24"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/></svg>',
   link: '<svg viewBox="0 0 24 24"><path d="M10.5 13.5a4.6 4.6 0 006.5 0l2.9-2.9a4.6 4.6 0 00-6.5-6.5l-1.5 1.4"/><path d="M13.5 10.5a4.6 4.6 0 00-6.5 0l-2.9 2.9a4.6 4.6 0 006.5 6.5l1.4-1.4"/></svg>',
+  expand: '<svg viewBox="0 0 24 24"><path d="M14 4h6v6M10 20H4v-6M20 4l-6.5 6.5M4 20l6.5-6.5"/></svg>',
+  shrink: '<svg viewBox="0 0 24 24"><path d="M20 10h-6V4M4 14h6v6M14 10l6.5-6.5M10 14l-6.5 6.5"/></svg>',
+  sync: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.5"/><path d="M12 3v3.5M12 17.5V21M3 12h3.5M17.5 12H21"/></svg>',
   panel: '<svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="3"/><path d="M14.5 4.5v15"/></svg>',
   vol2: '<svg class="sv" viewBox="0 0 24 24"><path d="M4 9.5v5h3.5l4.5 4v-13l-4.5 4z"/><path d="M15.5 9a4 4 0 010 6M18 6.5a8 8 0 010 11"/></svg>',
   vol1: '<svg class="sv" viewBox="0 0 24 24"><path d="M4 9.5v5h3.5l4.5 4v-13l-4.5 4z"/><path d="M15.5 9a4 4 0 010 6"/></svg>',
@@ -75,6 +78,7 @@ let repeat = 'off', shuffle = false; // 'off' | 'all' | 'one'
 let songs = [], searched = false;   // hasil pencarian terakhir
 let loading = false, searching = false, notice = '', lastErr = ''; // loading = memuat stream lagu; searching = menunggu hasil pencarian (dulu satu flag -> daftar jadi skeleton saat lagu diklik)
 let lyr = null, lyrLoading = false; // lirik: [{t, text}] atau null
+let lrcAway = false; // true = user menggulir lirik sendiri -> auto-scroll berhenti sampai tombol Sinkron ditekan
 let lrcIdx = -1, lrcHold = 0, lrcBuilt = ''; // baris aktif, jeda auto-scroll (user sedang menggulir), tanda isi yang sudah dirender
 let trOn = false, trBusy = false; // terjemahan lirik: nyala? / sedang mengambil?
 try { trOn = store.get('mlrctr') === '1' } catch {} // pilihan diingat seperti mode acak/ulang
@@ -159,7 +163,7 @@ const seek2 = $('mupseek'), vol = $('muvol');
 
 const np = document.createElement('div'); np.id = 'mnp'; np.setAttribute('role', 'dialog'); np.setAttribute('aria-label', 'Layar pemutar');
 np.innerHTML = '<div class="mnp-in">' +
-  '<div class="mnp-top"><button type="button" class="mnp-x" id="mnpx" aria-label="Tutup">' + SVG.close + '</button><span class="t">Sedang diputar</span><span style="width:38px;flex:none"></span></div>' +
+  '<div class="mnp-top"><button type="button" class="mnp-x" id="mnpx" aria-label="Tutup">' + SVG.close + '</button><span class="t">Sedang diputar</span><button type="button" class="mnp-x mnp-fb" id="mnpfull" aria-pressed="false" aria-label="Lirik layar penuh" title="Lirik layar penuh">' + SVG.expand + '</button></div>' +
   '<div class="mnp-empty" id="mnpempty">Belum ada lagu yang diputar.<br>Pilih lagu dari beranda atau cari di atas.</div>' +
   '<img class="mnp-art" id="mnpart" alt="">' +
   '<div class="mnp-meta"><h1 id="mnpt"></h1><p id="mnpa"></p><div class="mnp-err" id="mnperr" hidden></div></div>' +
@@ -172,10 +176,11 @@ np.innerHTML = '<div class="mnp-in">' +
   '<button type="button" class="mnp-side" id="mnpnx" aria-label="Lagu berikutnya">' + SVG.next + '</button>' +
   '<button type="button" class="mnp-side" id="mnprp" aria-label="Ulangi">' + SVG.repeat + '</button></div>' +
   '<div class="mnp-tabs"><button type="button" class="mnp-tab on" id="mnptab-l" data-t="lyrics">Lirik</button><button type="button" class="mnp-tab" id="mnptab-q" data-t="queue">Antrean</button><button type="button" class="mnp-tr" id="mnptr" aria-pressed="false" aria-label="Terjemahan lirik" title="Terjemahkan lirik">' + SVG.translate + '</button></div>' +
-  '<div id="mnplrc" class="mu-lrc" hidden></div>' +
+  '<div class="mu-lrcw" id="mnplrcw" hidden><div id="mnplrc" class="mu-lrc" hidden></div>' +
+  '<button type="button" class="mu-sync" id="mnpsync" hidden aria-label="Sinkronkan ke lirik yang sedang dinyanyikan">' + SVG.sync + '<span>Sinkron</span></button></div>' +
   '<div id="mnpq" hidden></div></div>';
 app.append(np);
-const lrcBox = np.querySelector('#mnplrc'), qBox = np.querySelector('#mnpq');
+const lrcBox = np.querySelector('#mnplrc'), qBox = np.querySelector('#mnpq'), lrcW = np.querySelector('#mnplrcw'), syncBtn = np.querySelector('#mnpsync');
 /* Desktop (>=800px): lembar Now Playing = panel kanan yang menempel di grid (bisa disembunyikan, pilihan diingat di 'mpanel');
    panel terbuka -> mini player bawah disembunyikan (CSS), panel disembunyikan -> mini player muncul lagi.
    Mobile: tetap lembar layar penuh yang naik dari bawah. */
@@ -1343,7 +1348,8 @@ function renderSheet() {
   $('mnptab-q').textContent = 'Antrean' + (queue.length ? ' (' + queue.length + ')' : '');
   $('mnptab-l').classList.toggle('on', sheetTab === 'lyrics');
   $('mnptab-q').classList.toggle('on', sheetTab === 'queue');
-  lrcBox.hidden = sheetTab !== 'lyrics';
+  lrcBox.hidden = lrcW.hidden = sheetTab !== 'lyrics';
+  paintSync();
   qBox.hidden = sheetTab !== 'queue';
   if (sheetTab === 'queue') renderQueue();
   paintTime();
@@ -1373,7 +1379,7 @@ function renderLrc() {
   const tr = trOn && c ? trCache.get(c.id) : null; /* terjemahan per baris (kalau nyala & sudah diambil) */
   const key = (c ? c.id : '') + ':' + (lyrLoading ? 'L' : !lyr ? 'N' : lyr.length) + (tr && tr.length ? ':T' : '');
   if (key === lrcBuilt && lrcBox.firstChild) return; /* sudah dirender: jangan bongkar (scroll & sorotan ikut hilang tiap play/pause) */
-  lrcBuilt = key; lrcIdx = -1;
+  lrcBuilt = key; lrcIdx = -1; lrcAway = false; lrcHold = 0; paintSync(); /* isi baru -> mulai lagi dari mode ikut lagu */
   const synced = !!(lyr && lyr.length && lyr[0].t >= 0);
   lrcBox.classList.toggle('sync', synced);
   if (lyrLoading) { lrcBox.innerHTML = '<div class="mu-lrc-empty">Mencari lirik…</div>'; return }
@@ -1413,6 +1419,7 @@ function lrcCenter(el, smooth) {
 /* force = gambar ulang sorotan + loncat langsung (saat lembar dibuka / pindah tab / seek). Selain itu hanya bila baris berganti. */
 function syncLrc(force) {
   if (!sheet || sheetTab !== 'lyrics' || !lyr || !lyr.length || lyr[0].t < 0 || lrcBox.hidden) return;
+  if (force) { lrcHold = 0; lrcAway = false; paintSync() } /* loncat/seek/buka lembar = ikut lagu lagi */
   const k = lrcFind(audio.currentTime);
   if (k === lrcIdx && !force) return;
   lrcIdx = k;
@@ -1422,8 +1429,29 @@ function syncLrc(force) {
   if (force || Date.now() > lrcHold) lrcCenter(els[k], !force);
 }
 const lrcShow = () => { renderLrc(); requestAnimationFrame(() => syncLrc(true)) };
-/* user menggulir sendiri -> auto-scroll berhenti 4 dtk (kalau tidak, kotak "melawan" jari) */
-for (const ev of ['wheel', 'touchstart', 'pointerdown']) lrcBox.addEventListener(ev, () => { lrcHold = Date.now() + 4000 }, { passive: true });
+/* user menggulir sendiri (roda / geser jari) -> auto-scroll berhenti SAMPAI tombol Sinkron ditekan (atau klik baris / seek / ganti lagu) */
+for (const ev of ['wheel', 'touchmove']) lrcBox.addEventListener(ev, () => {
+  if (!lyr || !lyr.length || lyr[0].t < 0) return; /* lirik polos tidak punya sinkron */
+  lrcAway = true; lrcHold = Infinity; paintSync();
+}, { passive: true });
+function paintSync() { syncBtn.hidden = !(lrcAway && sheet && sheetTab === 'lyrics' && lyr && lyr.length && lyr[0].t >= 0) }
+/* tombol Sinkron: geser mulus kembali ke baris yang sedang dinyanyikan, auto-scroll jalan lagi */
+function lrcResync() {
+  lrcHold = 0; lrcAway = false; paintSync();
+  if (!lyr || !lyr.length || lyr[0].t < 0) return;
+  const k = lrcFind(audio.currentTime), el = lrcBox.querySelectorAll('.ln')[k];
+  if (k < 0) lrcBox.scrollTo({ top: 0, behavior: 'smooth' }); else if (el) lrcCenter(el, true);
+}
+syncBtn.addEventListener('click', lrcResync);
+/* Desktop: panel kanan mode "lirik penuh" — cover/kontrol besar disembunyikan, tersisa baris kecil (cover + judul + artis + putar/jeda). Pilihan diingat di 'mfull'. */
+let full = false; try { full = store.get('mfull') === '1' } catch {}
+function paintFull() {
+  np.classList.toggle('full', full);
+  const b = $('mnpfull'), t = full ? 'Kembali ke tampilan biasa' : 'Lirik layar penuh';
+  b.innerHTML = full ? SVG.shrink : SVG.expand; b.setAttribute('aria-pressed', full ? 'true' : 'false'); b.setAttribute('aria-label', t); b.title = t;
+}
+$('mnpfull').addEventListener('click', () => { full = !full; store.set('mfull', full ? '1' : '0'); paintFull(); if (sheet && sheetTab === 'lyrics') requestAnimationFrame(() => syncLrc(true)) });
+paintFull();
 lrcBox.addEventListener('click', e => {
   const ln = e.target.closest('.ln');
   if (ln && ln.dataset.i !== undefined && lyr) { const l = lyr[+ln.dataset.i]; if (l && l.t >= 0) { lrcHold = 0; audio.currentTime = l.t; syncLrc(true) } }

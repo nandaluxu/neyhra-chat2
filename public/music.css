@@ -171,8 +171,20 @@
 .mnp-in{flex:1;display:flex;flex-direction:column;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;width:100%;max-width:560px;margin:0 auto;padding:calc(16px + env(safe-area-inset-top,0px)) 22px 30px}
 .mnp-in::-webkit-scrollbar{display:none}
 .mnp-in>*{flex:none}
-.mnp-in>.mu-lrc{flex:1 1 240px;max-height:none;min-height:240px} /* kotak lirik mengisi sisa tinggi layar (tidak menjulur keluar) */
-.mnp-in>.mu-lrc[hidden]{display:none}
+.mnp-in>.mu-lrcw{flex:1 1 240px;min-height:240px;position:relative;display:flex;flex-direction:column;margin-top:16px} /* pembungkus lirik mengisi sisa tinggi layar (tidak menjulur keluar); tombol Sinkron melayang di atasnya, tidak ikut tergulir */
+.mnp-in>.mu-lrcw[hidden]{display:none}
+.mu-lrcw>.mu-lrc{flex:1 1 auto;min-height:0;max-height:none;margin-top:0}
+.mu-lrc[hidden]{display:none}
+
+/* tombol Sinkron: muncul hanya saat user menggulir lirik menjauh dari baris yang sedang dinyanyikan */
+.mu-sync{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:3;display:inline-flex;align-items:center;gap:7px;padding:9px 16px 9px 13px;border-radius:99px;background:var(--ink);color:var(--bg);font-size:13px;font-weight:600;box-shadow:0 6px 22px rgba(0,0,0,.28);animation:musyncin .22s cubic-bezier(.2,.9,.3,1)}
+.mu-sync[hidden]{display:none}
+.mu-sync svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+.mu-sync:active{transform:translateX(-50%) scale(.96)}
+@keyframes musyncin{from{opacity:0;transform:translate(-50%,10px)}to{opacity:1;transform:translate(-50%,0)}}
+
+/* tombol lirik penuh: hanya ada di desktop (di HP cuma jadi pengisi supaya judul tetap di tengah) */
+.mnp-fb{visibility:hidden;pointer-events:none}
 .mnp-top{display:flex;justify-content:space-between;align-items:center}
 .mnp-top .t{font-size:11.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
 .mnp-x{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;color:var(--ink)}
@@ -278,6 +290,31 @@
   .mnp-tr{background:var(--bg)}
   .mnp-tr.on{background:var(--ink)}
   #mnp .mu-qrow:hover,#mnp .mu-qrow.now{background:var(--bg)}
+  .mnp-top .mnp-fb{order:0;visibility:visible;pointer-events:auto}
+  .mnp-fb[aria-pressed="true"]{background:var(--bg)}
+  .mu-sync{bottom:18px}
+
+  /* ===== Mode lirik penuh (panel kanan): baris kecil [cover | judul + artis | putar/jeda], sisanya lirik ===== */
+  #mnp.full:not(.none) .mnp-in{display:grid;grid-template-columns:auto minmax(0,1fr) auto;grid-template-rows:auto auto auto minmax(0,1fr);column-gap:12px;overflow:hidden;padding-bottom:16px;max-width:none}
+  #mnp.full:not(.none) .mnp-in>*{min-width:0}
+  #mnp.full:not(.none) .mnp-top{grid-column:1/-1;grid-row:1;margin-bottom:14px}
+  #mnp.full:not(.none) .mnp-art{grid-column:1;grid-row:2;width:56px;height:56px;margin:0;border-radius:12px;box-shadow:none;align-self:center}
+  #mnp.full:not(.none) .mnp-meta{grid-column:2;grid-row:2;align-self:center;margin:0;text-align:left}
+  #mnp.full:not(.none) .mnp-meta h1{font-size:16px}
+  #mnp.full:not(.none) .mnp-meta p{margin-top:2px;font-size:12.5px}
+  #mnp.full:not(.none) .mnp-err{margin:8px 0 0;max-width:none}
+  #mnp.full:not(.none) :is(.mnp-seek,.mnp-time){display:none}
+  #mnp.full:not(.none) .mnp-ctl{display:contents}
+  #mnp.full:not(.none) .mnp-ctl>.mnp-side{display:none}
+  #mnp.full:not(.none) #mnpplay{grid-column:3;grid-row:2;align-self:center;width:42px;height:42px}
+  #mnp.full:not(.none) #mnpplay svg{width:20px;height:20px}
+  #mnp.full:not(.none) .mnp-tabs{grid-column:1/-1;grid-row:3;margin-top:14px}
+  #mnp.full:not(.none) .mnp-in>.mu-lrcw{grid-column:1/-1;grid-row:4;min-height:0;margin-top:10px}
+  #mnp.full:not(.none) #mnpq{grid-column:1/-1;grid-row:4;min-height:0;margin-top:10px;overflow-y:auto;scrollbar-width:none}
+  #mnp.full:not(.none) #mnpq::-webkit-scrollbar{display:none}
+  #mnp.full:not(.none) .mu-lrc .ln{font-size:23px;padding:10px 12px}
+  #mnp.full:not(.none) .mu-lrc .ln[data-plain]{font-size:17px}
+  #mnp.full:not(.none) .mu-lrc .ln .tr{font-size:14px}
   /* panel terbuka -> mini player bawah disembunyikan; panel disembunyikan -> mini player muncul lagi */
   #app:not(.mp-off) #mupl{transform:translateY(110%);visibility:hidden;pointer-events:none;transition:transform .3s cubic-bezier(.2,.9,.3,1),visibility 0s .3s}
   #app.mp-off .mu-ptog{display:grid}
