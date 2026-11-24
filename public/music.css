@@ -266,3 +266,12 @@
   #app:not(.mp-off) #mupl{transform:translateY(110%);visibility:hidden;pointer-events:none;transition:transform .3s cubic-bezier(.2,.9,.3,1),visibility 0s .3s}
   #app.mp-off .mu-ptog{display:grid}
 }
+
+/* ===== Halaman "Lihat semua" ===== */
+.mu-pgh{display:flex;align-items:center;gap:14px}
+.mu-back{flex:none;place-items:center;width:40px;height:40px;border-radius:50%;background:var(--surface);color:var(--ink);transition:background .15s}
+.mu-back:hover{background:var(--line)}
+.mu-back svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;transform:scaleX(-1)}
+.mu-sht h1{font-size:28px;font-weight:700;letter-spacing:-.03em;line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mu-pgn{margin:8px 0 0 54px;font-size:13px;color:var(--mut)}
+.mu-pgh+.mu-pgn+.mu-sec{margin-top:14px}

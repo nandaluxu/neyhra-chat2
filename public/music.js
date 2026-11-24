@@ -130,7 +130,7 @@ $('muart').addEventListener('click', () => $('musi').click());
 const REC_TTL = 3 * 3600e3, ROW_N = 10;
 let rec = null, recBusy = false;   // rec = {k, secs:[{key,title,sub,avatar,songs}], err}
 const recLists = {};               // key kategori -> daftar lagu (dipakai klik card)
-const openSecs = new Set();        // kategori yang sedang "Lihat semua"
+let page = null, pageY = 0;        // halaman "Lihat semua" (di dalam tab Musik): {key,title,sub,avatar}; pageY = posisi gulir beranda untuk dipulihkan saat kembali
 const firstArtist = a => String(a || '').split(/,|&| feat\.? /i)[0].trim();
 const CHEV = '<svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>';
 function recPlan() {
@@ -180,7 +180,7 @@ function cardHtml(s, key, i) {
 /* satu kategori: header (avatar bulat bila artis) + Lihat semua + baris card dengan panah geser */
 function secHtml(key, title, songs, o = {}) {
   recLists[key] = songs;
-  const open = openSecs.has(key);
+  const open = false;
   return '<section class="mu-sec' + (open ? ' open' : '') + '" data-sec="' + key + '"><div class="mu-shr"><div class="mu-sht">' +
     (o.avatar ? '<img class="av" src="' + esc(o.avatar) + '" alt="" draggable="false">' : '') +
     '<div>' + (o.sub ? '<small>' + esc(o.sub) + '</small>' : '') + '<h2>' + esc(title) + '</h2></div></div>' +
@@ -218,13 +218,7 @@ function onHome(e) {
   const arr = e.target.closest('[data-arr]');
   if (arr) { const g = arr.closest('.mu-rw').querySelector('.mu-grid'); g.scrollBy({ left: +arr.dataset.arr * g.clientWidth * .9, behavior: 'smooth' }); return }
   const more = e.target.closest('[data-more]');
-  if (more) {
-    const k = more.dataset.more, sec = more.closest('.mu-sec'), g = sec.querySelector('.mu-grid');
-    const on = !openSecs.has(k); on ? openSecs.add(k) : openSecs.delete(k);
-    sec.classList.toggle('open', on); more.textContent = on ? 'Tutup' : 'Lihat semua';
-    g.scrollLeft = 0; updateArrows(sec);
-    return;
-  }
+  if (more) { openPage(more.dataset.more); return }
   const card = e.target.closest('.mu-card');
   if (!card || card.classList.contains('sk')) return;
   const list = recLists[card.dataset.k], i = +card.dataset.i;
@@ -233,9 +227,48 @@ function onHome(e) {
   playSong(0, list.slice(i).concat(list.slice(0, i))); /* klik = putar; sisanya mengikuti sebagai antrean */
 }
 
+/* ---------- halaman "Lihat semua": seluruh isi satu kategori sebagai halaman sendiri (tombol kembali) ---------- */
+function pageSongs() {
+  if (!page) return [];
+  const l = page.key === 'hist' ? hget().slice(0, 40) : (recLists[page.key] || []);
+  recLists[page.key] = l;
+  return l;
+}
+function openPage(key) {
+  const meta = key === 'hist' ? { key, title: 'Jump back in' } : (rec && rec.secs || []).find(x => x.key === key);
+  if (!meta) return;
+  pageY = $('music') ? $('music').scrollTop : 0;
+  page = { key, title: meta.title, sub: meta.sub, avatar: meta.avatar };
+  render();
+  if ($('music')) $('music').scrollTop = 0;
+}
+function closePage() {
+  page = null; render();
+  if ($('music')) $('music').scrollTop = pageY;
+}
+function renderPage() {
+  const songs = pageSongs();
+  body.innerHTML =
+    '<div class="mu-ptw"><button type="button" class="mu-ptog" id="muptog" aria-label="Tampilkan pemutar" title="Tampilkan pemutar">' + SVG.panel + '</button></div>' +
+    '<div class="mu-pgh"><button type="button" class="mu-back" id="muback" aria-label="Kembali">' + CHEV + '</button><div class="mu-sht">' +
+    (page.avatar ? '<img class="av" src="' + esc(page.avatar) + '" alt="" draggable="false">' : '') +
+    '<div>' + (page.sub ? '<small>' + esc(page.sub) + '</small>' : '') + '<h1>' + esc(page.title) + '</h1></div></div></div>' +
+    '<div class="mu-pgn">' + songs.length + ' lagu</div>' +
+    '<section class="mu-sec open"><div class="mu-rw"><div class="mu-grid" id="mupage">' + songs.map((x, i) => cardHtml(x, page.key, i)).join('') + '</div></div></section>';
+  $('muback').addEventListener('click', closePage);
+  $('muptog').addEventListener('click', () => setPanel(true));
+  $('mupage').addEventListener('click', onHome);
+}
+function paintPage() {
+  const g = $('mupage');
+  if (!g || !active() || !page) return;
+  g.innerHTML = pageSongs().map((x, i) => cardHtml(x, page.key, i)).join('');
+}
+
 /* ---------- render: layar pencarian ---------- */
 function render() {
   if (!active()) return;
+  if (page) { renderPage(); return }
   body.innerHTML =
     '<div class="mu-ptw"><button type="button" class="mu-ptog" id="muptog" aria-label="Tampilkan pemutar" title="Tampilkan pemutar">' + SVG.panel + '</button></div>' +
     '<div class="mu-top"><h1>Musik</h1><p class="mu-sub">Cari lagu dan dengarkan langsung — tetap bisa jalan sambil ngobrol di tab lain.<small>Sumber audio: YouTube Music · Lirik: LRCLIB</small></p></div>' +
@@ -298,7 +331,7 @@ async function playSong(idx, list) {
   const s = nq[idx];
   if (!s) return;
   if (list) { queue = list }
-  qi = idx; loading = true; lastErr = ''; hadd(s); save(); paintResults(); paintHome(); renderPl(); renderSheet();
+  qi = idx; loading = true; lastErr = ''; hadd(s); save(); paintResults(); paintHome(); paintPage(); renderPl(); renderSheet();
   /* lirik dulu (independen dari stream: tetap tampil walau stream diblokir bot-check) */
   lyr = null; lrcIdx = -1; lyrLoading = true; renderLrc();
   jget('/api/music/lyrics?title=' + encodeURIComponent(s.title) + '&artist=' + encodeURIComponent(s.artist) + '&dur=' + (s.dur || 0))
@@ -518,6 +551,7 @@ addEventListener('keydown', e => {
   const tag = (e.target && e.target.tagName) || '';
   if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable) return;
   if (e.key === 'Escape' && sheet && !desk()) { setPanel(false); return }
+  if (e.key === 'Escape' && page) { closePage(); return }
   if (e.code === 'Space' && cur() && (!sheet || desk())) { e.preventDefault(); toggle() }
 });
 
