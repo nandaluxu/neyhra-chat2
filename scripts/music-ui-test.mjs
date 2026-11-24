@@ -157,6 +157,82 @@ try {
   await page.waitForTimeout(200)
   ok('Batal menutup dialog', await page.locator('#mupi[hidden]').count() === 1)
   ok('tanpa error JS di akhir', errs.length === 0, errs.join(' | '))
+
+  console.log('[10] Menu titik-tiga playlist: Jadikan Publik -> Jadikan Private')
+  ok('tombol titik-tiga ada di halaman playlist', await page.locator('#mupldots').count() === 1)
+  await page.click('#mupldots')
+  await page.waitForTimeout(250)
+  ok('menu terbuka dengan opsi Jadikan Publik', await page.locator('#mupm:not([hidden]) [data-pm="pub"]').count() === 1)
+  ok('belum ada opsi Salin Link', await page.locator('#mupm [data-pm="copy"]').count() === 0)
+  await shot('09-menu-titik-tiga')
+  await page.click('#mupm [data-pm="pub"]') /* Jadikan Publik (sudah "login" lewat atok tiruan) */
+  await page.waitForTimeout(600)
+  const stSh = await state()
+  ok('/api/auth/pl/share dipanggil', stSh.plCalls.includes('share'))
+  ok('menu berubah jadi Jadikan Private', (await page.locator('#mupm [data-pm="pub"] b').textContent()) === 'Jadikan Private')
+  ok('opsi Salin Link muncul', await page.locator('#mupm [data-pm="copy"]').count() === 1)
+  ok('halaman playlist menandai Publik', (await page.locator('.mu-publine').textContent()).includes('Publik'))
+  const mplPub = await page.evaluate(() => JSON.parse(localStorage.getItem('mpl') || 'null'))
+  ok('kode publik tersimpan di playlist lokal', !!mplPub && typeof mplPub.pls[0].pub === 'string' && mplPub.pls[0].pub.length >= 6, JSON.stringify(mplPub && mplPub.pls[0].pub))
+  await shot('10-playlist-publik')
+  await page.click('#mupm [data-pm="pub"]') /* Jadikan Private lagi */
+  await page.waitForTimeout(600)
+  const stUn = await state()
+  ok('/api/auth/pl/unshare dipanggil', stUn.plCalls.includes('unshare'))
+  ok('tanda Publik hilang dari halaman', await page.locator('.mu-publine').count() === 0)
+  ok('menu kembali ke Jadikan Publik', (await page.locator('#mupm [data-pm="pub"] b').textContent()) === 'Jadikan Publik')
+  await page.keyboard.press('Escape')
+  ok('Escape menutup menu', await page.locator('#mupm[hidden]').count() === 1)
+
+  console.log('[11] Titik-tiga di kartu playlist (beranda) + halaman playlist publik lewat link')
+  await page.click('#muback') /* kembali ke beranda */
+  await page.waitForTimeout(500)
+  const dotsCard = page.locator('section[data-sec="pls"] [data-dots="liked"]')
+  ok('titik-tiga ada di kartu playlist', await dotsCard.count() === 1)
+  await dotsCard.click()
+  await page.waitForTimeout(250)
+  ok('menu terbuka dari kartu', await page.locator('#mupm:not([hidden])').count() === 1)
+  await page.keyboard.press('Escape')
+  /* buka link playlist publik milik "temanku" (stub PL_STORE) */
+  await page.goto(BASE + '/music?pl=publik01', { waitUntil: 'networkidle' })
+  await page.waitForTimeout(700)
+  ok('halaman playlist publik terbuka', (await page.locator('.mu-plm h1').textContent()) === 'Playlist Teman')
+  ok('nama pembagi tampil (oleh @temanku)', (await page.locator('.mu-plm small').textContent()).includes('temanku'))
+  ok('2 baris lagu tampil', await page.locator('#mushtrs .mu-tr').count() === 2)
+  ok('tombol "Simpan ke playlist saya" ada', await page.locator('#mushsave').count() === 1)
+  const stGet = await state()
+  ok('/api/auth/pl/get dipanggil dengan kode', stGet.plCalls.some(x => x.startsWith('get:publik01')))
+  await shot('11-playlist-publik-tamu')
+  await page.click('#mushsave') /* simpan seluruh playlist teman ke playlist sendiri */
+  await page.waitForTimeout(500)
+  const mplSave = await page.evaluate(() => JSON.parse(localStorage.getItem('mpl') || 'null'))
+  ok('playlist tersalin sebagai playlist lokal', !!mplSave && mplSave.pls.some(p => p.name === 'Playlist Teman' && p.songs.length === 2), JSON.stringify(mplSave && mplSave.pls.map(p => p.name + ':' + p.songs.length)))
+  ok('halaman berpindah ke playlist milik sendiri', await page.locator('#mupldots').count() === 1 && await page.locator('#mutrs .mu-tr').count() === 2)
+  ok('tanpa error JS di akhir', errs.length === 0, errs.join(' | '))
+
+  console.log('[12] "Lainnya dari X" kini dari halaman artis (channel), bukan cari nama')
+  /* konteks baru: riwayat putar berisi lagu Tulus (satu punya channel, satu gaya lama tanpa channel) */
+  const ctx2 = await browser.newContext({ viewport: { width: 1280, height: 900 } })
+  const page2 = await ctx2.newPage()
+  const errs2 = []
+  page2.on('pageerror', e => errs2.push(e.message))
+  await ctx2.addInitScript(() => {
+    localStorage.setItem('mhist', JSON.stringify([
+      { id: 'HISTSONG001', title: 'Monokrom', artist: 'Tulus', album: '', dur: 261, thumb: '', ch: 'UCTESTTULUSCHANNEL000001' },
+      { id: 'HISTSONG002', title: 'Hati-Hati di Jalan', artist: 'Tulus - Topic', album: '', dur: 242, thumb: '' }
+    ]))
+  })
+  await page2.goto(BASE + '/music', { waitUntil: 'networkidle' })
+  await page2.waitForTimeout(900)
+  const stArt = await state()
+  ok('riwayat dengan channel -> /api/music/artist-songs dipanggil', stArt.artistCalls.includes('UCTESTTULUSCHANNEL000001'), JSON.stringify(stArt.artistCalls))
+  ok('baris "Lainnya dari" tampil', await page2.locator('.mu-sec[data-sec="a0"]').count() === 1)
+  ok('judul baris = nama artis', (await page2.locator('.mu-sec[data-sec="a0"] h2').textContent()) === 'Tulus')
+  ok('12 kartu lagu (semua lagu artis dari stub)', await page2.locator('.mu-sec[data-sec="a0"] .mu-card').count() === 12)
+  ok('subjudul "Lainnya dari"', (await page2.locator('.mu-sec[data-sec="a0"] small').first().textContent()) === 'Lainnya dari')
+  ok('tanpa error JS di konteks baru', errs2.length === 0, errs2.join(' | '))
+  await page2.screenshot({ path: '/tmp/music-ui/12-lainnya-dari-artis.png' }).catch(() => { })
+  await ctx2.close()
 } catch (e) {
   fail++
   console.error('  GAGAL - tes melempar: ' + e.message)

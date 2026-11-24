@@ -1,5 +1,25 @@
 # Fitur Musik untuk neyhra-chat2 — Delta Zip
 
+> 🆕 **Update 25 Nov 2026 — "Lainnya dari X" berbasis artis (channel) + playlist Publik/Private.**
+> - **"Lainnya dari X" tidak lagi "sepi" & tidak salah artis.** Dulu: cari *nama* artis (20 hasil,
+>   tercampur artis lain yang kebetulan bernama sama, mis. Tulus Indonesia vs Tulus band Norwegia,
+>   dan sebagian besar sudah ada di riwayat). Sekarang: setiap lagu hasil pencarian membawa `ch`
+>   (channel YouTube Music artis utamanya — halaman `music.youtube.com/@nama` itu), dan baris
+>   "Lainnya dari X" diambil dari **halaman artis** lewat endpoint baru
+>   `/api/music/artist-songs?id=UC…` → playlist otomatis "Top songs" milik artis = SEMUA lagunya
+>   (Tulus 71, Rex Orange County 92, YOASOBI 98). Riwayat lama tanpa `ch` tetap jalan lewat jalur
+>   lama (cari nama + filter). Cache Redis 12 jam. Fallback: isi shelf halaman artis; gagal → cari nama.
+> - **Playlist publik/private (tombol titik-tiga).** Setiap playlist (termasuk "Lagu disukai")
+>   punya ⋮ di kartu & halaman playlist → **Jadikan Publik** (unggah salinan ke server, dapat kode
+>   tetap; link `https://web-kamu/music?pl=KODE` bisa dibuka siapa pun — tamu juga bisa — untuk
+>   diputar / disalin ke playlist sendiri) atau **Jadikan Private** (kode dihapus, link mati).
+>   Playlist diedit saat publik → salinan server diperbarui otomatis (kode tidak berubah).
+>   Butuh masuk akun untuk membagikan; server: `lib/musicpl.js` (koleksi Mongo `music_pl`, rute
+>   `/api/auth/pl/share|unshare|get`, dihapus bersama akun). Tanpa MongoDB: rute balas
+>   `{enabled:false}` (pagar bawaan `/api/auth/*`) — fitur lain musik tidak terpengaruh.
+> - Diuji: `node scripts/music-ui-test.mjs` (69 asersi, termasuk menu ⋮, link publik, dan baris
+>   artis) + live `/api/music/artist-songs` (Tulus 71 lagu, Rex Orange County 92 lagu).
+
 > ⚠️ **STATUS: DITUTUP — hanya bisa diakses saat Mode dev aktif.**
 > Streaming YouTube dari IP server sering ditolak (bot check), jadi fitur Musik disembunyikan dari
 > user biasa: ikon di rail, tab Musik, alamat `/music`, pemulihan antrean, dan `window.MU` hanya

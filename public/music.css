@@ -457,3 +457,36 @@
 /* tombol hapus di halaman lagu server: merah saat "dikokang" (ketuk 2x) */
 .mu-tr .rm.arm{color:var(--rec);opacity:1}
 .mu-tr .rm svg.trash{stroke-width:1.8}
+
+/* ===== Playlist publik/private: titik-tiga (⋮) di kartu & halaman playlist + menu opsinya ===== */
+/* tombol ⋮ di kartu playlist (pola .mu-cadd: muncul saat hover, sentuhan: selalu) */
+.mu-card .mu-dots{position:absolute;top:7px;right:7px;z-index:3;display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;opacity:0;transition:opacity .18s,background .15s;backdrop-filter:blur(6px)}
+.mu-card .mu-dots:hover,.mu-card .mu-dots:focus-visible{background:rgba(0,0,0,.75);opacity:1}
+.mu-card .mu-dots svg{width:17px;height:17px}
+@media(hover:hover){.mu-card:hover .mu-dots{opacity:1}}
+@media(hover:none){.mu-card .mu-dots{opacity:1}}
+/* badge "Publik" di pojok kartu (pola .pin) */
+.mu-card .cv .mu-pubtag{position:absolute;top:8px;left:8px;z-index:2;padding:3px 7px;border-radius:99px;background:rgba(0,0,0,.6);color:#fff;font-size:9px;font-weight:800;letter-spacing:.08em;backdrop-filter:blur(2px)}
+/* baris keterangan publik di halaman playlist */
+.mu-publine{display:flex;align-items:center;gap:6px;margin-top:6px!important;font-size:12px!important;color:var(--mut)}
+.mu-publine svg{width:14px;height:14px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8}
+/* menu yang muncul dari titik-tiga (pola #mupk) */
+#mupm{position:fixed;z-index:41;padding:8px;border-radius:13px;background:var(--surface);color:var(--ink);box-shadow:0 12px 40px rgba(0,0,0,.35),0 0 0 1px var(--line)}
+#mupm[hidden]{display:none}
+#app:not([data-tab="music"]) #mupm{display:none!important}
+.pm-h{padding:6px 10px 9px;font-size:12.5px;font-weight:700;color:var(--mut);max-width:270px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pm-i{display:flex;align-items:center;gap:11px;width:100%;padding:9px 10px;border-radius:9px;text-align:left;transition:background .12s}
+.pm-i:hover:not(:disabled){background:var(--bg)}
+.pm-i:disabled{opacity:.55;cursor:wait}
+.pm-i>svg{width:19px;height:19px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.pm-i>span:first-of-type{flex:1;min-width:0}
+.pm-i b{display:block;font-size:13.5px;font-weight:600}
+.pm-i small{display:block;margin-top:1px;font-size:11px;line-height:1.35;color:var(--mut)}
+/* sakelar publik/private di kanan baris toggle */
+.pm-sw{flex:none;width:34px;height:20px;border-radius:10px;background:var(--line);position:relative;transition:background .15s}
+.pm-sw::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--mut);transition:left .15s,background .15s}
+.pm-sw.on{background:var(--rec)}
+.pm-sw.on::after{left:16px;background:#fff}
+/* tombol teks lebar "Simpan ke playlist saya" di halaman playlist publik */
+.mu-plb.wide{width:auto;padding:0 16px;gap:8px;font-size:13px;font-weight:700}
+.mu-plb.wide svg{width:17px;height:17px}

@@ -20,16 +20,22 @@ const state = {
     { id: 'SRVSONG00002', title: 'Lagu Server Dua', artist: 'Artis B', album: '', dur: 155, thumb: '', status: 'ok', bytes: 3100000, size: '2.96 MB', source: 'nexray' }
   ],
   removed: [],
-  calls: []
+  calls: [],
+  artistCalls: [],       // channel yang diminta lewat /api/music/artist-songs
+  plShares: {},          // pid -> { code, name, songs, by } (simulasi koleksi music_pl)
+  plCalls: []            // catatan panggilan /api/auth/pl/*
 }
 const songs = [
-  { id: 'SEARCHSONG01', title: 'Monokrom', artist: 'Tulus', album: 'Monokrom', dur: 261, thumb: '' },
-  { id: 'SEARCHSONG02', title: 'Racing Into The Night', artist: 'YOASOBI', album: 'THE BOOK', dur: 247, thumb: '' }
+  { id: 'SEARCHSONG01', title: 'Monokrom', artist: 'Tulus', album: 'Monokrom', dur: 261, thumb: '', ch: 'UCTESTTULUSCHANNEL000001' },
+  { id: 'SEARCHSONG02', title: 'Racing Into The Night', artist: 'YOASOBI', album: 'THE BOOK', dur: 247, thumb: '', ch: 'UCTESTYOASOBICHANNEL0002' }
 ]
+/* semua lagu "dari halaman artis" (stub /api/music/artist-songs): 12 lagu milik channel itu */
+const artistLib = (ch) => Array.from({ length: 12 }, (_, i) => ({ id: 'ARTSONG' + String(i).padStart(2, '0'), title: 'Lagu Artis ' + (i + 1), artist: 'Tulus', album: '', dur: 200 + i, thumb: '', ch }))
+const PL_STORE = { 'publik01': { code: 'publik01', name: 'Playlist Teman', by: 'temanku', songs: [songs[0], songs[1]] } }
 
 const j = (res, o, status = 200) => { res.writeHead(status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }); res.end(JSON.stringify(o)) }
 
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
   const u = new URL(req.url, 'http://x')
   const p = u.pathname
   state.calls.push(p + '?' + u.searchParams.toString())
@@ -56,6 +62,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;paddin
   const store = { get(k){ try { return localStorage.getItem(k) } catch { return null } }, set(k,v){ try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k,v) } catch {} } };
   localStorage.setItem('devu','1'); localStorage.setItem('dev','1');
   const devOn = () => store.get('devu') === '1' && store.get('dev') === '1';
+  let atok = 'token-uji'; /* login tiruan: stub /api/auth/pl/* memeriksa Bearer */
 </script>
 <script src="/music.js"></script>
 </body></html>`)
@@ -65,6 +72,37 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;paddin
 
   if (p === '/api/music/search') return j(res, { songs })
   if (p === '/api/music/lyrics') return j(res, { lyrics: null })
+  if (p === '/api/music/artist-songs') {
+    const ch = u.searchParams.get('id') || ''
+    state.artistCalls.push(ch)
+    if (!/^UC[\w-]{22}$/.test(ch)) return j(res, { error: 'ID artis tidak valid' }, 400)
+    return j(res, { ok: true, artist: 'Tulus', songs: artistLib(ch) })
+  }
+  /* stub playlist publik (lib/musicpl.js): share/unshare butuh Bearer, get terbuka untuk siapa pun */
+  if (p === '/api/auth/pl/share') {
+    state.plCalls.push('share')
+    if (String(req.headers.authorization || '') !== 'Bearer token-uji') return j(res, { error: 'Masuk dulu untuk membagikan playlist.' }, 401)
+    let b = ''; req.on('data', d => b += d); await new Promise(ok2 => req.on('end', ok2))
+    try { b = JSON.parse(b || '{}') } catch { b = {} }
+    if (!b.pid || !b.name || !Array.isArray(b.songs) || !b.songs.length) return j(res, { error: 'Data playlist tidak valid.' }, 400)
+    const code = state.plShares[b.pid] ? state.plShares[b.pid].code : 'uji' + Math.random().toString(36).slice(2, 8)
+    state.plShares[b.pid] = { code, name: b.name, by: 'aku', songs: b.songs }
+    return j(res, { ok: true, code })
+  }
+  if (p === '/api/auth/pl/unshare') {
+    state.plCalls.push('unshare')
+    if (String(req.headers.authorization || '') !== 'Bearer token-uji') return j(res, { error: 'Masuk dulu.' }, 401)
+    let b = ''; req.on('data', d => b += d); await new Promise(ok2 => req.on('end', ok2))
+    try { b = JSON.parse(b || '{}') } catch { b = {} }
+    delete state.plShares[b.pid]
+    return j(res, { ok: true })
+  }
+  if (p === '/api/auth/pl/get') {
+    state.plCalls.push('get:' + (u.searchParams.get('code') || ''))
+    const d = Object.values(PL_STORE).find(x => x.code === u.searchParams.get('code')) || Object.values(state.plShares).find(x => x.code === u.searchParams.get('code'))
+    if (!d) return j(res, { error: 'Playlist tidak ditemukan — mungkin sudah dijadikan private.' }, 404)
+    return j(res, { ok: true, name: d.name, by: d.by, n: d.songs.length, songs: d.songs })
+  }
   if (p === '/api/music/stream') return j(res, { url: '/api/music/audio?id=' + encodeURIComponent(u.searchParams.get('id') || '') + '&clientId=' + u.searchParams.get('clientId'), itag: 140, kbps: 128 })
   if (p === '/api/music/audio') { res.writeHead(200, { 'Content-Type': 'audio/wav', 'Content-Length': String(wav.length), 'Accept-Ranges': 'bytes' }); return res.end(wav) }
 
