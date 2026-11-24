@@ -9,6 +9,29 @@
 >   (`lib/musicpl.js`): 24 playlist publik terbaru, tanpa isi lagu (cuma kode, nama, pembuat, jumlah,
 >   sampul) — tanpa login juga bisa melihat. Masih lewat koleksi Mongo `music_pl` yang sama.
 
+> 🆕 **Update 25 Nov 2026 (dua) — Terjemahan lirik (DeepL) + "Lainnya dari X" sampai 100 lagu.**
+> - **Tombol terjemahan di lirik.** Di layar Now Playing, di baris tab Lirik/Antrean ada tombol ikon
+>   translate (ikon dari pemilik, `translate.svg` — kini inline di `SVG.translate`). Ditekan → semua
+>   baris lirik diterjemahkan (satu permintaan per lagu) dan hasilnya tampil sebagai **teks kecil di
+>   bawah tiap baris lirik asli** (`.mu-lrc .ln .tr`). Ditekan lagi → terjemahan hilang; pilihan
+>   diingat di localStorage (`mlrctr`) seperti mode acak/ulang. Terjemahan per lagu di-cache (memori,
+>   maks 30 lagu) — pindah lagu balik-lalu tidak mengulang permintaan; kalau lagu berganti saat
+>   terjemahan nyala, lagu baru diterjemahkan otomatis (gagal = diam saja, tanpa toast beruntun).
+> - **Server:** endpoint baru `POST /api/music/translate` di `lib/music.js` — port dari kode Rust
+>   milik pemilik (klien aplikasi DeepL Android): payload `{ text: [...], target_lang }` ke endpoint
+>   oneshot gratis `oneshot.fal.free.deepl.com` (fallback `oneshot.kef.free.deepl.com`), header
+>   `User-Agent: DeepL/26.41.0 (com.deepl.mobiletranslator; build:264100; Android 14)`. Bahasa
+>   dinormalisasi seperti di Rust: kosong → `id`, kode `in` (ISO lama Indonesia) → `id`. Maks 200
+>   baris × 600 karakter, rate-limit 20/menit per clientId, hasil di-cache Redis 7 hari (lirik
+>   statis). Tanpa env baru.
+> - **"Lainnya dari X" kini maks 100 lagu per baris artis** (sebelumnya 20). Server
+>   `/api/music/artist-songs` memang sudah memotong 100 dari playlist "Top songs" halaman artis;
+>   frontend yang masih memotong 20 — sekarang ikut 100. Baris carousel & halaman "Lihat semua"
+>   langsung menerima semua.
+> - Diuji: `node scripts/music-ui-test.mjs` — **94 asersi, 0 gagal** (termasuk 13 asersi baru:
+>   tombol translate, permintaan sekali + cache, terjemahan tampil/hilang, dan batas 100 kartu
+>   per baris artis dari stub 120 lagu).
+
 > 🆕 **Update 25 Nov 2026 — "Lainnya dari X" berbasis artis (channel) + playlist Publik/Private.**
 > - **"Lainnya dari X" tidak lagi "sepi" & tidak salah artis.** Dulu: cari *nama* artis (20 hasil,
 >   tercampur artis lain yang kebetulan bernama sama, mis. Tulus Indonesia vs Tulus band Norwegia,
@@ -28,6 +51,7 @@
 >   `{enabled:false}` (pagar bawaan `/api/auth/*`) — fitur lain musik tidak terpengaruh.
 > - Diuji: `node scripts/music-ui-test.mjs` (81 asersi, termasuk menu ⋮, link publik, baris
 >   artis, dan seksi "Pilihan Orang Lain") + live `/api/music/artist-songs` (Tulus 71 lagu, Rex Orange County 92 lagu).
+>   (Angka asersi itu sebelum seksi terjemahan — kini 94, lihat catatan update di atas.)
 
 > ⚠️ **STATUS: DITUTUP — hanya bisa diakses saat Mode dev aktif.**
 > Streaming YouTube dari IP server sering ditolak (bot check), jadi fitur Musik disembunyikan dari
@@ -117,7 +141,7 @@ Setelah terpasang lewat cara mana pun, folder `neyhra-music/` boleh dihapus (dia
 |---|---|---|
 | `public/music.css` | **baru** | styling tab, mini player, lembar Now Playing, lirik karaoke |
 | `public/music.js` | **baru** | logika frontend (pola IIFE seperti `bonus.js`) |
-| `lib/music.js` | **baru** | router Express `/api/music/search\|stream\|lyrics` |
+| `lib/music.js` | **baru** | router Express `/api/music/search\|stream\|lyrics\|translate` |
 | `public/index.html` | ditambal | tombol rail `#rmusic` + `<section id="music">` + link css + tag script |
 | `public/shell.js` | ditambal | `rmusic` masuk `setTab`/`syncRail` + handler klik |
 | `public/router.js` | ditambal | alamat `/music` (tombol back/forward browser tetap jalan) |
@@ -217,4 +241,5 @@ Browser                          Server (Vercel)                Luar
   |  <audio>.src = url  ====== langsung ke googlevideo (tidak lewat Vercel) ======>>
   |
   |  lirik --------------------->  /api/music/lyrics --(cache Redis 7h)------> LRCLIB
+  |  terjemahan lirik ---------->  /api/music/translate --(cache Redis 7h)--> DeepL (oneshot, fal->kef)
 ```

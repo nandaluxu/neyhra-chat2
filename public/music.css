@@ -202,9 +202,15 @@
 .mnp-side{flex:none;display:grid;place-items:center;width:44px;height:44px;border-radius:50%;color:var(--mut);transition:color .15s}
 .mnp-side:hover{color:var(--ink)}
 .mnp-side.on{color:var(--ink)}
-.mnp-tabs{display:flex;gap:8px;justify-content:center;margin-top:16px}
+.mnp-tabs{position:relative;display:flex;gap:8px;justify-content:center;margin-top:16px}
 .mnp-tab{padding:8px 16px;border-radius:99px;background:var(--surface);color:var(--mut);font-size:13px;font-weight:600;transition:background .2s,color .2s}
 .mnp-tab.on{background:var(--ink);color:var(--bg)}
+/* tombol terjemahan lirik: ikon kecil di ujung kanan baris tab, nyala saat terjemahan tampil */
+.mnp-tr{position:absolute;right:0;top:50%;transform:translateY(-50%);width:34px;height:34px;padding:7px;border-radius:99px;background:var(--surface);color:var(--mut);transition:background .2s,color .2s}
+.mnp-tr svg{width:100%;height:100%;display:block}
+.mnp-tr:hover{color:var(--ink)}
+.mnp-tr.on{background:var(--ink);color:var(--bg)}
+.mnp-tr[aria-busy="true"] svg{animation:murot 1s linear infinite}
 /* lirik */
 .mu-lrc{position:relative;margin-top:16px;padding:0 2px;max-height:44dvh;min-height:240px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;mask-image:linear-gradient(transparent,#000 12%,#000 88%,transparent);-webkit-mask-image:linear-gradient(transparent,#000 12%,#000 88%,transparent)}
 .mu-lrc.sync{padding-block:40px} /* cukup untuk melewati area pudar (mask) di tepi; baris awal/akhir tidak dipaksa ke tengah */
@@ -214,6 +220,9 @@
 .mu-lrc .ln[data-lrc="on"]{color:var(--ink);opacity:1}
 .mu-lrc .ln.past{opacity:.4}
 .mu-lrc .ln[data-plain]{white-space:pre-wrap;font-weight:500;font-size:15.5px;line-height:1.75;color:var(--ink);opacity:.9;cursor:default;padding:10px}
+/* terjemahan: teks kecil di bawah tiap baris lirik asli */
+.mu-lrc .ln .tr{display:block;font-size:12.5px;font-weight:500;line-height:1.5;margin-top:3px;color:var(--mut);opacity:.95;overflow-wrap:anywhere}
+.mu-lrc .ln[data-lrc="on"] .tr{color:var(--ink);opacity:.75}
 .mu-lrc-empty{padding:36px 12px;text-align:center;color:var(--mut);font-size:13.5px;line-height:1.5}
 /* antrean */
 .mu-qhead{display:flex;justify-content:space-between;align-items:center;margin:18px 8px 8px}
@@ -266,6 +275,8 @@
   .mnp-art{width:min(100%,400px,38dvh);border-radius:22px}
   .mnp-tab,.mnp-err{background:var(--bg)}
   .mnp-tab.on{background:var(--ink)}
+  .mnp-tr{background:var(--bg)}
+  .mnp-tr.on{background:var(--ink)}
   #mnp .mu-qrow:hover,#mnp .mu-qrow.now{background:var(--bg)}
   /* panel terbuka -> mini player bawah disembunyikan; panel disembunyikan -> mini player muncul lagi */
   #app:not(.mp-off) #mupl{transform:translateY(110%);visibility:hidden;pointer-events:none;transition:transform .3s cubic-bezier(.2,.9,.3,1),visibility 0s .3s}
@@ -488,19 +499,5 @@
 .pm-sw.on{background:var(--rec)}
 .pm-sw.on::after{left:16px;background:#fff}
 /* tombol teks lebar "Simpan ke playlist saya" di halaman playlist publik */
-.mu-plb.wide{display:inline-flex;align-items:center;justify-content:center;flex:none;width:auto;height:42px;padding:0 18px 0 14px;gap:8px;border-radius:99px;border:1.5px solid var(--line);color:var(--ink);font-size:13.5px;font-weight:700;line-height:1;white-space:nowrap;transition:background .15s,color .15s,border-color .15s,transform .15s}
-.mu-plb.wide svg{width:17px;height:17px;flex:none;stroke-width:2.2}
-.mu-plb.wide span{display:block}
-.mu-plb.wide:hover,.mu-plb.wide:focus-visible{background:var(--ink);border-color:var(--ink);color:var(--bg)}
-.mu-plb.wide:active{transform:scale(.96)}
-.mu-plb.wide:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
-@media(max-width:420px){.mu-plb.wide{padding:0 14px 0 12px;font-size:13px}}
-
-/* tekan lama di layar sentuh membuka popup playlist: matikan callout/seleksi bawaan di lagu */
-.mu-card,.mu-song,.mu-tr{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
-
-/* geser urutan lagu di playlist sendiri (tahan lalu geser) */
-#mutrs .mu-tr img{-webkit-user-drag:none}
-#mutrs.rd-on,#mutrs.rd-on *{cursor:grabbing!important}
-#mutrs.rd-on .mu-tr:not(.rd-lift){transition:transform .16s ease,background .15s;pointer-events:none}
-#mutrs .mu-tr.rd-lift{position:relative;z-index:5;background:var(--surface);box-shadow:0 10px 28px rgba(0,0,0,.35),0 0 0 1px var(--line);transition:none;will-change:transform}
+.mu-plb.wide{width:auto;padding:0 16px;gap:8px;font-size:13px;font-weight:700}
+.mu-plb.wide svg{width:17px;height:17px}

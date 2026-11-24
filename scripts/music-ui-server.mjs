@@ -23,14 +23,16 @@ const state = {
   calls: [],
   artistCalls: [],       // channel yang diminta lewat /api/music/artist-songs
   plShares: {},          // pid -> { code, name, songs, by } (simulasi koleksi music_pl)
-  plCalls: []            // catatan panggilan /api/auth/pl/*
+  plCalls: [],           // catatan panggilan /api/auth/pl/*
+  trCalls: 0             // berapa kali /api/music/translate dipanggil
 }
 const songs = [
   { id: 'SEARCHSONG01', title: 'Monokrom', artist: 'Tulus', album: 'Monokrom', dur: 261, thumb: '', ch: 'UCTESTTULUSCHANNEL000001' },
   { id: 'SEARCHSONG02', title: 'Racing Into The Night', artist: 'YOASOBI', album: 'THE BOOK', dur: 247, thumb: '', ch: 'UCTESTYOASOBICHANNEL0002' }
 ]
-/* semua lagu "dari halaman artis" (stub /api/music/artist-songs): 12 lagu milik channel itu */
-const artistLib = (ch) => Array.from({ length: 12 }, (_, i) => ({ id: 'ARTSONG' + String(i).padStart(2, '0'), title: 'Lagu Artis ' + (i + 1), artist: 'Tulus', album: '', dur: 200 + i, thumb: '', ch }))
+/* semua lagu "dari halaman artis" (stub /api/music/artist-songs): 120 lagu milik channel itu
+   (frontend memotong maks 100 per baris artis — diuji seksi [12] di music-ui-test.mjs) */
+const artistLib = (ch) => Array.from({ length: 120 }, (_, i) => ({ id: 'ARTSONG' + String(i).padStart(3, '0'), title: 'Lagu Artis ' + (i + 1), artist: 'Tulus', album: '', dur: 200 + i, thumb: '', ch }))
 const PL_STORE = { 'publik01': { code: 'publik01', name: 'Playlist Teman', by: 'temanku', songs: [songs[0], songs[1]] } }
 
 const j = (res, o, status = 200) => { res.writeHead(status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }); res.end(JSON.stringify(o)) }
@@ -71,7 +73,17 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;paddin
   if (p === '/music.js') { res.writeHead(200, { 'Content-Type': 'text/javascript' }); return res.end(fs.readFileSync(path.join(PUB, 'music.js'))) }
 
   if (p === '/api/music/search') return j(res, { songs })
-  if (p === '/api/music/lyrics') return j(res, { lyrics: null })
+  /* lirik tiruan tersinkron (3 baris) supaya uji lirik + terjemahan punya bahan */
+  if (p === '/api/music/lyrics') return j(res, { lyrics: { synced: [{ t: 0, text: 'Baris lirik satu' }, { t: 4, text: 'Baris lirik dua' }, { t: 8, text: 'Baris lirik tiga' }], plain: '' } })
+  /* stub terjemahan (lib/music.js POST /api/music/translate): balik teks "ID <asli>" per baris */
+  if (p === '/api/music/translate') {
+    let b = ''; req.on('data', d => b += d); await new Promise(ok2 => req.on('end', ok2))
+    try { b = JSON.parse(b || '{}') } catch { b = {} }
+    const texts = Array.isArray(b.text) ? b.text.map(x => String(x || '')) : []
+    if (!texts.length || !texts.some(t => t.trim())) return j(res, { error: 'Tidak ada teks untuk diterjemahkan' }, 400)
+    state.trCalls++
+    return j(res, { ok: true, lang: b.lang || 'id', tr: texts.map(t => t.trim() ? 'ID ' + t : '') })
+  }
   if (p === '/api/music/artist-songs') {
     const ch = u.searchParams.get('id') || ''
     state.artistCalls.push(ch)

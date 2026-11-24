@@ -52,7 +52,9 @@ const SVG = {
   search: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>',
   dots: '<svg viewBox="0 0 24 24"><circle cx="12" cy="5.2" r="1.9" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.9" fill="currentColor" stroke="none"/><circle cx="12" cy="18.8" r="1.9" fill="currentColor" stroke="none"/></svg>',
   globe: '<svg class="sv" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.6 2.3 3.9 5.1 3.9 8.5s-1.3 6.2-3.9 8.5c-2.6-2.3-3.9-5.1-3.9-8.5s1.3-6.2 3.9-8.5z"/></svg>',
-  lock: '<svg class="sv" viewBox="0 0 24 24"><rect x="5.5" y="10.5" width="13" height="9.5" rx="2.5"/><path d="M8 10.5V7.5a4 4 0 018 0v3"/></svg>'
+  lock: '<svg class="sv" viewBox="0 0 24 24"><rect x="5.5" y="10.5" width="13" height="9.5" rx="2.5"/><path d="M8 10.5V7.5a4 4 0 018 0v3"/></svg>',
+  /* ikon terjemahan (dari pemilik, SVG Repo ic_fluent_translate_24_filled): ikon ISI — fill currentColor, bukan garis */
+  translate: '<svg viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M15.3126,5.63994 C15.5095,5.12393 16.0874,4.86518 16.6034,5.06202 C17.1194,5.25885 17.3781,5.83674 17.1813,6.35275 L17.1231,6.5047 L20,6.5047 C20.5523,6.5047 21,6.95241 21,7.5047 C21,8.01753143 20.613973,8.44020653 20.1166239,8.4979722 L20,8.5047 L16.408,8.5047 C16.3727,8.61597 16.3415,8.72385 16.3095,8.85307 L16.2624044,9.05769402 C16.2224816,9.24420102 16.1803286,9.47537857 16.1319,9.7865 C16.7485,9.69083 17.3801,9.69058 17.9878,9.78147 C18.1704,9.58554 18.4307,9.463 18.7196,9.463 C19.2265,9.463 19.6453,9.84017 19.7107,10.3292 C20.8597,10.9243 21.7947,11.972 21.9755,13.4941 C22.2707552,15.9786655 20.5946372,17.395369 19.6742022,18.0480766 L19.3072,18.3102 C18.8588,18.6325 18.2339,18.5303 17.9115,18.0819 C17.6139923,17.6679923 17.6781888,17.1036941 18.0425043,16.7657518 L18.1398,16.6862 L18.4326,16.476 C19.2545,15.9068 20.1519,15.0967 19.9895,13.7301 C19.9282,13.2143 19.6897,12.7818 19.3086,12.4495 C19.1722,12.8174 19.0061,13.1851 18.8169,13.536 C18.2687,14.5532 17.426,15.6179 16.2993,16.1629 C15.699,16.4533 15.0149,16.5959 14.2802,16.4897 C12.8381,16.2813 11.9591,15.1465 11.9610932,13.8324 C11.9629,12.6195 12.691,11.4088 14.0044,10.5755 L14.0288,10.3678 L14.0288,10.3678 L14.1287918,9.65542111 C14.1918134,9.23346973 14.2487942,8.90963239 14.3071646,8.63697877 L14.3365,8.5047 L13,8.5047 C12.4477,8.5047 12,8.05698 12,7.5047 C12,6.99185929 12.386027,6.56919214 12.8833761,6.51142766 L13,6.5047 L14.9819,6.5047 L15.3126,5.63994 L15.3126,5.63994 Z M8.03218,6.28981 C8.67234,6.47762 9.18766,6.77412 9.58177,7.17134 C9.97581,7.56849 10.2055,8.02276 10.3366,8.46179 C10.4939444,8.98850889 10.5155407,9.55548642 10.5115347,9.97735674 L10.5006074,10.442137 L10.5006074,10.442137 L10.5,16.0027 C10.5,16.555 10.0523,17.0027 9.5,17.0027 C9.04562,17.0027 8.66202,16.6996 8.5403,16.2846 L8.46022,16.3236 C7.49628,16.786 6.06287,17.2446 4.58287,16.8305 C2.95032,16.3737 2.13002,15.021 2.01116,13.6946 C1.89649,12.415 2.42155,10.9593 3.69323,10.2474 C5.22152,9.39187 6.80844,9.40802 7.95475,9.60674 C8.15081,9.64072 8.3364,9.68042 8.50951,9.72294 C8.50661,9.48002 8.48727,9.2584 8.4203,9.03419 C8.36533,8.85015 8.28357,8.70251 8.162,8.57998 C8.04062,8.45764 7.83644,8.31683 7.47235,8.20986 C6.0832,7.80608 4.95416,8.18379 4.4236,8.43211 C3.92339,8.66622 3.3281,8.4505 3.09399,7.95029 C2.85988,7.45008 3.0756,6.85479 3.57581,6.62068 L3.80023213,6.52138857 C4.6519807,6.16546102 6.18766783,5.7531687 8.03218,6.28981 Z M4.67018,11.9926 C4.24564,12.2302 3.941,12.8223 4.00318,13.5161 C4.06116,14.1631 4.42427,14.7093 5.12175,14.9044 C5.91243,15.1257 6.80286,14.9005 7.59509,14.5204 C7.96191,14.3444 8.27459,14.1508 8.5,13.9972 L8.5,11.7992 C8.26004,11.7203 7.95707,11.637 7.61315,11.5773 C6.72905,11.4241 5.65682,11.4402 4.67018,11.9926 Z M14.1591,13.1697 C14.0146,13.4242 13.9614,13.6579 13.9611,13.8354 C13.9606,14.1765 14.13,14.4242 14.5055,14.4998 C14.4576,14.3507 14.4092,14.1903 14.3621,14.0205 C14.2903,13.7618 14.22,13.4758 14.1591,13.1697 Z M17.4425,11.7296 C16.9524,11.6868 16.4513,11.7311 15.9896,11.8598 C16.02736,12.32004 16.109408,12.770616 16.2104,13.1835728 L16.2893,13.4858 C16.3038,13.5379 16.3184,13.589 16.3331,13.639 C16.5958,13.343 16.8416,12.9856 17.0564,12.5871 C17.2137,12.2952 17.3421,12.0043 17.4425,11.7296 Z"/></svg>'
 };
 
 /* ---------- toast sendiri (toast bawaan ada di footer chat, terlihat hanya saat chat terbuka) ---------- */
@@ -74,6 +76,9 @@ let songs = [], searched = false;   // hasil pencarian terakhir
 let loading = false, searching = false, notice = '', lastErr = ''; // loading = memuat stream lagu; searching = menunggu hasil pencarian (dulu satu flag -> daftar jadi skeleton saat lagu diklik)
 let lyr = null, lyrLoading = false; // lirik: [{t, text}] atau null
 let lrcIdx = -1, lrcHold = 0, lrcBuilt = ''; // baris aktif, jeda auto-scroll (user sedang menggulir), tanda isi yang sudah dirender
+let trOn = false, trBusy = false; // terjemahan lirik: nyala? / sedang mengambil?
+try { trOn = store.get('mlrctr') === '1' } catch {} // pilihan diingat seperti mode acak/ulang
+const trCache = new Map(); // id lagu -> daftar terjemahan per baris (maks 30 lagu terakhir)
 let sheet = false, sheetTab = 'lyrics';
 const cur = () => (qi >= 0 && qi < queue.length ? queue[qi] : null);
 
@@ -166,7 +171,7 @@ np.innerHTML = '<div class="mnp-in">' +
   '<button type="button" class="mupl-play big" id="mnpplay" aria-label="Putar / jeda">' + SVG.play + '</button>' +
   '<button type="button" class="mnp-side" id="mnpnx" aria-label="Lagu berikutnya">' + SVG.next + '</button>' +
   '<button type="button" class="mnp-side" id="mnprp" aria-label="Ulangi">' + SVG.repeat + '</button></div>' +
-  '<div class="mnp-tabs"><button type="button" class="mnp-tab on" id="mnptab-l" data-t="lyrics">Lirik</button><button type="button" class="mnp-tab" id="mnptab-q" data-t="queue">Antrean</button></div>' +
+  '<div class="mnp-tabs"><button type="button" class="mnp-tab on" id="mnptab-l" data-t="lyrics">Lirik</button><button type="button" class="mnp-tab" id="mnptab-q" data-t="queue">Antrean</button><button type="button" class="mnp-tr" id="mnptr" aria-pressed="false" aria-label="Terjemahan lirik" title="Terjemahkan lirik">' + SVG.translate + '</button></div>' +
   '<div id="mnplrc" class="mu-lrc" hidden></div>' +
   '<div id="mnpq" hidden></div></div>';
 app.append(np);
@@ -256,7 +261,7 @@ async function loadRec() {
   got.filter(g => !g.x.rec).forEach(({ x, all, artist, byCh }) => {
     /* dari halaman artis: lagunya memang milik artis itu semua. Dari cari nama: saring yang artis utamanya cocok */
     const own = byCh ? all : (x.artist ? all.filter(s => sameArtist(s, x.artist)) : all);
-    const songs = own.filter(s => !seen.has(s.id)).slice(0, 20).map(slim);
+    const songs = own.filter(s => !seen.has(s.id)).slice(0, 100).map(slim); /* maks 100 lagu per baris artis (server juga memotong 100) */
     songs.forEach(s => seen.add(s.id));
     if (songs.length) rows.push(x.artist ? { key: x.key, title: artist || x.artist, sub: 'Lainnya dari', avatar: (own[0] && own[0].thumb) || songs[0].thumb, songs } : { key: x.key, title: x.title, songs });
   });
@@ -484,8 +489,8 @@ function pmPaint() {
   if (!p) { pm.hidden = true; return }
   const pub = !!p.pub;
   pm.innerHTML = '<div class="pm-h">' + esc(p.name) + '</div>' +
-    '<button type="button" class="pm-i" data-pm="pub"' + (pmBusy ? ' disabled' : '') + '>' + (pub ? SVG.globe : SVG.lock) +
-    '<span><b>' + (pub ? 'Publik' : 'Private') + '</b><small>' + (pub ? 'Dibagikan lewat link — siapa pun bisa memutar' : 'Hanya ada di perangkat ini') + '</small></span>' +
+    '<button type="button" class="pm-i" data-pm="pub"' + (pmBusy ? ' disabled' : '') + '>' + (pub ? SVG.lock : SVG.globe) +
+    '<span><b>' + (pub ? 'Jadikan Private' : 'Jadikan Publik') + '</b><small>' + (pub ? 'Berhenti dibagikan — link lama mati' : 'Dibagikan lewat link — siapa pun bisa memutar') + '</small></span>' +
     '<span class="pm-sw' + (pub ? ' on' : '') + '" aria-hidden="true"></span></button>' +
     (pub ? '<button type="button" class="pm-i" data-pm="copy">' + SVG.link + '<span><b>Salin Link</b><small>/music?pl=' + esc(p.pub) + '</small></span></button>' : '');
 }
@@ -920,7 +925,7 @@ async function playSong(idx, list) {
   jget('/api/music/lyrics?title=' + encodeURIComponent(s.title) + '&artist=' + encodeURIComponent(s.artist) + '&dur=' + (s.dur || 0))
     .then(j => { lyr = j.lyrics ? (j.lyrics.synced && j.lyrics.synced.length ? j.lyrics.synced : j.lyrics.plain ? [{ t: -1, text: j.lyrics.plain }] : null) : null })
     .catch(() => {})
-    .finally(() => { lyrLoading = false; renderLrc() });
+    .finally(() => { lyrLoading = false; renderLrc(); if (trOn) ensureTr(true) });
   let j = await jget('/api/music/stream?id=' + encodeURIComponent(s.id) + '&clientId=' + encodeURIComponent(cid));
   /* 'sabr' = YouTube acak mengirim format tanpa URL (bukan soal IP): ulangi otomatis sampai 2x */
   for (let k = 0; k < 2 && !j.url && j.code === 'sabr' && qi === idx; k++) {
@@ -1051,23 +1056,15 @@ function pkRows() {
       '<span class="pk-n"><b>' + esc(p.name) + '</b><small>' + plSub(p) + '</small></span><span class="pk-ck' + (on ? ' on' : '') + '">' + (on ? SVG.check : '') + '</span></button>' }).join('')
     : '<div class="pk-e">Playlist tidak ditemukan.</div>';
 }
-function pkOpen(song, at) {
-  const c = song || cur(); if (!c) return;
+function pkOpen() {
+  const c = cur(); if (!c) return;
   pkSong = c; pkPend = [];
   pkSel = new Set(plList().filter(p => plHas(p, c.id)).map(p => p.id));
   $('mupkq').value = ''; pkRows(); pk.hidden = false;
-  const w = Math.min(340, innerWidth - 16);
+  const r = $('muadd').getBoundingClientRect(), w = Math.min(340, innerWidth - 16);
   pk.style.width = w + 'px';
-  if (at) { /* dari klik kanan / tekan lama: muncul di titik kursor, dijaga tetap di dalam layar */
-    pk.style.bottom = 'auto';
-    pk.style.left = Math.max(8, Math.min(at.x, innerWidth - w - 8)) + 'px';
-    pk.style.top = Math.max(8, Math.min(at.y, innerHeight - pk.offsetHeight - 8)) + 'px';
-  } else { /* dari tombol + di bar bawah: naik ke atas tombol */
-    const r = $('muadd').getBoundingClientRect();
-    pk.style.top = 'auto';
-    pk.style.left = Math.max(8, Math.min(r.left, innerWidth - w - 8)) + 'px';
-    pk.style.bottom = Math.max(8, innerHeight - r.top + 10) + 'px';
-  }
+  pk.style.left = Math.max(8, Math.min(r.left, innerWidth - w - 8)) + 'px';
+  pk.style.bottom = Math.max(8, innerHeight - r.top + 10) + 'px';
 }
 function pkClose() { pk.hidden = true; pkSong = null; pkPend = [] }
 $('mupkq').addEventListener('input', pkRows);
@@ -1098,134 +1095,6 @@ $('mupks').addEventListener('click', () => {
   paintAdd(); paintHome(); paintPage();
 });
 document.addEventListener('pointerdown', e => { if (!pk.hidden && !pk.contains(e.target) && !$('muadd').contains(e.target)) pkClose() });
-/* klik kanan (atau tekan lama di layar sentuh) pada lagu -> langsung popup pilih playlist, tanpa memutar lagunya.
-   Berlaku untuk card lagu (beranda & "Lihat semua"), hasil pencarian, dan baris lagu di halaman playlist/server/publik. */
-function songAtEl(el) {
-  const card = el.closest('.mu-card');
-  if (card) {
-    if (card.classList.contains('sk') || card.dataset.pl || card.dataset.opl) return null;
-    const l = recLists[card.dataset.k]; return l && l[+card.dataset.i] || null;
-  }
-  const res = el.closest('.mu-song');
-  if (res) return songs[+res.dataset.i] || null;
-  const row = el.closest('.mu-tr');
-  if (row) {
-    const box = row.parentElement, i = +row.dataset.i;
-    if (box.id === 'mutrs' && page && page.key.startsWith('pl:')) { const p = plGet(page.key.slice(3)); return p && p.songs[i] || null }
-    if (box.id === 'mushtrs' && page) return page.songs && page.songs[i] || null;
-    if (box.id === 'msrvtrs' && srv) return srv.songs[i] || null;
-  }
-  return null;
-}
-function ctxPick(el, x, y) {
-  const s = songAtEl(el); if (!s) return false;
-  if (!x && !y) { const r = el.getBoundingClientRect(); x = r.left + Math.min(r.width / 2, 120); y = r.top + r.height / 2 } /* tombol keyboard (Shift+F10 / tombol menu) */
-  pkOpen(s, { x, y }); return true;
-}
-document.addEventListener('contextmenu', e => {
-  if (!active() || !e.target.closest || !e.target.closest('#music')) return;
-  if (rd && rd.touch && e.target.closest('#mutrs')) { e.preventDefault(); return } /* tahan-geser urutan sedang berjalan */
-  if (ctxPick(e.target, e.clientX, e.clientY)) e.preventDefault();
-});
-/* sentuhan: tahan ~0,5 detik; klik sesudahnya ditelan supaya lagu tidak ikut terputar */
-let lpT = 0, lpX = 0, lpY = 0, lpDone = 0;
-const lpStop = () => { clearTimeout(lpT); lpT = 0 };
-document.addEventListener('pointerdown', e => {
-  lpStop();
-  if (e.pointerType !== 'touch' || !active() || !e.target.closest || !e.target.closest('#music') || !songAtEl(e.target) || rdOk(e.target)) return;
-  lpX = e.clientX; lpY = e.clientY; const el = e.target;
-  lpT = setTimeout(() => { lpT = 0; if (ctxPick(el, lpX, lpY)) { lpDone = Date.now(); if (navigator.vibrate) try { navigator.vibrate(12) } catch {} } }, 520);
-});
-document.addEventListener('pointermove', e => { if (lpT && Math.hypot(e.clientX - lpX, e.clientY - lpY) > 10) lpStop() });
-document.addEventListener('pointerup', lpStop);
-document.addEventListener('pointercancel', lpStop);
-document.addEventListener('click', e => { if (lpDone && Date.now() - lpDone < 800) { e.stopPropagation(); e.preventDefault(); lpDone = 0 } }, true);
-
-/* ---------- pindah urutan lagu di playlist sendiri: tahan lalu geser ----------
-   Mouse: tekan lalu geser >6px. Sentuhan: tahan ~0,35 detik (HP bergetar), lalu geser; dilepas tanpa geser = popup playlist.
-   Baris yang diangkat mengikuti jari, baris lain bergeser memberi celah; urutan baru disimpan saat dilepas.
-   Keyboard: Alt+↑ / Alt+↓ pada baris yang fokus. Esc membatalkan saat menggeser. */
-let rd = null;
-function rdPl() { return page && page.key.startsWith('pl:') ? plGet(page.key.slice(3)) : null }
-function rdOk(t) { const p = rdPl(); return !!(p && p.songs.length > 1 && t.closest('#mutrs .mu-tr') && !t.closest('[data-rm]')) }
-function rdLayout() {
-  const sc = $('music'), delta = (rd.y - rd.y0) + (sc.scrollTop - rd.s0);
-  rd.row.style.transform = 'translateY(' + delta + 'px) scale(1.015)';
-  const dc = rd.tops[rd.from] + rd.hs[rd.from] / 2 + delta;
-  let to = 0; rd.rows.forEach((r, i) => { if (i !== rd.from && rd.tops[i] + rd.hs[i] / 2 < dc) to++ });
-  rd.to = to;
-  rd.rows.forEach((r, i) => {
-    if (i === rd.from) return;
-    const d = rd.from < to && i > rd.from && i <= to ? -rd.step : rd.from > to && i >= to && i < rd.from ? rd.step : 0;
-    r.style.transform = d ? 'translateY(' + d + 'px)' : '';
-  });
-}
-function rdTick() {
-  if (!rd || !rd.on) return;
-  if (!rd.row.isConnected) { rdEnd(false); return }
-  const sc = $('music'), b = sc.getBoundingClientRect(); let v = 0; /* gulir otomatis di dekat tepi atas/bawah */
-  if (rd.y < b.top + 70) v = -Math.ceil((b.top + 70 - rd.y) / 5); else if (rd.y > b.bottom - 70) v = Math.ceil((rd.y - (b.bottom - 70)) / 5);
-  if (v) sc.scrollTop += Math.max(-18, Math.min(18, v));
-  rdLayout(); rd.raf = requestAnimationFrame(rdTick);
-}
-function rdStart() {
-  if (!rd || rd.on) return; rd.t = 0;
-  const rows = [...rd.box.querySelectorAll('.mu-tr')], s0 = $('music').scrollTop;
-  if (!rows[rd.from]) { rd = null; return }
-  rd.rows = rows; rd.s0 = s0; rd.x0 = rd.x; rd.y0 = rd.y;
-  rd.tops = rows.map(r => r.getBoundingClientRect().top + s0); rd.hs = rows.map(r => r.offsetHeight);
-  rd.step = rows.length > 1 ? rd.tops[1] - rd.tops[0] : rows[0].offsetHeight;
-  rd.on = true; rd.to = rd.from; rd.moved = false;
-  rd.box.classList.add('rd-on'); rd.row.classList.add('rd-lift');
-  try { rd.row.setPointerCapture(rd.id) } catch { }
-  if (rd.touch && navigator.vibrate) try { navigator.vibrate(12) } catch { }
-  rdTick();
-}
-function rdEnd(commit) {
-  if (!rd) return;
-  const r = rd; rd = null; clearTimeout(r.t); cancelAnimationFrame(r.raf);
-  if (!r.on) return;
-  r.box.classList.remove('rd-on'); r.row.classList.remove('rd-lift');
-  (r.rows || []).forEach(x => { x.style.transform = '' });
-  lpDone = Date.now(); /* telan klik setelah lepas supaya lagu tidak terputar */
-  try { r.row.releasePointerCapture(r.id) } catch { }
-  if (!r.row.isConnected) return;
-  if (commit && r.to !== r.from) {
-    const [m] = r.p.songs.splice(r.from, 1); r.p.songs.splice(r.to, 0, m);
-    if (!plSave()) say('Gagal menyimpan urutan: penyimpanan browser penuh.');
-    paintAdd(); renderPlPage(true);
-  } else if (commit && r.touch && !r.moved) ctxPick(r.row, r.x, r.y);
-}
-document.addEventListener('pointerdown', e => {
-  if (rd) rdEnd(false);
-  if (e.button !== 0 || !active() || !e.target.closest || !rdOk(e.target)) return;
-  const row = e.target.closest('#mutrs .mu-tr');
-  rd = { row, box: row.parentElement, p: rdPl(), from: +row.dataset.i, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, id: e.pointerId, touch: e.pointerType === 'touch', on: false, moved: false, t: 0 };
-  if (rd.touch) rd.t = setTimeout(rdStart, 350);
-});
-document.addEventListener('pointermove', e => {
-  if (!rd || e.pointerId !== rd.id) return;
-  rd.x = e.clientX; rd.y = e.clientY;
-  const d = Math.hypot(rd.x - rd.x0, rd.y - rd.y0);
-  if (!rd.on) { if (rd.touch ? d > 10 : d > 6) { if (rd.touch) { clearTimeout(rd.t); rd = null } else rdStart() } return }
-  if (d > 4) rd.moved = true;
-});
-document.addEventListener('pointerup', e => { if (rd && e.pointerId === rd.id) rdEnd(true) });
-document.addEventListener('pointercancel', e => { if (rd && e.pointerId === rd.id) rdEnd(false) });
-document.addEventListener('touchmove', e => { if (rd && rd.on) e.preventDefault() }, { passive: false }); /* cegah layar ikut gulir saat menggeser */
-document.addEventListener('dragstart', e => { if (e.target.closest && e.target.closest('#mutrs')) e.preventDefault() }); /* cegah seret-gambar bawaan browser */
-addEventListener('keydown', e => { if (e.key === 'Escape' && rd && rd.on) { rdEnd(false); e.stopPropagation() } }, true);
-document.addEventListener('keydown', e => {
-  if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') || !active() || !e.target.closest) return;
-  const row = e.target.closest('#mutrs .mu-tr'), p = rdPl(); if (!row || !p) return;
-  const i = +row.dataset.i, j = i + (e.key === 'ArrowUp' ? -1 : 1);
-  if (j < 0 || j >= p.songs.length) return;
-  e.preventDefault();
-  const [m] = p.songs.splice(i, 1); p.songs.splice(j, 0, m);
-  if (!plSave()) say('Gagal menyimpan urutan: penyimpanan browser penuh.');
-  paintAdd(); renderPlPage(true);
-  const nr = $('mutrs') && $('mutrs').querySelector('.mu-tr[data-i="' + j + '"]'); if (nr) nr.focus();
-});
 addEventListener('keydown', e => { if (e.key === 'Escape' && !pk.hidden) { pkClose(); e.stopPropagation() } }, true);
 addEventListener('storage', e => { if (e.key === PL_KEY) { plc = null; paintAdd(); paintHome(); paintPage() } });
 
@@ -1365,15 +1234,32 @@ qBox.addEventListener('click', e => {
 function renderLrc() {
   if (!sheet || sheetTab !== 'lyrics') return;
   const c = cur();
-  const key = (c ? c.id : '') + ':' + (lyrLoading ? 'L' : !lyr ? 'N' : lyr.length);
+  const tr = trOn && c ? trCache.get(c.id) : null; /* terjemahan per baris (kalau nyala & sudah diambil) */
+  const key = (c ? c.id : '') + ':' + (lyrLoading ? 'L' : !lyr ? 'N' : lyr.length) + (tr && tr.length ? ':T' : '');
   if (key === lrcBuilt && lrcBox.firstChild) return; /* sudah dirender: jangan bongkar (scroll & sorotan ikut hilang tiap play/pause) */
   lrcBuilt = key; lrcIdx = -1;
   const synced = !!(lyr && lyr.length && lyr[0].t >= 0);
   lrcBox.classList.toggle('sync', synced);
   if (lyrLoading) { lrcBox.innerHTML = '<div class="mu-lrc-empty">Mencari lirik…</div>'; return }
   if (!lyr || !lyr.length) { lrcBox.innerHTML = '<div class="mu-lrc-empty">Lirik tidak ditemukan untuk lagu ini.</div>'; return }
-  lrcBox.innerHTML = lyr.map((l, i) => '<div class="ln" data-i="' + i + '"' + (l.t < 0 ? ' data-plain="1"' : '') + '>' + esc(l.text) + '</div>').join('');
+  lrcBox.innerHTML = lyr.map((l, i) => '<div class="ln" data-i="' + i + '"' + (l.t < 0 ? ' data-plain="1"' : '') + '>' + esc(l.text) +
+    (tr && tr[i] ? '<span class="tr">' + esc(tr[i]) + '</span>' : '') + '</div>').join('');
   lrcBox.scrollTop = 0;
+}
+/* ---------- terjemahan lirik (tombol ikon di baris tab; hasil = teks kecil di bawah tiap baris) ----------
+   Satu permintaan per lagu (semua baris dikirim sekaligus ke /api/music/translate), cache per lagu
+   supaya pindah lagu balik-lalu tidak mengulang. Auto (lagu berganti saat terjemahan nyala) gagal
+   = diam saja; lewat klik tombol = toast supaya user tahu. */
+async function ensureTr(silent) {
+  const c = cur(); if (!c || !lyr || !lyr.length || trBusy || trCache.has(c.id)) return;
+  trBusy = true; const b = $('mnptr'); if (b) b.setAttribute('aria-busy', 'true');
+  const j = await jpost('/api/music/translate', { clientId: cid, lang: 'id', text: lyr.map(l => l.text) });
+  trBusy = false; if (b) b.removeAttribute('aria-busy');
+  if (j && j.ok && Array.isArray(j.tr)) {
+    trCache.set(c.id, j.tr);
+    if (trCache.size > 30) trCache.delete(trCache.keys().next().value); /* jaga memori */
+    if (trOn && cur() && cur().id === c.id) { lrcBuilt = ''; renderLrc() } /* gambar ulang dengan terjemahan */
+  } else if (!silent) say((j && j.error) || 'Terjemahan gagal, coba lagi');
 }
 /* baris yang sedang dinyanyikan (pencarian biner; +0.25 dtk supaya sorotan sedikit mendahului suara) */
 function lrcFind(t) {
@@ -1409,6 +1295,17 @@ lrcBox.addEventListener('click', e => {
 
 /* tab lirik / antrean */
 for (const id of ['mnptab-l', 'mnptab-q']) $(id).addEventListener('click', () => { sheetTab = $(id).dataset.t; renderSheet(); if (sheetTab === 'lyrics') lrcShow() });
+/* terjemahan lirik: tombol kecil di baris tab — nyalakan/matikan; teks terjemahan tampil di bawah tiap baris */
+$('mnptr').addEventListener('click', () => {
+  if (!trOn && !lyrLoading && (!lyr || !lyr.length)) { say('Tidak ada lirik untuk diterjemahkan'); return }
+  trOn = !trOn;
+  store.set('mlrctr', trOn ? '1' : '0');
+  const b = $('mnptr'); b.classList.toggle('on', trOn); b.setAttribute('aria-pressed', trOn ? 'true' : 'false');
+  if (!trOn) { lrcBuilt = ''; renderLrc(); return } /* matikan: hapus teks terjemahan */
+  if (cur() && !trCache.has(cur().id)) ensureTr(false); /* belum pernah diterjemahkan -> ambil dulu (render dari ensureTr) */
+  else { lrcBuilt = ''; renderLrc() } /* sudah ada cache -> langsung tampil */
+});
+if (trOn) { $('mnptr').classList.add('on'); $('mnptr').setAttribute('aria-pressed', 'true') } /* pilihan lama: nyala lagi */
 $('mnpsh').addEventListener('click', () => { shuffle = !shuffle; save(); renderSheet(); renderPl() });
 $('mnprp').addEventListener('click', () => { repeat = repeat === 'off' ? 'all' : repeat === 'all' ? 'one' : 'off'; save(); renderSheet(); renderPl(); say(repeat === 'off' ? 'Ulangi mati' : repeat === 'all' ? 'Ulangi semua' : 'Ulangi satu lagu') });
 $('mnpplay').addEventListener('click', toggle);
