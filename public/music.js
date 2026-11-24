@@ -38,6 +38,10 @@ const SVG = {
   close: '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>',
   plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
   check: '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+  heart: '<svg viewBox="0 0 24 24"><path d="M12 20.5s-7.5-4.6-7.5-10A4.3 4.3 0 0112 7.9a4.3 4.3 0 017.5 2.6c0 5.4-7.5 10-7.5 10z" fill="currentColor" stroke="none"/></svg>',
+  note: '<svg viewBox="0 0 24 24"><path d="M9 18V5l10-2v13M9 18a3 3 0 11-6 0 3 3 0 016 0zm10-2a3 3 0 11-6 0 3 3 0 016 0z"/></svg>',
+  edit: '<svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>',
+  trash: '<svg viewBox="0 0 24 24"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/></svg>',
   panel: '<svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="3"/><path d="M14.5 4.5v15"/></svg>',
   vol2: '<svg class="sv" viewBox="0 0 24 24"><path d="M4 9.5v5h3.5l4.5 4v-13l-4.5 4z"/><path d="M15.5 9a4 4 0 010 6M18 6.5a8 8 0 010 11"/></svg>',
   vol1: '<svg class="sv" viewBox="0 0 24 24"><path d="M4 9.5v5h3.5l4.5 4v-13l-4.5 4z"/><path d="M15.5 9a4 4 0 010 6"/></svg>',
@@ -77,17 +81,43 @@ const slim = s => ({ id: s.id, title: s.title, artist: s.artist, album: s.album 
 const hget = () => { try { const a = JSON.parse(store.get('mhist') || '[]'); return Array.isArray(a) ? a : [] } catch { return [] } };
 const hadd = s => { const a = hget().filter(x => x.id !== s.id); a.unshift(slim(s)); store.set('mhist', JSON.stringify(a.slice(0, 40))) };
 
-/* lagu tersimpan ('mlib', terbaru di depan, maks 500) — tombol + di mini player. Hanya di perangkat ini (tidak ikut sinkron cloud, sama seperti 'mqueue') */
-const LIB_MAX = 500;
-const lget = () => { try { const a = JSON.parse(store.get('mlib') || '[]'); return Array.isArray(a) ? a.filter(x => x && x.id) : [] } catch { return [] } };
-const inLib = id => !!id && lget().some(x => x.id === id);
-/* true = tersimpan, false = dihapus dari simpanan, null = penuh / gagal menulis */
-function libToggle(s) {
-  const a = lget(), i = a.findIndex(x => x.id === s.id);
-  if (i >= 0) a.splice(i, 1);
-  else { if (a.length >= LIB_MAX) return null; a.unshift(slim(s)) }
-  try { localStorage.setItem('mlib', JSON.stringify(a)) } catch { return null } /* store.set menelan error: di sini perlu tahu kalau penyimpanan penuh */
-  return i < 0;
+/* ---------- playlist ('mpl'): {pls:[{id,name,songs:[slim]}]}. id 'liked' = playlist bawaan "Lagu disukai" (selalu ada, urutan pertama).
+   Hanya di perangkat ini (tidak ikut sinkron cloud, sama seperti 'mqueue'). Kunci lama 'mlib' (daftar lagu tersimpan) dimigrasi ke 'liked'. ---------- */
+const PL_KEY = 'mpl', LIKED = 'liked', PL_SONGS = 500, PL_MAX = 50;
+let plc = null;
+function plLoad() {
+  let o = null; try { o = JSON.parse(store.get(PL_KEY) || 'null') } catch {}
+  if (!o || !Array.isArray(o.pls)) {
+    let old = []; try { const a = JSON.parse(store.get('mlib') || '[]'); if (Array.isArray(a)) old = a } catch {}
+    o = { pls: [{ id: LIKED, name: 'Lagu disukai', songs: old }] };
+  }
+  o.pls = o.pls.filter(p => p && typeof p.id === 'string');
+  if (!o.pls.some(p => p.id === LIKED)) o.pls.unshift({ id: LIKED, name: 'Lagu disukai', songs: [] });
+  o.pls.forEach(p => { p.songs = (Array.isArray(p.songs) ? p.songs : []).filter(x => x && x.id).slice(0, PL_SONGS); p.name = p.id === LIKED ? 'Lagu disukai' : String(p.name || 'Playlist').slice(0, 60) });
+  o.pls.sort((a, b) => (b.id === LIKED) - (a.id === LIKED)); /* sort stabil: bawaan di depan, sisanya urutan dibuat */
+  return o;
+}
+const plAll = () => plc || (plc = plLoad());
+const plList = () => plAll().pls;
+const plGet = id => plList().find(p => p.id === id) || null;
+const plHas = (p, sid) => !!p && p.songs.some(x => x.id === sid);
+function plSave() { /* false = gagal (penyimpanan penuh): muat ulang dari disk supaya memori tidak beda dengan yang tersimpan */
+  try { localStorage.setItem(PL_KEY, JSON.stringify(plc)); store.set('mlib', null); return true } catch { plc = null; return false }
+}
+const plNewId = () => 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+function plNextName(extra) {
+  const used = new Set(plList().concat(extra || []).map(p => p.name));
+  for (let n = 1; ; n++) { const t = 'Playlist #' + n; if (!used.has(t)) return t }
+}
+const plDur = p => p.songs.reduce((a, x) => a + (x.dur || 0), 0);
+const plSub = p => p.songs.length + ' lagu';
+/* isi sampul: bawaan = ikon hati; >=4 lagu = grid 2x2 dari 4 lagu pertama; 1-3 lagu = sampul lagu pertama; kosong = ikon not */
+function covInner(p) {
+  const l = p.songs;
+  if (p.id === LIKED) return '<span class="mu-heart">' + SVG.heart + '</span>';
+  if (l.length >= 4) return '<span class="mu-mos">' + l.slice(0, 4).map(x => '<img src="' + esc(x.thumb || '') + '" alt="" loading="lazy" draggable="false">').join('') + '</span>';
+  if (l.length) return '<img src="' + esc(l[0].thumb || '') + '" alt="" loading="lazy" draggable="false">';
+  return '<span class="mu-note">' + SVG.note + '</span>';
 }
 
 /* ---------- mini player + lembar now playing: dibangun sekali, isi diperbarui ---------- */
@@ -230,8 +260,8 @@ function paintHome() {
   const el = $('muhome');
   if (!el || !active()) return;
   if (searching || searched) { el.innerHTML = ''; return }
-  const hist = hget().slice(0, 40), lib = lget();
-  let h = lib.length ? secHtml('lib', 'Lagu tersimpan', lib) : '';
+  const hist = hget().slice(0, 40);
+  let h = plSecHtml();
   if (hist.length) h += secHtml('hist', 'Jump back in', hist);
   if (recBusy || !rec) h += skelSec();
   else if (rec.err) h += '<div class="mu-msg">Rekomendasi belum bisa dimuat. Coba cari lagu di atas, misalnya <b>monokrom tulus</b> atau <b>yoasobi racing</b>.</div>';
@@ -257,6 +287,7 @@ function onHome(e) {
   if (more) { openPage(more.dataset.more); return }
   const card = e.target.closest('.mu-card');
   if (!card || card.classList.contains('sk')) return;
+  if (card.dataset.pl) { const p = plGet(card.dataset.pl); if (!p) return; if (e.target.closest('.pp')) { if (p.songs.length) playSong(0, p.songs.slice()) } else openPl(p.id); return }
   const list = recLists[card.dataset.k], i = +card.dataset.i;
   if (!list || !list[i]) return;
   if (e.target.closest('[data-add]')) { e.stopPropagation(); queue.push(list[i]); save(); say('Ditambahkan ke antrean: ' + list[i].title); if (sheet) renderSheet(); return }
@@ -266,12 +297,12 @@ function onHome(e) {
 /* ---------- halaman "Lihat semua": seluruh isi satu kategori sebagai halaman sendiri (tombol kembali) ---------- */
 function pageSongs() {
   if (!page) return [];
-  const l = page.key === 'hist' ? hget().slice(0, 40) : page.key === 'lib' ? lget() : (recLists[page.key] || []);
+  const l = page.key === 'hist' ? hget().slice(0, 40) : (recLists[page.key] || []);
   recLists[page.key] = l;
   return l;
 }
 function openPage(key) {
-  const meta = key === 'hist' ? { key, title: 'Jump back in' } : key === 'lib' ? { key, title: 'Lagu tersimpan' } : (rec && rec.secs || []).find(x => x.key === key);
+  const meta = key === 'hist' ? { key, title: 'Jump back in' } : (rec && rec.secs || []).find(x => x.key === key);
   if (!meta) return;
   pageY = $('music') ? $('music').scrollTop : 0;
   page = { key, title: meta.title, sub: meta.sub, avatar: meta.avatar };
@@ -283,6 +314,7 @@ function closePage() {
   if ($('music')) $('music').scrollTop = pageY;
 }
 function renderPage() {
+  if (page.key.startsWith('pl:')) { renderPlPage(); return }
   const songs = pageSongs();
   body.innerHTML =
     '<div class="mu-ptw"><button type="button" class="mu-ptog" id="muptog" aria-label="Tampilkan pemutar" title="Tampilkan pemutar">' + SVG.panel + '</button></div>' +
@@ -296,11 +328,84 @@ function renderPage() {
   $('mupage').addEventListener('click', onHome);
 }
 function paintPage() {
+  if (page && page.key.startsWith('pl:')) { if (active()) renderPlPage(true); return }
   const g = $('mupage');
   if (!g || !active() || !page) return;
   const l = pageSongs();
   g.innerHTML = l.map((x, i) => cardHtml(x, page.key, i)).join('');
   const n = $('mupgn'); if (n) n.textContent = l.length + ' lagu';
+}
+
+/* ---------- playlist: baris di beranda + halaman playlist (ala halaman album) ---------- */
+function plSecHtml() {
+  const l = plList();
+  if (l.length < 2 && !l[0].songs.length) return ''; /* belum ada apa pun: jangan tampilkan baris kosong */
+  return '<section class="mu-sec" data-sec="pls"><div class="mu-shr"><div class="mu-sht"><div><h2>Playlist kamu</h2></div></div></div><div class="mu-rw"><div class="mu-grid">' +
+    l.map(p => '<button type="button" class="mu-card" data-pl="' + esc(p.id) + '"><span class="cv">' + covInner(p) + (p.songs.length ? '<span class="pp" role="button" aria-label="Putar ' + esc(p.name) + '">' + SVG.play + '</span>' : '') + '</span>' +
+      '<b class="t">' + esc(p.name) + '</b><span class="a">Playlist · ' + plSub(p) + '</span></button>').join('') + '</div>' +
+    '<button type="button" class="mu-arr l" data-arr="-1" aria-label="Geser ke kiri" hidden>' + CHEV + '</button>' +
+    '<button type="button" class="mu-arr r" data-arr="1" aria-label="Geser ke kanan" hidden>' + CHEV + '</button></div></section>';
+}
+function openPl(id) {
+  const p = plGet(id); if (!p) return;
+  pageY = $('music') ? $('music').scrollTop : 0;
+  page = { key: 'pl:' + id, title: p.name };
+  render();
+  if ($('music')) $('music').scrollTop = 0;
+}
+const fmtLong = s => { const m = Math.round(s / 60); return m >= 60 ? Math.floor(m / 60) + ' j ' + (m % 60) + ' mnt' : Math.max(1, m) + ' mnt' };
+let plArm = 0;
+function renderPlPage(keepY) {
+  const p = plGet(page.key.slice(3));
+  if (!p) { page = null; render(); return }
+  const y = keepY && $('music') ? $('music').scrollTop : 0, c = cur(), own = p.id !== LIKED;
+  body.innerHTML =
+    '<div class="mu-ptw"><button type="button" class="mu-ptog" id="muptog" aria-label="Tampilkan pemutar" title="Tampilkan pemutar">' + SVG.panel + '</button></div>' +
+    '<div class="mu-pgh"><button type="button" class="mu-back" id="muback" aria-label="Kembali">' + CHEV + '</button></div>' +
+    '<div class="mu-plh"><div class="mu-plc">' + covInner(p) + '</div><div class="mu-plm"><small>Playlist</small><h1 id="mupln">' + esc(p.name) + '</h1>' +
+    '<p>' + plSub(p) + (p.songs.length ? ' · ' + fmtLong(plDur(p)) : '') + '</p></div></div>' +
+    '<div class="mu-pla"><button type="button" class="mupl-play big" id="muplplay" aria-label="Putar playlist"' + (p.songs.length ? '' : ' disabled') + '>' + SVG.play + '</button>' +
+    '<button type="button" class="mu-plb" id="muplsh" aria-label="Putar acak" title="Putar acak"' + (p.songs.length ? '' : ' disabled') + '>' + SVG.shuffle + '</button>' +
+    (own ? '<button type="button" class="mu-plb" id="muplren" aria-label="Ubah nama" title="Ubah nama">' + SVG.edit + '</button>' +
+      '<button type="button" class="mu-plb" id="mupldel" aria-label="Hapus playlist" title="Hapus playlist">' + SVG.trash + '</button>' : '') + '</div>' +
+    (p.songs.length ? '<div class="mu-trs" id="mutrs">' + p.songs.map((x, i) =>
+      '<div class="mu-tr' + (c && c.id === x.id ? ' now' : '') + '" data-i="' + i + '" role="button" tabindex="0">' +
+      '<span class="n">' + (c && c.id === x.id ? '<span class="mu-eq" aria-label="Sedang diputar"><i></i><i></i><i></i></span>' : i + 1) + '</span>' +
+      '<img src="' + esc(x.thumb || '') + '" alt="" loading="lazy">' +
+      '<span class="si"><b>' + esc(x.title) + '</b><span>' + esc(x.artist) + '</span></span>' +
+      '<span class="al">' + esc(x.album || '') + '</span><span class="dur">' + fmt(x.dur) + '</span>' +
+      '<span class="rm" role="button" tabindex="0" data-rm="' + i + '" title="Hapus dari playlist" aria-label="Hapus ' + esc(x.title) + ' dari playlist">' + SVG.close + '</span></div>').join('') + '</div>'
+      : '<div class="mu-msg">Playlist ini masih kosong. Putar lagu, klik tombol <b>+</b> di bar bawah <b>2×</b>, lalu pilih playlist ini.</div>');
+  if ($('music')) $('music').scrollTop = y;
+  $('muback').addEventListener('click', closePage);
+  $('muptog').addEventListener('click', () => setPanel(true));
+  $('muplplay').addEventListener('click', () => { if (p.songs.length) playSong(0, p.songs.slice()) });
+  $('muplsh').addEventListener('click', () => { if (!p.songs.length) return; shuffle = true; save(); playSong(Math.floor(Math.random() * p.songs.length), p.songs.slice()) });
+  if (own) {
+    $('muplren').addEventListener('click', () => {
+      const h = $('mupln'); if (h.querySelector('input')) return;
+      h.innerHTML = '<input class="mu-rn" maxlength="60" aria-label="Nama playlist">';
+      const inp = h.firstChild; inp.value = p.name; inp.focus(); inp.select();
+      let done = false;
+      const fin = ok => { if (done) return; done = true; const v = inp.value.trim(); if (ok && v && v !== p.name) { p.name = v.slice(0, 60); plSave() } renderPlPage(true); paintHome() };
+      inp.addEventListener('keydown', e => { if (e.key === 'Enter') fin(true); else if (e.key === 'Escape') { e.stopPropagation(); fin(false) } });
+      inp.addEventListener('blur', () => fin(true));
+    });
+    $('mupldel').addEventListener('click', () => {
+      const b = $('mupldel');
+      if (!plArm) { plArm = setTimeout(() => { plArm = 0; if ($('mupldel')) { $('mupldel').classList.remove('arm'); $('mupldel').title = 'Hapus playlist' } }, 3000); b.classList.add('arm'); b.title = 'Tap lagi untuk menghapus'; say('Tap sekali lagi untuk menghapus playlist ini'); return }
+      clearTimeout(plArm); plArm = 0;
+      const l = plList(), i = l.findIndex(x => x.id === p.id); if (i > 0) l.splice(i, 1);
+      plSave(); say('Playlist dihapus: ' + p.name); paintAdd(); closePage();
+    });
+  }
+  const t = $('mutrs');
+  if (t) t.addEventListener('click', e => {
+    const rm = e.target.closest('[data-rm]');
+    if (rm) { e.stopPropagation(); const i = +rm.dataset.rm; p.songs.splice(i, 1); plSave(); paintAdd(); renderPlPage(true); return }
+    const row = e.target.closest('.mu-tr');
+    if (row) { const i = +row.dataset.i; playSong(0, p.songs.slice(i).concat(p.songs.slice(0, i))) }
+  });
 }
 
 /* ---------- render: layar pencarian ---------- */
@@ -443,10 +548,10 @@ function renderPl() {
   paintCtl(); paintAdd();
 }
 function paintAdd() {
-  const s = cur(), b = $('muadd'), on = !!s && inLib(s.id);
+  const c = cur(), b = $('muadd'), on = !!c && plHas(plGet(LIKED), c.id);
   b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on));
   b.innerHTML = on ? SVG.check : SVG.plus;
-  b.title = on ? 'Hapus dari lagu tersimpan' : 'Simpan lagu';
+  b.title = (on ? 'Hapus dari Lagu disukai' : 'Simpan ke Lagu disukai') + ' · klik 2× untuk pilih playlist';
   b.setAttribute('aria-label', b.title);
 }
 /* kontrol di bar bawah desktop: ikon putar/jeda, acak, ulang (tanpa ulang <-> ulang lagu yang sama) */
@@ -465,14 +570,85 @@ $('mupnx').addEventListener('click', () => next());
 $('muppv').addEventListener('click', () => prev());
 $('mupsh').addEventListener('click', () => { shuffle = !shuffle; save(); renderPl(); renderSheet() });
 $('muprp').addEventListener('click', () => { repeat = repeat === 'off' ? 'one' : 'off'; save(); renderPl(); renderSheet(); say(repeat === 'off' ? 'Ulangi mati' : 'Ulangi satu lagu') });
+/* tombol + (kolom kiri bar bawah, tidak ikut kolom tengah): klik 1x = simpan/hapus di "Lagu disukai"; klik 2x = pilih playlist.
+   Klik tunggal ditunda sebentar supaya bisa dibedakan dari klik ganda. */
+let addT = 0;
+function quickLike() {
+  const c = cur(); if (!c) return;
+  const p = plGet(LIKED), has = plHas(p, c.id);
+  if (has) p.songs = p.songs.filter(x => x.id !== c.id);
+  else if (p.songs.length >= PL_SONGS) { say('Lagu disukai penuh (maks ' + PL_SONGS + ').'); return }
+  else p.songs.unshift(slim(c));
+  if (!plSave()) { say('Gagal menyimpan: penyimpanan browser penuh.'); paintAdd(); return }
+  say(has ? 'Dihapus dari Lagu disukai: ' + c.title : 'Ditambahkan ke Lagu disukai: ' + c.title);
+  paintAdd(); paintHome(); paintPage();
+}
 $('muadd').addEventListener('click', e => {
   e.stopPropagation();
-  const s = cur(); if (!s) return;
-  const r = libToggle(s);
-  if (r === null) say(lget().length >= LIB_MAX ? 'Lagu tersimpan penuh (maks ' + LIB_MAX + ').' : 'Gagal menyimpan: penyimpanan browser penuh.');
-  else say(r ? 'Disimpan ke Lagu tersimpan: ' + s.title : 'Dihapus dari Lagu tersimpan: ' + s.title);
+  if (!cur()) return;
+  if (!pk.hidden) { pkClose(); return }
+  if (addT) { clearTimeout(addT); addT = 0; pkOpen(); return }
+  addT = setTimeout(() => { addT = 0; quickLike() }, 260);
+});
+
+/* ---------- popup "Tambahkan ke playlist": perubahan ditampung dulu, baru berlaku saat Simpan ---------- */
+const pk = document.createElement('div'); pk.id = 'mupk'; pk.hidden = true; pk.setAttribute('role', 'dialog'); pk.setAttribute('aria-label', 'Tambahkan ke playlist');
+pk.innerHTML = '<div class="pk-h">Tambahkan ke playlist</div>' +
+  '<label class="pk-s">' + SVG.search + '<input id="mupkq" type="search" placeholder="Cari playlist" autocomplete="off" aria-label="Cari playlist"></label>' +
+  '<button type="button" class="pk-new" id="mupknew">' + SVG.plus + '<span>Playlist baru</span></button>' +
+  '<div class="pk-l" id="mupkl"></div>' +
+  '<div class="pk-f"><button type="button" id="mupkc">Batal</button><button type="button" class="go" id="mupks">Simpan</button></div>';
+app.append(pk);
+let pkSong = null, pkSel = null, pkPend = [];
+function pkRows() {
+  const q = $('mupkq').value.trim().toLowerCase();
+  const all = plList().concat(pkPend).filter(p => !q || p.name.toLowerCase().includes(q));
+  $('mupkl').innerHTML = all.length ? all.map(p => { const on = pkSel.has(p.id);
+    return '<button type="button" class="pk-r" data-id="' + esc(p.id) + '" role="checkbox" aria-checked="' + on + '"><span class="pk-c">' + covInner(p) + '</span>' +
+      '<span class="pk-n"><b>' + esc(p.name) + '</b><small>' + plSub(p) + '</small></span><span class="pk-ck' + (on ? ' on' : '') + '">' + (on ? SVG.check : '') + '</span></button>' }).join('')
+    : '<div class="pk-e">Playlist tidak ditemukan.</div>';
+}
+function pkOpen() {
+  const c = cur(); if (!c) return;
+  pkSong = c; pkPend = [];
+  pkSel = new Set(plList().filter(p => plHas(p, c.id)).map(p => p.id));
+  $('mupkq').value = ''; pkRows(); pk.hidden = false;
+  const r = $('muadd').getBoundingClientRect(), w = Math.min(340, innerWidth - 16);
+  pk.style.width = w + 'px';
+  pk.style.left = Math.max(8, Math.min(r.left, innerWidth - w - 8)) + 'px';
+  pk.style.bottom = Math.max(8, innerHeight - r.top + 10) + 'px';
+}
+function pkClose() { pk.hidden = true; pkSong = null; pkPend = [] }
+$('mupkq').addEventListener('input', pkRows);
+$('mupkc').addEventListener('click', pkClose);
+$('mupknew').addEventListener('click', () => {
+  if (plList().length + pkPend.length >= PL_MAX) { say('Maks ' + PL_MAX + ' playlist.'); return }
+  const np = { id: plNewId(), name: plNextName(pkPend), songs: [] };
+  pkPend.push(np); pkSel.add(np.id); $('mupkq').value = ''; pkRows();
+  const l = $('mupkl'); l.scrollTop = l.scrollHeight;
+});
+$('mupkl').addEventListener('click', e => {
+  const r = e.target.closest('.pk-r'); if (!r) return;
+  const id = r.dataset.id; pkSel.has(id) ? pkSel.delete(id) : pkSel.add(id); pkRows();
+});
+$('mupks').addEventListener('click', () => {
+  const c = pkSong; if (!c) return;
+  const before = plList().map(p => p.songs.slice()); /* untuk membatalkan kalau gagal menyimpan */
+  plList().push(...pkPend);
+  let n = 0, full = 0, last = '';
+  for (const p of plList()) {
+    const on = pkSel.has(p.id), has = plHas(p, c.id);
+    if (on && !has) { if (p.songs.length >= PL_SONGS) { full++; continue } p.songs.unshift(slim(c)); n++; last = p.name }
+    else if (!on && has) { p.songs = p.songs.filter(x => x.id !== c.id); n++; last = p.name }
+  }
+  const made = pkPend.length; pkClose();
+  if (!plSave()) { say('Gagal menyimpan: penyimpanan browser penuh.'); paintAdd(); paintHome(); paintPage(); return }
+  say(full ? 'Sebagian playlist penuh (maks ' + PL_SONGS + ' lagu).' : n + made === 0 ? 'Tidak ada perubahan.' : n === 1 && !made ? 'Playlist diperbarui: ' + last : 'Playlist diperbarui.');
   paintAdd(); paintHome(); paintPage();
 });
+document.addEventListener('pointerdown', e => { if (!pk.hidden && !pk.contains(e.target) && !$('muadd').contains(e.target)) pkClose() });
+addEventListener('keydown', e => { if (e.key === 'Escape' && !pk.hidden) { pkClose(); e.stopPropagation() } }, true);
+addEventListener('storage', e => { if (e.key === PL_KEY) { plc = null; paintAdd(); paintHome(); paintPage() } });
 
 /* volume (disimpan di 'mvol'); tombol speaker = bisukan / bunyikan */
 { const v = parseFloat(store.get('mvol')); if (isFinite(v)) audio.volume = Math.min(1, Math.max(0, v)) }
