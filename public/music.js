@@ -103,20 +103,21 @@ $('mnpx').addEventListener('click', () => { sheet = false; np.classList.remove('
 $('musi').addEventListener('click', () => { sheet = true; np.classList.add('on'); renderSheet(); if (sheetTab === 'lyrics') lrcShow() });
 $('muart').addEventListener('click', () => $('musi').click());
 
-/* ---------- beranda ala Spotify: tiap kategori = 1 baris, "Lihat semua" membuka seluruh isinya ----------
-   Kategori: "Putar lagi" (riwayat) + satu baris per artis favorit ("Lainnya dari X") bila ada riwayat;
-   tanpa riwayat = beberapa baris lagu populer. Semua dari /api/music/search (tanpa endpoint baru). */
-const REC_TTL = 3 * 3600e3;
+/* ---------- beranda ala Spotify: tiap kategori = 1 baris carousel (10 lagu, geser pakai panah) ----------
+   Urutan: "Jump back in" (10 lagu terakhir diputar) -> "Rekomendasi" -> satu baris per artis favorit ("Lainnya dari X").
+   "Lihat semua" membuka seluruh isi kategori (grid). Semua dari /api/music/search (tanpa endpoint baru). */
+const REC_TTL = 3 * 3600e3, ROW_N = 10;
 let rec = null, recBusy = false;   // rec = {k, secs:[{key,title,sub,avatar,songs}], err}
 const recLists = {};               // key kategori -> daftar lagu (dipakai klik card)
 const openSecs = new Set();        // kategori yang sedang "Lihat semua"
 const firstArtist = a => String(a || '').split(/,|&| feat\.? /i)[0].trim();
+const CHEV = '<svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>';
 function recPlan() {
   const h = hget(), cnt = {};
   h.forEach((s, i) => { const a = firstArtist(s.artist); if (a && a !== '—') cnt[a] = (cnt[a] || 0) + (h.length - i) }); /* lagu yang lebih baru berbobot lebih besar */
   const top = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a]).slice(0, 3);
-  const qs = top.length ? top.map((a, i) => ({ key: 'a' + i, q: a, artist: a }))
-    : [{ key: 'g0', q: 'lagu indonesia populer', title: 'Lagu Indonesia populer' }, { key: 'g1', q: 'top hits 2026', title: 'Top hits' }, { key: 'g2', q: 'lagu viral', title: 'Lagu viral' }];
+  const qs = [{ key: 'r0', q: 'lagu indonesia populer', rec: true }, { key: 'r1', q: 'top hits 2026', rec: true }]
+    .concat(top.length ? top.map((a, i) => ({ key: 'a' + i, q: a, artist: a })) : [{ key: 'g0', q: 'lagu viral', title: 'Lagu viral' }]);
   return { hist: h, personal: !!top.length, qs };
 }
 async function loadRec() {
@@ -124,23 +125,26 @@ async function loadRec() {
   const plan = recPlan(), k = plan.qs.map(x => x.q).join('|');
   if (rec && rec.k === k && !rec.err) return;
   try {
-    const c = JSON.parse(store.get('mrec2') || 'null');
+    const c = JSON.parse(store.get('mrec3') || 'null');
     if (c && c.k === k && Date.now() - c.t < REC_TTL && Array.isArray(c.secs) && c.secs.length) { rec = { k, secs: c.secs }; paintHome(); return }
   } catch {}
   recBusy = true; paintHome();
   const rs = await Promise.all(plan.qs.map(x => jget('/api/music/search?q=' + encodeURIComponent(x.q) + '&clientId=' + encodeURIComponent(cid))));
   recBusy = false;
-  const seen = new Set(plan.personal ? plan.hist.map(s => s.id) : []), secs = [];
-  plan.qs.forEach((x, i) => {
-    const all = Array.isArray(rs[i].songs) ? rs[i].songs : [];
-    const songs = all.filter(s => s && !seen.has(s.id)).slice(0, 20).map(slim);
+  const seen = new Set(plan.personal ? plan.hist.map(s => s.id) : []);
+  const got = plan.qs.map((x, i) => ({ x, all: Array.isArray(rs[i].songs) ? rs[i].songs.filter(s => s && s.id) : [] }));
+  const rows = [];
+  /* baris artis/lainnya dulu (agar tidak habis dimakan Rekomendasi), tapi ditampilkan setelah Rekomendasi */
+  got.filter(g => !g.x.rec).forEach(({ x, all }) => {
+    const songs = all.filter(s => !seen.has(s.id)).slice(0, 20).map(slim);
     songs.forEach(s => seen.add(s.id));
-    if (!songs.length) return;
-    secs.push(x.artist ? { key: x.key, title: x.artist, sub: 'Lainnya dari', avatar: (all[0] && all[0].thumb) || songs[0].thumb, songs }
-      : { key: x.key, title: x.title, songs });
+    if (songs.length) rows.push(x.artist ? { key: x.key, title: x.artist, sub: 'Lainnya dari', avatar: (all[0] && all[0].thumb) || songs[0].thumb, songs } : { key: x.key, title: x.title, songs });
   });
+  const lists = got.filter(g => g.x.rec).map(g => g.all), mix = [];
+  for (let i = 0; mix.length < 30 && i < 20; i++) for (const l of lists) { const s = l[i]; if (s && !seen.has(s.id)) { seen.add(s.id); mix.push(slim(s)) } }
+  const secs = (mix.length ? [{ key: 'rec', title: 'Rekomendasi', songs: mix }] : []).concat(rows);
   rec = { k, secs, err: !secs.length };
-  if (secs.length) store.set('mrec2', JSON.stringify({ k, t: Date.now(), secs }));
+  if (secs.length) store.set('mrec3', JSON.stringify({ k, t: Date.now(), secs }));
   paintHome();
 }
 function cardHtml(s, key, i) {
@@ -152,46 +156,51 @@ function cardHtml(s, key, i) {
     '<span class="mu-cadd" role="button" tabindex="0" data-add title="Tambah ke antrean" aria-label="Tambah ' + esc(s.title) + ' ke antrean">' + SVG.plus + '</span></span>' +
     '<b class="t">' + esc(s.title) + '</b><span class="a">' + esc(s.artist) + '</span></button>';
 }
-/* satu kategori: header (avatar bulat bila artis) + tombol Lihat semua + baris card */
+/* satu kategori: header (avatar bulat bila artis) + Lihat semua + baris card dengan panah geser */
 function secHtml(key, title, songs, o = {}) {
   recLists[key] = songs;
   const open = openSecs.has(key);
   return '<section class="mu-sec' + (open ? ' open' : '') + '" data-sec="' + key + '"><div class="mu-shr"><div class="mu-sht">' +
     (o.avatar ? '<img class="av" src="' + esc(o.avatar) + '" alt="" draggable="false">' : '') +
     '<div>' + (o.sub ? '<small>' + esc(o.sub) + '</small>' : '') + '<h2>' + esc(title) + '</h2></div></div>' +
-    '<button type="button" class="mu-more" data-more="' + key + '" hidden>' + (open ? 'Tutup' : 'Lihat semua') + '</button></div>' +
-    '<div class="mu-grid">' + songs.map((s, i) => cardHtml(s, key, i)).join('') + '</div></section>';
+    '<button type="button" class="mu-more" data-more="' + key + '"' + (songs.length > ROW_N ? '' : ' hidden') + '>' + (open ? 'Tutup' : 'Lihat semua') + '</button></div>' +
+    '<div class="mu-rw"><div class="mu-grid">' + songs.map((s, i) => cardHtml(s, key, i)).join('') + '</div>' +
+    '<button type="button" class="mu-arr l" data-arr="-1" aria-label="Geser ke kiri" hidden>' + CHEV + '</button>' +
+    '<button type="button" class="mu-arr r" data-arr="1" aria-label="Geser ke kanan" hidden>' + CHEV + '</button></div></section>';
 }
-const skelSec = () => '<section class="mu-sec"><div class="mu-shr"><div class="mu-sht"><div><h2 class="mu-skh"></h2></div></div></div><div class="mu-grid">' +
-  Array.from({ length: 8 }).map(() => '<div class="mu-card sk"><span class="cv"></span><b class="t"></b><span class="a"></span></div>').join('') + '</div></section>';
+const skelSec = () => '<section class="mu-sec"><div class="mu-shr"><div class="mu-sht"><div><h2 class="mu-skh"></h2></div></div></div><div class="mu-rw"><div class="mu-grid">' +
+  Array.from({ length: 8 }).map(() => '<div class="mu-card sk"><span class="cv"></span><b class="t"></b><span class="a"></span></div>').join('') + '</div></div></section>';
 function paintHome() {
   const el = $('muhome');
   if (!el || !active()) return;
   if (searching || searched) { el.innerHTML = ''; return }
-  const hist = hget();
-  let h = hist.length ? secHtml('hist', 'Putar lagi', hist) : '';
+  const hist = hget().slice(0, 40);
+  let h = hist.length ? secHtml('hist', 'Jump back in', hist) : '';
   if (recBusy || !rec) h += skelSec();
   else if (rec.err) h += '<div class="mu-msg">Rekomendasi belum bisa dimuat. Coba cari lagu di atas, misalnya <b>monokrom tulus</b> atau <b>yoasobi racing</b>.</div>';
   else h += rec.secs.map(x => secHtml(x.key, x.title, x.songs, x)).join('');
   el.innerHTML = h;
   fitRows();
 }
-/* tombol "Lihat semua" hanya tampil bila isi kategori lebih banyak dari satu baris (jumlah kolom bergantung lebar layar) */
-function fitRows() {
-  document.querySelectorAll('#muhome .mu-sec').forEach(sec => {
-    const g = sec.querySelector('.mu-grid'), b = sec.querySelector('.mu-more');
-    if (!g || !b) return;
-    const cols = getComputedStyle(g).gridTemplateColumns.split(' ').filter(Boolean).length || 1;
-    b.hidden = !(sec.classList.contains('open') || g.children.length > cols);
-  });
+/* panah kiri/kanan hanya tampil bila masih ada yang bisa digeser (dan baris tidak sedang dibuka penuh) */
+function updateArrows(sec) {
+  const g = sec && sec.querySelector('.mu-grid'), l = sec && sec.querySelector('.mu-arr.l'), r = sec && sec.querySelector('.mu-arr.r');
+  if (!g || !l || !r) return;
+  const open = sec.classList.contains('open');
+  l.hidden = open || g.scrollLeft <= 2;
+  r.hidden = open || g.scrollLeft + g.clientWidth >= g.scrollWidth - 2;
 }
+const fitRows = () => document.querySelectorAll('#muhome .mu-sec').forEach(updateArrows);
 addEventListener('resize', () => { if (active()) fitRows() });
 function onHome(e) {
+  const arr = e.target.closest('[data-arr]');
+  if (arr) { const g = arr.closest('.mu-rw').querySelector('.mu-grid'); g.scrollBy({ left: +arr.dataset.arr * g.clientWidth * .9, behavior: 'smooth' }); return }
   const more = e.target.closest('[data-more]');
   if (more) {
-    const k = more.dataset.more, sec = more.closest('.mu-sec');
+    const k = more.dataset.more, sec = more.closest('.mu-sec'), g = sec.querySelector('.mu-grid');
     const on = !openSecs.has(k); on ? openSecs.add(k) : openSecs.delete(k);
     sec.classList.toggle('open', on); more.textContent = on ? 'Tutup' : 'Lihat semua';
+    g.scrollLeft = 0; updateArrows(sec);
     return;
   }
   const card = e.target.closest('.mu-card');
@@ -216,6 +225,7 @@ function render() {
   /* kolom dikosongkan (termasuk tombol x) -> kembali ke beranda rekomendasi */
   inp.addEventListener('input', () => { if (!inp.value && searched) { searched = false; searching = false; songs = []; lastErr = ''; window.muLastQ = ''; render(); $('muq').focus() } });
   $('muhome').addEventListener('click', onHome);
+  $('muhome').addEventListener('scroll', e => { const g = e.target; if (g.classList && g.classList.contains('mu-grid')) updateArrows(g.closest('.mu-sec')) }, true); /* scroll tidak bubble: pakai capture */
   if (searching) res.innerHTML = Array.from({ length: 6 }).map(() => '<div class="mu-skel"><div class="a"></div><div class="b"><i></i><i></i></div></div>').join('');
   else if (searched) res.innerHTML = renderResults();
   res.addEventListener('click', onResults);

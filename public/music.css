@@ -11,7 +11,7 @@
   #music{position:absolute;inset:0;padding-bottom:calc(190px + env(safe-area-inset-bottom,0px))} /* bar bawah + mini player */
 }
 
-.mu-in{max-width:1100px;margin:0;text-align:left;padding:calc(24px + env(safe-area-inset-top,0px)) 18px 40px} /* rata kiri */
+.mu-in{max-width:1400px;margin:0;text-align:left;padding:calc(24px + env(safe-area-inset-top,0px)) 18px 40px} /* rata kiri */
 @media(min-width:800px){.mu-in{padding:44px 40px 56px}}
 .mu-top h1{font-size:30px;font-weight:700;letter-spacing:-.03em;line-height:1.1}
 .mu-sub{margin-top:6px;font-size:14px;line-height:1.4;color:var(--mut)}
@@ -72,10 +72,24 @@
 .mu-more{flex:none;padding:6px 4px;border-radius:8px;font-size:13px;font-weight:700;color:var(--mut);transition:color .15s}
 .mu-more:hover{color:var(--ink);text-decoration:underline}
 .mu-more[hidden]{display:none}
-/* satu baris: baris ke-2 dst. tingginya 0 & terpotong; .open membukanya. -8px = padding card, supaya cover sejajar dengan judul */
-.mu-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(138px,1fr));grid-auto-rows:0;gap:0 6px;overflow:hidden;margin:0 -8px}
-@media(min-width:800px){.mu-grid{grid-template-columns:repeat(auto-fill,minmax(164px,1fr))}}
-.mu-sec.open .mu-grid{grid-auto-rows:auto;row-gap:4px;overflow:visible}
+/* carousel 1 baris: card selebar --cw, geser horizontal; hanya 10 pertama. .open = grid penuh (Lihat semua).
+   -8px = padding card, supaya cover sejajar dengan judul. */
+.mu-sec{--cw:132px}
+@media(min-width:800px){.mu-sec{--cw:156px}}
+.mu-rw{position:relative;margin:0 -8px}
+.mu-grid{display:grid;grid-auto-flow:column;grid-auto-columns:var(--cw);gap:0 6px;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none}
+.mu-grid::-webkit-scrollbar{display:none}
+.mu-sec:not(.open) .mu-card:nth-child(n+11){display:none}
+.mu-sec.open .mu-grid{grid-auto-flow:row;grid-template-columns:repeat(auto-fill,minmax(var(--cw),1fr));grid-auto-columns:auto;row-gap:4px;overflow:visible}
+.mu-arr{position:absolute;top:calc(var(--cw)/2 - 18px);z-index:4;display:grid;place-items:center;width:36px;height:36px;border-radius:50%;background:var(--bg);color:var(--ink);box-shadow:0 2px 12px rgba(0,0,0,.3);opacity:0;transition:opacity .18s,transform .15s}
+.mu-arr[hidden]{display:none}
+.mu-arr.l{left:10px}.mu-arr.r{right:10px}
+.mu-arr.l svg{transform:scaleX(-1)}
+.mu-arr svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.mu-arr:active{transform:scale(.92)}
+@media(hover:hover){.mu-rw:hover .mu-arr,.mu-arr:focus-visible{opacity:1}}
+@media(hover:none){.mu-arr{display:none}} /* di layar sentuh cukup geser pakai jari */
+.mu-sec.open .mu-arr{display:none}
 .mu-card{display:block;width:100%;min-width:0;padding:8px;border-radius:20px;text-align:left;background:transparent;transition:background .2s,transform .15s}
 .mu-card:active{transform:scale(.98)}
 .mu-card .cv{position:relative;display:block;aspect-ratio:1;border-radius:13px;overflow:hidden;background:var(--line)}
