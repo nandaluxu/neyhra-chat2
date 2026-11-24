@@ -1,5 +1,17 @@
 # Fitur Musik untuk neyhra-chat2 — Delta Zip
 
+> 🔁 **Update 25 Nov 2026 (tiga) — `music.js`/`music.css` dikembalikan ke versi pemilik (commit `e49643d`).**
+> - Upload delta sebelumnya menimpa editan pemilik di `public/music.js` + `public/music.css`. Kini
+>   keduanya **persis versi pemilik**: label menu ⋮ kembali ke **"Publik"/"Private"** (bukan
+>   "Jadikan Publik/Jadikan Private"), gaya tombol lebar "Simpan ke playlist saya" versi pemilik,
+>   klik kanan / tekan lama lagu → popup pilih playlist tanpa memutar, dan **geser urutan lagu di
+>   playlist sendiri** (tahan lalu geser, Alt+↑/↓) — semua utuh kembali.
+> - Di atas versi pemilik itu ditanam ulang (tetap ada): seksi **"Pilihan Orang Lain"**, tombol
+>   **terjemahan lirik** (ikon translate milik pemilik, teks kecil di bawah tiap baris), dan
+>   **"Lainnya dari X" maks 100 lagu**. Server tidak berubah dari update sebelumnya.
+> - Diuji ulang: `node scripts/music-ui-test.mjs` — **94 asersi, 0 gagal** (asersi label menu ⋮
+>   disesuaikan ke label versi pemilik).
+
 > 🆕 **Update 25 Nov 2026 — "Pilihan Orang Lain": playlist publik pengguna lain tampil di beranda.**
 > - Playlist yang dijadikan **Publik** (lewat ⋮) kini tidak hanya bisa dibuka lewat link — muncul juga
 >   di baris **"Pilihan Orang Lain"** di beranda musik semua orang: judul kartu = nama playlist,
