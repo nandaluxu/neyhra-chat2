@@ -136,3 +136,35 @@
 /* subtitle ucapan dimatikan: barisan tombol yang mengisi ruang kosong, bukan tombol telepon */
 #callui.nosubme.hastxt .cl-act{margin-top:auto}
 #callui.nosubme.hastxt .cl-btns,#callui.nosubme.editing .cl-btns{margin-top:14px}
+
+/* ---------- Telepon grup (#callui.grp): semua anggota tampil sebagai kisi avatar ---------- */
+#callui .cl-gm{display:none}
+#callui.grp .cl-avwrap,#callui.grp .cl-ring,#callui.grp .cl-dots{display:none}
+#callui.grp .cl-stage{width:100%;max-width:340px;height:auto;min-height:168px;display:flex;align-items:center;justify-content:center}
+#callui.grp .cl-gm{display:flex;flex-wrap:wrap;justify-content:center;align-items:flex-start;gap:16px 14px;width:100%}
+#callui .cl-t{--lv:0;display:flex;flex-direction:column;align-items:center;gap:6px;width:92px;min-width:0}
+#callui[data-n="1"] .cl-t,#callui[data-n="2"] .cl-t{width:118px}
+#callui .cl-ta{position:relative;width:72px;height:72px;border-radius:50%;overflow:hidden;background:var(--surface);
+  box-shadow:0 0 0 3px var(--bg),0 0 0 5px var(--line);opacity:.62;
+  transform:scale(calc(1 + var(--lv) * .1));transition:opacity .25s,box-shadow .25s,transform .08s linear}
+#callui[data-n="1"] .cl-ta,#callui[data-n="2"] .cl-ta{width:96px;height:96px}
+#callui .cl-tav{width:100%;height:100%;object-fit:cover;display:block}
+#callui .cl-t small{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:600;color:var(--mut);transition:color .2s}
+/* yang sedang mikir: miring pelan; yang sedang bicara: cincin tegas + penuh */
+#callui .cl-t.th .cl-ta{opacity:1;animation:clthink 2.6s ease-in-out infinite}
+#callui .cl-t.sp .cl-ta{opacity:1;box-shadow:0 0 0 3px var(--bg),0 0 0 5px var(--ink)}
+#callui .cl-t.th small,#callui .cl-t.sp small{color:var(--ink)}
+#callui.grp.fb .cl-t.sp .cl-ta{animation:clpulse 1.1s ease-in-out infinite}
+/* mendengarkan: semua anggota menyimak (terang, bernapas pelan) */
+#callui.grp[data-state="listening"]:not(.muted) .cl-ta{opacity:1;animation:clbreath 4s ease-in-out infinite}
+#callui.grp[data-state="listening"]:not(.muted) .cl-t:nth-child(2n) .cl-ta{animation-delay:.7s}
+#callui.grp[data-state="listening"]:not(.muted) .cl-t:nth-child(3n) .cl-ta{animation-delay:1.4s}
+#callui.grp[data-state="connecting"] .cl-ta{opacity:1;animation:clpulse 1.2s ease-in-out infinite}
+#callui.grp[data-g="hear"][data-state="listening"] .cl-ta{animation:clhear 2.2s ease-in-out infinite}
+#callui.grp[data-g="wait"][data-state="listening"] .cl-ta{animation:clnod 1.3s ease-in-out infinite}
+/* nama anggota yang bicara, di atas subtitle (ikut hilang kalau subtitle karakter dimatikan) */
+#callui .cl-who{display:none;margin-top:14px;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink);text-align:center}
+#callui.grp .cl-who:not(:empty){display:block}
+#callui.grp .cl-who:not(:empty)+.cl-cap{margin-top:4px}
+#callui.nosub .cl-who{display:none!important}
+#callui.grp.nohint .cl-stage{margin-top:min(9vh,60px)}

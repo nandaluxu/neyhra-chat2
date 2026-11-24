@@ -816,6 +816,39 @@ GX.importData = async list => {
   return { groups: nGroups, msgs: nMsgs, aud: nAud };
 };
 
+/* ---------- API untuk telepon grup (public/call.js) ----------
+   Telepon grup memakai /api/chat grup yang sama persis, tapi rantai gilirannya diatur call.js (suara diputar satu per satu lewat layar telepon).
+   open() menghentikan rantai yang sedang jalan lalu mengembalikan "pegangan" untuk grup yang lagi dibuka (null kalau tidak ada grup terbuka).
+   Kalau layar grup ditutup di tengah telepon, push/user tetap menyimpan pesan ke penyimpanan grup (teks saja), tidak menyentuh layar. */
+GX.callApi = {
+  open() {
+    const st = state, g = GX.cur; if (!st || !g) return null;
+    abortChain(); dropHint();
+    const alive = () => state === st && GX.cur === g;
+    return {
+      g,
+      ids: () => activeIds(g),                                  // anggota yang tidak dibisukan
+      first: text => pickFirst(g, text),                        // yang disebut user, atau satu anggota acak berbobot
+      hist: () => [...st.msgs, ...st.pending].filter(m => m.from !== 'system').slice(-CFG.HIST).map(m => [m.from, String(m.text).slice(0, 600)]),
+      grp: (replyTo, depth) => ({ members: g.members.filter(charOf), muted: g.muted || [], scene: g.scene || '', ...(g.rp && { rp: true }), ...(replyTo && { replyTo }), depth }),
+      user(text) {
+        const m = { from: 'user', text, ts: Date.now() };
+        if (alive()) { st.msgs.push(m); persist(st); dropHint(); addText(text, m.ts); }
+        else if (groups.includes(g)) { const l = loadMsgs(g.id); l.push(m); saveMsgs(g.id, l); }
+      },
+      push(m, take) { // balasan satu anggota: masuk obrolan sebagai bubble teks atau voice note (audionya disimpan supaya bisa diputar ulang)
+        m.ts = Date.now();
+        if (!alive()) { if (!groups.includes(g)) return; delete m.vn; delete m.jp; delete m.lang; const l = loadMsgs(g.id); l.push(m); saveMsgs(g.id, l); return; }
+        st.msgs.push(m); persist(st); dropHint();
+        if (!take) { bubble(m); return; }
+        vnBubble(m, [take]);
+        const k = newKey(), gid = g.id;
+        idb.put(k, { ab: take.ab, dur: take.dur, bins: take.bins }).then(ok => { if (ok) { take.k = k; patchMsg(gid, m, e => { e.ks = [k]; e.si = 0; }); } });
+      }
+    };
+  }
+};
+
 /* ---------- Keluar dari layar grup ---------- */
 GX.onClose = () => { // dipanggil closeChat(): rantai berhenti, tidak dilanjutkan otomatis saat dibuka lagi
   const g = GX.cur; if (!g) return;
