@@ -61,9 +61,21 @@
 .mu-msg b{color:var(--ink)}
 
 /* ===== Beranda: rekomendasi. Card tanpa frame; frame (kotak rounded ±4:5) baru muncul saat hover ===== */
-.mu-sh{margin:28px 0 10px;font-size:18px;font-weight:700;letter-spacing:-.02em}
-.mu-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(138px,1fr));gap:4px 6px;margin:0 -8px} /* -8px = padding card, supaya cover sejajar dengan judul di atasnya */
+.mu-sec{margin-top:26px}
+.mu-shr{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:6px}
+.mu-sht{display:flex;align-items:center;gap:12px;min-width:0}
+.mu-sht .av{width:48px;height:48px;border-radius:50%;object-fit:cover;background:var(--line);flex:none}
+.mu-sht>div{min-width:0}
+.mu-sht small{display:block;font-size:12px;line-height:1.3;color:var(--mut)}
+.mu-sht h2{font-size:20px;font-weight:700;letter-spacing:-.02em;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mu-skh{width:140px;height:20px;border-radius:7px;background:var(--surface);animation:mutsk 1.4s ease-in-out infinite}
+.mu-more{flex:none;padding:6px 4px;border-radius:8px;font-size:13px;font-weight:700;color:var(--mut);transition:color .15s}
+.mu-more:hover{color:var(--ink);text-decoration:underline}
+.mu-more[hidden]{display:none}
+/* satu baris: baris ke-2 dst. tingginya 0 & terpotong; .open membukanya. -8px = padding card, supaya cover sejajar dengan judul */
+.mu-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(138px,1fr));grid-auto-rows:0;gap:0 6px;overflow:hidden;margin:0 -8px}
 @media(min-width:800px){.mu-grid{grid-template-columns:repeat(auto-fill,minmax(164px,1fr))}}
+.mu-sec.open .mu-grid{grid-auto-rows:auto;row-gap:4px;overflow:visible}
 .mu-card{display:block;width:100%;min-width:0;padding:8px;border-radius:20px;text-align:left;background:transparent;transition:background .2s,transform .15s}
 .mu-card:active{transform:scale(.98)}
 .mu-card .cv{position:relative;display:block;aspect-ratio:1;border-radius:13px;overflow:hidden;background:var(--line)}

@@ -103,32 +103,44 @@ $('mnpx').addEventListener('click', () => { sheet = false; np.classList.remove('
 $('musi').addEventListener('click', () => { sheet = true; np.classList.add('on'); renderSheet(); if (sheetTab === 'lyrics') lrcShow() });
 $('muart').addEventListener('click', () => $('musi').click());
 
-/* ---------- beranda: rekomendasi (riwayat putar -> artis favorit -> pencarian; tanpa riwayat = lagu populer) ---------- */
+/* ---------- beranda ala Spotify: tiap kategori = 1 baris, "Lihat semua" membuka seluruh isinya ----------
+   Kategori: "Putar lagi" (riwayat) + satu baris per artis favorit ("Lainnya dari X") bila ada riwayat;
+   tanpa riwayat = beberapa baris lagu populer. Semua dari /api/music/search (tanpa endpoint baru). */
 const REC_TTL = 3 * 3600e3;
-let rec = null, recBusy = false;   // rec = {k, songs, personal, err}
-const recLists = {};               // 'hist' | 'rec' -> daftar lagu yang sedang ditampilkan (dipakai klik card)
+let rec = null, recBusy = false;   // rec = {k, secs:[{key,title,sub,avatar,songs}], err}
+const recLists = {};               // key kategori -> daftar lagu (dipakai klik card)
+const openSecs = new Set();        // kategori yang sedang "Lihat semua"
 const firstArtist = a => String(a || '').split(/,|&| feat\.? /i)[0].trim();
 function recPlan() {
   const h = hget(), cnt = {};
   h.forEach((s, i) => { const a = firstArtist(s.artist); if (a && a !== '—') cnt[a] = (cnt[a] || 0) + (h.length - i) }); /* lagu yang lebih baru berbobot lebih besar */
   const top = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a]).slice(0, 3);
-  return { hist: h, personal: !!top.length, qs: top.length ? top : ['lagu indonesia populer', 'top hits 2026', 'lagu viral'] };
+  const qs = top.length ? top.map((a, i) => ({ key: 'a' + i, q: a, artist: a }))
+    : [{ key: 'g0', q: 'lagu indonesia populer', title: 'Lagu Indonesia populer' }, { key: 'g1', q: 'top hits 2026', title: 'Top hits' }, { key: 'g2', q: 'lagu viral', title: 'Lagu viral' }];
+  return { hist: h, personal: !!top.length, qs };
 }
 async function loadRec() {
   if (recBusy) return;
-  const plan = recPlan(), k = plan.qs.join('|');
+  const plan = recPlan(), k = plan.qs.map(x => x.q).join('|');
   if (rec && rec.k === k && !rec.err) return;
   try {
-    const c = JSON.parse(store.get('mrec') || 'null');
-    if (c && c.k === k && Date.now() - c.t < REC_TTL && Array.isArray(c.songs) && c.songs.length) { rec = { k, songs: c.songs, personal: plan.personal }; paintHome(); return }
+    const c = JSON.parse(store.get('mrec2') || 'null');
+    if (c && c.k === k && Date.now() - c.t < REC_TTL && Array.isArray(c.secs) && c.secs.length) { rec = { k, secs: c.secs }; paintHome(); return }
   } catch {}
   recBusy = true; paintHome();
-  const rs = await Promise.all(plan.qs.map(q => jget('/api/music/search?q=' + encodeURIComponent(q) + '&clientId=' + encodeURIComponent(cid))));
+  const rs = await Promise.all(plan.qs.map(x => jget('/api/music/search?q=' + encodeURIComponent(x.q) + '&clientId=' + encodeURIComponent(cid))));
   recBusy = false;
-  const seen = new Set(plan.personal ? plan.hist.map(s => s.id) : []), lists = rs.map(j => Array.isArray(j.songs) ? j.songs : []), out = [];
-  for (let i = 0; out.length < 18 && i < 12; i++) for (const l of lists) { const s = l[i]; if (s && !seen.has(s.id)) { seen.add(s.id); out.push(slim(s)) } }
-  rec = { k, songs: out, personal: plan.personal, err: !out.length };
-  if (out.length) store.set('mrec', JSON.stringify({ k, t: Date.now(), songs: out }));
+  const seen = new Set(plan.personal ? plan.hist.map(s => s.id) : []), secs = [];
+  plan.qs.forEach((x, i) => {
+    const all = Array.isArray(rs[i].songs) ? rs[i].songs : [];
+    const songs = all.filter(s => s && !seen.has(s.id)).slice(0, 20).map(slim);
+    songs.forEach(s => seen.add(s.id));
+    if (!songs.length) return;
+    secs.push(x.artist ? { key: x.key, title: x.artist, sub: 'Lainnya dari', avatar: (all[0] && all[0].thumb) || songs[0].thumb, songs }
+      : { key: x.key, title: x.title, songs });
+  });
+  rec = { k, secs, err: !secs.length };
+  if (secs.length) store.set('mrec2', JSON.stringify({ k, t: Date.now(), secs }));
   paintHome();
 }
 function cardHtml(s, key, i) {
@@ -140,20 +152,48 @@ function cardHtml(s, key, i) {
     '<span class="mu-cadd" role="button" tabindex="0" data-add title="Tambah ke antrean" aria-label="Tambah ' + esc(s.title) + ' ke antrean">' + SVG.plus + '</span></span>' +
     '<b class="t">' + esc(s.title) + '</b><span class="a">' + esc(s.artist) + '</span></button>';
 }
+/* satu kategori: header (avatar bulat bila artis) + tombol Lihat semua + baris card */
+function secHtml(key, title, songs, o = {}) {
+  recLists[key] = songs;
+  const open = openSecs.has(key);
+  return '<section class="mu-sec' + (open ? ' open' : '') + '" data-sec="' + key + '"><div class="mu-shr"><div class="mu-sht">' +
+    (o.avatar ? '<img class="av" src="' + esc(o.avatar) + '" alt="" draggable="false">' : '') +
+    '<div>' + (o.sub ? '<small>' + esc(o.sub) + '</small>' : '') + '<h2>' + esc(title) + '</h2></div></div>' +
+    '<button type="button" class="mu-more" data-more="' + key + '" hidden>' + (open ? 'Tutup' : 'Lihat semua') + '</button></div>' +
+    '<div class="mu-grid">' + songs.map((s, i) => cardHtml(s, key, i)).join('') + '</div></section>';
+}
+const skelSec = () => '<section class="mu-sec"><div class="mu-shr"><div class="mu-sht"><div><h2 class="mu-skh"></h2></div></div></div><div class="mu-grid">' +
+  Array.from({ length: 8 }).map(() => '<div class="mu-card sk"><span class="cv"></span><b class="t"></b><span class="a"></span></div>').join('') + '</div></section>';
 function paintHome() {
   const el = $('muhome');
   if (!el || !active()) return;
   if (searching || searched) { el.innerHTML = ''; return }
-  recLists.hist = hget().slice(0, 6);
-  let h = '';
-  if (recLists.hist.length) h += '<div class="mu-sh">Putar lagi</div><div class="mu-grid">' + recLists.hist.map((s, i) => cardHtml(s, 'hist', i)).join('') + '</div>';
-  h += '<div class="mu-sh">' + (rec && rec.personal || (!rec && recLists.hist.length) ? 'Rekomendasi untukmu' : 'Lagi populer') + '</div>';
-  if (recBusy || !rec) h += '<div class="mu-grid">' + Array.from({ length: 6 }).map(() => '<div class="mu-card sk"><span class="cv"></span><b class="t"></b><span class="a"></span></div>').join('') + '</div>';
+  const hist = hget();
+  let h = hist.length ? secHtml('hist', 'Putar lagi', hist) : '';
+  if (recBusy || !rec) h += skelSec();
   else if (rec.err) h += '<div class="mu-msg">Rekomendasi belum bisa dimuat. Coba cari lagu di atas, misalnya <b>monokrom tulus</b> atau <b>yoasobi racing</b>.</div>';
-  else { recLists.rec = rec.songs; h += '<div class="mu-grid">' + rec.songs.map((s, i) => cardHtml(s, 'rec', i)).join('') + '</div>' }
+  else h += rec.secs.map(x => secHtml(x.key, x.title, x.songs, x)).join('');
   el.innerHTML = h;
+  fitRows();
 }
+/* tombol "Lihat semua" hanya tampil bila isi kategori lebih banyak dari satu baris (jumlah kolom bergantung lebar layar) */
+function fitRows() {
+  document.querySelectorAll('#muhome .mu-sec').forEach(sec => {
+    const g = sec.querySelector('.mu-grid'), b = sec.querySelector('.mu-more');
+    if (!g || !b) return;
+    const cols = getComputedStyle(g).gridTemplateColumns.split(' ').filter(Boolean).length || 1;
+    b.hidden = !(sec.classList.contains('open') || g.children.length > cols);
+  });
+}
+addEventListener('resize', () => { if (active()) fitRows() });
 function onHome(e) {
+  const more = e.target.closest('[data-more]');
+  if (more) {
+    const k = more.dataset.more, sec = more.closest('.mu-sec');
+    const on = !openSecs.has(k); on ? openSecs.add(k) : openSecs.delete(k);
+    sec.classList.toggle('open', on); more.textContent = on ? 'Tutup' : 'Lihat semua';
+    return;
+  }
   const card = e.target.closest('.mu-card');
   if (!card || card.classList.contains('sk')) return;
   const list = recLists[card.dataset.k], i = +card.dataset.i;
