@@ -11,8 +11,8 @@
   #music{position:absolute;inset:0;padding-bottom:calc(190px + env(safe-area-inset-bottom,0px))} /* bar bawah + mini player */
 }
 
-.mu-in{max-width:1400px;margin:0;text-align:left;padding:calc(24px + env(safe-area-inset-top,0px)) 18px 40px} /* rata kiri */
-@media(min-width:800px){.mu-in{padding:44px 40px 56px}}
+.mu-in{max-width:none;margin:0;text-align:left;position:relative;padding:calc(24px + env(safe-area-inset-top,0px)) 18px 40px} /* rata kiri */
+@media(min-width:800px){.mu-in{padding:44px 40px 110px}} /* ruang bawah untuk mini player saat panel disembunyikan */
 .mu-top h1{font-size:30px;font-weight:700;letter-spacing:-.03em;line-height:1.1}
 .mu-sub{margin-top:6px;font-size:14px;line-height:1.4;color:var(--mut)}
 .mu-sub small{display:block;margin-top:2px;font-size:12px}
@@ -75,7 +75,13 @@
 /* carousel 1 baris: card selebar --cw, geser horizontal; hanya 10 pertama. .open = grid penuh (Lihat semua).
    -8px = padding card, supaya cover sejajar dengan judul. */
 .mu-sec{--cw:132px}
-@media(min-width:800px){.mu-sec{--cw:156px}}
+/* desktop: lebar card dihitung dari jumlah lagu yang ingin terlihat (--vis) di kolom tengah:
+   panel kanan terbuka ≈ 6,5 card (yang ke-7 mengintip), panel disembunyikan ≈ 10 card; batas 132–190px */
+@media(min-width:800px){
+  .mu-in{container-type:inline-size}
+  .mu-sec{--vis:6.5;--cw:clamp(132px,calc((100cqw + 16px - 6px*(var(--vis) - 1))/var(--vis)),190px)}
+  #app.mp-off .mu-sec{--vis:10}
+}
 .mu-rw{position:relative;margin:0 -8px}
 .mu-grid{display:grid;grid-auto-flow:column;grid-auto-columns:var(--cw);gap:0 6px;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none}
 .mu-grid::-webkit-scrollbar{display:none}
@@ -223,3 +229,30 @@
 #mutoast{position:absolute;left:50%;bottom:calc(74px + env(safe-area-inset-bottom,0px));transform:translate(-50%,12px);z-index:30;max-width:calc(100% - 28px);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:14px;font-size:13px;font-weight:500;line-height:1.4;box-shadow:0 6px 22px rgba(0,0,0,.25);opacity:0;pointer-events:none;transition:opacity .25s,transform .25s}
 #mutoast.show{opacity:1;transform:translate(-50%,0);pointer-events:auto;cursor:pointer}
 @media(min-width:800px){#mutoast{bottom:74px}}
+
+
+/* ===== Desktop: lembar Now Playing jadi panel kanan berbingkai (kolom ke-3 grid #app), bisa disembunyikan ===== */
+.mu-ptog,.mnp-empty{display:none}
+.mu-ptog{position:absolute;top:44px;right:40px;place-items:center;width:40px;height:40px;border-radius:50%;background:var(--surface);color:var(--ink);transition:background .15s}
+.mu-ptog:hover{background:var(--line)}
+.mu-ptog svg,.mnp-x svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.mnp-empty{margin:auto;padding:30px 10px;text-align:center;color:var(--mut);font-size:13.5px;line-height:1.5}
+#mnp.none .mnp-empty{display:block}
+#mnp.none .mnp-in>*:not(.mnp-top):not(.mnp-empty){display:none}
+@media(min-width:800px){
+  #app[data-tab="music"]{grid-template-columns:auto minmax(0,1fr) var(--mnp-w,330px)}
+  #app[data-tab="music"].mp-off{grid-template-columns:auto minmax(0,1fr) 0}
+  #mnp,#mnp.on{position:relative;inset:auto;grid-column:3;grid-row:1;z-index:2;transform:none;visibility:visible;transition:visibility 0s;
+    min-width:0;min-height:0;overflow:hidden;margin:12px 12px 12px 0;border-radius:22px;background:var(--surface)}
+  #app.mp-off #mnp{visibility:hidden;margin:0;border-radius:0;transition:visibility 0s .25s}
+  .mnp-in{padding:18px 20px 22px}
+  .mnp-top>span:not(.t){order:0}.mnp-top .t{order:1}.mnp-x{order:2}
+  .mnp-x:hover{background:var(--bg)}
+  .mnp-art{width:min(100%,300px,34dvh);border-radius:20px}
+  .mnp-tab,.mnp-err{background:var(--bg)}
+  .mnp-tab.on{background:var(--ink)}
+  #mnp .mu-qrow:hover,#mnp .mu-qrow.now{background:var(--bg)}
+  /* panel terbuka -> mini player bawah disembunyikan; panel disembunyikan -> mini player muncul lagi */
+  #app:not(.mp-off) #mupl{transform:translateY(110%);visibility:hidden;pointer-events:none;transition:transform .3s cubic-bezier(.2,.9,.3,1),visibility 0s .3s}
+  #app.mp-off .mu-ptog{display:grid}
+}

@@ -37,6 +37,7 @@ const SVG = {
   repeat1: '<svg class="sv" viewBox="0 0 24 24"><path d="M7 7h10a3 3 0 013 3v1M17 17H7a3 3 0 01-3-3v-1M7 4.5L4 7l3 2.5M17 19.5L20 17l-3-2.5M11 11.5l1.5-1v4"/></svg>',
   close: '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>',
   plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+  panel: '<svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="3"/><path d="M14.5 4.5v15"/></svg>',
   search: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>'
 };
 
@@ -84,6 +85,7 @@ app.append(pl);
 const np = document.createElement('div'); np.id = 'mnp'; np.setAttribute('role', 'dialog'); np.setAttribute('aria-label', 'Layar pemutar');
 np.innerHTML = '<div class="mnp-in">' +
   '<div class="mnp-top"><button type="button" class="mnp-x" id="mnpx" aria-label="Tutup">' + SVG.close + '</button><span class="t">Sedang diputar</span><span style="width:38px;flex:none"></span></div>' +
+  '<div class="mnp-empty" id="mnpempty">Belum ada lagu yang diputar.<br>Pilih lagu dari beranda atau cari di atas.</div>' +
   '<img class="mnp-art" id="mnpart" alt="">' +
   '<div class="mnp-meta"><h1 id="mnpt"></h1><p id="mnpa"></p><div class="mnp-err" id="mnperr" hidden></div></div>' +
   '<div class="mnp-seek" id="mnpseek" role="slider" aria-label="Posisi lagu" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="tr"></div><div class="fl" id="mnpfl"></div><div class="kn" id="mnpkn"></div></div>' +
@@ -99,8 +101,27 @@ np.innerHTML = '<div class="mnp-in">' +
   '<div id="mnpq" hidden></div></div>';
 app.append(np);
 const lrcBox = np.querySelector('#mnplrc'), qBox = np.querySelector('#mnpq');
-$('mnpx').addEventListener('click', () => { sheet = false; np.classList.remove('on') });
-$('musi').addEventListener('click', () => { sheet = true; np.classList.add('on'); renderSheet(); if (sheetTab === 'lyrics') lrcShow() });
+/* Desktop (>=800px): lembar Now Playing = panel kanan yang menempel di grid (bisa disembunyikan, pilihan diingat di 'mpanel');
+   panel terbuka -> mini player bawah disembunyikan (CSS), panel disembunyikan -> mini player muncul lagi.
+   Mobile: tetap lembar layar penuh yang naik dari bawah. */
+const desk = () => matchMedia('(min-width:800px)').matches;
+function applyPanel() {
+  const d = desk();
+  const x = $('mnpx'); x.innerHTML = d ? SVG.panel : SVG.close; x.setAttribute('aria-label', d ? 'Sembunyikan pemutar' : 'Tutup'); x.title = d ? 'Sembunyikan pemutar' : '';
+  if (!d) { app.classList.remove('mp-off'); sheet = false; np.classList.remove('on', 'none'); return }
+  const on = store.get('mpanel') !== '0';
+  app.classList.toggle('mp-off', !on);
+  np.classList.remove('on');
+  sheet = on && active();
+  if (sheet) { renderSheet(); if (sheetTab === 'lyrics') lrcShow() }
+}
+function setPanel(on) {
+  if (desk()) { store.set('mpanel', on ? '1' : '0'); applyPanel(); return }
+  sheet = on; np.classList.toggle('on', on);
+  if (on) { renderSheet(); if (sheetTab === 'lyrics') lrcShow() }
+}
+$('mnpx').addEventListener('click', () => setPanel(false));
+$('musi').addEventListener('click', () => setPanel(true));
 $('muart').addEventListener('click', () => $('musi').click());
 
 /* ---------- beranda ala Spotify: tiap kategori = 1 baris carousel (10 lagu, geser pakai panah) ----------
@@ -215,6 +236,7 @@ function onHome(e) {
 function render() {
   if (!active()) return;
   body.innerHTML =
+    '<button type="button" class="mu-ptog" id="muptog" aria-label="Tampilkan pemutar" title="Tampilkan pemutar">' + SVG.panel + '</button>' +
     '<div class="mu-top"><h1>Musik</h1><p class="mu-sub">Cari lagu dan dengarkan langsung — tetap bisa jalan sambil ngobrol di tab lain.<small>Sumber audio: YouTube Music · Lirik: LRCLIB</small></p></div>' +
     '<form class="mu-srch" id="musrch"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>' +
     '<input id="muq" type="search" placeholder="Judul lagu, artis, atau album…" autocomplete="off" enterkeyhint="search" aria-label="Cari lagu">' +
@@ -225,6 +247,7 @@ function render() {
   /* kolom dikosongkan (termasuk tombol x) -> kembali ke beranda rekomendasi */
   inp.addEventListener('input', () => { if (!inp.value && searched) { searched = false; searching = false; songs = []; lastErr = ''; window.muLastQ = ''; render(); $('muq').focus() } });
   $('muhome').addEventListener('click', onHome);
+  $('muptog').addEventListener('click', () => setPanel(true));
   $('muhome').addEventListener('scroll', e => { const g = e.target; if (g.classList && g.classList.contains('mu-grid')) updateArrows(g.closest('.mu-sec')) }, true); /* scroll tidak bubble: pakai capture */
   if (searching) res.innerHTML = Array.from({ length: 6 }).map(() => '<div class="mu-skel"><div class="a"></div><div class="b"><i></i><i></i></div></div>').join('');
   else if (searched) res.innerHTML = renderResults();
@@ -352,7 +375,8 @@ $('munext').addEventListener('click', () => next());
 function renderSheet() {
   if (!sheet) return;
   const s = cur();
-  if (!s) { np.classList.remove('on'); sheet = false; return }
+  if (!s) { if (desk()) { np.classList.add('none'); return } np.classList.remove('on'); sheet = false; return }
+  np.classList.remove('none');
   $('mnpart').src = s.thumb || '';
   $('mnpt').textContent = s.title;
   $('mnpa').textContent = s.artist + (s.album ? ' · ' + s.album : '');
@@ -492,14 +516,19 @@ audio.addEventListener('error', () => {
 addEventListener('keydown', e => {
   const tag = (e.target && e.target.tagName) || '';
   if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable) return;
-  if (e.key === 'Escape' && sheet) { sheet = false; np.classList.remove('on'); return }
-  if (e.code === 'Space' && cur() && !sheet) { e.preventDefault(); toggle() }
+  if (e.key === 'Escape' && sheet && !desk()) { setPanel(false); return }
+  if (e.code === 'Space' && cur() && (!sheet || desk())) { e.preventDefault(); toggle() }
 });
 
 /* ---------- integrasi shell ---------- */
-addEventListener('shell:tab', () => { if (active()) render(); else { sheet = false; np.classList.remove('on') } });
+addEventListener('shell:tab', () => { if (active()) { render(); applyPanel() } else { sheet = false; np.classList.remove('on') } });
 if (active()) render();
+applyPanel();
 renderPl();
+/* lebar kolom berubah (panel dibuka/ditutup) tidak memicu 'resize' jendela: pantau #music langsung supaya panah carousel ikut menyesuaikan */
+let lastDesk = desk();
+addEventListener('resize', () => { const d = desk(); if (d !== lastDesk) { lastDesk = d; applyPanel() } });
+if (window.ResizeObserver && $('music')) new ResizeObserver(() => { if (active()) fitRows() }).observe($('music'));
 
 /* konteks untuk mode dev (opsional dipakai lewat konsol) — hanya terpasang saat Mode dev aktif */
 const MU_API = { play: playSong, next, prev, queue: () => queue, search: doSearch };
