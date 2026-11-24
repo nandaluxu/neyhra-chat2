@@ -241,14 +241,16 @@
 
 /* ===== Desktop: lembar Now Playing jadi panel kanan berbingkai (kolom ke-3 grid #app), bisa disembunyikan ===== */
 .mu-ptog,.mnp-empty{display:none}
-.mu-ptog{position:absolute;top:44px;right:40px;place-items:center;width:40px;height:40px;border-radius:50%;background:var(--surface);color:var(--ink);transition:background .15s}
+/* pembungkus sticky setinggi 0: tombol tetap di pojok kanan atas saat halaman digulir */
+.mu-ptw{position:sticky;top:20px;z-index:6;height:0;display:flex;justify-content:flex-end}
+.mu-ptog{place-items:center;width:40px;height:40px;border-radius:50%;background:var(--surface);color:var(--ink);transition:background .15s}
 .mu-ptog:hover{background:var(--line)}
 .mu-ptog svg,.mnp-x svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .mnp-empty{margin:auto;padding:30px 10px;text-align:center;color:var(--mut);font-size:13.5px;line-height:1.5}
 #mnp.none .mnp-empty{display:block}
 #mnp.none .mnp-in>*:not(.mnp-top):not(.mnp-empty){display:none}
 @media(min-width:800px){
-  #app[data-tab="music"]{grid-template-columns:auto minmax(0,1fr) var(--mnp-w,clamp(400px,34vw,580px))}
+  #app[data-tab="music"]{grid-template-columns:auto minmax(0,1fr) var(--mnp-w,clamp(360px,30vw,500px))}
   #app[data-tab="music"].mp-off{grid-template-columns:auto minmax(0,1fr) 0}
   #mnp,#mnp.on{position:relative;inset:auto;grid-column:3;grid-row:1;z-index:2;transform:none;visibility:visible;transition:visibility 0s;
     min-width:0;min-height:0;overflow:hidden;margin:12px 12px 12px 0;border-radius:22px;background:var(--surface)}
