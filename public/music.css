@@ -232,8 +232,9 @@
 /* lirik */
 .mu-lrc{position:relative;margin-top:16px;padding:0 2px;max-height:44dvh;min-height:240px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;-webkit-overflow-scrolling:touch;scroll-behavior:auto;overflow-anchor:none} /* tanpa mask-image: mask pada elemen yang digulir memaksa repaint tiap frame di HP -> lag. Pudar tepi diganti overlay statis di .mu-lrcw */
 .mu-lrcw::before,.mu-lrcw::after{content:"";position:absolute;left:0;right:0;height:12%;z-index:2;pointer-events:none}
-.mu-lrcw::before{top:0;background:linear-gradient(var(--bg),transparent)}
-.mu-lrcw::after{bottom:0;background:linear-gradient(transparent,var(--bg))}
+.mu-lrcw{--lf:var(--bg)} /* warna pudar = warna latar panel tempat lirik berada (HP: --bg, desktop: --surface, lihat media 800px) */
+.mu-lrcw::before{top:0;background:linear-gradient(var(--lf),transparent)}
+.mu-lrcw::after{bottom:0;background:linear-gradient(transparent,var(--lf))}
 .mu-lrc.sync{padding-block:40px} /* cukup untuk melewati area pudar (mask) di tepi; baris awal/akhir tidak dipaksa ke tengah */
 .mu-lrc::-webkit-scrollbar{display:none}
 .mu-lrc .ln{padding:8px 10px;border-radius:10px;font-size:17px;font-weight:700;line-height:1.45;color:var(--mut);opacity:.55;transition:color .3s,opacity .3s;cursor:pointer;overflow-wrap:anywhere;contain:layout style}
@@ -325,6 +326,7 @@
   .mnp-fb{background:var(--bg)}
   .mnp-fb[aria-pressed="true"]{background:var(--ink)}
   .mu-sync{bottom:18px}
+  #mnp .mu-lrcw{--lf:var(--surface)} /* panel desktop berlatar --surface; sebelumnya pudar memakai --bg (lebih gelap) sehingga muncul pita gelap di atas/bawah lirik */
 
   #mnp.full:not(.none) .mu-lrc .ln{font-size:23px;padding:10px 12px}
   #mnp.full:not(.none) .mu-lrc .ln[data-plain]{font-size:17px}
