@@ -79,6 +79,7 @@ let songs = [], searched = false;   // hasil pencarian terakhir
 let loading = false, searching = false, notice = '', lastErr = ''; // loading = memuat stream lagu; searching = menunggu hasil pencarian (dulu satu flag -> daftar jadi skeleton saat lagu diklik)
 let lyr = null, lyrLoading = false; // lirik: [{t, text}] atau null
 let lrcAway = false; // true = user menggulir lirik sendiri -> auto-scroll berhenti sampai tombol Sinkron ditekan
+let lrcRaf = 0, lrcTick = 0; // id rAF animasi gulir lirik / loop sinkron per frame
 let lrcIdx = -1, lrcHold = 0, lrcBuilt = ''; // baris aktif, jeda auto-scroll (user sedang menggulir), tanda isi yang sudah dirender
 let trOn = false, trBusy = false; // terjemahan lirik: nyala? / sedang mengambil?
 try { trOn = store.get('mlrctr') === '1' } catch {} // pilihan diingat seperti mode acak/ulang
@@ -1188,7 +1189,7 @@ function quickLike() {
   const p = plGet(LIKED), has = plHas(p, c.id);
   if (has) p.songs = p.songs.filter(x => x.id !== c.id);
   else if (p.songs.length >= PL_SONGS) { say('Lagu disukai penuh (maks ' + PL_SONGS + ').'); return }
-  else p.songs.unshift(slim(c));
+  else p.songs.push(slim(c));
   if (!plSave()) { say('Gagal menyimpan: penyimpanan browser penuh.'); paintAdd(); return }
   say(has ? 'Dihapus dari Lagu disukai: ' + c.title : 'Ditambahkan ke Lagu disukai: ' + c.title);
   paintAdd(); paintHome(); paintPage();
@@ -1255,7 +1256,7 @@ $('mupks').addEventListener('click', () => {
   let n = 0, full = 0, last = '';
   for (const p of plList()) {
     const on = pkSel.has(p.id), has = plHas(p, c.id);
-    if (on && !has) { if (p.songs.length >= PL_SONGS) { full++; continue } p.songs.unshift(slim(c)); n++; last = p.name }
+    if (on && !has) { if (p.songs.length >= PL_SONGS) { full++; continue } p.songs.push(slim(c)); n++; last = p.name }
     else if (!on && has) { p.songs = p.songs.filter(x => x.id !== c.id); n++; last = p.name }
   }
   const made = pkPend.length; pkClose();
@@ -1420,7 +1421,7 @@ async function piDone(pl, s, sudah, gen) {
   if (sudah || plHas(pl, s.id)) piSt(SVG.check + '<span>Sudah ada di playlist ' + esc(pl.name) + '.</span>', 'ok');
   else if (pl.songs.length >= PL_SONGS) { piSt(SVG.close + '<span>Playlist penuh (maks ' + PL_SONGS + ' lagu).</span>', 'err'); piBusy = false; $('mupigo').disabled = false; return }
   else {
-    pl.songs.unshift(slim(s));
+    pl.songs.push(slim(s));
     if (!plSave()) { piSt(SVG.close + '<span>Lagu tersimpan di server, tapi playlist gagal disimpan (penyimpanan browser penuh).</span>', 'err'); paintAdd(); paintHome(); paintPage(); piBusy = false; $('mupigo').disabled = false; return }
     piSt(SVG.check + '<span>Tersimpan permanen — masuk playlist ' + esc(pl.name) + '.</span>', 'ok');
     say('Ditambahkan ke ' + pl.name + ': ' + (s.title || s.id));
@@ -1548,7 +1549,7 @@ function renderLrc() {
   if (!lyr || !lyr.length) { lrcBox.innerHTML = '<div class="mu-lrc-empty">Lirik tidak ditemukan untuk lagu ini.</div>'; return }
   lrcBox.innerHTML = lyr.map((l, i) => '<div class="ln" data-i="' + i + '"' + (l.t < 0 ? ' data-plain="1"' : '') + '>' + esc(l.text) +
     (tr && tr[i] ? '<span class="tr">' + esc(tr[i]) + '</span>' : '') + '</div>').join('');
-  lrcBox.scrollTop = 0;
+  lrcStop(); lrcBox.scrollTop = 0;
 }
 /* ---------- terjemahan lirik (tombol ikon di baris tab; hasil = teks kecil di bawah tiap baris) ----------
    Satu permintaan per lagu (semua baris dikirim sekaligus ke /api/music/translate), cache per lagu
@@ -1610,10 +1611,26 @@ function lrcFind(t) {
 }
 /* tengahkan satu baris di dalam kotak lirik. Pakai getBoundingClientRect: offsetTop salah karena kotak ini
    bukan offsetParent langsung (dulu hasilnya melenceng ke posisi di layar, bukan di kotak). */
+/* Animasi gulir buatan sendiri (rAF + easing, durasi tetap). Dulu pakai scrollTo({behavior:'smooth'}) bawaan browser:
+   di HP tiap pergantian baris memulai ulang animasi dari nol dan durasinya ditentukan browser, jadi terasa kaku/patah-patah. */
+function lrcStop() { if (lrcRaf) { cancelAnimationFrame(lrcRaf); lrcRaf = 0 } }
+function lrcScrollTo(top, smooth) {
+  lrcStop();
+  top = Math.max(0, Math.min(top, lrcBox.scrollHeight - lrcBox.clientHeight));
+  const from = lrcBox.scrollTop, dist = top - from;
+  if (!smooth || Math.abs(dist) < 2 || (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) { lrcBox.scrollTop = top; return }
+  const dur = Math.min(700, Math.max(380, Math.abs(dist) * 1.1)), t0 = performance.now();
+  const step = now => {
+    const p = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - p, 3); /* easeOutCubic */
+    lrcBox.scrollTop = from + dist * e;
+    lrcRaf = p < 1 ? requestAnimationFrame(step) : 0;
+  };
+  lrcRaf = requestAnimationFrame(step);
+}
 function lrcCenter(el, smooth) {
-  const b = lrcBox.getBoundingClientRect(), r = el.getBoundingClientRect();
-  const top = lrcBox.scrollTop + (r.top - b.top) - (b.height - r.height) / 2;
-  lrcBox.scrollTo({ top: Math.max(0, top), behavior: smooth ? 'smooth' : 'auto' });
+  /* offsetTop relatif ke kotak lirik (position:relative) — tanpa memaksa layout ulang lewat getBoundingClientRect */
+  const top = el.offsetTop - (lrcBox.clientHeight - el.offsetHeight) / 2;
+  lrcScrollTo(top, smooth);
 }
 /* force = gambar ulang sorotan + loncat langsung (saat lembar dibuka / pindah tab / seek). Selain itu hanya bila baris berganti. */
 function syncLrc(force) {
@@ -1621,15 +1638,23 @@ function syncLrc(force) {
   if (force) { lrcHold = 0; lrcAway = false; paintSync() } /* loncat/seek/buka lembar = ikut lagu lagi */
   const k = lrcFind(audio.currentTime);
   if (k === lrcIdx && !force) return;
+  const prev = lrcIdx;
   lrcIdx = k;
-  const els = lrcBox.querySelectorAll('.ln');
-  els.forEach((el, i) => { el.dataset.lrc = i === k ? 'on' : 'off'; el.classList.toggle('past', i < k) });
-  if (k < 0) { if (force) lrcBox.scrollTop = 0; return }
+  const els = lrcBox.children;
+  if (force || prev < 0 || Math.abs(k - prev) > 1 || els.length !== lyr.length) {
+    for (let i = 0; i < els.length; i++) { const el = els[i], on = i === k ? 'on' : 'off'; if (el.dataset.lrc !== on) el.dataset.lrc = on; el.classList.toggle('past', i < k) }
+  } else { /* pindah 1 baris: cukup sentuh 2 elemen (tidak memicu recalc style ke semua baris) */
+    if (els[prev]) { els[prev].dataset.lrc = 'off'; els[prev].classList.add('past') }
+    if (els[k]) { els[k].dataset.lrc = 'on'; els[k].classList.remove('past') }
+  }
+  if (k < 0) { if (force) { lrcStop(); lrcBox.scrollTop = 0 } return }
   if (force || Date.now() > lrcHold) lrcCenter(els[k], !force);
 }
 const lrcShow = () => { renderLrc(); requestAnimationFrame(() => syncLrc(true)) };
 /* user menggulir sendiri (roda / geser jari) -> auto-scroll berhenti SAMPAI tombol Sinkron ditekan (atau klik baris / seek / ganti lagu) */
+for (const ev of ['wheel', 'touchstart']) lrcBox.addEventListener(ev, lrcStop, { passive: true });
 for (const ev of ['wheel', 'touchmove']) lrcBox.addEventListener(ev, () => {
+  lrcStop();
   if (!lyr || !lyr.length || lyr[0].t < 0) return; /* lirik polos tidak punya sinkron */
   lrcAway = true; lrcHold = Infinity; paintSync();
 }, { passive: true });
@@ -1639,7 +1664,7 @@ function lrcResync() {
   lrcHold = 0; lrcAway = false; paintSync();
   if (!lyr || !lyr.length || lyr[0].t < 0) return;
   const k = lrcFind(audio.currentTime), el = lrcBox.querySelectorAll('.ln')[k];
-  if (k < 0) lrcBox.scrollTo({ top: 0, behavior: 'smooth' }); else if (el) lrcCenter(el, true);
+  if (k < 0) lrcScrollTo(0, true); else if (el) lrcCenter(el, true);
 }
 syncBtn.addEventListener('click', lrcResync);
 /* Desktop: panel kanan mode "lirik penuh" — cover/kontrol besar disembunyikan, tersisa baris kecil (cover + judul + artis + putar/jeda). Pilihan diingat di 'mfull'. */
@@ -1720,7 +1745,16 @@ audio.addEventListener('timeupdate', () => {
   paintTime();
   syncLrc(false);
 });
-audio.addEventListener('play', () => { renderPl(); renderSheet() });
+function lrcLoop() {
+  lrcTick = 0;
+  if (audio.paused || audio.ended || document.hidden) return;
+  syncLrc(false);
+  lrcTick = requestAnimationFrame(lrcLoop);
+}
+function lrcLoopStart() { if (!lrcTick && !audio.paused) lrcTick = requestAnimationFrame(lrcLoop) }
+document.addEventListener('visibilitychange', () => { if (!document.hidden) lrcLoopStart() });
+audio.addEventListener('playing', lrcLoopStart);
+audio.addEventListener('play', () => { renderPl(); renderSheet(); lrcLoopStart() });
 audio.addEventListener('pause', () => { renderPl(); renderSheet() });
 audio.addEventListener('ended', () => { if (repeat === 'one') { audio.currentTime = 0; audio.play().catch(() => {}) } else next() });
 /* ambil alasan asli dari server (JSON error dari /api/music/audio) lalu tampilkan */
