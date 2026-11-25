@@ -1810,6 +1810,43 @@ if (active()) render();
 applyPanel();
 renderPl();
 mCloud(true); /* aplikasi dibuka: tarik playlist, riwayat & antrean dari akun (kalau sudah masuk) */
+/* ---------- Desktop: lebar panel kanan bisa diubah dengan menggeser tepi kirinya ----------
+   Lebar disimpan di 'mpw' dan dipakai lewat --mnp-w (dibatasi 320px .. 55% lebar layar). Klik dua kali = kembali ke bawaan.
+   Keyboard: fokus ke pegangan lalu ←/→. Pegangan hanya tampil di desktop (CSS). */
+{
+  const h = document.createElement('div');
+  h.className = 'mnp-rs'; h.id = 'mnprs'; h.setAttribute('role', 'separator'); h.setAttribute('aria-orientation', 'vertical');
+  h.setAttribute('aria-label', 'Ubah lebar pemutar'); h.tabIndex = 0; h.title = 'Geser untuk ubah lebar (klik dua kali untuk reset)';
+  np.append(h);
+  const LO = 320, hi = () => Math.max(LO, Math.round(innerWidth * .55));
+  const setW = w => app.style.setProperty('--mnp-w', 'clamp(' + LO + 'px,' + Math.round(w) + 'px,55vw)');
+  const colW = () => np.getBoundingClientRect().width + (parseFloat(getComputedStyle(np).marginRight) || 0);
+  const saved = parseInt(store.get('mpw'), 10); if (saved >= LO) setW(saved);
+  let rs = null;
+  h.addEventListener('pointerdown', e => {
+    if (e.button !== 0 || !desk()) return;
+    rs = { id: e.pointerId, x: e.clientX, w: colW(), cur: colW() };
+    try { h.setPointerCapture(e.pointerId) } catch { }
+    app.classList.add('mp-rsz'); e.preventDefault();
+  });
+  h.addEventListener('pointermove', e => {
+    if (!rs || e.pointerId !== rs.id) return;
+    rs.cur = Math.min(hi(), Math.max(LO, rs.w + (rs.x - e.clientX))); setW(rs.cur);
+  });
+  const end = e => {
+    if (!rs || e.pointerId !== rs.id) return;
+    const w = rs.cur; rs = null; app.classList.remove('mp-rsz');
+    try { h.releasePointerCapture(e.pointerId) } catch { }
+    store.set('mpw', String(Math.round(w)));
+  };
+  h.addEventListener('pointerup', end); h.addEventListener('pointercancel', end);
+  h.addEventListener('dblclick', () => { app.style.removeProperty('--mnp-w'); store.set('mpw', '0') });
+  h.addEventListener('keydown', e => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    e.preventDefault();
+    const w = Math.min(hi(), Math.max(LO, colW() + (e.key === 'ArrowLeft' ? 24 : -24))); setW(w); store.set('mpw', String(Math.round(w)));
+  });
+}
 /* lebar kolom berubah (panel dibuka/ditutup) tidak memicu 'resize' jendela: pantau #music langsung supaya panah carousel ikut menyesuaikan */
 let lastDesk = desk();
 addEventListener('resize', () => { const d = desk(); if (d !== lastDesk) { lastDesk = d; applyPanel() } });
