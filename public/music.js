@@ -1558,7 +1558,16 @@ function renderLrc() {
 async function ensureTr(silent) {
   const c = cur(); if (!c || !lyr || !lyr.length || trBusy || trCache.has(c.id)) return;
   trBusy = true; const b = $('mnptr'); if (b) b.setAttribute('aria-busy', 'true');
-  const j = await jpost('/api/music/translate', { clientId: cid, lang: 'id', text: lyr.map(l => l.text) });
+  /* gagal (502 dari DeepL / jaringan) = coba LAGI SEKALI setelah 3 dtk — kegagalan sesaat sangat umum (kuota bergulir
+     endpoint gratis); tanpa ini terjemahan "mati" sampai ganti lagu. Tidak diulang kalau ditolak karena rate-limit /
+     teks kosong (percuma, malah menambah beban) atau kalau lagunya sudah berganti selama menunggu. Server menyimpan
+     potongan yang sudah sukses, jadi percobaan ulang murah. */
+  const body = { clientId: cid, lang: 'id', text: lyr.map(l => l.text) }, same = () => cur() && cur().id === c.id;
+  let j = await jpost('/api/music/translate', body);
+  if (!(j && j.ok) && !/Terlalu sering|Tidak ada teks/.test((j && j.error) || '') && same()) {
+    await new Promise(z => setTimeout(z, 3000));
+    if (same()) j = await jpost('/api/music/translate', body);
+  }
   trBusy = false; if (b) b.removeAttribute('aria-busy');
   if (j && j.ok && Array.isArray(j.tr)) {
     trCache.set(c.id, j.tr);
