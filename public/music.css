@@ -183,8 +183,12 @@
 .mu-sync:active{transform:translateX(-50%) scale(.96)}
 @keyframes musyncin{from{opacity:0;transform:translate(-50%,10px)}to{opacity:1;transform:translate(-50%,0)}}
 
-/* tombol lirik penuh: hanya ada di desktop (di HP cuma jadi pengisi supaya judul tetap di tengah) */
-.mnp-fb{visibility:hidden;pointer-events:none}
+/* baris atas: [tutup/sembunyikan panel | judul | pengisi]; tombol "lirik saja" ada di baris tab (kanan), terjemahan di kanan-bawah lirik */
+.mnp-sp{flex:none;width:38px;height:38px}
+.mnp-fb{position:absolute;right:0;top:50%;transform:translateY(-50%);width:34px;height:34px;padding:8px;border-radius:99px;background:var(--surface);color:var(--mut);transition:background .2s,color .2s}
+.mnp-fb svg{width:100%;height:100%;display:block;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.mnp-fb:hover{color:var(--ink)}
+.mnp-fb[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
 .mnp-top{display:flex;justify-content:space-between;align-items:center}
 .mnp-top .t{font-size:11.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
 .mnp-x{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;color:var(--ink)}
@@ -218,7 +222,9 @@
 .mnp-tab{padding:8px 16px;border-radius:99px;background:var(--surface);color:var(--mut);font-size:13px;font-weight:600;transition:background .2s,color .2s}
 .mnp-tab.on{background:var(--ink);color:var(--bg)}
 /* tombol terjemahan lirik: ikon kecil di ujung kanan baris tab, nyala saat terjemahan tampil */
-.mnp-tr{position:absolute;right:0;top:50%;transform:translateY(-50%);width:34px;height:34px;padding:7px;border-radius:99px;background:var(--surface);color:var(--mut);transition:background .2s,color .2s}
+.mnp-tr{position:absolute;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:4;width:38px;height:38px;padding:8px;border-radius:99px;background:var(--surface);color:var(--mut);box-shadow:0 2px 10px rgba(0,0,0,.16);transition:background .2s,color .2s,transform .15s}
+.mnp-tr[hidden],#mnp.none .mnp-tr{display:none}
+.mnp-tr:active{transform:scale(.94)}
 .mnp-tr svg{width:100%;height:100%;display:block}
 .mnp-tr:hover{color:var(--ink)}
 .mnp-tr.on{background:var(--ink);color:var(--bg)}
@@ -235,6 +241,9 @@
 /* terjemahan: teks kecil di bawah tiap baris lirik asli */
 .mu-lrc .ln .tr{display:block;font-size:12.5px;font-weight:500;line-height:1.5;margin-top:3px;color:var(--mut);opacity:.95;overflow-wrap:anywhere}
 .mu-lrc .ln[data-lrc="on"] .tr{color:var(--ink);opacity:.75}
+.mu-lrc .ln .tr.in{animation:mutrin .38s ease backwards}
+@keyframes mutrin{from{opacity:0;transform:translateY(-4px)}}
+.mu-lrc.trout .ln .tr{opacity:0;transition:opacity .16s ease}
 .mu-lrc-empty{padding:36px 12px;text-align:center;color:var(--mut);font-size:13.5px;line-height:1.5}
 /* antrean */
 .mu-qhead{display:flex;justify-content:space-between;align-items:center;margin:18px 8px 8px}
@@ -275,6 +284,27 @@
 .mnp-empty{margin:auto;padding:30px 10px;text-align:center;color:var(--mut);font-size:13.5px;line-height:1.5}
 #mnp.none .mnp-empty{display:block}
 #mnp.none .mnp-in>*:not(.mnp-top):not(.mnp-empty){display:none}
+/* ===== Mode "lirik saja" (desktop: panel kanan, HP: lembar layar penuh): baris kecil [cover | judul + artis | putar/jeda], sisanya lirik ===== */
+#mnp.full:not(.none) .mnp-in{display:grid;grid-template-columns:auto minmax(0,1fr) auto;grid-template-rows:auto auto auto minmax(0,1fr);column-gap:12px;overflow:hidden;padding-bottom:calc(16px + env(safe-area-inset-bottom,0px));max-width:none}
+#mnp.full:not(.none) .mnp-in>*{min-width:0}
+#mnp.full:not(.none) .mnp-top{grid-column:1/-1;grid-row:1;margin-bottom:14px}
+#mnp.full:not(.none) .mnp-art{grid-column:1;grid-row:2;width:56px;height:56px;margin:0;border-radius:12px;box-shadow:none;align-self:center}
+#mnp.full:not(.none) .mnp-meta{grid-column:2;grid-row:2;align-self:center;margin:0;text-align:left}
+#mnp.full:not(.none) .mnp-meta h1{font-size:16px}
+#mnp.full:not(.none) .mnp-meta p{margin-top:2px;font-size:12.5px}
+#mnp.full:not(.none) .mnp-err{margin:8px 0 0;max-width:none}
+#mnp.full:not(.none) :is(.mnp-seek,.mnp-time){display:none}
+#mnp.full:not(.none) .mnp-ctl{display:contents}
+#mnp.full:not(.none) .mnp-ctl>.mnp-side{display:none}
+#mnp.full:not(.none) #mnpplay{grid-column:3;grid-row:2;align-self:center;width:42px;height:42px}
+#mnp.full:not(.none) #mnpplay svg{width:20px;height:20px}
+#mnp.full:not(.none) .mnp-tabs{grid-column:1/-1;grid-row:3;margin-top:14px}
+#mnp.full:not(.none) .mnp-in>.mu-lrcw{grid-column:1/-1;grid-row:4;min-height:0;margin-top:10px}
+#mnp.full:not(.none) #mnpq{grid-column:1/-1;grid-row:4;min-height:0;margin-top:10px;overflow-y:auto;scrollbar-width:none}
+#mnp.full:not(.none) #mnpq::-webkit-scrollbar{display:none}
+#mnp.full:not(.none) .mu-lrc .ln{font-size:20px;padding:9px 10px}
+#mnp.full:not(.none) .mu-lrc .ln[data-plain]{font-size:16px}
+#mnp.full:not(.none) .mu-lrc .ln .tr{font-size:13.5px}
 @media(min-width:800px){
   #app[data-tab="music"]{grid-template-columns:auto minmax(0,1fr) var(--mnp-w,clamp(360px,30vw,500px))}
   #app[data-tab="music"].mp-off{grid-template-columns:auto minmax(0,1fr) 0}
@@ -282,7 +312,6 @@
     min-width:0;min-height:0;overflow:hidden;margin:12px 12px 12px 0;border-radius:22px;background:var(--surface)}
   #app.mp-off #mnp{visibility:hidden;margin:0;border-radius:0;transition:visibility 0s .25s}
   .mnp-in{padding:18px 26px 24px}
-  .mnp-top>span:not(.t){order:0}.mnp-top .t{order:1}.mnp-x{order:2}
   .mnp-x:hover{background:var(--bg)}
   .mnp-art{width:min(100%,400px,38dvh);border-radius:22px}
   .mnp-tab,.mnp-err{background:var(--bg)}
@@ -290,28 +319,10 @@
   .mnp-tr{background:var(--bg)}
   .mnp-tr.on{background:var(--ink)}
   #mnp .mu-qrow:hover,#mnp .mu-qrow.now{background:var(--bg)}
-  .mnp-top .mnp-fb{order:0;visibility:visible;pointer-events:auto}
-  .mnp-fb[aria-pressed="true"]{background:var(--bg)}
+  .mnp-fb{background:var(--bg)}
+  .mnp-fb[aria-pressed="true"]{background:var(--ink)}
   .mu-sync{bottom:18px}
 
-  /* ===== Mode lirik penuh (panel kanan): baris kecil [cover | judul + artis | putar/jeda], sisanya lirik ===== */
-  #mnp.full:not(.none) .mnp-in{display:grid;grid-template-columns:auto minmax(0,1fr) auto;grid-template-rows:auto auto auto minmax(0,1fr);column-gap:12px;overflow:hidden;padding-bottom:16px;max-width:none}
-  #mnp.full:not(.none) .mnp-in>*{min-width:0}
-  #mnp.full:not(.none) .mnp-top{grid-column:1/-1;grid-row:1;margin-bottom:14px}
-  #mnp.full:not(.none) .mnp-art{grid-column:1;grid-row:2;width:56px;height:56px;margin:0;border-radius:12px;box-shadow:none;align-self:center}
-  #mnp.full:not(.none) .mnp-meta{grid-column:2;grid-row:2;align-self:center;margin:0;text-align:left}
-  #mnp.full:not(.none) .mnp-meta h1{font-size:16px}
-  #mnp.full:not(.none) .mnp-meta p{margin-top:2px;font-size:12.5px}
-  #mnp.full:not(.none) .mnp-err{margin:8px 0 0;max-width:none}
-  #mnp.full:not(.none) :is(.mnp-seek,.mnp-time){display:none}
-  #mnp.full:not(.none) .mnp-ctl{display:contents}
-  #mnp.full:not(.none) .mnp-ctl>.mnp-side{display:none}
-  #mnp.full:not(.none) #mnpplay{grid-column:3;grid-row:2;align-self:center;width:42px;height:42px}
-  #mnp.full:not(.none) #mnpplay svg{width:20px;height:20px}
-  #mnp.full:not(.none) .mnp-tabs{grid-column:1/-1;grid-row:3;margin-top:14px}
-  #mnp.full:not(.none) .mnp-in>.mu-lrcw{grid-column:1/-1;grid-row:4;min-height:0;margin-top:10px}
-  #mnp.full:not(.none) #mnpq{grid-column:1/-1;grid-row:4;min-height:0;margin-top:10px;overflow-y:auto;scrollbar-width:none}
-  #mnp.full:not(.none) #mnpq::-webkit-scrollbar{display:none}
   #mnp.full:not(.none) .mu-lrc .ln{font-size:23px;padding:10px 12px}
   #mnp.full:not(.none) .mu-lrc .ln[data-plain]{font-size:17px}
   #mnp.full:not(.none) .mu-lrc .ln .tr{font-size:14px}

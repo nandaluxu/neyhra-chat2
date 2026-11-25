@@ -175,7 +175,7 @@ const seek2 = $('mupseek'), vol = $('muvol');
 
 const np = document.createElement('div'); np.id = 'mnp'; np.setAttribute('role', 'dialog'); np.setAttribute('aria-label', 'Layar pemutar');
 np.innerHTML = '<div class="mnp-in">' +
-  '<div class="mnp-top"><button type="button" class="mnp-x" id="mnpx" aria-label="Tutup">' + SVG.close + '</button><span class="t">Sedang diputar</span><button type="button" class="mnp-x mnp-fb" id="mnpfull" aria-pressed="false" aria-label="Lirik layar penuh" title="Lirik layar penuh">' + SVG.expand + '</button></div>' +
+  '<div class="mnp-top"><button type="button" class="mnp-x" id="mnpx" aria-label="Tutup">' + SVG.close + '</button><span class="t">Sedang diputar</span><span class="mnp-sp" aria-hidden="true"></span></div>' +
   '<div class="mnp-empty" id="mnpempty">Belum ada lagu yang diputar.<br>Pilih lagu dari beranda atau cari di atas.</div>' +
   '<img class="mnp-art" id="mnpart" alt="">' +
   '<div class="mnp-meta"><h1 id="mnpt"></h1><p id="mnpa"></p><div class="mnp-err" id="mnperr" hidden></div></div>' +
@@ -187,10 +187,12 @@ np.innerHTML = '<div class="mnp-in">' +
   '<button type="button" class="mupl-play big" id="mnpplay" aria-label="Putar / jeda">' + SVG.play + '</button>' +
   '<button type="button" class="mnp-side" id="mnpnx" aria-label="Lagu berikutnya">' + SVG.next + '</button>' +
   '<button type="button" class="mnp-side" id="mnprp" aria-label="Ulangi">' + SVG.repeat + '</button></div>' +
-  '<div class="mnp-tabs"><button type="button" class="mnp-tab on" id="mnptab-l" data-t="lyrics">Lirik</button><button type="button" class="mnp-tab" id="mnptab-q" data-t="queue">Antrean</button><button type="button" class="mnp-tr" id="mnptr" aria-pressed="false" aria-label="Terjemahan lirik" title="Terjemahkan lirik">' + SVG.translate + '</button></div>' +
+  '<div class="mnp-tabs"><button type="button" class="mnp-tab on" id="mnptab-l" data-t="lyrics">Lirik</button><button type="button" class="mnp-tab" id="mnptab-q" data-t="queue">Antrean</button><button type="button" class="mnp-fb" id="mnpfull" aria-pressed="false" aria-label="Lirik layar penuh" title="Lirik layar penuh">' + SVG.expand + '</button></div>' +
   '<div class="mu-lrcw" id="mnplrcw" hidden><div id="mnplrc" class="mu-lrc" hidden></div>' +
   '<button type="button" class="mu-sync" id="mnpsync" hidden aria-label="Sinkronkan ke lirik yang sedang dinyanyikan">' + SVG.sync + '<span>Sinkron</span></button></div>' +
-  '<div id="mnpq" hidden></div></div>';
+  '<div id="mnpq" hidden></div></div>' +
+  /* terjemahan: bulat melayang di sudut kanan-bawah PANEL (di luar .mnp-in yang bisa digulir, jadi selalu terlihat) */
+  '<button type="button" class="mnp-tr" id="mnptr" aria-pressed="false" aria-label="Terjemahan lirik" title="Terjemahkan lirik">' + SVG.translate + '</button>';
 app.append(np);
 const lrcBox = np.querySelector('#mnplrc'), qBox = np.querySelector('#mnpq'), lrcW = np.querySelector('#mnplrcw'), syncBtn = np.querySelector('#mnpsync');
 /* Desktop (>=800px): lembar Now Playing = panel kanan yang menempel di grid (bisa disembunyikan, pilihan diingat di 'mpanel');
@@ -1503,6 +1505,7 @@ function renderSheet() {
   $('mnptab-l').classList.toggle('on', sheetTab === 'lyrics');
   $('mnptab-q').classList.toggle('on', sheetTab === 'queue');
   lrcBox.hidden = lrcW.hidden = sheetTab !== 'lyrics';
+  $('mnptr').hidden = sheetTab !== 'lyrics'; /* terjemahan hanya untuk tab Lirik */
   paintSync();
   qBox.hidden = sheetTab !== 'queue';
   if (sheetTab === 'queue') renderQueue();
@@ -1527,11 +1530,16 @@ qBox.addEventListener('click', e => {
   const row = e.target.closest('.mu-qrow');
   if (row) playSong(+row.dataset.i);
 });
+/* tanda isi yang sedang tampil di kotak lirik: lagu + status muat + ada/tidaknya terjemahan */
+function lrcKey() {
+  const c = cur(), tr = trOn && c ? trCache.get(c.id) : null;
+  return (c ? c.id : '') + ':' + (lyrLoading ? 'L' : !lyr ? 'N' : lyr.length) + (tr && tr.length ? ':T' : '');
+}
 function renderLrc() {
   if (!sheet || sheetTab !== 'lyrics') return;
   const c = cur();
   const tr = trOn && c ? trCache.get(c.id) : null; /* terjemahan per baris (kalau nyala & sudah diambil) */
-  const key = (c ? c.id : '') + ':' + (lyrLoading ? 'L' : !lyr ? 'N' : lyr.length) + (tr && tr.length ? ':T' : '');
+  const key = lrcKey();
   if (key === lrcBuilt && lrcBox.firstChild) return; /* sudah dirender: jangan bongkar (scroll & sorotan ikut hilang tiap play/pause) */
   lrcBuilt = key; lrcIdx = -1; lrcAway = false; lrcHold = 0; paintSync(); /* isi baru -> mulai lagi dari mode ikut lagu */
   const synced = !!(lyr && lyr.length && lyr[0].t >= 0);
@@ -1554,8 +1562,45 @@ async function ensureTr(silent) {
   if (j && j.ok && Array.isArray(j.tr)) {
     trCache.set(c.id, j.tr);
     if (trCache.size > 30) trCache.delete(trCache.keys().next().value); /* jaga memori */
-    if (trOn && cur() && cur().id === c.id) { lrcBuilt = ''; renderLrc() } /* gambar ulang dengan terjemahan */
+    if (trOn && cur() && cur().id === c.id && !applyTr()) { lrcBuilt = ''; renderLrc() } /* pasang terjemahan di tempat (scroll tidak loncat) */
   } else if (!silent) say((j && j.error) || 'Terjemahan gagal, coba lagi');
+}
+/* Nyalakan/matikan terjemahan TANPA membongkar daftar lirik. Dulu: innerHTML dibangun ulang + scrollTop = 0, jadi lirik
+   loncat ke atas lalu meluncur lagi ke baris aktif. Sekarang teks terjemahan dipasang/dilepas di tempat; tinggi baris
+   berubah, jadi satu baris jangkar (baris aktif, atau baris di tengah kotak kalau user sedang menggulir sendiri)
+   dijaga tetap di posisi layar yang sama, lalu — kalau sedang ikut lagu — baris aktif digeser halus ke tengah.
+   Mematikan: teks memudar dulu (160 ms), baru dilepas. true = ditangani di tempat; false = belum ada baris, render biasa. */
+let trAnimT = 0;
+function applyTr() {
+  if (!sheet || sheetTab !== 'lyrics' || !lyr || !lyr.length || lrcBox.hidden) return false;
+  const els = lrcBox.querySelectorAll('.ln');
+  if (els.length !== lyr.length) return false;
+  clearTimeout(trAnimT); lrcBox.classList.remove('trout');
+  const hadTr = !!lrcBox.querySelector('.tr');
+  const patch = () => {
+    const c = cur(), tr = trOn && c ? trCache.get(c.id) : null;
+    const box = lrcBox.getBoundingClientRect(), mid = box.top + box.height / 2;
+    let k = (!lrcAway && lrcIdx >= 0 && lrcIdx < els.length) ? lrcIdx : -1;
+    if (k < 0) { /* sedang digulir sendiri: jangkar = baris yang paling dekat tengah kotak (yang sedang dibaca) */
+      let best = Infinity;
+      els.forEach((el, i) => { const r = el.getBoundingClientRect(), d = Math.abs((r.top + r.bottom) / 2 - mid); if (d < best) { best = d; k = i } });
+      if (k < 0) k = 0;
+    }
+    const anchor = els[k], before = anchor.getBoundingClientRect().top - box.top;
+    els.forEach((el, i) => {
+      const t = el.querySelector('.tr'), txt = tr && tr[i];
+      if (txt) { if (!t) { const n = document.createElement('span'); n.className = 'tr in'; n.textContent = txt; el.append(n) } else if (t.textContent !== txt) t.textContent = txt }
+      else if (t) t.remove();
+    });
+    lrcBox.classList.remove('trout');
+    lrcBuilt = lrcKey();
+    const after = anchor.getBoundingClientRect().top - lrcBox.getBoundingClientRect().top;
+    lrcBox.scrollTop += after - before; /* jangkar tidak bergeser sedikit pun */
+    if (!lrcAway && lrcIdx >= 0 && lyr[0].t >= 0 && els[lrcIdx]) lrcCenter(els[lrcIdx], true); /* lalu meluncur halus ke tengah */
+  };
+  if (hadTr && !(trOn && cur() && trCache.has(cur().id))) { lrcBox.classList.add('trout'); trAnimT = setTimeout(patch, 160) }
+  else patch();
+  return true;
 }
 /* baris yang sedang dinyanyikan (pencarian biner; +0.25 dtk supaya sorotan sedikit mendahului suara) */
 function lrcFind(t) {
@@ -1613,15 +1658,15 @@ lrcBox.addEventListener('click', e => {
 
 /* tab lirik / antrean */
 for (const id of ['mnptab-l', 'mnptab-q']) $(id).addEventListener('click', () => { sheetTab = $(id).dataset.t; renderSheet(); if (sheetTab === 'lyrics') lrcShow() });
-/* terjemahan lirik: tombol kecil di baris tab — nyalakan/matikan; teks terjemahan tampil di bawah tiap baris */
+/* terjemahan lirik: tombol bulat di kanan-bawah area lirik — nyalakan/matikan; teks terjemahan tampil di bawah tiap baris */
 $('mnptr').addEventListener('click', () => {
   if (!trOn && !lyrLoading && (!lyr || !lyr.length)) { say('Tidak ada lirik untuk diterjemahkan'); return }
   trOn = !trOn;
   store.set('mlrctr', trOn ? '1' : '0');
   const b = $('mnptr'); b.classList.toggle('on', trOn); b.setAttribute('aria-pressed', trOn ? 'true' : 'false');
-  if (!trOn) { lrcBuilt = ''; renderLrc(); return } /* matikan: hapus teks terjemahan */
-  if (cur() && !trCache.has(cur().id)) ensureTr(false); /* belum pernah diterjemahkan -> ambil dulu (render dari ensureTr) */
-  else { lrcBuilt = ''; renderLrc() } /* sudah ada cache -> langsung tampil */
+  if (!trOn) { if (!applyTr()) { lrcBuilt = ''; renderLrc() } return } /* matikan: teks memudar lalu dilepas, scroll tetap */
+  if (cur() && !trCache.has(cur().id)) ensureTr(false); /* belum pernah diterjemahkan -> ambil dulu (dipasang dari ensureTr) */
+  else if (!applyTr()) { lrcBuilt = ''; renderLrc() } /* sudah ada cache -> pasang di tempat */
 });
 if (trOn) { $('mnptr').classList.add('on'); $('mnptr').setAttribute('aria-pressed', 'true') } /* pilihan lama: nyala lagi */
 $('mnpsh').addEventListener('click', () => { shuffle = !shuffle; save(); renderSheet(); renderPl() });
