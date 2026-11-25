@@ -582,3 +582,19 @@
   #app.mp-rsz *{cursor:col-resize!important}
   #app.mp-off .mnp-rs{display:none}
 }
+
+/* ===== Riwayat pencarian (dropdown di bawah kolom cari musik) ===== */
+.mu-srch{position:relative}
+.mu-hist{position:absolute;left:0;right:0;top:calc(100% + 8px);z-index:25;padding:6px;border-radius:22px;background:var(--bg);border:1px solid var(--line);box-shadow:0 14px 34px rgba(0,0,0,.22);max-height:min(60dvh,420px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none}
+.mu-hist::-webkit-scrollbar{display:none}
+.mu-hist[hidden]{display:none}
+.mu-hh{display:flex;align-items:center;justify-content:space-between;padding:8px 6px 6px 12px;font-size:12px;font-weight:600;color:var(--mut)}
+.mu-hh button{padding:4px 10px;border-radius:99px;font-size:12px;font-weight:600;color:var(--mut);transition:background .15s,color .15s}
+.mu-hh button:hover{background:var(--surface);color:var(--ink)}
+.mu-hi{display:flex;align-items:center;gap:10px;padding:8px 6px 8px 12px;border-radius:14px;font-size:14.5px;color:var(--ink);cursor:pointer;transition:background .12s}
+.mu-hi:hover,.mu-hi.sel{background:var(--surface)}
+.mu-hist .mu-hi>svg{width:17px;height:17px;flex:none;color:var(--mut)}
+.mu-hi>span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mu-hx{flex:none;display:grid;place-items:center;width:28px;height:28px;border-radius:50%;color:var(--mut);transition:background .15s,color .15s}
+.mu-hx:hover{background:var(--line);color:var(--ink)}
+.mu-hist .mu-hx svg{width:14px;height:14px;color:inherit}

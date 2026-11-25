@@ -38,6 +38,7 @@ const SVG = {
   repeat: '<svg class="sv" viewBox="0 0 24 24"><path d="M7 7h10a3 3 0 013 3v1M17 17H7a3 3 0 01-3-3v-1M7 4.5L4 7l3 2.5M17 19.5L20 17l-3-2.5"/></svg>',
   repeat1: '<svg class="sv" viewBox="0 0 24 24"><path d="M7 7h10a3 3 0 013 3v1M17 17H7a3 3 0 01-3-3v-1M7 4.5L4 7l3 2.5M17 19.5L20 17l-3-2.5M11 11.5l1.5-1v4"/></svg>',
   close: '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  clock: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>',
   plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
   check: '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
   heart: '<svg viewBox="0 0 24 24"><path d="M12 20.5s-7.5-4.6-7.5-10A4.3 4.3 0 0112 7.9a4.3 4.3 0 017.5 2.6c0 5.4-7.5 10-7.5 10z" fill="currentColor" stroke="none"/></svg>',
@@ -876,10 +877,11 @@ function render() {
     '<div class="mu-top"><h1>Musik</h1><p class="mu-sub">Cari lagu dan dengarkan langsung — tetap bisa jalan sambil ngobrol di tab lain.<small>Sumber audio: YouTube Music · Lirik: LRCLIB</small></p></div>' +
     '<form class="mu-srch" id="musrch"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>' +
     '<input id="muq" type="search" placeholder="Judul lagu, artis, album, atau link YouTube…" autocomplete="off" enterkeyhint="search" aria-label="Cari lagu atau tempel link YouTube">' +
-    '<button class="mu-go" type="submit" id="mugo" aria-label="Cari">' + SVG.search.replace('<svg ', '<svg class="mu-goi" ') + '</button></form>' +
+    '<button class="mu-go" type="submit" id="mugo" aria-label="Cari">' + SVG.search.replace('<svg ', '<svg class="mu-goi" ') + '</button><div class="mu-hist" id="muhist" role="listbox" aria-label="Riwayat pencarian" hidden></div></form>' +
     '<div id="muhome"></div><div id="mures"></div>';
   const inp = $('muq'), res = $('mures');
   $('musrch').addEventListener('submit', e => { e.preventDefault(); doSearch(inp.value) });
+  histInit(inp);
   /* kolom dikosongkan (termasuk tombol x) -> kembali ke beranda rekomendasi */
   inp.addEventListener('input', () => { if (!inp.value && searched) { searched = false; searching = false; songs = []; imp = null; lastErr = ''; window.muLastQ = ''; render(); $('muq').focus() } });
   $('muhome').addEventListener('click', onHome);
@@ -930,11 +932,58 @@ function onResults(e) {
   if (row) playFromResults(+row.dataset.i);
 }
 
+/* ---------- riwayat pencarian: muncul di bawah kolom cari saat difokus/diketik ----------
+   Disimpan di perangkat ('mqhist', 12 terbaru, tanpa duplikat). Link YouTube tidak dicatat.
+   Klik = cari lagi, x = hapus satu, "Hapus semua"; keyboard: ↑/↓ lalu Enter, Esc menutup. */
+const QH_KEY = 'mqhist', QH_MAX = 12;
+const qhGet = () => { try { const a = JSON.parse(store.get(QH_KEY) || '[]'); return Array.isArray(a) ? a.filter(x => typeof x === 'string' && x).slice(0, QH_MAX) : [] } catch { return [] } };
+const qhSet = a => { try { store.set(QH_KEY, JSON.stringify(a.slice(0, QH_MAX))) } catch { } };
+function qhAdd(q) { qhSet([q, ...qhGet().filter(x => x.toLowerCase() !== q.toLowerCase())]) }
+function histInit(inp) {
+  const box = $('muhist'); if (!box) return;
+  let sel = -1;
+  const rows = () => [...box.querySelectorAll('.mu-hi')];
+  const hide = () => { box.hidden = true; sel = -1 };
+  const paint = () => {
+    const v = inp.value.trim().toLowerCase(), all = qhGet();
+    const list = (v ? all.filter(x => x.toLowerCase().includes(v) && x.toLowerCase() !== v) : all).slice(0, 8);
+    sel = -1;
+    if (!list.length) { box.hidden = true; box.innerHTML = ''; return }
+    box.innerHTML = '<div class="mu-hh"><span>' + (v ? 'Cocok di riwayat' : 'Pencarian terakhir') + '</span>' + (v ? '' : '<button type="button" data-clr>Hapus semua</button>') + '</div>' +
+      list.map(q => '<div class="mu-hi" role="option" data-q="' + esc(q) + '">' + SVG.clock + '<span>' + esc(q) + '</span><button type="button" class="mu-hx" data-del aria-label="Hapus dari riwayat">' + SVG.close + '</button></div>').join('');
+    box.hidden = false;
+  };
+  const pick = q => { inp.value = q; hide(); doSearch(q) };
+  const mark = i => { const r = rows(); r.forEach((x, k) => x.classList.toggle('sel', k === i)); sel = i; if (r[i]) r[i].scrollIntoView({ block: 'nearest' }) };
+  inp.addEventListener('focus', paint);
+  inp.addEventListener('input', paint);
+  inp.addEventListener('blur', () => setTimeout(() => { if (document.activeElement !== inp) hide() }, 150));
+  inp.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { if (!box.hidden) { hide(); e.preventDefault() } return }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      if (box.hidden) { if (e.key === 'ArrowDown') paint(); return }
+      const n = rows().length; if (!n) return; e.preventDefault();
+      mark(e.key === 'ArrowDown' ? (sel + 1) % n : (sel <= 0 ? n - 1 : sel - 1)); return
+    }
+    if (e.key === 'Enter' && sel >= 0) { const r = rows()[sel]; if (r) { e.preventDefault(); pick(r.dataset.q) } }
+  });
+  box.addEventListener('mousedown', e => e.preventDefault()); /* fokus tetap di kolom cari saat klik riwayat */
+  box.addEventListener('click', e => {
+    const t = e.target.closest ? e.target : null; if (!t) return;
+    const row = t.closest('.mu-hi');
+    if (t.closest('[data-clr]')) { qhSet([]); paint(); return }
+    if (t.closest('[data-del]') && row) { const q = row.dataset.q; qhSet(qhGet().filter(x => x !== q)); paint(); return }
+    if (row) pick(row.dataset.q);
+  });
+  $('musrch').addEventListener('submit', hide);
+}
+
 async function doSearch(qRaw) {
   const q = String(qRaw || '').trim();
   if (!q) return;
   const link = ytLink(q); /* tempel link YouTube -> impor permanen, bukan pencarian */
   if (link) return doImport(link, q);
+  qhAdd(q);
   window.muLastQ = q; lastErr = ''; searching = true; searched = true; imp = null; render();
   const j = await jget('/api/music/search?q=' + encodeURIComponent(q) + '&clientId=' + encodeURIComponent(cid));
   searching = false;
