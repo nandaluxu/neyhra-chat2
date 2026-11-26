@@ -189,6 +189,9 @@ np.innerHTML = '<div class="mnp-in">' +
   '<button type="button" class="mupl-play big" id="mnpplay" aria-label="Putar / jeda">' + SVG.play + '</button>' +
   '<button type="button" class="mnp-side" id="mnpnx" aria-label="Lagu berikutnya">' + SVG.next + '</button>' +
   '<button type="button" class="mnp-side" id="mnprp" aria-label="Ulangi">' + SVG.repeat + '</button></div>' +
+  /* volume: di panel kanan (bar bawah yang punya volume disembunyikan saat panel terbuka) */
+  '<div class="mnp-vol"><button type="button" class="mnp-vb" id="mnpvolb" aria-label="Bisukan / bunyikan">' + SVG.vol2 + '</button>' +
+  '<input type="range" class="mupl-vol" id="mnpvol" min="0" max="100" value="100" aria-label="Volume"><span class="vp" id="mnpvolp">100</span></div>' +
   '<div class="mnp-tabs"><button type="button" class="mnp-tab on" id="mnptab-l" data-t="lyrics">Lirik</button><button type="button" class="mnp-tab" id="mnptab-q" data-t="queue">Antrean</button><button type="button" class="mnp-fb" id="mnpfull" aria-pressed="false" aria-label="Lirik layar penuh" title="Lirik layar penuh">' + SVG.expand + '</button></div>' +
   '<div class="mu-lrcw" id="mnplrcw" hidden><div id="mnplrc" class="mu-lrc" hidden></div>' +
   '<button type="button" class="mu-sync" id="mnpsync" hidden aria-label="Sinkronkan ke lirik yang sedang dinyanyikan">' + SVG.sync + '<span>Sinkron</span></button></div>' +
@@ -1522,17 +1525,26 @@ addEventListener('keydown', e => { if (e.key === 'Escape' && !pi.hidden) { piClo
 /* volume (disimpan di 'mvol'); tombol speaker = bisukan / bunyikan */
 { const v = parseFloat(store.get('mvol')); if (isFinite(v)) audio.volume = Math.min(1, Math.max(0, v)) }
 let lastVol = audio.volume || 1;
+const vol2 = $('mnpvol'), volP = $('mnpvolp');
 function paintVol() {
   const v = audio.muted ? 0 : audio.volume;
-  vol.value = Math.round(v * 100); vol.style.setProperty('--v', vol.value + '%');
-  $('muvolb').innerHTML = v === 0 ? SVG.vol0 : v < .5 ? SVG.vol1 : SVG.vol2;
+  const ic = v === 0 ? SVG.vol0 : v < .5 ? SVG.vol1 : SVG.vol2;
+  for (const s of [vol, vol2]) { s.value = Math.round(v * 100); s.style.setProperty('--v', s.value + '%') }
+  volP.textContent = vol2.value;
+  $('muvolb').innerHTML = ic; $('mnpvolb').innerHTML = ic;
 }
-vol.addEventListener('input', () => { audio.muted = false; audio.volume = vol.value / 100; if (audio.volume > 0) lastVol = audio.volume; store.set('mvol', String(audio.volume)) });
-$('muvolb').addEventListener('click', () => {
+function setVolFrom(s) { audio.muted = false; audio.volume = s.value / 100; if (audio.volume > 0) lastVol = audio.volume; store.set('mvol', String(audio.volume)) }
+vol.addEventListener('input', () => setVolFrom(vol));
+vol2.addEventListener('input', () => setVolFrom(vol2));
+function toggleMute() {
   if (audio.muted || audio.volume === 0) { audio.muted = false; if (audio.volume === 0) audio.volume = lastVol || .7 }
   else { lastVol = audio.volume; audio.muted = true }
   store.set('mvol', String(audio.volume));
-});
+}
+$('muvolb').addEventListener('click', toggleMute);
+$('mnpvolb').addEventListener('click', toggleMute);
+/* scroll roda mouse di atas slider panel kanan = naik/turun 5% */
+vol2.addEventListener('wheel', e => { e.preventDefault(); vol2.value = Math.min(100, Math.max(0, +vol2.value + (e.deltaY < 0 ? 5 : -5))); setVolFrom(vol2) }, { passive: false });
 audio.addEventListener('volumechange', paintVol);
 paintVol();
 
