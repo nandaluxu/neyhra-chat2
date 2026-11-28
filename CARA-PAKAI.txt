@@ -1,0 +1,53 @@
+DELTA BACKEND — SISTEM LEVEL AKUN (neyhra-chat-netlify)
+========================================================
+
+Isi zip ini = HANYA file baru/berubah untuk fitur Level Akun (backend selesai & teruji,
+frontend BELUM — spesifikasinya ikut di dalam zip). Ekstrak ke root repo, bukan folder lain.
+
+FILE BARU
+  lib/leveling.js                    core leveling: kurva XP, cap harian per sumber, hadiah
+                                     level-up, pengali hadiah minigame, /api/auth/level
+  lib/xpext.js                       API eksternal /api/xp/grant + /api/xp/lookup
+                                     (tambah/atur XP dari luar web, kunci env LEVEL_EXT_KEY)
+  docs/frontend/leveling-system.md   spesifikasi UI lengkap untuk AI frontend (pola A-H)
+  scripts/level-e2e.mjs              tes end-to-end: npm run level:e2e
+
+FILE BERUBAH (hook XP + pengali hadiah + wiring, semua kompatibel mundur)
+  lib/app.js         mount router /api/xp/*, XP waktu-main di heartbeat /api/online
+  lib/auth.js        mount /api/auth/level, field level di /api/auth/me, purge saat hapus akun
+  lib/gc.js          XP +5 tiap pesan Chat Global terkirim (login)
+  lib/games.js       Tebak Angka: XP menang + hadiah dikali level
+  lib/g2048.js       2048: idem
+  lib/wordsearch.js  Word Search: idem
+  lib/picgame.js     Tebak Gambar: idem
+  lib/chess.js       Catur vs AI: idem (menang & seri)
+  lib/quests.js      event 'level' + piala alv10/alv25/alv50 (Level Akun)
+  lib/leaderboard.js board baru: Lainnya -> Level Akun (muncul otomatis di UI Peringkat lama)
+  package.json       script "level:e2e"
+  README.md, docs/frontend/README.md   dokumentasi
+
+CARA PASANG
+1. Ekstrak SEMUA isi zip ini ke ROOT repo (folder yang ada package.json), overwrite.
+     unzip leveling-backend-delta.zip -d /path/neyhra-chat-netlify
+2. Commit + push + deploy seperti biasa. Tidak perlu migrasi database: koleksi baru
+   (level, xp_log) dibuat otomatis dan akun lama kompatibel.
+3. Opsional — aktifkan API eksternal (isi env lalu redeploy):
+     LEVEL_EXT_KEY=kunci-rahasia-anda
+   Contoh pakai:
+     curl -X POST https://webmu/api/xp/grant -H 'x-api-key: LEVEL_EXT_KEY_ANDA' \
+          -H 'content-type: application/json' \
+          -d '{"username":"nanda","amount":500,"reason":"Event Jumat"}'
+   amount bisa negatif (koreksi), atau pakai setLevel (mis. {"setLevel":10}).
+   Baca status: POST /api/xp/lookup {"username":"nanda"}.
+4. Opsional — tes lokal (tidak butuh .env / MongoDB / Redis):
+     npm install && npm run level:e2e
+   (25 asersi; memakai mongodb-memory-server, binary mongo diunduh sekali ke folder .mdbin/)
+
+CATATAN
+- Slot, gacha, dan catur multiplayer sengaja TIDAK dapat pengali hadiah (RTP/PvP).
+- Semua angka (kurva, cap, pengali) bisa diubah lewat env tanpa deploy ulang kode:
+  LEVEL_BASE, LEVEL_STEP, LEVEL_MAX, LEVEL_XP_GC, LEVEL_XP_WIN,
+  LEVEL_CAP_GC, LEVEL_CAP_TIME, LEVEL_CAP_WIN, LEVEL_MUL_STEP, LEVEL_MUL_CAP.
+- Alternatif pemasangan lewat git: file leveling-backend.patch (apply dengan: git am).
+- Kalau ada file lokal yang sudah lu ubah sendiri (mis. README.md), resolve manual —
+  file di zip ini menimpa versi upstream, bukan versi lokal lu.

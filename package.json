@@ -16,14 +16,15 @@
     "pipe:test": "node scripts/turnpipe-test.mjs",
     "group:test": "node scripts/group-flow-test.mjs",
     "call:test": "node scripts/call-flow-test.mjs",
+    "level:e2e": "node scripts/level-e2e.mjs",
     "music:test": "node scripts/music-import-test.mjs",
-    "music:ui": "node scripts/music-ui-test.mjs"
+    "music:ui": "node scripts/music-ui-test.mjs",
+    "netlify:dev": "netlify dev"
   },
   "engines": {
     "node": ">=20.6"
   },
   "dependencies": {
-    "@vercel/speed-insights": "^2.1.0",
     "axios": "^1.7.0",
     "express": "^4.19.2",
     "mongodb": "^6.10.0",
