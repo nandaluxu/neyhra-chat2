@@ -597,6 +597,7 @@ header .pfp,header .who{cursor:pointer}
 <link rel="stylesheet" href="/scene.css">
 <link rel="stylesheet" href="/vision.css">
 <link rel="stylesheet" href="/call.css">
+<link rel="stylesheet" href="/level.css">
 <link rel="stylesheet" href="/profile.css?v=20261119h">
 <link rel="stylesheet" href="/notify.css">
 <link rel="stylesheet" href="/music.css">
@@ -2245,7 +2246,8 @@ function paintWallet(w){
   });
 }
 const loadWallet=()=>{ try{ const w=JSON.parse(store.get('wallet')||'null'); return w&&Number.isFinite(w.coins)&&Number.isFinite(w.gems)?w:null; }catch{ return null; } };
-const saveWallet=w=>{ store.set('wallet',w?JSON.stringify({coins:w.coins,gems:w.gems,tickets:Number.isFinite(w.tickets)?w.tickets:0,chips:Number.isFinite(w.chips)?w.chips:0}):null); paintWallet(w); }; /* tickets & chips ikut tersimpan (wallet lama tanpa chips = 0) */
+const saveWallet=w=>{ try{ const lvn=!w?null:(Number.isFinite(w.level)?w.level:undefined); if(lvn!==undefined){ if(window.LEVEL) LEVEL.set(lvn); else store.set('acclv',lvn==null?null:String(lvn)); } }catch{} /* badge level akun (public/level.js): ikut `level` dari /api/auth/me; null = keluar */
+  store.set('wallet',w?JSON.stringify({coins:w.coins,gems:w.gems,tickets:Number.isFinite(w.tickets)?w.tickets:0,chips:Number.isFinite(w.chips)?w.chips:0}):null); paintWallet(w); }; /* tickets & chips ikut tersimpan (wallet lama tanpa chips = 0) */
 function paintAcct(cloud){
   syncUname();
   window.__acctSeen=1; window.dispatchEvent(new Event('acct')); /* bonus.js ikut menyegarkan (status akun / masuk / keluar berubah) */
@@ -3536,7 +3538,7 @@ document.addEventListener('visibilitychange',()=>{ if(!document.hidden) setTimeo
     try{
       const j=await (await post('/api/online',{clientId:cid})).json();
       if(!j.enabled){ off=true; box.classList.add('hide'); return; }
-      num.textContent=j.count; box.classList.remove('hide');
+      num.textContent=j.count; box.classList.remove('hide'); if(j.lv&&window.LEVEL) LEVEL.gain(j.lv); /* XP lama-main -> toast level-up bila naik */
     }catch{}
     tm=setTimeout(beat,60000);
   }
@@ -3562,6 +3564,7 @@ document.addEventListener('visibilitychange',()=>{ if(!document.hidden) setTimeo
 <script src="/g2048.js"></script>
 <script src="/wordsearch.js"></script>
 <script src="/scenario.js"></script>
+<script src="/level.js"></script>
 <script src="/profile.js?v=20261123a"></script>
 <script src="/cdetail.js?v=20261123a"></script>
 <script src="/notify.js?v=20261119g"></script>

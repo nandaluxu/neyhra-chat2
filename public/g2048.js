@@ -13,6 +13,7 @@
 const $ = id => document.getElementById(id);
 const app = $('app');
 const nf = new Intl.NumberFormat('id-ID');
+const lvChip = m => (window.LEVEL ? LEVEL.chip(m) : ''); // chip "Hadiah ×1,06" (pengali level akun dari server; level.js). Tidak dipakai di Fruit Slot & gacha
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const host = () => $('gmbody');
 const N = 4, SLIDE_MS = 115;
@@ -112,7 +113,7 @@ function introView() {
 }
 function infoView() {
   const g = game(), d = st.daily, rw = st.cfg.rewards, capped = d.coins >= d.cap;
-  return '<div class="gm-info"><h3>Hadiah tile</h3><div class="gm-rw">' + Object.entries(rw).map(([t, c]) =>
+  return '<div class="gm-info"><h3>Hadiah tile' + lvChip(st && st.mul) + '</h3><div class="gm-rw">' + Object.entries(rw).map(([t, c]) =>
     '<div' + (g && g.max >= Number(t) ? ' class="g48-got"' : '') + '>Tile ' + nf.format(t) + '<b><img src="/coin.svg" alt="">' + nf.format(c) + '</b></div>').join('') + '</div>' +
     '<p class="gm-cap">' + (capped ? 'Batas coin hari ini sudah tercapai (' + nf.format(d.coins) + '/' + nf.format(d.cap) + '). Kamu tetap bisa main buat skor, hadiah kembali besok pukul 00.00 WIB.'
       : 'Maksimal ' + nf.format(d.cap) + ' coin dari 2048 per hari (sekarang ' + nf.format(d.coins) + '/' + nf.format(d.cap) + '). Hari berganti pukul 00.00 WIB.') + '</p></div>';
@@ -142,7 +143,7 @@ async function call(path, data) {
   const r = await aApi('g2048' + path, data || {});
   if (!r || !r.ok) throw new Error('Gagal memuat 2048.');
   st = r; failed = ''; saveWallet(r);
-  if (Array.isArray(r.nq)) r.nq.forEach((t, i) => setTimeout(() => toast(t), 500 + i * 2300));
+  if (Array.isArray(r.nq)) { if (window.LEVEL) LEVEL.nq(r.nq); (window.LEVEL ? LEVEL.rest(r.nq) : r.nq).forEach((t, i) => setTimeout(() => toast(t), 500 + i * 2300)); } /* catatan level-up jadi toast level (level.js) */
   return r;
 }
 async function load() {

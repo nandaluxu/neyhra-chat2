@@ -10,6 +10,7 @@
 const $ = id => document.getElementById(id);
 const app = $('app'), body = $('gmbody');
 const nf = new Intl.NumberFormat('id-ID');
+const lvChip = m => (window.LEVEL ? LEVEL.chip(m) : ''); // chip "Hadiah ×1,06" (pengali level akun dari server; level.js). Tidak dipakai di Fruit Slot & gacha
 const active = () => app.dataset.tab === 'games';
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -125,7 +126,7 @@ function guessScreen() {
   const table = rw.map((c, i) => '<div>Tebakan ke-' + (i + 1) + '<b><img src="/coin.svg" alt="">' + nf.format(c) + '</b></div>').join('');
   return '<button class="gm-back" type="button" data-act="hub">' + SVG.back + 'Semua game</button>' +
     '<div class="gm-panel">' + main + '</div>' +
-    '<div class="gm-info"><h3>Hadiah menang</h3><div class="gm-rw">' + table + '</div>' +
+    '<div class="gm-info"><h3>Hadiah menang' + lvChip(st.mul) + '</h3><div class="gm-rw">' + table + '</div>' +
     '<p class="gm-cap">' + (capped ? 'Hadiah hari ini sudah habis (' + d.wins + '/' + d.cap + '). Kamu tetap bisa main buat latihan, hadiah kembali besok pukul 00.00 WIB.'
       : 'Maksimal ' + d.cap + ' kemenangan berhadiah per hari (sekarang ' + d.wins + '/' + d.cap + '). Hari berganti pukul 00.00 WIB.') + '</p></div>';
 }
@@ -170,7 +171,7 @@ function picScreen() {
       '<button class="gm-btn full" type="button" data-act="pstart">Mulai</button>' + msgEl;
   }
   return back + '<div class="gm-panel">' + main + '</div>' +
-    '<div class="gm-info"><h3>Hadiah menang</h3><p class="gm-cap">Benar di jawaban pertama +' + c.base + ' coin, dikurangi 5 coin tiap jawaban salah (paling sedikit ' + c.min + '). Membuka petunjuk memotong hadiah soal itu jadi setengah. ' +
+    '<div class="gm-info"><h3>Hadiah menang' + lvChip(ps && ps.mul) + '</h3><p class="gm-cap">Benar di jawaban pertama +' + c.base + ' coin, dikurangi 5 coin tiap jawaban salah (paling sedikit ' + c.min + '). Membuka petunjuk memotong hadiah soal itu jadi setengah. ' +
     (capped ? 'Hadiah hari ini sudah habis (' + d.wins + '/' + d.cap + '). Kamu tetap bisa main buat latihan, hadiah kembali besok pukul 00.00 WIB.'
       : 'Maksimal ' + d.cap + ' kemenangan berhadiah per hari (sekarang ' + d.wins + '/' + d.cap + '). Hari berganti pukul 00.00 WIB.') + '</p></div>';
 }
@@ -242,7 +243,7 @@ function chessScreen() {
       '<ol class="gm-how">' + (cc.length ? '<li>Pilih lawan (AI biasa atau karakter). Langkah tetap dihitung engine, karakter hanya berkomentar.</li>' : '') + '<li>Pilih tingkat kesulitan untuk mulai.</li><li>Ketuk bidakmu, lalu ketuk kotak tujuan (ditandai titik).</li><li>Lawan membalas setelah mikir sebentar (kadang dia mengoceh, kalau kamu main lawan karakter). Skakmat lawanmu untuk menang!</li></ol>' +
       (live ? '<p class="gm-resume">Ada permainan ' + esc(chLvName(g.level)) + ' yang belum selesai.</p><div class="gm-row"><button class="gm-btn" type="button" data-act="play">Lanjutkan</button><button class="gm-ghost" type="button" data-act="chnew">Main baru</button></div>' : '') +
       oppPick + '<div class="ch-lvls' + (live ? ' ch-lvls-dim' : '') + '">' + lvls + '</div>' + msgEl + '</div></div>' +
-      '<div class="gm-info"><h3>Cara main</h3><p class="gm-cap">Aturan standar lengkap: rokade, en passant, promosi pion, skak, pat, aturan 50 langkah, dan pengulangan posisi. Menang dapat coin sesuai tingkat (seri 40%, paling sedikit ' + nf.format(20) + '), maksimal ' + d.cap + ' kemenangan berhadiah per hari (sekarang ' + d.wins + '/' + d.cap + '). Tidak ada undo: pikirkan dulu!</p></div>';
+      '<div class="gm-info"><h3>Cara main</h3>' + (cs && cs.mul ? '<p class="gm-cap">' + lvChip(cs.mul) + '</p>' : '') + '<p class="gm-cap">Aturan standar lengkap: rokade, en passant, promosi pion, skak, pat, aturan 50 langkah, dan pengulangan posisi. Menang dapat coin sesuai tingkat (seri 40%, paling sedikit ' + nf.format(20) + '), maksimal ' + d.cap + ' kemenangan berhadiah per hari (sekarang ' + d.wins + '/' + d.cap + '). Tidak ada undo: pikirkan dulu!</p></div>';
   }
 
   // papan
@@ -320,7 +321,7 @@ function chessScreen() {
     (g.active ? '<div class="ch-acts">' + snd + histNav + '<button class="gm-ghost" type="button" data-act="cresign"' + (chArm ? ' data-arm="1"' : '') + '>' + (chArm ? 'Tap lagi: menyerah' : 'Menyerah') + '</button></div>' : (histNav || snd ? '<div class="ch-acts">' + snd + histNav + '</div>' : '')) +
     result + '</div>' +
     '<div class="ch-side"><div class="gm-info"><h3>Langkah (' + g.hist.length + ')</h3>' + (pairs.length ? '<div class="ch-hist">' + pairs.join('') + '</div>' : '<p class="gm-cap">Belum ada langkah.</p>') +
-    '<p class="gm-cap">Menang +' + nf.format(lv[String(g.level)].prize) + ' coin (seri 40%). Maksimal ' + d.cap + ' kemenangan berhadiah per hari (sekarang ' + d.wins + '/' + d.cap + ').</p></div></div></div>' + chResultHtml(g, d);
+    '<p class="gm-cap">' + lvChip(cs && cs.mul) + ' Menang +' + nf.format(lv[String(g.level)].prize) + ' coin (seri 40%). Maksimal ' + d.cap + ' kemenangan berhadiah per hari (sekarang ' + d.wins + '/' + d.cap + ').</p></div></div></div>' + chResultHtml(g, d);
 }
 
 /* ---------- Catur vs AI: modal hasil + Game Review (komponen UI dari public/chessmp.js) ---------- */
@@ -387,7 +388,7 @@ function render() {
 }
 
 /* ---------- Server ---------- */
-const nqToast = r => { if (r && Array.isArray(r.nq)) r.nq.forEach((t, i) => setTimeout(() => toast(t), 500 + i * 2300)); }; // misi selesai / piala baru (lib/quests.js)
+const nqToast = r => { if (!r || !Array.isArray(r.nq)) return; if (window.LEVEL) { LEVEL.nq(r.nq); LEVEL.rest(r.nq).forEach((t, i) => setTimeout(() => toast(t), 500 + i * 2300)); } else r.nq.forEach((t, i) => setTimeout(() => toast(t), 500 + i * 2300)); }; // misi selesai / piala baru (lib/quests.js)
 async function call(path, data) {
   const r = await aApi(path, data);
   if (r && r.ok) { st = r; failed = ''; saveWallet(r); nqToast(r); return true; }

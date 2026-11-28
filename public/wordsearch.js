@@ -14,6 +14,7 @@
 const $ = id => document.getElementById(id);
 const app = $('app');
 const nf = new Intl.NumberFormat('id-ID');
+const lvChip = m => (window.LEVEL ? LEVEL.chip(m) : ''); // chip "Hadiah ×1,06" (pengali level akun dari server; level.js). Tidak dipakai di Fruit Slot & gacha
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const host = () => $('gmbody');
 const ls = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
@@ -102,7 +103,7 @@ function introView() {
 }
 function infoView() {
   const d = st.daily, R = st.cfg.reward, capped = d.wins >= d.cap;
-  return '<div class="gm-info"><h3>Hadiah</h3><p class="gm-cap">Selesai dalam ' + R.freeSec + ' detik atau kurang dapat ' + nf.format(R.base) + ' coin. Setelah itu hadiah turun ' + String(R.perSec).replace('.', ',') + ' coin tiap detik, paling sedikit ' + nf.format(R.min) + ' coin. ' +
+  return '<div class="gm-info"><h3>Hadiah' + lvChip(st && st.mul) + '</h3><p class="gm-cap">Selesai dalam ' + R.freeSec + ' detik atau kurang dapat ' + nf.format(R.base) + ' coin. Setelah itu hadiah turun ' + String(R.perSec).replace('.', ',') + ' coin tiap detik, paling sedikit ' + nf.format(R.min) + ' coin. ' +
     'Buka huruf menambah ' + st.cfg.hintLetterSec + ' detik, buka kata menambah ' + st.cfg.hintWordSec + ' detik ke waktumu. ' +
     (capped ? 'Batas hadiah hari ini sudah tercapai (' + d.wins + '/' + d.cap + '). Kamu tetap bisa main, hadiah kembali besok pukul 00.00 WIB.' : 'Maksimal ' + d.cap + ' kemenangan berhadiah per hari (sekarang ' + d.wins + '/' + d.cap + '), hari berganti pukul 00.00 WIB.') + '</p></div>';
 }
@@ -172,7 +173,7 @@ async function call(path, data) {
   const r = await aApi('ws' + path, data || {});
   if (!r || !r.ok) throw new Error((r && r.error) || 'Gagal memuat Word Search.');
   st = r; failed = ''; saveWallet(r);
-  if (Array.isArray(r.nq)) r.nq.forEach((t, i) => setTimeout(() => toast(t), 500 + i * 2300));
+  if (Array.isArray(r.nq)) { if (window.LEVEL) LEVEL.nq(r.nq); (window.LEVEL ? LEVEL.rest(r.nq) : r.nq).forEach((t, i) => setTimeout(() => toast(t), 500 + i * 2300)); } /* catatan level-up jadi toast level (level.js) */
   return r;
 }
 async function load() {

@@ -261,7 +261,7 @@ async function deliver(text, tmp) {
   const r = await api('/api/gc/send', { clientId: meId(), name: getSelf().name, text, replyTo: tmp.replyTo, ...(tmp.imgKey ? { imgKey: tmp.imgKey, iw: tmp.iw, ih: tmp.ih } : {}) });
   clearTimeout(t);
   if (!pending.some(x => x.id === tmp.id)) return; // sudah dibersihkan (mis. dicoba ulang)
-  if (r.ok && r.json?.m) { dropTmp(tmp); ingest([r.json.m]); if (tmp.img && tmp.img.startsWith('blob:')) setTimeout(() => URL.revokeObjectURL(tmp.img), 4000); }
+  if (r.ok && r.json?.m) { dropTmp(tmp); ingest([r.json.m]); if (r.json.lv && window.LEVEL) window.LEVEL.gain(r.json.lv); /* XP pesan global -> toast level-up */ if (tmp.img && tmp.img.startsWith('blob:')) setTimeout(() => URL.revokeObjectURL(tmp.img), 4000); }
   else failTmp(tmp, r.json?.error);
 }
 

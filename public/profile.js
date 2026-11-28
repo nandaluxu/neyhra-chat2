@@ -24,7 +24,7 @@ const iconBtn = (cls, svg, label) => { const b = h('button', cls); b.type = 'but
 let me = null;          // profil sendiri { username, name, bio, avatar (alamat foto atau ''), joined, invited, followers, following }
 let view = null;        // profil yang sedang ditampilkan (me atau akun lain)
 let viewing = '';       // username akun lain yang sedang dilihat ('' = profil sendiri)
-let tabKey = 'sum';     // 'sum' | 'chars' | 'cups' | 'friends' | 'persona'
+let tabKey = 'sum';     // 'sum' | 'chars' | 'cups' | 'level' | 'friends' | 'persona' | 'ai'
 let ready = false, failed = '', busy = false, lastTok = '', lastAt = 0;
 const fr = { q: '', items: null, err: '', seq: 0 }; // tab Teman
 let cups = null; // tab Piala: { ach:[...], streak:{now,best} } dari /api/auth/quests (profil sendiri)
@@ -133,7 +133,7 @@ function render() {
     else renderTabs([['sum', 'Ringkasan'], ['chars', 'Karakter']]); // seperti profil sendiri, tanpa tab Teman
     return;
   }
-  renderTabs([['sum', 'Ringkasan'], ['chars', 'Karakter'], ['cups', 'Piala'], ['friends', 'Teman'], ['persona', 'Persona'], ['ai', 'AI Saya']]);
+  renderTabs([['sum', 'Ringkasan'], ['chars', 'Karakter'], ['cups', 'Piala'], ['level', 'Level'], ['friends', 'Teman'], ['persona', 'Persona'], ['ai', 'AI Saya']]);
 }
 
 /* kerangka tab + panel; list = [key, label]. Profil orang tidak punya tab Teman, jadi tabKey yang tidak ada di list kembali ke tab pertama */
@@ -151,7 +151,7 @@ function paintPanel() {
   const panel = $('pfpanel'); if (!panel) return;
   panel.textContent = '';
   const own = !!(view && view.isMe);
-  if (tabKey === 'chars') panelChars(panel, own); else if (own && tabKey === 'cups') panelCups(panel); else if (own && tabKey === 'friends') panelFriends(panel); else if (own && tabKey === 'persona') panelPersona(panel); else if (own && tabKey === 'ai') panelAI(panel); else panelSum(panel, own);
+  if (tabKey === 'chars') panelChars(panel, own); else if (own && tabKey === 'cups') panelCups(panel); else if (own && tabKey === 'level') panelLevel(panel); else if (own && tabKey === 'friends') panelFriends(panel); else if (own && tabKey === 'persona') panelPersona(panel); else if (own && tabKey === 'ai') panelAI(panel); else panelSum(panel, own);
 }
 
 /* ---------- Statistik profil orang lain (dari server; diterbitkan perangkat pemiliknya lewat profile/stats) ---------- */
@@ -230,6 +230,12 @@ function panelCups(panel) {
     grid.append(c);
   }
   panel.append(grid);
+}
+
+/* ---------- Tab Level (Level Akun + XP; seluruh isi & datanya di level.js, spesifikasi docs/frontend/leveling-system.md) ---------- */
+function panelLevel(panel) {
+  if (window.LEVEL && LEVEL.panel) LEVEL.panel(panel);
+  else panel.append(h('p', 'pf-note', 'Level belum tersedia.'));
 }
 
 /* ---------- Tab Karakter ---------- */
@@ -1132,5 +1138,12 @@ function openByPath(u) { // dipakai router.js (URL awal / tombol back-forward)
   if (me && u === me.username) { want = ''; if (viewing) backToMe(); return; }
   if (!viewing || viewing !== u) { if (ready && aOn && atok && !busy) consumeWant(); else render(); }
 }
-window.PF = { open: u => { Shell.setTab('profile', { auto: false }); setTimeout(() => openUser(u), 0); }, follow: toggleFollow, path: pathNow, openByPath }; // PF.open dipakai tab Peringkat & halaman detail karakter untuk membuka profil; PF.follow(username, on, was) dipakai tombol Follow di detail karakter (ikut menyinkronkan hitungan & cache profil)
+function openTab(k) { // buka profil SENDIRI di tab tertentu (dipakai badge level di header & notifikasi bertipe level)
+  Shell.setTab('profile', { auto: false });
+  if (!atok) return;
+  if (viewing) { backToMe(); }
+  tabKey = k;
+  if (ready && view) render();
+}
+window.PF = { openTab, open: u => { Shell.setTab('profile', { auto: false }); setTimeout(() => openUser(u), 0); }, follow: toggleFollow, path: pathNow, openByPath }; // PF.open dipakai tab Peringkat & halaman detail karakter untuk membuka profil; PF.follow(username, on, was) dipakai tombol Follow di detail karakter (ikut menyinkronkan hitungan & cache profil)
 })();
