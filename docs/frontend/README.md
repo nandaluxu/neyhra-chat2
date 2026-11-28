@@ -16,9 +16,12 @@ dan SEMUA angka (fee, batas, peluang) diputuskan server — client hanya menampi
 | 5 | [player-trading.md](./player-trading.md) | Trading dua pihak | notification-center | Tinggi |
 | 6 | [marketplace.md](./marketplace.md) | Marketplace | notification-center | Tinggi |
 | 7 | [job-system.md](./job-system.md) | Pekerjaan part-time | — | Sedang |
+| 8 | [leveling-system.md](./leveling-system.md) | Level akun + XP + pengali hadiah minigame | notification-center (toast level-up) | Tinggi |
 
 Urutan itu disarankan karena notifikasi adalah komponen yang dipakai semua fitur lain (umpan balik
 aksi), dan transfer/bank menjadi pintu masuk paling sederhana sebelum UI sosial yang lebih kompleks.
+Leveling boleh dikerjakan kapan saja setelah notifikasi — ia memasang badge di header dan chip di
+layar game yang sudah ada (detail field barunya ada di dokumennya, bagian D).
 
 ## Arsitektur UI yang disarankan
 
@@ -51,6 +54,8 @@ Pengerjaan yang harus dilakukan di file yang sudah ada (pola sama seperti saat t
 - **Profil pemain lain** (layar Profil → lihat user lain): tombol aksi "Transfer" dan "Ajak Trade"
   langsung membuka sub-tab Dompet dengan username terisi (lihat dokumen masing-masing).
 - **Bel notifikasi** muncul di semua layar (komponen shell), bukan hanya di tab Dompet.
+- **Badge level akun** (`level` di respons `/api/auth/me`) di header, dan chip pengali hadiah
+  (`mul` di respons game) di layar minigame — sumber data & perilakunya di [leveling-system.md](./leveling-system.md).
 - Notifikasi tipe `rob` pada profil korban memuat meta `m.u` (nama penyerang) — bisa dipakai
   tombol "Balas menyerang?" ke layar pencurian dengan username penyerang.
 
@@ -72,4 +77,4 @@ Pengerjaan yang harus dilakukan di file yang sudah ada (pola sama seperti saat t
 - Tidak ada perubahan skema backend yang dibutuhkan frontend — semua koleksi/index/rule sudah jadi.
 - Semua fitur berjalan tanpa Redis (hanya MongoDB).
 - Data pengguna lama kompatibel: field baru (`bank`, `job`, `rob`, koleksi `notif`/`trades`/`market`/
-  `rob_log`) dibuat otomatis saat pertama dipakai.
+  `rob_log`/`level`/`xp_log`) dibuat otomatis saat pertama dipakai.
